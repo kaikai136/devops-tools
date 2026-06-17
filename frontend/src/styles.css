@@ -182,7 +182,16 @@ button {
 .header-stats {
   display: flex;
   flex-wrap: wrap;
+  align-items: stretch;
   gap: 10px;
+}
+
+.header-action {
+  align-self: center;
+  min-height: 40px;
+  border-color: #9ed5ff;
+  background: #f2fbff;
+  color: #115de8;
 }
 
 .header-stats article {
@@ -285,6 +294,29 @@ label span {
   grid-template-columns: minmax(360px, 0.95fr) minmax(520px, 1.65fr);
   gap: 14px;
   align-items: start;
+}
+
+.machine-probe-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 18px;
+}
+
+.machine-ping-column,
+.machine-port-column {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  align-content: start;
+}
+
+.machine-ping-column > .panel,
+.machine-port-column > .panel {
+  min-width: 0;
 }
 
 .panel {
@@ -503,7 +535,6 @@ button:disabled {
 }
 
 .preset-row,
-.quick-results,
 .subnet-presets,
 .tag-line {
   display: flex;
@@ -528,21 +559,13 @@ button:disabled {
   gap: 8px;
 }
 
-.quick-box {
-  margin-top: 16px;
+.ports-config h3 {
+  margin: 14px 0 10px;
+  font-size: 15px;
 }
 
-.quick-pill {
-  min-height: 38px;
-  border-radius: 999px;
-  background: #eef5ff;
-  color: #486380;
-  font-size: 14px;
-}
-
-.quick-pill.open {
-  background: #ecfff3;
-  color: #00a84b;
+.port-presets {
+  margin: 12px 0 14px;
 }
 
 .port-summary {
@@ -633,6 +656,18 @@ button:disabled {
   padding: 18px;
 }
 
+.panel-title.compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-title.compact h2 {
+  margin: 0;
+}
+
 .ping-presets {
   display: flex;
   flex-wrap: wrap;
@@ -656,6 +691,53 @@ button:disabled {
   gap: 12px;
 }
 
+.ping-target-block {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.35fr) minmax(64px, 0.42fr) minmax(90px, 0.58fr) minmax(90px, 0.58fr);
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ping-target-block label {
+  margin: 0;
+}
+
+.ping-target-block button {
+  min-width: 0;
+}
+
+.ping-actions {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 72px 72px;
+  gap: 10px;
+}
+
+.ping-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 8px;
+}
+
+.ping-inline-grid label {
+  margin: 0;
+}
+
+.ping-inline-grid button {
+  min-width: 0;
+}
+
+.port-inline-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(78px, 0.55fr) minmax(78px, 0.55fr);
+  gap: 10px;
+}
+
+.port-inline-grid label {
+  margin: 0 0 10px;
+}
+
 .ping-form-grid label {
   margin: 0;
 }
@@ -664,20 +746,19 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 12px 0 14px;
+  margin: 0;
   color: #45607f;
   font-weight: 800;
+}
+
+.ping-check.top-check {
+  justify-self: end;
+  white-space: nowrap;
 }
 
 .ping-check input {
   width: 14px;
   height: 14px;
-}
-
-.ping-actions {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 72px 72px;
-  gap: 10px;
 }
 
 .link-button {
@@ -688,6 +769,12 @@ button:disabled {
   color: #115de8;
   padding: 0 4px;
   text-align: left;
+}
+
+.link-button.top-link {
+  flex: 0 0 auto;
+  margin: 0;
+  text-align: right;
 }
 
 .ping-detail-box,
@@ -1344,6 +1431,23 @@ button:disabled {
   .ping-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .ping-inline-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ping-target-block {
+    grid-template-columns: minmax(150px, 1.25fr) minmax(58px, 0.45fr) minmax(78px, 0.6fr) minmax(78px, 0.6fr);
+  }
+
+  .ping-inline-grid button {
+    grid-column: span 1;
+  }
+
+  .port-inline-grid {
+    grid-template-columns: 1fr 100px 100px;
+  }
+
 }
 
 @media (max-width: 900px) {
@@ -1396,8 +1500,15 @@ button:disabled {
   }
 
   .ping-form-grid,
+  .ping-target-block,
+  .ping-inline-grid,
+  .port-inline-grid,
   .ping-actions,
   .ping-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .machine-probe-grid {
     grid-template-columns: 1fr;
   }
 
