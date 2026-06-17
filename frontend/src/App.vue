@@ -32,8 +32,17 @@ interface PortScanResult {
   error?: string;
 }
 
+interface PingDetail {
+  sequence: number;
+  target: string;
+  ip: string;
+  status: 'online' | 'timeout';
+  response_time: number | null;
+  timestamp?: number;
+}
+
 interface PingSession {
-  details: Array<{ sequence: number; target: string; ip: string; status: 'online' | 'timeout'; response_time: number | null }>;
+  details: PingDetail[];
   metrics: {
     success_count: number;
     failure_count: number;
@@ -119,7 +128,13 @@ const quickResults = ref<Array<{ port: number; is_open: boolean; duration: numbe
 
 const pingHost = ref('192.168.1.1');
 const pingCount = ref(4);
-const pingResult = ref<PingSession | null>(null);
+const pingTimeout = ref(3000);
+const pingInterval = ref(1000);
+const pingContinuous = ref(false);
+const pingDetails = ref<PingDetail[]>([]);
+const isPinging = ref(false);
+const pingAbort = ref<AbortController | null>(null);
+const pingStartedAt = ref(0);
 
 const subnetInput = ref('192.168.1.0/24');
 const subnetPrefix = ref(24);
@@ -165,6 +180,8 @@ const activeNavItem = computed(() => navGroups.flatMap((group) => group.items).f
 const onlineHosts = computed(() => hosts.value.filter((host) => host.status === 'online'));
 const offlineHosts = computed(() => hosts.value.filter((host) => host.status !== 'online'));
 const scopedToastVisible = computed(() => toast.value?.visible && toast.value.scope === activeTool.value);
+const pingMetrics = computed(() => calculatePingMetrics(pingDetails.value));
+const pingChart = computed(() => buildPingChart(pingDetails.value));
 const prefixOptions = computed(() =>
   Array.from({ length: 31 }, (_, index) => index + 1).map((prefix) => ({
     value: prefix,
@@ -178,6 +195,51 @@ const splitOptions = computed(() => {
     label: `${2 ** (prefix - subnetPrefix.value)} 个子网`,
   }));
 });
+
+function calculatePingMetrics(details: PingDetail[]) {
+  const responseTimes = details.filter((item) => item.status === 'online' && item.response_time !== null).map((item) => item.response_time as number);
+  const successCount = responseTimes.length;
+  const failureCount = details.length - successCount;
+  const jitterValues = responseTimes.slice(1).map((value, index) => Math.abs(value - responseTimes[index]));
+
+  return {
+    success_count: successCount,
+    failure_count: failureCount,
+    loss_rate: details.length ? Math.round((failureCount / details.length) * 100) : 0,
+    average_response_time: responseTimes.length ? Math.round(responseTimes.reduce((sum, value) => sum + value, 0) / responseTimes.length) : null,
+    min_response_time: responseTimes.length ? Math.min(...responseTimes) : null,
+    max_response_time: responseTimes.length ? Math.max(...responseTimes) : null,
+    jitter: jitterValues.length ? Math.round(jitterValues.reduce((sum, value) => sum + value, 0) / jitterValues.length) : null,
+    total_count: details.length,
+  };
+}
+
+function buildPingChart(details: PingDetail[]) {
+  const width = 860;
+  const height = 190;
+  const padding = { top: 18, right: 12, bottom: 32, left: 46 };
+  const visible = details.slice(-60);
+  const responseValues = visible.map((item) => item.response_time).filter((value): value is number => value !== null);
+  const maxResponse = Math.max(10, ...responseValues, pingMetrics.value.average_response_time ?? 0);
+  const maxValue = Math.max(80, Math.ceil(maxResponse / 20) * 20);
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const yTicks = Array.from({ length: 5 }, (_, index) => {
+    const value = Math.round((maxValue / 4) * (4 - index));
+    const y = padding.top + index * (plotHeight / 4);
+    return { value, y };
+  });
+  const points = visible.map((item, index) => {
+    const x = visible.length <= 1 ? padding.left : padding.left + (index / (visible.length - 1)) * plotWidth;
+    const value = item.response_time ?? maxValue;
+    const y = padding.top + plotHeight - (Math.min(value, maxValue) / maxValue) * plotHeight;
+    return { x, y, item };
+  });
+  const latencyPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+  const average = pingMetrics.value.average_response_time;
+  const averageY = average === null ? null : padding.top + plotHeight - (average / maxValue) * plotHeight;
+  return { width, height, padding, plotWidth, plotHeight, points, latencyPath, averageY, yTicks };
+}
 
 function showToast(title: string, message: string) {
   window.clearTimeout(toastTimer);
@@ -389,8 +451,111 @@ async function quickTestPorts() {
   if (result.error) showToast('扫描异常', result.error);
 }
 
+function setPingPreset(host: string) {
+  pingHost.value = host;
+}
+
+function useSelectedIpForPing() {
+  pingHost.value = selectedHost.value;
+}
+
 async function runPing() {
-  pingResult.value = await apiPost<PingSession>('/api/ping/', { host: pingHost.value, count: pingCount.value });
+  if (isPinging.value) return;
+  pingDetails.value = [];
+  isPinging.value = true;
+  pingStartedAt.value = performance.now();
+  const controller = new AbortController();
+  pingAbort.value = controller;
+
+  try {
+    if (pingContinuous.value) {
+      let sequence = 1;
+      while (!controller.signal.aborted) {
+        const session = await apiPost<PingSession>(
+          '/api/ping/',
+          { host: pingHost.value, count: 1, timeout_ms: pingTimeout.value, interval_ms: pingInterval.value },
+          { signal: controller.signal },
+        );
+        appendPingDetails(session.details, sequence);
+        sequence += session.details.length;
+        await sleep(Math.max(100, pingInterval.value), controller.signal);
+      }
+    } else {
+      const session = await apiPost<PingSession>(
+        '/api/ping/',
+        { host: pingHost.value, count: pingCount.value, timeout_ms: pingTimeout.value, interval_ms: pingInterval.value },
+        { signal: controller.signal },
+      );
+      appendPingDetails(session.details, 1);
+    }
+  } catch (error) {
+    if ((error as Error).name !== 'AbortError') showToast('Ping 失败', (error as Error).message);
+  } finally {
+    isPinging.value = false;
+    pingAbort.value = null;
+  }
+}
+
+function appendPingDetails(details: PingDetail[], startSequence: number) {
+  const normalized = details.map((detail, index) => ({
+    ...detail,
+    sequence: startSequence + index,
+    timestamp: detail.timestamp ?? Date.now(),
+  }));
+  pingDetails.value = [...pingDetails.value, ...normalized];
+}
+
+function stopPing() {
+  pingAbort.value?.abort();
+  isPinging.value = false;
+}
+
+function clearPingResults() {
+  pingDetails.value = [];
+}
+
+function exportPingResults() {
+  if (!pingDetails.value.length) {
+    showToast('导出失败', '还没有可导出的 Ping 结果。');
+    return;
+  }
+  const rows = [
+    ['序号', '目标', '解析 IP', '状态', '延迟(ms)', '时间'],
+    ...pingDetails.value.map((item) => [
+      String(item.sequence),
+      item.target,
+      item.ip,
+      item.status === 'online' ? '成功' : '超时',
+      item.response_time === null ? '' : String(item.response_time),
+      new Date(item.timestamp ?? Date.now()).toLocaleString(),
+    ]),
+  ];
+  const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ping-${pingHost.value}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function sleep(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    const timer = window.setTimeout(resolve, ms);
+    signal.addEventListener(
+      'abort',
+      () => {
+        window.clearTimeout(timer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      },
+      { once: true },
+    );
+  });
 }
 
 function normalizedSubnetInput() {
@@ -762,22 +927,114 @@ onUnmounted(() => {
         </article>
       </section>
 
-      <section v-if="activeTool === 'ping'" class="tool-stack">
-        <article class="panel compact-form">
-          <label><span>目标</span><input v-model="pingHost" @keyup.enter="runPing" /></label>
-          <label><span>次数</span><input v-model.number="pingCount" type="number" @keyup.enter="runPing" /></label>
-          <button class="primary" type="button" @click="runPing">开始 Ping</button>
-        </article>
-        <div v-if="pingResult" class="metric-row">
-          <article><strong>{{ pingResult.metrics.success_count }}</strong><span>成功</span></article>
-          <article><strong>{{ pingResult.metrics.failure_count }}</strong><span>失败</span></article>
-          <article><strong>{{ pingResult.metrics.loss_rate }}%</strong><span>丢包率</span></article>
-          <article><strong>{{ pingResult.metrics.average_response_time ?? '-' }} ms</strong><span>平均延迟</span></article>
-        </div>
-        <article v-if="pingResult" class="panel table-panel">
-          <div v-for="row in pingResult.details" :key="row.sequence" class="table-row">
-            <span>#{{ row.sequence }}</span><strong>{{ row.ip }}</strong><span>{{ row.status }}</span><span>{{ row.response_time ?? '-' }} ms</span>
+      <section v-if="activeTool === 'ping'" class="tool-stack ping-page">
+        <article class="panel ping-config">
+          <h2>测试配置</h2>
+          <div class="ping-presets">
+            <button type="button" @click="setPingPreset('223.5.5.5')">阿里DNS</button>
+            <button type="button" @click="setPingPreset('119.29.29.29')">腾讯DNS</button>
+            <button type="button" @click="setPingPreset('114.114.114.114')">114DNS</button>
+            <button type="button" @click="setPingPreset('8.8.8.8')">Google DNS</button>
+            <button type="button" @click="setPingPreset('baidu.com')">百度</button>
           </div>
+          <div class="ping-form-grid">
+            <label><span>目标主机</span><input v-model="pingHost" @keyup.enter="runPing" /></label>
+            <label><span>次数</span><input v-model.number="pingCount" min="1" max="200" type="number" @keyup.enter="runPing" /></label>
+            <label><span>超时 (ms)</span><input v-model.number="pingTimeout" min="300" max="30000" step="100" type="number" @keyup.enter="runPing" /></label>
+            <label><span>间隔 (ms)</span><input v-model.number="pingInterval" min="100" max="10000" step="100" type="number" @keyup.enter="runPing" /></label>
+          </div>
+          <label class="check-line ping-check"><input v-model="pingContinuous" type="checkbox" />连续 Ping（直到手动停止）</label>
+          <div class="ping-actions">
+            <button class="primary" type="button" :disabled="isPinging" @click="runPing">{{ isPinging ? 'Ping 中' : '开始 Ping' }}</button>
+            <button type="button" :disabled="!isPinging" @click="stopPing">停止</button>
+            <button type="button" :disabled="!pingDetails.length" @click="exportPingResults">导出</button>
+          </div>
+          <button class="link-button" type="button" @click="useSelectedIpForPing">使用选中 IP</button>
+        </article>
+
+        <article class="panel ping-results">
+          <div class="panel-title">
+            <h2>测试结果</h2>
+          </div>
+          <section class="ping-detail-box">
+            <div class="ping-section-title">
+              <h3>详细结果</h3>
+              <button type="button" :disabled="!pingDetails.length || isPinging" @click="clearPingResults">清空</button>
+            </div>
+            <div class="ping-detail-list">
+              <div v-if="!pingDetails.length" class="ping-empty">还没有测试结果。</div>
+              <div
+                v-for="row in pingDetails"
+                :key="row.sequence"
+                class="ping-row"
+                :class="{ timeout: row.status === 'timeout' }"
+              >
+                <span>#{{ row.sequence }}</span>
+                <strong>{{ row.ip }}</strong>
+                <span>{{ row.status === 'online' ? '成功' : '超时' }}</span>
+                <span>{{ row.response_time ?? '--' }} ms</span>
+              </div>
+            </div>
+          </section>
+          <div class="ping-metrics">
+            <article><strong class="green">{{ pingMetrics.success_count }}</strong><span>成功</span></article>
+            <article><strong class="danger-text">{{ pingMetrics.failure_count }}</strong><span>失败</span></article>
+            <article><strong class="orange">{{ pingMetrics.loss_rate }}%</strong><span>丢包率</span></article>
+            <article><strong>{{ pingMetrics.average_response_time ?? '--' }}</strong><span>平均 (ms)</span></article>
+            <article><strong class="green">{{ pingMetrics.min_response_time ?? '--' }}</strong><span>最小 (ms)</span></article>
+            <article><strong class="danger-text">{{ pingMetrics.max_response_time ?? '--' }}</strong><span>最大 (ms)</span></article>
+            <article><strong class="purple-text">{{ pingMetrics.jitter ?? '--' }}</strong><span>抖动 (ms)</span></article>
+            <article><strong>{{ pingMetrics.total_count }}</strong><span>总计</span></article>
+          </div>
+          <section class="ping-chart-panel">
+            <div class="ping-section-title">
+              <h3>延迟波形图</h3>
+              <div class="ping-legend">
+                <span><i class="latency-dot"></i>延迟</span>
+                <span><i class="average-dot"></i>平均</span>
+                <span><i class="timeout-dot"></i>超时</span>
+              </div>
+            </div>
+            <div class="ping-chart">
+              <svg v-if="pingDetails.length" :viewBox="`0 0 ${pingChart.width} ${pingChart.height}`" role="img" aria-label="Ping 延迟波形图">
+                <g class="chart-grid">
+                  <g v-for="tick in pingChart.yTicks" :key="tick.value">
+                    <text :x="pingChart.padding.left - 10" :y="tick.y + 4" text-anchor="end">{{ tick.value }}</text>
+                    <line :x1="pingChart.padding.left" :x2="pingChart.width - pingChart.padding.right" :y1="tick.y" :y2="tick.y" />
+                  </g>
+                </g>
+                <line
+                  v-if="pingChart.averageY !== null"
+                  :x1="pingChart.padding.left"
+                  :x2="pingChart.width - pingChart.padding.right"
+                  :y1="pingChart.averageY"
+                  :y2="pingChart.averageY"
+                  class="average-line"
+                />
+                <path :d="pingChart.latencyPath" class="latency-line" />
+                <circle
+                  v-for="point in pingChart.points"
+                  :key="point.item.sequence"
+                  :cx="point.x"
+                  :cy="point.y"
+                  r="4"
+                  :class="point.item.status === 'timeout' ? 'timeout-point' : 'latency-point'"
+                />
+                <g class="chart-x-axis">
+                  <text
+                    v-for="point in pingChart.points"
+                    :key="`label-${point.item.sequence}`"
+                    :x="point.x"
+                    :y="pingChart.height - 10"
+                    text-anchor="middle"
+                  >
+                    #{{ point.item.sequence }}
+                  </text>
+                </g>
+              </svg>
+              <div v-else class="ping-empty chart-empty">开始测试后，这里会展示延迟波形。</div>
+            </div>
+          </section>
         </article>
       </section>
 

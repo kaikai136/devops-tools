@@ -622,6 +622,265 @@ button:disabled {
   font-weight: 900;
 }
 
+.ping-page {
+  gap: 16px;
+  overflow: auto;
+  padding-bottom: 20px;
+}
+
+.ping-config,
+.ping-results {
+  padding: 18px;
+}
+
+.ping-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ping-presets button {
+  min-height: 32px;
+  border-color: #9ed5ff;
+  background: #f2fbff;
+  color: #008cf0;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.ping-form-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.6fr) repeat(3, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.ping-form-grid label {
+  margin: 0;
+}
+
+.ping-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 14px;
+  color: #45607f;
+  font-weight: 800;
+}
+
+.ping-check input {
+  width: 14px;
+  height: 14px;
+}
+
+.ping-actions {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 72px 72px;
+  gap: 10px;
+}
+
+.link-button {
+  min-height: 28px;
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: #115de8;
+  padding: 0 4px;
+  text-align: left;
+}
+
+.ping-detail-box,
+.ping-chart-panel {
+  border: 1px solid #d9e6f5;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 16px;
+}
+
+.ping-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ping-section-title h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.ping-section-title button {
+  min-height: 36px;
+  color: #7c8aa0;
+}
+
+.ping-detail-list {
+  display: grid;
+  gap: 8px;
+  max-height: 190px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #e0ebf7;
+  border-radius: 12px;
+  background: #f7fbff;
+}
+
+.ping-empty {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  color: #73859c;
+  font-weight: 800;
+}
+
+.ping-row {
+  display: grid;
+  grid-template-columns: 72px minmax(120px, 1fr) 80px 100px;
+  gap: 10px;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #fff;
+  color: #2a4566;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ping-row strong {
+  color: #04336d;
+}
+
+.ping-row.timeout {
+  background: #fff7f7;
+}
+
+.ping-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.ping-metrics article {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  border: 1px solid #d8e5f4;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ping-metrics strong {
+  color: #0a234d;
+  font-size: 18px;
+}
+
+.ping-metrics span {
+  color: #536b8a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.danger-text {
+  color: #ff4b5f !important;
+}
+
+.purple-text {
+  color: #8d55ff !important;
+}
+
+.ping-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: #536b8a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ping-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ping-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.latency-dot,
+.latency-point {
+  fill: #24bee7;
+  background: #24bee7;
+}
+
+.average-dot {
+  background: #f4a018;
+}
+
+.timeout-dot,
+.timeout-point {
+  fill: #ff5268;
+  background: #ff5268;
+}
+
+.ping-chart {
+  min-height: 220px;
+  border: 1px solid #d9e6f5;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.ping-chart svg {
+  display: block;
+  width: 100%;
+  height: 220px;
+}
+
+.chart-grid line {
+  stroke: #dce8f6;
+  stroke-width: 1;
+}
+
+.chart-grid text,
+.chart-x-axis text {
+  fill: #7488a4;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.latency-line {
+  fill: none;
+  stroke: #24bee7;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.average-line {
+  stroke: #f4a018;
+  stroke-width: 2;
+  stroke-dasharray: 7 7;
+}
+
+.timeout-line {
+  stroke: #ff5268;
+  stroke-width: 2;
+  stroke-dasharray: 5 8;
+}
+
+.chart-empty {
+  min-height: 220px;
+}
+
 .result-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1081,6 +1340,10 @@ button:disabled {
   .subnet-one-line {
     grid-template-columns: 1fr 260px 1fr 80px;
   }
+
+  .ping-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -1130,6 +1393,16 @@ button:disabled {
 
   .port-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ping-form-grid,
+  .ping-actions,
+  .ping-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .ping-row {
+    grid-template-columns: 58px 1fr;
   }
 
   .ip-grid-panel {
