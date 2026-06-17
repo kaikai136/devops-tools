@@ -87,18 +87,40 @@ interface PasswordRecord {
   project_name: string;
   password: string;
   length: number;
+  include_uppercase: boolean;
+  include_lowercase: boolean;
+  include_numbers: boolean;
+  include_symbols: boolean;
   created_at: string;
+}
+
+interface PasswordImportRecord {
+  project_name: string;
+  password: string;
+  length: number;
+  include_uppercase: boolean;
+  include_lowercase: boolean;
+  include_numbers: boolean;
+  include_symbols: boolean;
 }
 
 interface AuthEntry {
   id: number;
   issuer: string;
-  account: string;
+  account_name: string;
   secret: string;
   digits: number;
   period: number;
   algorithm: string;
-  totp?: { code: string; remaining: number };
+  created_at: string;
+  totp?: { code: string; remaining_seconds: number; period: number };
+}
+
+interface QrPreview {
+  dataUrl: string;
+  uri: string;
+  issuer: string;
+  account: string;
 }
 
 const activeTool = ref<ToolKey>('ip');
@@ -147,13 +169,17 @@ const subnetPresets = ['192.168.1.0/24', '10.0.0.0/24', '172.16.10.0/24', '192.1
 const passwordProject = ref('');
 const passwordLength = ref(16);
 const passwordOptions = ref({ include_uppercase: true, include_lowercase: true, include_numbers: true, include_symbols: false });
+const passwordResult = ref('');
 const passwordHistory = ref<PasswordRecord[]>([]);
 
 const authEntries = ref<AuthEntry[]>([]);
-const authForm = ref({ issuer: '', account: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' });
+const authForm = ref({ issuer: '', account_name: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' });
 const authImport = ref('');
 const editingAuthId = ref<number | null>(null);
-const qrPreview = ref('');
+const qrPreview = ref<QrPreview | null>(null);
+const confirmDialog = ref<{ title: string; message: string; actionText: string; action: () => Promise<void> } | null>(null);
+const authImportFile = ref<HTMLInputElement | null>(null);
+const passwordImportFile = ref<HTMLInputElement | null>(null);
 const imageInput = ref<HTMLInputElement | null>(null);
 
 const navGroups = [
@@ -478,6 +504,8 @@ function setPingPreset(host: string) {
 
 function useSelectedIpForPing() {
   pingHost.value = selectedHost.value;
+  portHost.value = selectedHost.value;
+  showToast('已使用选中 IP', `目标已切换为 ${selectedHost.value}。`);
 }
 
 async function runPing() {
@@ -643,8 +671,8 @@ async function generatePassword() {
     length: passwordLength.value,
     ...passwordOptions.value,
   });
+  passwordResult.value = record.password;
   passwordHistory.value = [record, ...passwordHistory.value].slice(0, 20);
-  passwordProject.value = '';
   await copyText(record.password, `已复制 ${record.project_name} 的密码。`);
 }
 
@@ -653,8 +681,219 @@ async function loadPasswords() {
 }
 
 async function deletePassword(record: PasswordRecord) {
-  await apiDelete(`/api/passwords/history/${record.id}/`);
-  passwordHistory.value = passwordHistory.value.filter((item) => item.id !== record.id);
+  requestConfirm('删除密码记录', `确定删除项目「${record.project_name || '未填写项目名称'}」的密码记录吗？`, '确定删除', async () => {
+    await apiDelete(`/api/passwords/history/${record.id}/`);
+    passwordHistory.value = passwordHistory.value.filter((item) => item.id !== record.id);
+    showToast('操作成功', '密码记录已删除。');
+  });
+}
+
+function togglePasswordOption(key: keyof typeof passwordOptions.value) {
+  passwordOptions.value[key] = !passwordOptions.value[key];
+}
+
+function passwordOptionText(record = passwordOptions.value) {
+  const parts = [];
+  if (record.include_uppercase) parts.push('大写');
+  if (record.include_lowercase) parts.push('小写');
+  if (record.include_numbers) parts.push('数字');
+  if (record.include_symbols) parts.push('符号');
+  return parts.length ? parts.join(' / ') : '未选择字符集';
+}
+
+function buildPasswordRule(record: Pick<PasswordRecord, 'length' | 'include_uppercase' | 'include_lowercase' | 'include_numbers' | 'include_symbols'>) {
+  return `${record.length} 位 · ${passwordOptionText(record)}`;
+}
+
+function parsePasswordRule(rule: string, password: string): PasswordImportRecord {
+  const lengthMatch = rule.match(/(\d+)\s*位/);
+  return {
+    project_name: '',
+    password,
+    length: lengthMatch ? Number(lengthMatch[1]) : password.length,
+    include_uppercase: rule.includes('大写'),
+    include_lowercase: rule.includes('小写'),
+    include_numbers: rule.includes('数字'),
+    include_symbols: rule.includes('符号'),
+  };
+}
+
+function formatRecordTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatPasswordExportTime(date = new Date()) {
+  return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')}`;
+}
+
+function buildPasswordHistoryDocument() {
+  const lines = ['密码生成器导出', `导出时间: ${formatPasswordExportTime()}`, ''];
+  if (passwordResult.value) {
+    lines.push('当前结果', `项目名称: ${passwordProject.value || '未填写项目名称'}`, passwordResult.value, '');
+  }
+  lines.push('生成记录');
+  passwordHistory.value.forEach((record, index) => {
+    lines.push(
+      `[${index + 1}] ${record.password}`,
+      `项目名称: ${record.project_name || '未填写项目名称'}`,
+      `规则: ${buildPasswordRule(record)}`,
+      `时间: ${formatRecordTime(record.created_at)}`,
+      '',
+    );
+  });
+  return lines.join('\n').trimEnd();
+}
+
+function normalizePasswordImportRecord(item: Partial<PasswordRecord> & Record<string, unknown>): PasswordImportRecord | null {
+  const password = String(item.password || '').trim();
+  if (!password) return null;
+  return {
+    project_name: String(item.project_name || item.projectName || '').trim(),
+    password,
+    length: Number(item.length || password.length),
+    include_uppercase: Boolean(item.include_uppercase ?? item.includeUppercase ?? true),
+    include_lowercase: Boolean(item.include_lowercase ?? item.includeLowercase ?? true),
+    include_numbers: Boolean(item.include_numbers ?? item.includeNumbers ?? true),
+    include_symbols: Boolean(item.include_symbols ?? item.includeSymbols ?? false),
+  };
+}
+
+function parsePasswordHistoryDocument(text: string): PasswordImportRecord[] {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const records: PasswordImportRecord[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].trim().match(/^\[\d+\]\s*(.+)$/);
+    if (!match) continue;
+    const password = match[1].trim();
+    let projectName = '';
+    let rule = '';
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor].trim();
+      if (!line || /^\[\d+\]/.test(line)) break;
+      if (line.startsWith('项目名称:')) projectName = line.replace('项目名称:', '').trim();
+      if (line.startsWith('规则:')) rule = line.replace('规则:', '').trim();
+    }
+    const record = parsePasswordRule(rule, password);
+    record.project_name = projectName === '未填写项目名称' ? '' : projectName;
+    records.push(record);
+  }
+  return records;
+}
+
+async function clearPasswordRecords() {
+  requestConfirm('清空密码记录', `确定清空全部 ${passwordHistory.value.length} 条密码记录吗？`, '确定清空', async () => {
+    await apiDelete('/api/passwords/history/');
+    passwordHistory.value = [];
+    passwordResult.value = '';
+    showToast('操作成功', '密码记录已清空。');
+  });
+}
+
+async function exportPasswordRecords() {
+  if (!passwordHistory.value.length && !passwordResult.value) {
+    showToast('导出失败', '还没有可导出的密码记录。');
+    return;
+  }
+  const fileName = `password-history-${formatBackupTimestamp()}.txt`;
+  const blob = new Blob([buildPasswordHistoryDocument()], { type: 'text/plain;charset=utf-8' });
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: '密码记录文档', accept: { 'text/plain': ['.txt'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      showToast('操作成功', '密码记录文档已保存。');
+      return;
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') return;
+      showToast('保存失败', (error as Error).message);
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const link = window.document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast('操作成功', '当前浏览器未开放保存位置选择，已使用默认下载。');
+}
+
+async function importPasswordRecords(event: Event) {
+  try {
+    const text = await readFileText(event);
+    if (!text) return;
+    let records: PasswordImportRecord[] = [];
+    try {
+      const data = JSON.parse(text);
+      const source = Array.isArray(data) ? data : data.records;
+      if (!Array.isArray(source)) throw new Error('导入文件格式不正确。');
+      records = source
+        .map((item) => normalizePasswordImportRecord(item))
+        .filter((item): item is PasswordImportRecord => Boolean(item));
+    } catch {
+      records = parsePasswordHistoryDocument(text);
+    }
+    if (!records.length) throw new Error('没有识别到可导入的密码记录。');
+    await apiPost<PasswordRecord[]>('/api/passwords/history/', { records });
+    await loadPasswords();
+    showToast('导入完成', `已导入 ${records.length} 条密码记录。`);
+  } catch (error) {
+    showToast('导入失败', (error as Error).message);
+  }
+}
+
+function triggerAuthImportFile() {
+  authImportFile.value?.click();
+}
+
+function triggerPasswordImportFile() {
+  passwordImportFile.value?.click();
+}
+
+async function readJsonFile(event: Event) {
+  const text = await readFileText(event);
+  if (!text) return null;
+  return JSON.parse(text);
+}
+
+async function readFileText(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return null;
+  return file.text();
+}
+
+function normalizeTotpAlgorithm(value: string) {
+  return value.replace('-', '').toUpperCase() || 'SHA1';
+}
+
+function formatTotpAlgorithm(value: string) {
+  const normalized = normalizeTotpAlgorithm(value);
+  return normalized.replace('SHA', 'SHA-');
+}
+
+function formatBackupTimestamp(date = new Date()) {
+  return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}-${String(date.getHours()).padStart(2, '0')}${String(date.getMinutes()).padStart(2, '0')}${String(date.getSeconds()).padStart(2, '0')}`;
+}
+
+function buildOtpAuthUri(entry: Pick<AuthEntry, 'issuer' | 'account_name' | 'secret' | 'digits' | 'period' | 'algorithm'>) {
+  const issuer = entry.issuer || 'Authenticator';
+  const account = entry.account_name || 'Account';
+  const label = encodeURIComponent(`${issuer}:${account}`);
+  const params = new URLSearchParams({
+    secret: entry.secret,
+    issuer,
+    digits: String(entry.digits),
+    period: String(entry.period),
+    algorithm: normalizeTotpAlgorithm(entry.algorithm),
+  });
+  return `otpauth://totp/${label}?${params.toString()}`;
 }
 
 async function loadAuthEntries() {
@@ -662,26 +901,121 @@ async function loadAuthEntries() {
 }
 
 async function saveAuthEntry() {
-  if (editingAuthId.value) {
-    await apiPut<AuthEntry>(`/api/authenticators/${editingAuthId.value}/`, authForm.value);
-  } else {
-    await apiPost<AuthEntry>('/api/authenticators/', authForm.value);
+  try {
+    if (editingAuthId.value) {
+      await apiPut<AuthEntry>(`/api/authenticators/${editingAuthId.value}/`, authForm.value);
+    } else {
+      await apiPost<AuthEntry>('/api/authenticators/', authForm.value);
+    }
+    resetAuthForm();
+    await loadAuthEntries();
+    showToast('操作成功', '动态口令条目已保存。');
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message.includes('已经存在')) {
+      await loadAuthEntries();
+      showToast('已经添加', `这个二维码已经添加过了：${authForm.value.issuer || authForm.value.account_name || '双因子条目'}。`);
+      return;
+    }
+    showToast('操作失败', message);
   }
-  resetAuthForm();
-  await loadAuthEntries();
-  showToast('操作成功', '动态口令条目已保存。');
 }
 
 async function saveAuthEntries() {
-  await loadAuthEntries();
-  showToast('操作成功', '验证码列表已保存。');
+  if (!authEntries.value.length) {
+    showToast('导出失败', '还没有可导出的双因子条目。');
+    return;
+  }
+  const now = new Date();
+  const backupDocument = {
+    exportedAt: now.toISOString(),
+    version: 1,
+    entries: authEntries.value.map((entry) => ({
+      id: crypto.randomUUID ? crypto.randomUUID() : String(entry.id),
+      issuer: entry.issuer,
+      accountName: entry.account_name,
+      secret: entry.secret,
+      digits: entry.digits,
+      period: entry.period,
+      algorithm: formatTotpAlgorithm(entry.algorithm),
+      createdAt: new Date(entry.created_at).getTime() || Date.now(),
+      otpauthUri: buildOtpAuthUri(entry),
+    })),
+  };
+  const fileName = `authenticator-backup-${formatBackupTimestamp(now)}.json`;
+  const blob = new Blob([JSON.stringify(backupDocument, null, 2)], { type: 'application/json;charset=utf-8' });
+
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [
+          {
+            description: 'JSON 文档',
+            accept: { 'application/json': ['.json'] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      showToast('操作成功', '双因子备份文档已保存。请妥善保管密钥文件。');
+      return;
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') return;
+      showToast('保存失败', (error as Error).message);
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = window.document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast('操作成功', '当前浏览器未开放保存位置选择，已使用默认下载。');
+}
+
+async function importAuthEntries(event: Event) {
+  try {
+    const data = await readJsonFile(event);
+    if (!data) return;
+    const entries = Array.isArray(data) ? data : data.entries;
+    if (!Array.isArray(entries)) throw new Error('导入文件格式不正确。');
+    let created = 0;
+    let skipped = 0;
+    for (const item of entries) {
+      try {
+        let parsedUri: URL | null = null;
+        if (item.otpauthUri && String(item.otpauthUri).startsWith('otpauth://')) {
+          parsedUri = new URL(String(item.otpauthUri));
+        }
+        await apiPost<AuthEntry>('/api/authenticators/', {
+          issuer: item.issuer || parsedUri?.searchParams.get('issuer') || '',
+          account_name: item.accountName || item.account_name || item.account || decodeURIComponent(parsedUri?.pathname.replace(/^\//, '').split(':')[1] || ''),
+          secret: item.secret || parsedUri?.searchParams.get('secret') || '',
+          digits: item.digits || Number(parsedUri?.searchParams.get('digits') || 6),
+          period: item.period || Number(parsedUri?.searchParams.get('period') || 30),
+          algorithm: normalizeTotpAlgorithm(item.algorithm || parsedUri?.searchParams.get('algorithm') || 'SHA1'),
+        });
+        created += 1;
+      } catch (error) {
+        if ((error as Error).message.includes('已经存在')) skipped += 1;
+        else throw error;
+      }
+    }
+    await loadAuthEntries();
+    showToast('导入完成', `已导入 ${created} 条，跳过 ${skipped} 条已存在记录。`);
+  } catch (error) {
+    showToast('导入失败', (error as Error).message);
+  }
 }
 
 function editAuth(entry: AuthEntry) {
   editingAuthId.value = entry.id;
   authForm.value = {
     issuer: entry.issuer,
-    account: entry.account,
+    account_name: entry.account_name,
     secret: entry.secret,
     digits: entry.digits,
     period: entry.period,
@@ -689,31 +1023,52 @@ function editAuth(entry: AuthEntry) {
   };
 }
 
-async function deleteAuth(entry: AuthEntry) {
-  await apiDelete(`/api/authenticators/${entry.id}/`);
-  authEntries.value = authEntries.value.filter((item) => item.id !== entry.id);
+function requestConfirm(title: string, message: string, actionText: string, action: () => Promise<void>) {
+  confirmDialog.value = { title, message, actionText, action };
 }
 
-async function clearAuthEntries() {
-  await Promise.all(authEntries.value.map((entry) => apiDelete(`/api/authenticators/${entry.id}/`)));
-  authEntries.value = [];
-  showToast('操作成功', '验证码列表已清空。');
+async function runConfirmAction() {
+  if (!confirmDialog.value) return;
+  const action = confirmDialog.value.action;
+  confirmDialog.value = null;
+  await action();
+}
+
+function deleteAuth(entry: AuthEntry) {
+  requestConfirm('删除验证码', `确定删除 ${entry.issuer || '未命名服务'} 的双因子条目吗？`, '确定删除', async () => {
+    await apiDelete(`/api/authenticators/${entry.id}/`);
+    authEntries.value = authEntries.value.filter((item) => item.id !== entry.id);
+    showToast('操作成功', '验证码条目已删除。');
+  });
+}
+
+function clearAuthEntries() {
+  requestConfirm('清空验证码', `确定清空全部 ${authEntries.value.length} 条双因子条目吗？`, '确定清空', async () => {
+    await Promise.all(authEntries.value.map((entry) => apiDelete(`/api/authenticators/${entry.id}/`)));
+    authEntries.value = [];
+    showToast('操作成功', '验证码列表已清空。');
+  });
 }
 
 async function copyAuthCode(entry: AuthEntry) {
   if (!entry.totp?.code) return;
-  await copyText(entry.totp.code, `已复制 ${entry.issuer || entry.account} 的当前验证码。`);
+  await copyText(entry.totp.code, `已复制 ${entry.issuer || entry.account_name} 的当前验证码。`);
 }
 
 async function showQr(entry: AuthEntry) {
   const result = await apiGet<{ uri: string; data_url: string }>(`/api/authenticators/${entry.id}/qrcode/`);
-  qrPreview.value = result.data_url;
+  qrPreview.value = {
+    dataUrl: result.data_url,
+    uri: result.uri,
+    issuer: entry.issuer || '未命名服务',
+    account: entry.account_name || '未填写账号',
+  };
 }
 
 function resetAuthForm() {
   editingAuthId.value = null;
   authImport.value = '';
-  authForm.value = { issuer: '', account: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' };
+  authForm.value = { issuer: '', account_name: '', secret: '', digits: 6, period: 30, algorithm: 'SHA1' };
 }
 
 function parseAuthImport() {
@@ -727,13 +1082,48 @@ function parseAuthImport() {
   const [issuerFromLabel, accountFromLabel] = label.includes(':') ? label.split(':') : ['', label];
   authForm.value = {
     issuer: url.searchParams.get('issuer') || issuerFromLabel || authForm.value.issuer,
-    account: accountFromLabel || authForm.value.account,
+    account_name: accountFromLabel || authForm.value.account_name,
     secret: url.searchParams.get('secret') || authForm.value.secret,
     digits: Number(url.searchParams.get('digits') || 6),
     period: Number(url.searchParams.get('period') || 30),
     algorithm: (url.searchParams.get('algorithm') || 'SHA1').toUpperCase(),
   };
   showToast('操作成功', '链接已解析到表单。');
+}
+
+async function scanScreenQr() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    showToast('识别失败', '当前浏览器不支持屏幕二维码识别。');
+    return;
+  }
+  let stream: MediaStream | null = null;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.muted = true;
+    await video.play();
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context || !canvas.width || !canvas.height) throw new Error('无法读取屏幕画面。');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const qr = jsQR(imageData.data, imageData.width, imageData.height);
+    if (!qr?.data) {
+      showToast('识别失败', '当前屏幕画面中没有识别到二维码。');
+      return;
+    }
+    authImport.value = qr.data;
+    parseAuthImport();
+  } catch (error) {
+    if ((error as Error).name !== 'NotAllowedError') showToast('识别失败', (error as Error).message);
+  } finally {
+    stream?.getTracks().forEach((track) => track.stop());
+  }
 }
 
 function triggerImageImport() {
@@ -873,9 +1263,24 @@ onUnmounted(() => {
           </p>
         </div>
         <div class="header-stats">
-          <button v-if="activeTool === 'ports'" class="header-action" type="button" @click="useSelectedIpForPing">使用选中 IP</button>
-          <article><span>本机 IP</span><strong>{{ localIp }}</strong></article>
-          <article><span>选中 IP</span><strong>{{ selectedHost }}</strong></article>
+          <template v-if="activeTool === 'auth'">
+            <button class="header-action" type="button" @click="saveAuthEntries">导出</button>
+            <button class="header-action" type="button" @click="triggerAuthImportFile">导入</button>
+            <input ref="authImportFile" hidden type="file" accept="application/json,.json" @change="importAuthEntries" />
+          </template>
+          <template v-else-if="activeTool === 'password'">
+            <button class="header-action" type="button" @click="exportPasswordRecords">导出</button>
+            <button class="header-action" type="button" @click="triggerPasswordImportFile">导入</button>
+            <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
+          </template>
+          <template v-else>
+            <article><span>本机 IP</span><strong>{{ localIp }}</strong></article>
+            <article
+              class="selected-host-card"
+              title="双击使用选中 IP"
+              @dblclick="useSelectedIpForPing"
+            ><span>选中 IP</span><strong>{{ selectedHost }}</strong></article>
+          </template>
         </div>
       </header>
 
@@ -1180,8 +1585,24 @@ onUnmounted(() => {
               <p>支持屏幕框选识别，也可以直接导入二维码截图或图片文件。</p>
             </div>
             <div class="scan-actions">
-              <button title="解析链接" type="button" @click="parseAuthImport">⌗</button>
-              <button title="识别图片" type="button" @click="triggerImageImport">▧</button>
+              <button aria-label="识别屏幕二维码" title="识别屏幕二维码" type="button" @click="scanScreenQr">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                  <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                  <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                  <path d="M12 7v10" />
+                  <path d="M7 12h10" />
+                </svg>
+              </button>
+              <button aria-label="导入二维码图片" title="导入二维码图片" type="button" @click="triggerImageImport">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="5" width="16" height="14" rx="2" />
+                  <path d="m8 15 2.4-2.4a1.4 1.4 0 0 1 2 0L16 16" />
+                  <path d="m14 14 1.2-1.2a1.4 1.4 0 0 1 2 0L20 15.6" />
+                  <circle cx="9" cy="9" r="1.4" />
+                </svg>
+              </button>
               <input ref="imageInput" hidden type="file" accept="image/*" @change="handleImageImport" />
             </div>
           </div>
@@ -1192,7 +1613,7 @@ onUnmounted(() => {
           </div>
           <div class="form-grid two">
             <label><span>服务名称</span><input v-model="authForm.issuer" placeholder="例如 GitHub / 阿里云" /></label>
-            <label><span>账号备注</span><input v-model="authForm.account" placeholder="例如 admin@example.com" /></label>
+            <label><span>账号备注</span><input v-model="authForm.account_name" placeholder="例如 admin@example.com" /></label>
           </div>
           <label><span>Base32 密钥</span><input v-model="authForm.secret" placeholder="输入或粘贴 Base32 Secret，支持空格和短杠" /></label>
           <div class="form-grid three">
@@ -1218,16 +1639,16 @@ onUnmounted(() => {
           <div class="auth-card-grid">
             <article v-for="entry in authEntries" :key="entry.id" class="auth-card">
               <div class="auth-card-head">
-                <div><h3>{{ entry.issuer || '未命名服务' }}</h3><p>{{ entry.account || '未填写账号' }}</p></div>
+                <div><h3>{{ entry.issuer || '未命名服务' }}</h3><p>{{ entry.account_name || '未填写账号' }}</p></div>
                 <div class="card-actions">
                   <button type="button" @click="editAuth(entry)">编辑</button>
                   <button class="danger" type="button" @click="deleteAuth(entry)">删除</button>
                 </div>
               </div>
               <div class="code-row">
-                <button class="auth-code" type="button" @click="copyAuthCode(entry)">{{ entry.totp?.code ?? '------' }}</button>
-                <div class="countdown" :style="{ '--progress': `${((entry.totp?.remaining ?? 0) / entry.period) * 360}deg` }">
-                  <span>{{ entry.totp?.remaining ?? '-' }}</span>
+                <button class="auth-code" :class="{ expiring: (entry.totp?.remaining_seconds ?? entry.period) <= 5 }" type="button" @click="copyAuthCode(entry)">{{ entry.totp?.code ?? '------' }}</button>
+                <div class="countdown" :class="{ expiring: (entry.totp?.remaining_seconds ?? entry.period) <= 5 }" :style="{ '--progress': `${((entry.totp?.remaining_seconds ?? 0) / entry.period) * 360}deg` }">
+                  <span>{{ entry.totp?.remaining_seconds ?? '-' }}</span>
                 </div>
               </div>
               <p class="copy-hint">点击复制当前验证码</p>
@@ -1235,7 +1656,17 @@ onUnmounted(() => {
                 <span>{{ entry.digits }} 位验证码</span>
                 <span>{{ entry.period }} 秒刷新</span>
                 <span>{{ entry.algorithm.replace('SHA', 'SHA-') }}</span>
-                <button class="qr-button" title="查看二维码" type="button" @click="showQr(entry)">▦</button>
+                <button class="qr-button" aria-label="查看二维码" title="查看二维码" type="button" @click="showQr(entry)">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="4" y="4" width="6" height="6" rx="1" />
+                    <rect x="14" y="4" width="6" height="6" rx="1" />
+                    <rect x="4" y="14" width="6" height="6" rx="1" />
+                    <path d="M14 14h2v2h-2z" />
+                    <path d="M18 14h2v2h-2z" />
+                    <path d="M14 18h2v2h-2z" />
+                    <path d="M18 18h2v2h-2z" />
+                  </svg>
+                </button>
               </div>
             </article>
             <div v-if="!authEntries.length" class="empty-state auth-empty">还没有验证码条目。</div>
@@ -1243,37 +1674,98 @@ onUnmounted(() => {
         </article>
       </section>
 
-      <section v-if="activeTool === 'password'" class="tool-grid">
-        <article class="panel">
-          <h2>密码生成器</h2>
-          <label><span>项目名称</span><input v-model="passwordProject" placeholder="例如 数据库账号" /></label>
-          <label><span>长度</span><input v-model.number="passwordLength" type="number" min="6" max="64" /></label>
-          <label class="check-line"><input v-model="passwordOptions.include_uppercase" type="checkbox" />大写字母</label>
-          <label class="check-line"><input v-model="passwordOptions.include_lowercase" type="checkbox" />小写字母</label>
-          <label class="check-line"><input v-model="passwordOptions.include_numbers" type="checkbox" />数字</label>
-          <label class="check-line"><input v-model="passwordOptions.include_symbols" type="checkbox" />符号</label>
-          <button class="primary full" type="button" @click="generatePassword">生成并复制</button>
+      <section v-if="activeTool === 'password'" class="password-page">
+        <article class="panel password-generator-panel">
+          <div class="password-panel-head">
+            <div>
+              <h2>密码生成器</h2>
+              <p>可通过顶部导出选择保存路径，也可以导入历史记录。</p>
+            </div>
+          </div>
+          <div class="password-length-box">
+            <div>
+              <span>密码长度</span>
+              <strong>{{ passwordLength }} 位</strong>
+            </div>
+            <input v-model.number="passwordLength" type="range" min="6" max="64" />
+          </div>
+          <div class="password-option-grid">
+            <button :class="{ active: passwordOptions.include_uppercase }" type="button" @click="togglePasswordOption('include_uppercase')">大写字母</button>
+            <button :class="{ active: passwordOptions.include_lowercase }" type="button" @click="togglePasswordOption('include_lowercase')">小写字母</button>
+            <button :class="{ active: passwordOptions.include_numbers }" type="button" @click="togglePasswordOption('include_numbers')">数字</button>
+            <button :class="{ active: passwordOptions.include_symbols }" type="button" @click="togglePasswordOption('include_symbols')">符号</button>
+          </div>
+          <p class="password-policy">当前规则：{{ passwordLength }} 位 · {{ passwordOptionText() }}</p>
+          <div class="password-info-box">
+            <div class="password-info-head">
+              <h3>密码信息</h3>
+              <button type="button" :disabled="!passwordResult" @click="copyText(passwordResult, '已复制生成结果。')">复制</button>
+            </div>
+            <div class="password-field-grid">
+              <label><span>项目名称</span><textarea v-model="passwordProject" placeholder="未填写项目名称"></textarea></label>
+              <label><span>生成结果</span><textarea v-model="passwordResult" class="password-result-field" readonly placeholder="点击生成密码"></textarea></label>
+            </div>
+          </div>
+          <div class="password-actions">
+            <button class="primary" type="button" @click="generatePassword">生成密码</button>
+            <button type="button" :disabled="!passwordHistory.length" @click="clearPasswordRecords">清空记录</button>
+          </div>
         </article>
-        <article class="panel">
-          <h2>最近记录</h2>
-          <div class="password-list">
-            <article v-for="record in passwordHistory" :key="record.id">
-              <strong>{{ record.password }}</strong>
-              <span>{{ record.project_name }} · {{ record.length }} 位</span>
+
+        <article class="panel password-record-panel">
+          <div class="password-record-head">
+            <h2>生成记录</h2>
+            <span>{{ passwordHistory.length }} 条</span>
+          </div>
+          <div class="password-record-list">
+            <article v-for="record in passwordHistory" :key="record.id" class="password-record-card">
               <div>
-                <button type="button" @click="copyText(record.password, `已复制 ${record.project_name} 的密码。`)">复制</button>
+                <strong
+                  class="password-copy-target"
+                  title="双击复制密码"
+                  @dblclick.stop="copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)"
+                >{{ record.password }}</strong>
+                <span>项目：{{ record.project_name || '未填写项目名称' }}</span>
+                <span>{{ record.length }} 位 · {{ passwordOptionText(record) }}</span>
+                <span>{{ formatRecordTime(record.created_at) }}</span>
+              </div>
+              <div class="password-record-actions">
+                <button type="button" @click="copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)">复制</button>
                 <button class="danger" type="button" @click="deletePassword(record)">删除</button>
               </div>
             </article>
+            <div v-if="!passwordHistory.length" class="empty-state">还没有生成记录。</div>
           </div>
         </article>
       </section>
     </section>
 
-    <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = ''">
-      <article class="qr-modal">
-        <button type="button" @click="qrPreview = ''">×</button>
-        <img :src="qrPreview" alt="TOTP 二维码" />
+    <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = null">
+      <article class="qr-modal share-modal">
+        <button class="modal-close" type="button" @click="qrPreview = null">×</button>
+        <h2>分享二维码</h2>
+        <p>扫码后可直接导入 {{ qrPreview.issuer }} 的双因子配置。</p>
+        <div class="qr-frame">
+          <img :src="qrPreview.dataUrl" alt="TOTP 二维码" />
+        </div>
+        <div class="qr-meta">
+          <strong>{{ qrPreview.issuer }}</strong>
+          <span>{{ qrPreview.account }}</span>
+        </div>
+        <div class="qr-actions">
+          <button type="button" @click="copyText(qrPreview.uri, '已复制分享链接。')">复制分享链接</button>
+          <button class="primary" type="button" @click="qrPreview = null">完成</button>
+        </div>
+      </article>
+    </div>
+    <div v-if="confirmDialog" class="confirm-panel">
+      <article>
+        <h3>{{ confirmDialog.title }}</h3>
+        <p>{{ confirmDialog.message }}</p>
+        <div>
+          <button type="button" @click="confirmDialog = null">取消</button>
+          <button class="danger" type="button" @click="runConfirmAction">{{ confirmDialog.actionText }}</button>
+        </div>
       </article>
     </div>
   </main>
