@@ -66,6 +66,9 @@ interface SubnetResult {
   last_host: string;
   usable_host_count: number;
   address_count: number;
+  is_private?: boolean;
+  is_loopback?: boolean;
+  is_multicast?: boolean;
   binary: { ip: string; mask: string; network: string; broadcast: string };
   subnets?: Array<{
     index: number;
@@ -137,9 +140,9 @@ const pingStartedAt = ref(0);
 const subnetInput = ref('192.168.1.0/24');
 const subnetPrefix = ref(24);
 const subnetTargetPrefix = ref(26);
-const subnetMode = ref<'count' | 'hosts'>('count');
+const subnetSplitMode = ref<'count' | 'hosts'>('count');
 const subnetResult = ref<SubnetResult | null>(null);
-const subnetPresets = ['192.168.1.0/24', '10.0.0.0/8', '172.16.0.0/16', '192.168.0.0/16', '10.10.10.0/24'];
+const subnetPresets = ['192.168.1.0/24', '10.0.0.0/24', '172.16.10.0/24', '192.168.0.0/22', '10.10.0.0/16'];
 
 const passwordProject = ref('');
 const passwordLength = ref(16);
@@ -180,17 +183,53 @@ const scopedToastVisible = computed(() => toast.value?.visible && toast.value.sc
 const pingMetrics = computed(() => calculatePingMetrics(pingDetails.value));
 const pingChart = computed(() => buildPingChart(pingDetails.value));
 const prefixOptions = computed(() =>
-  Array.from({ length: 31 }, (_, index) => index + 1).map((prefix) => ({
+  Array.from({ length: 33 }, (_, prefix) => prefix).map((prefix) => ({
     value: prefix,
     label: `/${prefix} (${prefixToMask(prefix)})`,
   })),
 );
-const splitOptions = computed(() => {
+const subnetSplitChoices = computed(() => {
   const start = Math.max(subnetPrefix.value + 1, 1);
-  return Array.from({ length: 32 - start + 1 }, (_, index) => start + index).map((prefix) => ({
-    value: prefix,
-    label: `${2 ** (prefix - subnetPrefix.value)} 个子网`,
-  }));
+  if (start > 32) return [];
+  return Array.from({ length: 32 - start + 1 }, (_, index) => start + index).map((prefix) => {
+    const count = 2 ** (prefix - subnetPrefix.value);
+    const addressCount = 2 ** (32 - prefix);
+    const usableHosts = prefix < 31 ? Math.max(addressCount - 2, 0) : addressCount;
+    return {
+      value: prefix,
+      count,
+      usableHosts,
+      label: subnetSplitMode.value === 'count' ? `${count} 个子网 · /${prefix}` : `${usableHosts} 台主机 / 子网 · /${prefix}`,
+    };
+  });
+});
+const subnetSplitSummary = computed(() => {
+  const prefix = subnetTargetPrefix.value;
+  const count = prefix > subnetPrefix.value ? 2 ** (prefix - subnetPrefix.value) : 0;
+  const addressCount = 2 ** (32 - prefix);
+  return {
+    prefix,
+    mask: prefixToMask(prefix),
+    count,
+    usableHosts: prefix < 31 ? Math.max(addressCount - 2, 0) : addressCount,
+  };
+});
+const canSplitSubnet = computed(() => subnetPrefix.value < 32 && subnetTargetPrefix.value > subnetPrefix.value);
+
+const subnetTypeText = computed(() => {
+  if (!subnetResult.value) return '未计算';
+  if (subnetResult.value.is_loopback) return '回环地址';
+  if (subnetResult.value.is_multicast) return '组播地址';
+  return subnetResult.value.is_private ? '私有地址' : '公网地址';
+});
+const subnetClassText = computed(() => {
+  if (!subnetResult.value) return '--';
+  const first = Number(subnetResult.value.ip.split('.')[0]);
+  if (first <= 127) return 'A 类';
+  if (first <= 191) return 'B 类';
+  if (first <= 223) return 'C 类';
+  if (first <= 239) return 'D 类';
+  return 'E 类';
 });
 
 function calculatePingMetrics(details: PingDetail[]) {
@@ -546,13 +585,21 @@ function normalizedSubnetInput() {
 }
 
 async function calculateSubnet(withSplit = false) {
-  subnetInput.value = normalizedSubnetInput();
-  subnetResult.value = await apiPost<SubnetResult>('/api/subnet/calculate/', {
-    input: subnetInput.value,
-    prefix: subnetPrefix.value,
-    ...(withSplit ? { target_prefix: subnetTargetPrefix.value } : {}),
-  });
-  if (withSplit) showToast('操作成功', 'IPv4 子网划分已完成。');
+  try {
+    subnetInput.value = normalizedSubnetInput();
+    if (withSplit && !canSplitSubnet.value) {
+      showToast('无法划分', '当前前缀已经不能继续拆分。');
+      return;
+    }
+    subnetResult.value = await apiPost<SubnetResult>('/api/subnet/calculate/', {
+      input: subnetInput.value,
+      prefix: subnetPrefix.value,
+      ...(withSplit ? { target_prefix: subnetTargetPrefix.value } : {}),
+    });
+    if (withSplit) showToast('操作成功', '子网划分已生成。');
+  } catch (error) {
+    showToast('计算失败', (error as Error).message);
+  }
 }
 
 async function handlePrefixChange() {
@@ -573,7 +620,21 @@ function clearSubnet() {
   subnetInput.value = '192.168.1.0/24';
   subnetPrefix.value = 24;
   subnetTargetPrefix.value = 26;
+  subnetSplitMode.value = 'count';
   subnetResult.value = null;
+}
+
+function subnetBinaryParts(binary: string, prefix: number) {
+  const clean = binary.replace(/\./g, '').padEnd(32, '0').slice(0, 32);
+  return Array.from({ length: 4 }, (_, octetIndex) => {
+    const start = octetIndex * 8;
+    const octet = clean.slice(start, start + 8);
+    const networkLength = Math.min(Math.max(prefix - start, 0), 8);
+    return {
+      network: octet.slice(0, networkLength),
+      host: octet.slice(networkLength),
+    };
+  });
 }
 
 async function generatePassword() {
@@ -609,6 +670,11 @@ async function saveAuthEntry() {
   resetAuthForm();
   await loadAuthEntries();
   showToast('操作成功', '动态口令条目已保存。');
+}
+
+async function saveAuthEntries() {
+  await loadAuthEntries();
+  showToast('操作成功', '验证码列表已保存。');
 }
 
 function editAuth(entry: AuthEntry) {
@@ -1009,57 +1075,100 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section v-if="activeTool === 'subnet'" class="tool-stack subnet-page">
-        <article class="panel subnet-card accent-cyan">
-          <h2>子网计算器</h2>
-          <div class="subnet-presets">
-            <button v-for="preset in subnetPresets" :key="preset" type="button" @click="setSubnetPreset(preset)">{{ preset }}</button>
+      <section v-if="activeTool === 'subnet'" class="subnet-workbench">
+        <div class="subnet-top-grid">
+          <article class="panel subnet-config-panel">
+            <div class="subnet-panel-head">
+              <h2>子网计算器</h2>
+              <p>点击示例后会直接带入并计算。</p>
+            </div>
+            <div class="subnet-presets">
+              <button v-for="preset in subnetPresets" :key="preset" type="button" @click="setSubnetPreset(preset)">{{ preset }}</button>
+            </div>
+            <div class="subnet-control-grid">
+              <label><span>IP 地址 / CIDR</span><input v-model="subnetInput" placeholder="例如 192.168.1.0/24" @keyup.enter="calculateSubnet(false)" /></label>
+              <label><span>子网掩码</span><select v-model.number="subnetPrefix" @change="handlePrefixChange"><option v-for="item in prefixOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
+            </div>
+            <div class="subnet-actions">
+              <button class="primary" type="button" @click="calculateSubnet(false)">计算</button>
+              <button type="button" @click="clearSubnet">清空</button>
+            </div>
+          </article>
+
+          <article class="panel subnet-binary-panel">
+            <div class="subnet-panel-head">
+              <h2>二进制表示</h2>
+              <p>绿色为网络位，红色为主机位。</p>
+            </div>
+            <div v-if="subnetResult" class="binary-grid">
+              <template v-for="row in [
+                { label: 'IP 地址', value: subnetResult.binary.ip },
+                { label: '子网掩码', value: subnetResult.binary.mask },
+                { label: '网络地址', value: subnetResult.binary.network },
+                { label: '广播地址', value: subnetResult.binary.broadcast },
+              ]" :key="row.label">
+                <span>{{ row.label }}</span>
+                <code>
+                  <template v-for="(part, index) in subnetBinaryParts(row.value, subnetResult.prefix)" :key="`${row.label}-${index}`">
+                    <span class="network-bits">{{ part.network }}</span><span class="host-bits">{{ part.host }}</span><span v-if="index < 3">.</span>
+                  </template>
+                </code>
+              </template>
+            </div>
+            <div v-else class="empty-state">计算后这里会显示二进制位。</div>
+          </article>
+        </div>
+
+        <article class="panel subnet-result-panel">
+          <div class="subnet-panel-head">
+            <h2>计算结果</h2>
+            <p v-if="subnetResult">当前地址块共 {{ subnetResult.address_count }} 个地址。</p>
           </div>
-          <div class="subnet-one-line">
-            <label><span>IP 地址 / CIDR</span><input v-model="subnetInput" @keyup.enter="calculateSubnet(false)" /></label>
-            <label><span>子网掩码</span><select v-model.number="subnetPrefix" @change="handlePrefixChange"><option v-for="item in prefixOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-            <button class="primary" type="button" @click="calculateSubnet(false)">计算</button>
-            <button type="button" @click="clearSubnet">清空</button>
-          </div>
-        </article>
-        <article v-if="subnetResult" class="panel subnet-card accent-purple">
-          <h2>计算结果</h2>
-          <div class="result-grid subnet-results">
+          <div v-if="subnetResult" class="subnet-summary-grid">
             <article><span>IP 地址</span><strong>{{ subnetResult.ip }}</strong></article>
             <article><span>子网掩码</span><strong>{{ subnetResult.mask }}</strong></article>
             <article><span>网络地址</span><strong class="green">{{ subnetResult.network }}/{{ subnetResult.prefix }}</strong></article>
             <article><span>广播地址</span><strong class="orange">{{ subnetResult.broadcast }}</strong></article>
             <article><span>可用主机范围</span><strong>{{ subnetResult.first_host }} - {{ subnetResult.last_host }}</strong></article>
             <article><span>可用主机数</span><strong>{{ subnetResult.usable_host_count }}</strong></article>
+            <article><span>IP 类型</span><strong>{{ subnetClassText }}</strong></article>
+            <article><span>地址类型</span><strong>{{ subnetTypeText }}</strong></article>
           </div>
-          <pre class="binary-box">IP 地址     {{ subnetResult.binary.ip }}
-子网掩码    {{ subnetResult.binary.mask }}
-网络地址    {{ subnetResult.binary.network }}
-广播地址    {{ subnetResult.binary.broadcast }}</pre>
+          <div v-else class="empty-state">输入 IPv4 地址并点击计算后，这里会显示网段摘要。</div>
         </article>
-        <article class="panel subnet-card">
-          <h2>IPv4子网划分</h2>
-          <div class="segmented">
-            <button :class="{ active: subnetMode === 'count' }" type="button" @click="subnetMode = 'count'">按子网数量</button>
-            <button :class="{ active: subnetMode === 'hosts' }" type="button" @click="subnetMode = 'hosts'">按主机数量</button>
+
+        <article class="panel subnet-list-panel">
+          <div class="subnet-panel-head">
+            <h2>IPv4 子网划分</h2>
+            <p v-if="subnetResult">基于 {{ subnetResult.network }}/{{ subnetResult.prefix }} 继续细分。</p>
           </div>
-          <div class="split-line">
-            <label><span>划分子网数量</span><select v-model.number="subnetTargetPrefix"><option v-for="item in splitOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-            <button class="primary small" type="button" @click="calculateSubnet(true)">划分</button>
+          <div class="subnet-mode-tabs">
+            <button :class="{ active: subnetSplitMode === 'count' }" type="button" @click="subnetSplitMode = 'count'">按子网数量</button>
+            <button :class="{ active: subnetSplitMode === 'hosts' }" type="button" @click="subnetSplitMode = 'hosts'">按主机数量</button>
+          </div>
+          <div class="subnet-split-line">
+            <label><span>{{ subnetSplitMode === 'count' ? '划分子网数量' : '每个子网主机数' }}</span><select v-model.number="subnetTargetPrefix"><option v-for="item in subnetSplitChoices" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
+            <button class="primary" type="button" :disabled="!subnetResult || !canSplitSubnet" @click="calculateSubnet(true)">划分</button>
+          </div>
+          <div class="subnet-split-summary">
+            <article><span>目标前缀</span><strong>/{{ subnetSplitSummary.prefix }}</strong></article>
+            <article><span>子网掩码</span><strong>{{ subnetSplitSummary.mask }}</strong></article>
+            <article><span>总子网数</span><strong>{{ subnetSplitSummary.count }}</strong></article>
+            <article><span>每个子网可用主机</span><strong>{{ subnetSplitSummary.usableHosts }}</strong></article>
           </div>
           <div v-if="subnetResult?.subnets?.length" class="subnet-table">
             <div class="subnet-table-head">
-              <span>序号</span><span>网络地址</span><span>可用范围</span><span>广播地址</span><span>网关</span><span>主机数</span>
+              <span>#</span><span>网络地址</span><span>可用主机范围</span><span>广播地址</span>
             </div>
             <div v-for="subnet in subnetResult.subnets" :key="subnet.index" class="subnet-table-row">
-              <span>#{{ subnet.index + 1 }}</span>
+              <span>#{{ subnet.index }}</span>
               <strong>{{ subnet.cidr }}</strong>
-              <span class="green">{{ subnet.first_host }} - {{ subnet.last_host }}</span>
-              <span class="orange">{{ subnet.broadcast }}</span>
-              <span>{{ subnet.gateway }}</span>
-              <span>{{ subnet.usable_host_count }}</span>
+              <span>{{ subnet.first_host }} - {{ subnet.last_host }}</span>
+              <span>{{ subnet.broadcast }}</span>
             </div>
           </div>
+          <p v-if="subnetResult?.subnets?.length" class="subnet-generated">已生成 {{ subnetResult.subnets.length }} 个子网。</p>
+          <div v-else class="empty-state">还没有子网划分结果。</div>
         </article>
       </section>
 
@@ -1068,11 +1177,11 @@ onUnmounted(() => {
           <div class="scan-card">
             <div>
               <h2>扫码加入</h2>
-              <p>支持 otpauth 链接导入，也可以识别二维码截图或图片文件。</p>
+              <p>支持屏幕框选识别，也可以直接导入二维码截图或图片文件。</p>
             </div>
             <div class="scan-actions">
-              <button type="button" @click="triggerImageImport">识别图片</button>
-              <button type="button" @click="parseAuthImport">解析链接</button>
+              <button title="解析链接" type="button" @click="parseAuthImport">⌗</button>
+              <button title="识别图片" type="button" @click="triggerImageImport">▧</button>
               <input ref="imageInput" hidden type="file" accept="image/*" @change="handleImageImport" />
             </div>
           </div>
@@ -1089,7 +1198,7 @@ onUnmounted(() => {
           <div class="form-grid three">
             <label><span>位数</span><select v-model.number="authForm.digits"><option :value="6">6 位</option><option :value="8">8 位</option></select></label>
             <label><span>刷新周期</span><select v-model.number="authForm.period"><option :value="30">30 秒</option><option :value="60">60 秒</option></select></label>
-            <label><span>算法</span><select v-model="authForm.algorithm"><option>SHA1</option><option>SHA256</option><option>SHA512</option></select></label>
+            <label><span>算法</span><select v-model="authForm.algorithm"><option value="SHA1">SHA-1</option><option value="SHA256">SHA-256</option><option value="SHA512">SHA-512</option></select></label>
           </div>
           <button class="primary full" type="button" @click="saveAuthEntry">{{ editingAuthId ? '保存修改' : '添加条目' }}</button>
         </article>
@@ -1102,14 +1211,14 @@ onUnmounted(() => {
             </div>
             <div class="title-actions">
               <strong>{{ authEntries.length }} 条</strong>
-              <button type="button" @click="loadAuthEntries">刷新</button>
+              <button type="button" @click="saveAuthEntries">保存</button>
               <button class="danger" type="button" @click="clearAuthEntries">清空</button>
             </div>
           </div>
           <div class="auth-card-grid">
             <article v-for="entry in authEntries" :key="entry.id" class="auth-card">
               <div class="auth-card-head">
-                <div><h3>{{ entry.issuer }}</h3><p>{{ entry.account }}</p></div>
+                <div><h3>{{ entry.issuer || '未命名服务' }}</h3><p>{{ entry.account || '未填写账号' }}</p></div>
                 <div class="card-actions">
                   <button type="button" @click="editAuth(entry)">编辑</button>
                   <button class="danger" type="button" @click="deleteAuth(entry)">删除</button>
@@ -1126,9 +1235,10 @@ onUnmounted(() => {
                 <span>{{ entry.digits }} 位验证码</span>
                 <span>{{ entry.period }} 秒刷新</span>
                 <span>{{ entry.algorithm.replace('SHA', 'SHA-') }}</span>
-                <button class="qr-button" type="button" @click="showQr(entry)">▦</button>
+                <button class="qr-button" title="查看二维码" type="button" @click="showQr(entry)">▦</button>
               </div>
             </article>
+            <div v-if="!authEntries.length" class="empty-state auth-empty">还没有验证码条目。</div>
           </div>
         </article>
       </section>
