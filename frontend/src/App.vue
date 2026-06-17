@@ -1223,24 +1223,31 @@ onUnmounted(() => {
 
       <nav class="sidebar-nav">
         <section v-for="group in navGroups" :key="group.key" class="nav-group">
-          <button class="nav-group-button" type="button" @click="groupsOpen[group.key] = !groupsOpen[group.key]">
+          <button
+            class="nav-group-button"
+            :class="{ expanded: groupsOpen[group.key], active: group.items.some((item) => item.key === activeTool) }"
+            type="button"
+            @click="groupsOpen[group.key] = !groupsOpen[group.key]"
+          >
             <span class="nav-icon">{{ group.key === 'network' ? 'Ⅱ' : '⚙' }}</span>
             <span>{{ group.label }}</span>
-            <span class="nav-caret">{{ groupsOpen[group.key] ? '⌃' : '⌄' }}</span>
+            <span class="nav-caret">⌃</span>
           </button>
-          <div v-show="groupsOpen[group.key]" class="nav-items">
-            <button
-              v-for="item in group.items"
-              :key="item.key"
-              class="nav-item"
-              :class="{ active: activeTool === item.key }"
-              type="button"
-              @click="setActiveTool(item.key)"
-            >
-              <span class="nav-dot">{{ item.key === 'auth' ? '⊙' : item.key === 'password' ? '✦' : item.key === 'ports' ? '∞' : item.key === 'subnet' ? '╫' : '⌂' }}</span>
-              <span>{{ item.label }}</span>
-            </button>
-          </div>
+          <Transition name="nav-collapse">
+            <div v-if="groupsOpen[group.key]" class="nav-items">
+              <button
+                v-for="item in group.items"
+                :key="item.key"
+                class="nav-item"
+                :class="{ active: activeTool === item.key }"
+                type="button"
+                @click="setActiveTool(item.key)"
+              >
+                <span class="nav-dot">{{ item.key === 'auth' ? '⊙' : item.key === 'password' ? '✦' : item.key === 'ports' ? '∞' : item.key === 'subnet' ? '╫' : '⌂' }}</span>
+                <span>{{ item.label }}</span>
+              </button>
+            </div>
+          </Transition>
         </section>
       </nav>
     </aside>
