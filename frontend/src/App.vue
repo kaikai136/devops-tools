@@ -206,6 +206,13 @@ const activeNavItem = computed(() => navGroups.flatMap((group) => group.items).f
 const onlineHosts = computed(() => hosts.value.filter((host) => host.status === 'online'));
 const offlineHosts = computed(() => hosts.value.filter((host) => host.status !== 'online'));
 const scopedToastVisible = computed(() => toast.value?.visible && toast.value.scope === activeTool.value);
+const toastTone = computed(() => {
+  const title = toast.value?.title || '';
+  if (/(失败|错误|异常)/.test(title)) return 'error';
+  if (/(无法|警告|跳过|已经)/.test(title)) return 'warning';
+  if (/(成功|完成|已)/.test(title)) return 'success';
+  return 'info';
+});
 const pingMetrics = computed(() => calculatePingMetrics(pingDetails.value));
 const pingChart = computed(() => buildPingChart(pingDetails.value));
 const prefixOptions = computed(() =>
@@ -1253,12 +1260,13 @@ onUnmounted(() => {
     </aside>
 
     <section class="workspace">
-      <div v-if="scopedToastVisible" class="top-toast" :class="{ leaving: toast?.leaving }">
-        <div>
+      <div v-if="scopedToastVisible" class="top-toast" :class="[toastTone, { leaving: toast?.leaving }]">
+        <span class="toast-icon" aria-hidden="true">{{ toastTone === 'success' ? '✓' : toastTone === 'error' ? '!' : toastTone === 'warning' ? '!' : 'i' }}</span>
+        <div class="toast-content">
           <strong>{{ toast?.title }}</strong>
           <p>{{ toast?.message }}</p>
         </div>
-        <button type="button" @click="toast = null">×</button>
+        <button type="button" aria-label="关闭提示" @click="toast = null">×</button>
       </div>
 
       <header class="page-header">
