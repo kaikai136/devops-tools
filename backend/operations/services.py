@@ -98,7 +98,13 @@ def ping_once(host: str, timeout_ms: int = 3000) -> dict:
             text=True,
             timeout=max(1, (timeout_ms / 1000) + 0.8),
         )
-        is_online = completed.returncode == 0
+        output = f"{completed.stdout}\n{completed.stderr}".lower()
+        is_online = completed.returncode == 0 and (
+            "ttl=" in output
+            or re.search(r"\bbytes\s+from\b", output) is not None
+            or re.search(r"(已接收|received)\s*=\s*[1-9]", output) is not None
+            or re.search(r"\b[1-9]\s+(packets?\s+)?received\b", output) is not None
+        )
     except subprocess.TimeoutExpired:
         is_online = False
     duration = round((time.perf_counter() - started) * 1000)
@@ -120,28 +126,6 @@ def ping_with_retries(host: str, timeout_ms: int, retries: int) -> dict:
         elif best_result["status"] != "online":
             best_result = result
     return best_result
-
-
-def read_arp_table() -> set[str]:
-    system = platform.system().lower()
-    commands = [["arp", "-a"]] if system == "windows" else [["ip", "neigh"], ["arp", "-an"]]
-    addresses: set[str] = set()
-    for command in commands:
-        try:
-            completed = subprocess.run(command, capture_output=True, text=True, timeout=2)
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        if completed.returncode != 0:
-            continue
-        for line in completed.stdout.splitlines():
-            if re.search(r"(?i)(incomplete|invalid|failed|00-00-00-00-00-00|00:00:00:00:00:00)", line):
-                continue
-            for match in re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", line):
-                try:
-                    addresses.add(str(ipaddress.ip_address(match)))
-                except ValueError:
-                    continue
-    return addresses
 
 
 def scan_ip_range(
@@ -184,13 +168,6 @@ def scan_ip_range(
                     "scanned_ports": 0,
                 }
             )
-
-    arp_addresses = {ip for ip in read_arp_table() if ip.startswith(f"{segment}.")}
-    if arp_addresses:
-        for item in results:
-            if item["status"] == "offline" and item["ip"] in arp_addresses:
-                item["status"] = "online"
-                item["response_time"] = None
 
     results.sort(key=lambda item: item["host"])
     return {
