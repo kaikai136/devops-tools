@@ -18,6 +18,9 @@ interface IpScanResponse {
   total_hosts: number;
   active_hosts: number;
   duration: number;
+  timeout_ms?: number;
+  retries?: number;
+  concurrency?: number;
 }
 
 interface PortScanResult {
@@ -362,18 +365,24 @@ async function scanIp() {
   const started = performance.now();
   const timer = window.setInterval(() => {
     const elapsed = performance.now() - started;
-    const estimatedDuration = 2400;
+    const estimatedDuration = 7200;
     const nextProgress = 6 + Math.floor((elapsed / estimatedDuration) * 93);
     ipProgress.value = Math.min(Math.max(ipProgress.value + 1, nextProgress), 99);
   }, 140);
   try {
-    const result = await apiPost<HostResult[] | IpScanResponse>('/api/scan/ip/', { network: networkSegment.value });
+    const result = await apiPost<HostResult[] | IpScanResponse>('/api/scan/ip/', {
+      network: networkSegment.value,
+      timeout_ms: 900,
+      retries: 2,
+      concurrency: 64,
+    });
     const scanResults = Array.isArray(result) ? result : result.results;
     hosts.value = scanResults;
     const firstOnline = scanResults.find((host) => host.status === 'online');
-    if (firstOnline) selectedHost.value = firstOnline.ip;
+    if (firstOnline) selectHost(firstOnline.ip);
     ipProgress.value = 100;
-    ipScanMessage.value = `扫描完成：${onlineHosts.value.length}/254 在线，耗时 ${Math.round(performance.now() - started)} ms`;
+    const duration = Array.isArray(result) ? Math.round(performance.now() - started) : result.duration;
+    ipScanMessage.value = `扫描完成：${onlineHosts.value.length}/254 在线，耗时 ${duration} ms`;
   } catch (error) {
     showToast('操作失败', (error as Error).message);
   } finally {

@@ -184,6 +184,9 @@ def ip_scan(request):
                 network_segment,
                 int(request.data.get("host_start", 1)),
                 int(request.data.get("host_end", 254)),
+                int(request.data.get("timeout_ms", 900)),
+                int(request.data.get("retries", 2)),
+                int(request.data.get("concurrency", 64)),
             )
         )
     except Exception as error:

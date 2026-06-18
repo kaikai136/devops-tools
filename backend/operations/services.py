@@ -3,6 +3,7 @@ import hashlib
 import io
 import ipaddress
 import platform
+import re
 import secrets
 import socket
 import string
@@ -82,7 +83,8 @@ def is_private_ipv4(ip: str) -> bool:
 def ping_once(host: str, timeout_ms: int = 3000) -> dict:
     ip = resolve_host(host)
     system = platform.system().lower()
-    timeout_seconds = max(1, int(timeout_ms / 1000))
+    timeout_ms = max(200, min(5000, int(timeout_ms)))
+    timeout_seconds = max(1, int(round(timeout_ms / 1000)))
     command = (
         ["ping", "-n", "1", "-w", str(timeout_ms), ip]
         if system == "windows"
@@ -94,7 +96,7 @@ def ping_once(host: str, timeout_ms: int = 3000) -> dict:
             command,
             capture_output=True,
             text=True,
-            timeout=max(1, (timeout_ms / 1000) + 0.3),
+            timeout=max(1, (timeout_ms / 1000) + 0.8),
         )
         is_online = completed.returncode == 0
     except subprocess.TimeoutExpired:
@@ -108,7 +110,48 @@ def ping_once(host: str, timeout_ms: int = 3000) -> dict:
     }
 
 
-def scan_ip_range(network_segment: str, host_start: int = 1, host_end: int = 254) -> dict:
+def ping_with_retries(host: str, timeout_ms: int, retries: int) -> dict:
+    best_result = {"ip": host, "status": "timeout", "response_time": None}
+    for _ in range(max(1, min(4, int(retries)))):
+        result = ping_once(host, timeout_ms)
+        if result["status"] == "online":
+            if best_result["response_time"] is None or (result["response_time"] or 0) < best_result["response_time"]:
+                best_result = result
+        elif best_result["status"] != "online":
+            best_result = result
+    return best_result
+
+
+def read_arp_table() -> set[str]:
+    system = platform.system().lower()
+    commands = [["arp", "-a"]] if system == "windows" else [["ip", "neigh"], ["arp", "-an"]]
+    addresses: set[str] = set()
+    for command in commands:
+        try:
+            completed = subprocess.run(command, capture_output=True, text=True, timeout=2)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if completed.returncode != 0:
+            continue
+        for line in completed.stdout.splitlines():
+            if re.search(r"(?i)(incomplete|invalid|failed|00-00-00-00-00-00|00:00:00:00:00:00)", line):
+                continue
+            for match in re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", line):
+                try:
+                    addresses.add(str(ipaddress.ip_address(match)))
+                except ValueError:
+                    continue
+    return addresses
+
+
+def scan_ip_range(
+    network_segment: str,
+    host_start: int = 1,
+    host_end: int = 254,
+    timeout_ms: int = 900,
+    retries: int = 2,
+    concurrency: int = 64,
+) -> dict:
     segment = parse_network_segment(network_segment)
     host_start = max(1, min(254, int(host_start)))
     host_end = max(1, min(254, int(host_end)))
@@ -117,10 +160,13 @@ def scan_ip_range(network_segment: str, host_start: int = 1, host_end: int = 254
 
     ips = [f"{segment}.{host}" for host in range(host_start, host_end + 1)]
     started = time.perf_counter()
+    timeout_ms = max(300, min(3000, int(timeout_ms)))
+    retries = max(1, min(4, int(retries)))
+    concurrency = max(8, min(96, int(concurrency), len(ips)))
     results = []
 
-    with ThreadPoolExecutor(max_workers=min(len(ips), 128)) as executor:
-        future_map = {executor.submit(ping_once, ip, 350): ip for ip in ips}
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        future_map = {executor.submit(ping_with_retries, ip, timeout_ms, retries): ip for ip in ips}
         for future in as_completed(future_map):
             ip = future_map[future]
             host_number = int(ip.rsplit(".", 1)[1])
@@ -139,12 +185,22 @@ def scan_ip_range(network_segment: str, host_start: int = 1, host_end: int = 254
                 }
             )
 
+    arp_addresses = {ip for ip in read_arp_table() if ip.startswith(f"{segment}.")}
+    if arp_addresses:
+        for item in results:
+            if item["status"] == "offline" and item["ip"] in arp_addresses:
+                item["status"] = "online"
+                item["response_time"] = None
+
     results.sort(key=lambda item: item["host"])
     return {
         "results": results,
         "total_hosts": len(results),
         "active_hosts": sum(1 for item in results if item["status"] == "online"),
         "open_port_count": 0,
+        "timeout_ms": timeout_ms,
+        "retries": retries,
+        "concurrency": concurrency,
         "duration": round((time.perf_counter() - started) * 1000),
     }
 
