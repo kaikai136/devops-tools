@@ -181,6 +181,17 @@ def run_live_terminal_command(session: TerminalSession, command: str) -> tuple[s
 
 
 def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> LiveTerminalConnection:
+    client = open_ssh_client(host)
+    try:
+        channel = client.invoke_shell(term="xterm", width=cols, height=rows)
+        channel.settimeout(0.0)
+        return LiveTerminalConnection(client, channel)
+    except Exception as error:
+        client.close()
+        raise TerminalConnectionError(f"SSH 会话创建失败：{error}")
+
+
+def open_ssh_client(host: ManagedHost):
     if not host.login_user:
         raise TerminalConnectionError("主机未配置登录用户，请先在主机管理中补充用户或选择账号。")
 
@@ -190,7 +201,10 @@ def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> Li
         raise TerminalConnectionError("后端未安装 paramiko，无法建立 SSH 连接。请安装 requirements.txt 后重启后端。")
 
     target = str(host.public_ip or host.private_ip)
-    pkey = load_private_key(paramiko, host.private_key)
+    try:
+        pkey = load_private_key(paramiko, host.private_key)
+    except ValueError as error:
+        raise TerminalConnectionError(str(error))
 
     errors: list[str] = []
     for attempt in range(1, SSH_CONNECT_ATTEMPTS + 1):
@@ -213,9 +227,7 @@ def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> Li
             transport = client.get_transport()
             if transport is not None:
                 transport.set_keepalive(30)
-            channel = client.invoke_shell(term="xterm", width=cols, height=rows)
-            channel.settimeout(0.0)
-            return LiveTerminalConnection(client, channel)
+            return client
         except Exception as error:
             errors.append(str(error))
             client.close()

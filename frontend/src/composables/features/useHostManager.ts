@@ -47,6 +47,12 @@ interface HostMoveForm {
   targetGroup: number | null;
 }
 
+interface HostVerifyResponse {
+  host: ManagedHost;
+  verified: boolean;
+  error: string | null;
+}
+
 export function useHostManager({
   showToast,
   requestConfirm,
@@ -77,6 +83,7 @@ export function useHostManager({
   const hostMoveSourceGroup = ref<number | null>(null);
   const draggedHostGroupId = ref<number | null>(null);
   const hostGroupDropTarget = ref<{ key: number; position: HostGroupDropPosition } | null>(null);
+  const verifyingHostIds = ref<Set<number>>(new Set());
 
   const flatHostGroups = computed(() => flattenGroups(hostGroups.value));
   const visibleHostGroups = computed(() => flattenVisibleGroups(hostGroups.value, collapsedHostGroups.value));
@@ -347,11 +354,7 @@ export function useHostManager({
             });
 
       hostGroups.value = result.groups;
-      const target = edit.mode === 'rename'
-        ? edit.groupId
-        : 'group' in result
-          ? result.group.key
-          : null;
+      const target = edit.mode === 'rename' ? edit.groupId : createdGroupKey(result);
       if (target) selectedHostGroup.value = target;
       hostGroupInlineEdit.value = null;
       showToast('操作成功', edit.mode === 'rename' ? '分组已重命名。' : '分组已添加。');
@@ -389,9 +392,37 @@ export function useHostManager({
   }
 
   async function verifyManagedHost(host: ManagedHost) {
-    const updated = await apiPut<ManagedHost>(`/api/host-management/hosts/${host.id}/`, { verified: true });
-    replaceHost(updated);
-    showToast('验证完成', `${updated.name} 已标记为已验证。`);
+    if (verifyingHostIds.value.has(host.id)) return null;
+
+    setHostVerifying(host.id, true);
+    try {
+      const result = await apiPost<HostVerifyResponse>(`/api/host-management/hosts/${host.id}/verify/`, {});
+      replaceHost(result.host);
+      if (result.verified) {
+        showToast('验证完成', `${result.host.name} 已获取机器配置。`);
+      } else {
+        showToast('验证失败', `${result.host.name} 连接失败，配置信息已清空。${result.error ? ` ${result.error}` : ''}`);
+      }
+      return result.host;
+    } catch (error) {
+      const failedHost = { ...host, verified: false, verifyStatus: 'failed' as const, cpu: 0, memory: 0 };
+      replaceHost(failedHost);
+      showToast('验证失败', `${host.name} 连接失败，配置信息已清空。${(error as Error).message}`);
+      return failedHost;
+    } finally {
+      setHostVerifying(host.id, false);
+    }
+  }
+
+  async function verifyVisibleManagedHosts() {
+    const hosts = [...visibleManagedHosts.value];
+    for (const host of hosts) {
+      await verifyManagedHost(host);
+    }
+  }
+
+  function setHostVerifying(hostId: number, active: boolean) {
+    verifyingHostIds.value = setWithValue(verifyingHostIds.value, hostId, active);
   }
 
   function openWebTerminal(host?: ManagedHost) {
@@ -462,6 +493,7 @@ export function useHostManager({
       remark: hostForm.value.remark.trim(),
     };
     delete (payload as Partial<ManagedHostForm>).credential;
+    delete (payload as Partial<ManagedHostForm>).verified;
     const mode = hostDialog.value?.mode ?? 'create';
     const saved =
       mode === 'edit' && hostDialog.value?.hostId
@@ -637,6 +669,7 @@ export function useHostManager({
     hostMoveForm,
     draggedHostGroupId,
     hostGroupDropTarget,
+    verifyingHostIds,
     loadHostManagement,
     selectManagedGroup,
     setHostSort,
@@ -658,6 +691,7 @@ export function useHostManager({
     saveRootHostGroup,
     cancelHostGroupInlineEdit,
     verifyManagedHost,
+    verifyVisibleManagedHosts,
     openWebTerminal,
     addManagedHost,
     editManagedHost,
@@ -670,6 +704,20 @@ export function useHostManager({
     deleteManagedHostsInGroup,
     deleteHostGroup,
   };
+}
+
+function setWithValue<T>(source: Set<T>, value: T, active: boolean) {
+  const next = new Set(source);
+  if (active) {
+    next.add(value);
+  } else {
+    next.delete(value);
+  }
+  return next;
+}
+
+function createdGroupKey(result: { groups: HostGroup[] } | { group: HostGroup; groups: HostGroup[] }) {
+  return 'group' in result ? result.group.key : null;
 }
 
 function emptyHostForm(group: number | null = null, sequence = 10): ManagedHostForm {

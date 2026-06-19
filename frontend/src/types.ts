@@ -40,6 +40,7 @@ export interface ManagedHost {
   memory: number;
   os: 'ubuntu' | 'centos' | 'debian';
   verified: boolean;
+  verifyStatus?: 'unverified' | 'verified' | 'failed';
 }
 
 export interface HostCredential {

@@ -157,9 +157,10 @@ export function usePasswordManager({
     }
     const fileName = `password-history-${formatBackupTimestamp()}.txt`;
     const blob = new Blob([buildPasswordHistoryDocument()], { type: 'text/plain;charset=utf-8' });
-    if ('showSaveFilePicker' in window) {
+    const saveFilePicker = window.showSaveFilePicker;
+    if (saveFilePicker) {
       try {
-        const handle = await window.showSaveFilePicker({
+        const handle = await saveFilePicker({
           suggestedName: fileName,
           types: [{ description: '密码记录文档', accept: { 'text/plain': ['.txt'] } }],
         });

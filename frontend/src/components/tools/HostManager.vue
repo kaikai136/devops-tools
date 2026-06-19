@@ -33,6 +33,7 @@ const {
   hostMoveForm,
   draggedHostGroupId,
   hostGroupDropTarget,
+  verifyingHostIds,
   loadHostManagement,
   setHostSort,
   hostSortMark,
@@ -51,6 +52,7 @@ const {
   openWebTerminal,
   addManagedHost,
   verifyManagedHost,
+  verifyVisibleManagedHosts,
   editManagedHost,
   saveManagedHost,
   applyCredentialToHostForm,
@@ -174,7 +176,7 @@ const {
         <input v-model="hostSearch" placeholder="输入名称/IP检索" />
         <div class="host-toolbar-actions">
           <button class="primary" type="button" @click="addManagedHost()">＋ 新建</button>
-          <button class="primary secondary-blue" type="button" @click="visibleManagedHosts.forEach(verifyManagedHost)">验证</button>
+          <button class="primary secondary-blue" type="button" @click="verifyVisibleManagedHosts">验证</button>
           <div class="status-tabs">
             <button :class="{ active: hostStatusFilter === 'all' }" type="button" @click="hostStatusFilter = 'all'">全部</button>
             <button :class="{ active: hostStatusFilter === 'unverified' }" type="button" @click="hostStatusFilter = 'unverified'">未验证</button>
@@ -214,13 +216,21 @@ const {
           <span class="host-user-cell">{{ host.loginUser || '-' }}</span>
           <span class="host-port-cell">{{ host.port || 22 }}</span>
           <div class="host-config">
-            <span class="os-badge" :class="host.os"></span>
-            <strong>{{ host.cpu }}核 {{ host.memory }}GB</strong>
+            <template v-if="host.verified && host.cpu > 0 && host.memory > 0">
+              <span class="os-badge" :class="host.os"></span>
+              <strong>{{ host.cpu }}核 {{ host.memory }}GB</strong>
+            </template>
+            <span v-else class="host-config-empty" aria-label="配置信息为空"></span>
           </div>
           <span class="host-remark-cell" :title="host.remark">{{ host.remark || '-' }}</span>
-          <span class="verify-badge" :class="{ verified: host.verified }">{{ host.verified ? '已验证' : '未验证' }}</span>
+          <span class="verify-badge" :class="{ verified: host.verified, failed: host.verifyStatus === 'failed' }">
+            {{ host.verified ? '已验证' : host.verifyStatus === 'failed' ? '验证失败' : '未验证' }}
+          </span>
           <div class="host-actions">
             <button type="button" @click="editManagedHost(host)">编辑</button>
+            <button type="button" :disabled="verifyingHostIds.has(host.id)" @click="verifyManagedHost(host)">
+              {{ verifyingHostIds.has(host.id) ? '验证中' : '验证' }}
+            </button>
             <button class="danger" type="button" @click="deleteManagedHost(host)">删除</button>
           </div>
         </div>
@@ -305,57 +315,6 @@ const {
         <label class="host-horizontal-field">
           <span>备注信息：</span>
           <textarea v-model="hostForm.remark" rows="3"></textarea>
-        </label>
-        <div class="host-form-actions">
-          <button type="button" @click="hostDialog = null">取消</button>
-          <button class="primary" type="submit">保存</button>
-        </div>
-      </form>
-    </div>
-
-    <div v-if="false && hostDialog" class="modal-backdrop" @click.self="hostDialog = null">
-      <form class="host-form-modal host-edit-modal" @submit.prevent="saveManagedHost">
-        <button class="modal-close" type="button" @click="hostDialog = null">×</button>
-        <h2>{{ hostDialog.mode === 'edit' ? '编辑主机' : '新增主机' }}</h2>
-        <label>
-          <span>主机名称</span>
-          <input v-model="hostForm.name" />
-        </label>
-        <label>
-          <span>所属分组</span>
-          <select v-model.number="hostForm.group">
-            <option v-for="group in flatHostGroups" :key="group.key" :value="group.key">{{ `${'　'.repeat(group.level)}${group.label}` }}</option>
-          </select>
-        </label>
-        <label>
-          <span>内网 IP</span>
-          <input v-model="hostForm.privateIp" />
-        </label>
-        <label>
-          <span>公网 IP</span>
-          <input v-model="hostForm.publicIp" />
-        </label>
-        <div class="host-form-grid">
-          <label>
-            <span>CPU</span>
-            <input v-model.number="hostForm.cpu" min="1" type="number" />
-          </label>
-          <label>
-            <span>内存 GB</span>
-            <input v-model.number="hostForm.memory" min="1" type="number" />
-          </label>
-        </div>
-        <label>
-          <span>系统</span>
-          <select v-model="hostForm.os">
-            <option value="centos">CentOS</option>
-            <option value="ubuntu">Ubuntu</option>
-            <option value="debian">Debian</option>
-          </select>
-        </label>
-        <label class="host-check">
-          <input v-model="hostForm.verified" type="checkbox" />
-          <span>已验证</span>
         </label>
         <div class="host-form-actions">
           <button type="button" @click="hostDialog = null">取消</button>

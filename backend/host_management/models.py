@@ -23,6 +23,11 @@ class ManagedHost(models.Model):
         ("centos", "CentOS"),
         ("debian", "Debian"),
     ]
+    VERIFY_STATUS_CHOICES = [
+        ("unverified", "未验证"),
+        ("verified", "已验证"),
+        ("failed", "验证失败"),
+    ]
 
     name = models.CharField(max_length=160)
     group = models.ForeignKey(HostGroup, related_name="hosts", on_delete=models.PROTECT)
@@ -38,6 +43,7 @@ class ManagedHost(models.Model):
     memory = models.PositiveSmallIntegerField(default=4)
     os = models.CharField(max_length=20, choices=OS_CHOICES, default="centos")
     verified = models.BooleanField(default=False)
+    verify_status = models.CharField(max_length=20, choices=VERIFY_STATUS_CHOICES, default="unverified")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

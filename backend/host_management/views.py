@@ -7,12 +7,21 @@ from rest_framework.response import Response
 from operations.responses import bad_request
 
 from .models import HostCredential, HostGroup, ManagedHost
+from .probe import verify_host
 from .serializers import HostCredentialSerializer, HostGroupSerializer, ManagedHostSerializer
 from .services import build_group_counts, build_group_tree
 
 
 def host_payload(host: ManagedHost) -> dict:
     return ManagedHostSerializer(host).data
+
+
+def sync_verify_status(host: ManagedHost) -> ManagedHost:
+    expected_status = "verified" if host.verified else "unverified"
+    if host.verify_status != expected_status:
+        host.verify_status = expected_status
+        host.save(update_fields=["verify_status"])
+    return host
 
 
 def groups_payload() -> list[dict]:
@@ -169,6 +178,7 @@ def managed_hosts(request):
         host = serializer.save()
     except IntegrityError:
         return bad_request("内网 IP 已存在")
+    sync_verify_status(host)
     return Response(host_payload(host), status=status.HTTP_201_CREATED)
 
 
@@ -191,7 +201,20 @@ def managed_host_detail(request, host_id: int):
         host = serializer.save()
     except IntegrityError:
         return bad_request("内网 IP 已存在")
+    if "verified" in request.data:
+        sync_verify_status(host)
     return Response(host_payload(host))
+
+
+@api_view(["POST"])
+def managed_host_verify(_request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+
+    host, error = verify_host(host)
+    return Response({"host": host_payload(host), "verified": host.verified, "error": error})
 
 
 @api_view(["GET", "POST"])

@@ -76,9 +76,10 @@ export function useAuthenticator({
     const fileName = `authenticator-backup-${formatBackupTimestamp(now)}.json`;
     const blob = new Blob([JSON.stringify(backupDocument, null, 2)], { type: 'application/json;charset=utf-8' });
 
-    if ('showSaveFilePicker' in window) {
+    const saveFilePicker = window.showSaveFilePicker;
+    if (saveFilePicker) {
       try {
-        const handle = await window.showSaveFilePicker({
+        const handle = await saveFilePicker({
           suggestedName: fileName,
           types: [{ description: 'JSON 文档', accept: { 'application/json': ['.json'] } }],
         });

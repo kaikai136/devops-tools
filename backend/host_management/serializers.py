@@ -12,6 +12,7 @@ class ManagedHostSerializer(serializers.ModelSerializer):
     loginPassword = serializers.CharField(source="login_password", required=False, allow_blank=True)
     privateKeyName = serializers.CharField(source="private_key_name", required=False, allow_blank=True)
     privateKey = serializers.CharField(source="private_key", required=False, allow_blank=True)
+    verifyStatus = serializers.CharField(source="verify_status", read_only=True)
     remark = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
@@ -32,6 +33,7 @@ class ManagedHostSerializer(serializers.ModelSerializer):
             "memory",
             "os",
             "verified",
+            "verifyStatus",
         ]
 
 

@@ -14,7 +14,7 @@
     minmax(130px, 0.9fr)
     minmax(130px, 1fr)
     minmax(86px, 0.65fr)
-    minmax(96px, 0.65fr);
+    minmax(132px, 0.8fr);
   align-items: center;
   gap: 12px;
   min-height: 72px;
@@ -148,6 +148,17 @@
   background: #f1fff0;
 }
 
+.verify-badge.failed {
+  border-color: #ff9a87;
+  color: #e5483d;
+  background: #fff3f0;
+}
+
+.host-config-empty {
+  color: #8a9ab0;
+  font-weight: 800;
+}
+
 .host-actions {
   gap: 12px;
 }
@@ -159,6 +170,11 @@
   color: #0755d8;
   padding: 0;
   font-size: 13px;
+}
+
+.host-actions button:disabled {
+  color: #8a9ab0;
+  cursor: wait;
 }
 
 .host-actions .danger {

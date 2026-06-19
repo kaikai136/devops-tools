@@ -1,4 +1,20 @@
-export const navGroups = [
+import type { ToolKey } from './types';
+
+type NavGroupKey = 'network' | 'host' | 'security';
+
+export interface NavItem {
+  key: ToolKey;
+  label: string;
+  desc: string;
+}
+
+export interface NavGroup {
+  key: NavGroupKey;
+  label: string;
+  items: NavItem[];
+}
+
+export const navGroups: NavGroup[] = [
   {
     key: 'network' as const,
     label: '网络工具',
