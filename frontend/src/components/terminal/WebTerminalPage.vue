@@ -38,6 +38,7 @@ interface TerminalTab {
   mounted: boolean;
   disposables: IDisposable[];
   resizeObserver: ResizeObserver | null;
+  highlightState: TerminalHighlightState;
 }
 
 type TreeRow =
@@ -52,6 +53,47 @@ interface TerminalMessage {
   reason?: string;
 }
 
+interface TerminalHighlightRule {
+  name: string;
+  pattern: RegExp;
+  open: string;
+  close: string;
+}
+
+interface TerminalHighlightState {
+  sgrActive: boolean;
+  pendingControl: string;
+}
+
+const ANSI_CONTROL_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
+const ANSI_CONTROL_PREFIX_PATTERN = /^\x1b(?:\[[0-?]*[ -/]*)?$/;
+const terminalHighlightRules: TerminalHighlightRule[] = [
+  {
+    name: 'danger',
+    pattern: /\b(error|failed|failure|exception|traceback|denied|refused|fatal|critical)\b/gi,
+    open: '\x1b[48;5;52m',
+    close: '\x1b[49m',
+  },
+  {
+    name: 'warning',
+    pattern: /\b(warn|warning|timeout|retry|deprecated|unreachable)\b/gi,
+    open: '\x1b[48;5;58m',
+    close: '\x1b[49m',
+  },
+  {
+    name: 'success',
+    pattern: /\b(success|succeeded|ok|done|completed|running|started|active)\b/gi,
+    open: '\x1b[48;5;22m',
+    close: '\x1b[49m',
+  },
+  {
+    name: 'ip',
+    pattern: /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g,
+    open: '\x1b[48;5;24m',
+    close: '\x1b[49m',
+  },
+];
+
 const groups = ref<TerminalGroup[]>([]);
 const collapsed = ref<Set<number>>(new Set());
 const search = ref('');
@@ -59,6 +101,7 @@ const tabs = ref<TerminalTab[]>([]);
 const activeTabId = ref<string | null>(null);
 const isLoadingTree = ref(false);
 const treeError = ref('');
+const highlightEnabled = ref(true);
 const terminalContainers = new Map<string, HTMLElement>();
 
 const rows = computed(() => {
@@ -184,6 +227,10 @@ function createTerminalTab(host: TerminalHost): TerminalTab {
     mounted: false,
     disposables: [],
     resizeObserver: null,
+    highlightState: {
+      sgrActive: false,
+      pendingControl: '',
+    },
   };
 }
 
@@ -256,7 +303,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   }
 
   if (message.type === 'output') {
-    tab.terminal.write(message.data ?? '');
+    tab.terminal.write(highlightTerminalOutput(message.data ?? '', tab.highlightState));
     return;
   }
 
@@ -325,6 +372,93 @@ function buildWebSocketUrl(hostId: number) {
   return `${protocol}//${window.location.host}/ws/web-terminal/${hostId}/`;
 }
 
+function highlightTerminalOutput(output: string, state: TerminalHighlightState) {
+  if (!output && !state.pendingControl) return '';
+
+  const source = state.pendingControl + output;
+  state.pendingControl = getTrailingAnsiPrefix(source);
+  const parseableOutput = state.pendingControl ? source.slice(0, -state.pendingControl.length) : source;
+  const shouldHighlight = highlightEnabled.value;
+
+  let result = '';
+  let lastIndex = 0;
+  ANSI_CONTROL_PATTERN.lastIndex = 0;
+
+  for (let match = ANSI_CONTROL_PATTERN.exec(parseableOutput); match; match = ANSI_CONTROL_PATTERN.exec(parseableOutput)) {
+    if (match.index > lastIndex) {
+      const plainText = parseableOutput.slice(lastIndex, match.index);
+      result += shouldHighlight && !state.sgrActive ? highlightPlainText(plainText) : plainText;
+    }
+
+    const controlSequence = match[0];
+    result += controlSequence;
+    state.sgrActive = getNextSgrState(controlSequence, state.sgrActive);
+    lastIndex = match.index + controlSequence.length;
+  }
+
+  if (lastIndex < parseableOutput.length) {
+    const plainText = parseableOutput.slice(lastIndex);
+    result += shouldHighlight && !state.sgrActive ? highlightPlainText(plainText) : plainText;
+  }
+
+  return result;
+}
+
+function getTrailingAnsiPrefix(output: string) {
+  const escapeIndex = output.lastIndexOf('\x1b');
+  if (escapeIndex === -1) return '';
+
+  const suffix = output.slice(escapeIndex);
+  if (suffix.startsWith('\x1b]')) {
+    const bellIndex = suffix.indexOf('\x07', 2);
+    const stringTerminatorIndex = suffix.indexOf('\x1b\\', 2);
+    return bellIndex === -1 && stringTerminatorIndex === -1 ? suffix : '';
+  }
+
+  return ANSI_CONTROL_PREFIX_PATTERN.test(suffix) ? suffix : '';
+}
+
+function highlightPlainText(text: string) {
+  const matches: Array<{ start: number; end: number; rule: TerminalHighlightRule; priority: number }> = [];
+
+  terminalHighlightRules.forEach((rule, priority) => {
+    rule.pattern.lastIndex = 0;
+    for (let match = rule.pattern.exec(text); match; match = rule.pattern.exec(text)) {
+      if (!match[0]) {
+        rule.pattern.lastIndex += 1;
+        continue;
+      }
+      matches.push({ start: match.index, end: match.index + match[0].length, rule, priority });
+    }
+  });
+
+  if (!matches.length) return text;
+
+  matches.sort((left, right) => left.start - right.start || left.priority - right.priority || right.end - left.end);
+
+  let result = '';
+  let cursor = 0;
+  for (const match of matches) {
+    if (match.start < cursor) continue;
+    result += text.slice(cursor, match.start);
+    result += `${match.rule.open}${text.slice(match.start, match.end)}${match.rule.close}`;
+    cursor = match.end;
+  }
+  result += text.slice(cursor);
+
+  return result;
+}
+
+function getNextSgrState(sequence: string, current: boolean) {
+  if (!sequence.endsWith('m')) return current;
+
+  const rawParams = sequence.slice(2, -1);
+  const params = rawParams ? rawParams.split(';') : ['0'];
+  if (params.some((param) => param === '' || param === '0')) return false;
+
+  return true;
+}
+
 function flattenTerminalRows(source: TerminalGroup[], hidden: Set<number>, level = 0): TreeRow[] {
   return source.flatMap((group) => {
     const current: TreeRow[] = [{ kind: 'group', group, level }];
@@ -386,7 +520,14 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
     <section class="terminal-workspace">
       <div class="terminal-hint">
         <span>{{ workspaceTitle }}</span>
-        <strong v-if="workspaceStatus">{{ workspaceStatus }}</strong>
+        <div class="terminal-hint-actions">
+          <strong v-if="workspaceStatus">{{ workspaceStatus }}</strong>
+          <label class="terminal-highlight-toggle" title="关键词高亮">
+            <input v-model="highlightEnabled" type="checkbox" />
+            <span></span>
+            <em>高亮</em>
+          </label>
+        </div>
       </div>
       <div class="terminal-tabs">
         <button

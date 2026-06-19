@@ -144,6 +144,71 @@ input {
   color: #1f63f1;
 }
 
+.terminal-hint-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.terminal-highlight-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #5c6d81;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.terminal-highlight-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.terminal-highlight-toggle span {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border: 1px solid #aebbc9;
+  border-radius: 999px;
+  background: #c9d2de;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.terminal-highlight-toggle span::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 22%);
+  content: "";
+  transition: transform 0.16s ease;
+}
+
+.terminal-highlight-toggle input:checked + span {
+  border-color: #1f63f1;
+  background: #1f63f1;
+}
+
+.terminal-highlight-toggle input:checked + span::after {
+  transform: translateX(12px);
+}
+
+.terminal-highlight-toggle input:focus-visible + span {
+  outline: 2px solid #88adff;
+  outline-offset: 2px;
+}
+
+.terminal-highlight-toggle em {
+  font-style: normal;
+}
+
 .terminal-tabs {
   display: flex;
   align-items: end;
