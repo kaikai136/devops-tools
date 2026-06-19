@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { FitAddon } from '@xterm/addon-fit';
+import { Terminal } from '@xterm/xterm';
+import type { IDisposable } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
 
-import { apiGet, apiPost } from '../../api';
+import { apiGet } from '../../api';
 
 interface TerminalHost {
   id: number;
@@ -21,36 +25,41 @@ interface TerminalGroup {
   children: TerminalGroup[];
 }
 
-interface TerminalSession {
+type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
+
+interface TerminalTab {
   id: string;
   host: TerminalHost;
-  status: string;
-  greeting: string;
-  createdAt: string;
+  status: TerminalStatus;
+  terminal: Terminal;
+  fitAddon: FitAddon;
+  socket: WebSocket | null;
+  sessionId: string | null;
+  mounted: boolean;
+  disposables: IDisposable[];
+  resizeObserver: ResizeObserver | null;
 }
 
 type TreeRow =
   | { kind: 'group'; group: TerminalGroup; level: number }
   | { kind: 'host'; host: TerminalHost; level: number };
 
-interface TerminalLine {
-  type: 'system' | 'input' | 'output' | 'error';
-  text: string;
+interface TerminalMessage {
+  type: 'ready' | 'output' | 'error' | 'closed';
+  sessionId?: string;
+  data?: string;
+  message?: string;
+  reason?: string;
 }
 
 const groups = ref<TerminalGroup[]>([]);
 const collapsed = ref<Set<number>>(new Set());
 const search = ref('');
-const session = ref<TerminalSession | null>(null);
-const lines = ref<TerminalLine[]>([
-  { type: 'system', text: 'SPUG WEB TERMINAL' },
-  { type: 'system', text: '双击左侧主机名连接终端。' },
-]);
-const command = ref('');
+const tabs = ref<TerminalTab[]>([]);
+const activeTabId = ref<string | null>(null);
 const isLoadingTree = ref(false);
-const isConnecting = ref(false);
-const isRunning = ref(false);
-const terminalBody = ref<HTMLElement | null>(null);
+const treeError = ref('');
+const terminalContainers = new Map<string, HTMLElement>();
 
 const rows = computed(() => {
   const query = search.value.trim().toLowerCase();
@@ -63,9 +72,20 @@ const rows = computed(() => {
   });
 });
 
-const prompt = computed(() => {
-  if (!session.value) return 'spug@terminal:~$';
-  return `${session.value.host.loginUser || 'user'}@${session.value.host.name}:~$`;
+const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null);
+
+const workspaceTitle = computed(() => {
+  if (!activeTab.value) return '选择左侧主机开始连接';
+  const host = activeTab.value.host;
+  return `${host.name} / ${host.publicIp || host.privateIp}:${host.port}`;
+});
+
+const workspaceStatus = computed(() => {
+  if (!activeTab.value) return '';
+  if (activeTab.value.status === 'connecting') return '连接中...';
+  if (activeTab.value.status === 'connected') return '已连接';
+  if (activeTab.value.status === 'error') return '连接失败';
+  return '已关闭';
 });
 
 onMounted(async () => {
@@ -74,16 +94,21 @@ onMounted(async () => {
   const hostId = Number(params.get('host'));
   if (hostId) {
     const host = findHostById(groups.value, hostId);
-    if (host) await connectHost(host);
+    if (host) await openHostTab(host);
   }
+});
+
+onBeforeUnmount(() => {
+  for (const tab of tabs.value) disposeTab(tab);
 });
 
 async function loadTree() {
   isLoadingTree.value = true;
+  treeError.value = '';
   try {
     groups.value = await apiGet<TerminalGroup[]>('/api/web-terminal/tree/');
   } catch (error) {
-    appendLine('error', (error as Error).message);
+    treeError.value = (error as Error).message;
   } finally {
     isLoadingTree.value = false;
   }
@@ -99,55 +124,205 @@ function toggleGroup(group: TerminalGroup) {
   collapsed.value = next;
 }
 
-async function connectHost(host: TerminalHost) {
-  isConnecting.value = true;
-  try {
-    const created = await apiPost<TerminalSession>('/api/web-terminal/sessions/', { host: host.id });
-    session.value = created;
-    lines.value = [
-      { type: 'system', text: 'SPUG WEB TERMINAL' },
-      { type: 'system', text: created.greeting },
-    ];
-    await scrollTerminalToBottom();
-  } catch (error) {
-    appendLine('error', (error as Error).message);
-  } finally {
-    isConnecting.value = false;
+async function openHostTab(host: TerminalHost) {
+  const existing = tabs.value.find((tab) => tab.host.id === host.id && tab.status !== 'closed');
+  if (existing) {
+    await activateTab(existing.id);
+    return;
   }
-}
 
-async function runCommand() {
-  if (!session.value || isRunning.value) return;
-  const value = command.value.trim();
-  if (!value) return;
-  command.value = '';
-  appendLine('input', `${prompt.value} ${value}`);
-
-  try {
-    isRunning.value = true;
-    const result = await apiPost<{ command: string; output: string; exitCode: number | null }>(`/api/web-terminal/sessions/${session.value.id}/commands/`, {
-      command: value,
-    });
-    if (result.output === '__CLEAR__') {
-      lines.value = [];
-    } else {
-      appendLine(result.exitCode === 0 ? 'output' : 'error', result.output);
-    }
-  } catch (error) {
-    appendLine('error', (error as Error).message);
-  } finally {
-    isRunning.value = false;
-  }
-}
-
-function appendLine(type: TerminalLine['type'], text: string) {
-  lines.value.push({ type, text });
-  scrollTerminalToBottom();
-}
-
-async function scrollTerminalToBottom() {
+  const tab = createTerminalTab(host);
+  tabs.value = [...tabs.value, tab];
+  activeTabId.value = tab.id;
   await nextTick();
-  if (terminalBody.value) terminalBody.value.scrollTop = terminalBody.value.scrollHeight;
+  mountTerminal(tab);
+  connectTab(tab);
+}
+
+async function activateTab(tabId: string) {
+  activeTabId.value = tabId;
+  await nextTick();
+  const tab = tabs.value.find((item) => item.id === tabId);
+  if (tab) {
+    mountTerminal(tab);
+    fitTerminal(tab);
+    tab.terminal.focus();
+  }
+}
+
+function createTerminalTab(host: TerminalHost): TerminalTab {
+  const terminal = markRaw(
+    new Terminal({
+      cursorBlink: true,
+      convertEol: false,
+      fontFamily: 'Consolas, "Courier New", monospace',
+      fontSize: 14,
+      lineHeight: 1.25,
+      scrollback: 5000,
+      theme: {
+        background: '#000000',
+        foreground: '#f5f7fb',
+        cursor: '#f5f7fb',
+        selectionBackground: '#31588f',
+      },
+    }),
+  );
+  const fitAddon = markRaw(new FitAddon());
+  terminal.loadAddon(fitAddon);
+  terminal.attachCustomKeyEventHandler((event) => handleTerminalKey(event, terminal));
+  terminal.writeln('SPUG WEB TERMINAL');
+  terminal.writeln(`正在连接 ${host.name} (${host.publicIp || host.privateIp}:${host.port})...`);
+
+  return {
+    id: `${host.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    host,
+    status: 'connecting',
+    terminal,
+    fitAddon,
+    socket: null,
+    sessionId: null,
+    mounted: false,
+    disposables: [],
+    resizeObserver: null,
+  };
+}
+
+function handleTerminalKey(event: KeyboardEvent, terminal: Terminal) {
+  const isCopyShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
+  if (!isCopyShortcut || !terminal.hasSelection()) return true;
+
+  const selection = terminal.getSelection();
+  if (selection) {
+    navigator.clipboard?.writeText(selection).catch(() => undefined);
+  }
+  return false;
+}
+
+function mountTerminal(tab: TerminalTab) {
+  if (tab.mounted) return;
+  const container = terminalContainers.get(tab.id);
+  if (!container) return;
+
+  tab.terminal.open(container);
+  tab.mounted = true;
+  tab.disposables.push(
+    tab.terminal.onData((data) => {
+      if (tab.socket?.readyState === WebSocket.OPEN) {
+        tab.socket.send(JSON.stringify({ type: 'input', data }));
+      }
+    }),
+  );
+  tab.resizeObserver = new ResizeObserver(() => fitTerminal(tab));
+  tab.resizeObserver.observe(container);
+  fitTerminal(tab);
+  tab.terminal.focus();
+}
+
+function connectTab(tab: TerminalTab) {
+  const socket = new WebSocket(buildWebSocketUrl(tab.host.id));
+  tab.socket = socket;
+
+  socket.addEventListener('open', () => fitTerminal(tab));
+  socket.addEventListener('message', (event) => handleSocketMessage(tab, event));
+  socket.addEventListener('error', () => {
+    if (tab.status !== 'closed') {
+      tab.status = 'error';
+      tab.terminal.writeln('\r\n\x1b[31mWebSocket 连接失败。\x1b[0m');
+    }
+  });
+  socket.addEventListener('close', () => {
+    tab.socket = null;
+    if (tab.status === 'connected' || tab.status === 'connecting') {
+      tab.status = 'closed';
+      tab.terminal.writeln('\r\n\x1b[33m连接已关闭。\x1b[0m');
+    }
+  });
+}
+
+function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
+  let message: TerminalMessage;
+  try {
+    message = JSON.parse(event.data) as TerminalMessage;
+  } catch {
+    tab.terminal.writeln('\r\n\x1b[31m终端消息解析失败。\x1b[0m');
+    return;
+  }
+
+  if (message.type === 'ready') {
+    tab.status = 'connected';
+    tab.sessionId = message.sessionId ?? null;
+    fitTerminal(tab);
+    return;
+  }
+
+  if (message.type === 'output') {
+    tab.terminal.write(message.data ?? '');
+    return;
+  }
+
+  if (message.type === 'error') {
+    tab.status = 'error';
+    tab.terminal.writeln(`\r\n\x1b[31m${message.message ?? '终端连接失败'}\x1b[0m`);
+    return;
+  }
+
+  if (message.type === 'closed') {
+    tab.status = 'closed';
+    tab.terminal.writeln(`\r\n\x1b[33m${message.reason ?? '连接已关闭'}\x1b[0m`);
+  }
+}
+
+function fitTerminal(tab: TerminalTab) {
+  if (!tab.mounted || activeTabId.value !== tab.id) return;
+  try {
+    tab.fitAddon.fit();
+    if (tab.socket?.readyState === WebSocket.OPEN) {
+      tab.socket.send(JSON.stringify({ type: 'resize', cols: tab.terminal.cols, rows: tab.terminal.rows }));
+    }
+  } catch {
+    // xterm cannot fit until the container has a measurable size.
+  }
+}
+
+async function closeTab(tab: TerminalTab) {
+  const index = tabs.value.findIndex((item) => item.id === tab.id);
+  disposeTab(tab);
+  tabs.value = tabs.value.filter((item) => item.id !== tab.id);
+  terminalContainers.delete(tab.id);
+
+  if (activeTabId.value === tab.id) {
+    const nextTab = tabs.value[Math.min(index, tabs.value.length - 1)] ?? null;
+    activeTabId.value = nextTab?.id ?? null;
+    if (nextTab) await activateTab(nextTab.id);
+  }
+}
+
+function disposeTab(tab: TerminalTab) {
+  tab.status = 'closed';
+  if (tab.socket && tab.socket.readyState !== WebSocket.CLOSED) {
+    tab.socket.close();
+  }
+  tab.socket = null;
+  tab.resizeObserver?.disconnect();
+  tab.resizeObserver = null;
+  for (const disposable of tab.disposables) disposable.dispose();
+  tab.disposables = [];
+  tab.terminal.dispose();
+}
+
+function setTerminalContainer(tabId: string, element: unknown) {
+  if (element instanceof HTMLElement) {
+    terminalContainers.set(tabId, element);
+    const tab = tabs.value.find((item) => item.id === tabId);
+    if (tab) mountTerminal(tab);
+  } else {
+    terminalContainers.delete(tabId);
+  }
+}
+
+function buildWebSocketUrl(hostId: number) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws/web-terminal/${hostId}/`;
 }
 
 function flattenTerminalRows(source: TerminalGroup[], hidden: Set<number>, level = 0): TreeRow[] {
@@ -187,42 +362,55 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
           v-for="row in rows"
           :key="row.kind === 'group' ? `group-${row.group.id}` : `host-${row.host.id}`"
           class="terminal-tree-row"
-          :class="{ host: row.kind === 'host', active: row.kind === 'host' && session?.host.id === row.host.id }"
+          :class="{ host: row.kind === 'host', active: row.kind === 'host' && activeTab?.host.id === row.host.id }"
           :style="{ paddingLeft: `${12 + row.level * 24}px` }"
           type="button"
           @click="row.kind === 'group' && toggleGroup(row.group)"
-          @dblclick="row.kind === 'host' && connectHost(row.host)"
+          @dblclick="row.kind === 'host' && openHostTab(row.host)"
         >
           <template v-if="row.kind === 'group'">
             <span>{{ collapsed.has(row.group.id) ? '▸' : '▾' }}</span>
-            <strong>▱ {{ row.group.name }}</strong>
+            <strong>▣ {{ row.group.name }}</strong>
           </template>
           <template v-else>
-            <span>◎</span>
+            <span>●</span>
             <strong>{{ row.host.name }}</strong>
           </template>
         </button>
         <p v-if="isLoadingTree" class="terminal-tree-empty">加载中...</p>
+        <p v-else-if="treeError" class="terminal-tree-empty">{{ treeError }}</p>
         <p v-else-if="!rows.length" class="terminal-tree-empty">没有匹配的主机。</p>
       </div>
     </aside>
 
     <section class="terminal-workspace">
       <div class="terminal-hint">
-        <span>小提示：双击标签快速复制窗口，右击标签展开更多操作。</span>
-        <strong v-if="isConnecting">连接中...</strong>
+        <span>{{ workspaceTitle }}</span>
+        <strong v-if="workspaceStatus">{{ workspaceStatus }}</strong>
       </div>
       <div class="terminal-tabs">
-        <button class="active" type="button">{{ session ? session.host.name : '未连接' }}</button>
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
+          @click="activateTab(tab.id)"
+        >
+          <span class="terminal-tab-label">{{ tab.host.name }}</span>
+          <span class="terminal-tab-status" :class="tab.status"></span>
+          <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)">×</span>
+        </button>
       </div>
-      <div ref="terminalBody" class="terminal-screen">
-        <pre v-for="(line, index) in lines" :key="index" :class="line.type">{{ line.text }}</pre>
+      <div class="terminal-screen">
+        <div v-if="!tabs.length" class="terminal-empty">双击左侧主机名连接 SSH 终端。</div>
+        <div
+          v-for="tab in tabs"
+          v-show="tab.id === activeTabId"
+          :key="tab.id"
+          :ref="(element) => setTerminalContainer(tab.id, element)"
+          class="terminal-panel"
+        ></div>
       </div>
-      <form class="terminal-command" @submit.prevent="runCommand">
-        <span>{{ prompt }}</span>
-        <input v-model="command" :disabled="!session || isRunning" autocomplete="off" placeholder="输入命令后回车" />
-        <button type="submit" :disabled="!session || isRunning">{{ isRunning ? '执行中' : '发送' }}</button>
-      </form>
     </section>
   </main>
 </template>

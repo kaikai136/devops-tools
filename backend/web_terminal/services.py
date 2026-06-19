@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import threading
+import time
 
 from django.utils import timezone
 
@@ -8,6 +10,68 @@ from host_management.models import HostGroup, ManagedHost
 from host_management.services import build_group_tree
 
 from .models import TerminalSession
+
+
+class TerminalConnectionError(RuntimeError):
+    pass
+
+
+class LiveTerminalConnection:
+    def __init__(self, client, channel):
+        self.client = client
+        self.channel = channel
+        self.lock = threading.Lock()
+
+    def read_available(self, timeout: float = 4.0, idle_timeout: float = 0.35) -> str:
+        chunks: list[bytes] = []
+        deadline = time.monotonic() + timeout
+        last_data_at: float | None = None
+
+        while time.monotonic() < deadline:
+            if self.channel.recv_ready():
+                chunks.append(self.channel.recv(65535))
+                last_data_at = time.monotonic()
+                continue
+
+            if chunks and last_data_at and time.monotonic() - last_data_at >= idle_timeout:
+                break
+            if self.channel.closed or self.channel.exit_status_ready():
+                break
+            time.sleep(0.05)
+
+        return normalize_terminal_output(b"".join(chunks).decode("utf-8", errors="replace"))
+
+    def read_raw(self, max_bytes: int = 65535) -> str:
+        if not self.channel.recv_ready():
+            return ""
+        return self.channel.recv(max_bytes).decode("utf-8", errors="replace")
+
+    def send_data(self, data: str) -> None:
+        with self.lock:
+            if self.channel.closed:
+                raise TerminalConnectionError("SSH 会话已关闭，请重新连接主机。")
+            if data:
+                self.channel.send(data)
+
+    def send_command(self, command: str) -> str:
+        self.send_data(command + "\n")
+        return self.read_available(timeout=30.0)
+
+    def resize(self, cols: int, rows: int) -> None:
+        cols = max(1, min(cols, 300))
+        rows = max(1, min(rows, 120))
+        with self.lock:
+            if not self.channel.closed:
+                self.channel.resize_pty(width=cols, height=rows)
+
+    def close(self) -> None:
+        try:
+            self.channel.close()
+        finally:
+            self.client.close()
+
+
+LIVE_TERMINALS: dict[str, LiveTerminalConnection] = {}
 
 
 def host_payload(host: ManagedHost) -> dict:
@@ -50,8 +114,15 @@ def session_payload(session: TerminalSession, greeting: str = "") -> dict:
     }
 
 
-def create_terminal_session(host: ManagedHost) -> TerminalSession:
-    return TerminalSession.objects.create(host=host, transcript=f"connect {host.name}\n")
+def create_terminal_session(host: ManagedHost) -> tuple[TerminalSession, str]:
+    connection = open_live_terminal(host)
+    greeting = connection.read_available()
+    session = TerminalSession.objects.create(
+        host=host,
+        transcript=f"connect {host.name}\n{greeting}\n",
+    )
+    LIVE_TERMINALS[str(session.session_id)] = connection
+    return session, greeting or greeting_for(host)
 
 
 def greeting_for(host: ManagedHost) -> str:
@@ -60,7 +131,7 @@ def greeting_for(host: ManagedHost) -> str:
         [
             f"正在连接 {host.name} ({target}:{host.port})",
             f"登录用户：{host.login_user or '未配置'}",
-            "连接已创建。输入命令后回车执行。",
+            "连接已建立。输入命令后回车执行。",
         ]
     )
 
@@ -72,21 +143,45 @@ def run_session_command(session: TerminalSession, command: str) -> dict:
     if command.lower() in {"clear", "cls"}:
         return {"command": command, "output": "__CLEAR__", "exitCode": 0}
 
-    output, exit_code = run_ssh_command(session.host, command)
+    output, exit_code = run_live_terminal_command(session, command)
     session.transcript += f"$ {command}\n{output}\n"
     session.last_command_at = timezone.now()
-    session.save(update_fields=["transcript", "last_command_at"])
+    update_fields = ["transcript", "last_command_at"]
+    if command.lower() in {"exit", "logout"}:
+        session.status = "closed"
+        update_fields.append("status")
+    session.save(update_fields=update_fields)
     return {"command": command, "output": output, "exitCode": exit_code}
 
 
-def run_ssh_command(host: ManagedHost, command: str) -> tuple[str, int | None]:
+def run_live_terminal_command(session: TerminalSession, command: str) -> tuple[str, int | None]:
+    connection = LIVE_TERMINALS.get(str(session.session_id))
+    if connection is None:
+        return "SSH 会话已失效，请重新连接主机。", None
+
+    try:
+        output = connection.send_command(command)
+        if command.lower() in {"exit", "logout"} or connection.channel.closed:
+            connection.close()
+            LIVE_TERMINALS.pop(str(session.session_id), None)
+        return output.rstrip() or "命令已发送。", 0
+    except Exception as error:
+        LIVE_TERMINALS.pop(str(session.session_id), None)
+        try:
+            connection.close()
+        except Exception:
+            pass
+        return f"SSH 连接或命令执行失败：{error}", None
+
+
+def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> LiveTerminalConnection:
     if not host.login_user:
-        return "主机未配置登录用户，请先在主机管理中补充用户或选择账号。", None
+        raise TerminalConnectionError("主机未配置登录用户，请先在主机管理中补充用户或选择账号。")
 
     try:
         import paramiko
     except ImportError:
-        return "后端未安装 paramiko，无法建立 SSH 连接。请安装 requirements.txt 后重启后端。", None
+        raise TerminalConnectionError("后端未安装 paramiko，无法建立 SSH 连接。请安装 requirements.txt 后重启后端。")
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -106,15 +201,12 @@ def run_ssh_command(host: ManagedHost, command: str) -> tuple[str, int | None]:
             look_for_keys=False,
             allow_agent=False,
         )
-        _stdin, stdout, stderr = client.exec_command(command, timeout=30)
-        exit_code = stdout.channel.recv_exit_status()
-        output = stdout.read().decode("utf-8", errors="replace")
-        error = stderr.read().decode("utf-8", errors="replace")
-        return (output + error).rstrip() or f"命令已执行，退出码 {exit_code}", exit_code
+        channel = client.invoke_shell(term="xterm", width=cols, height=rows)
+        channel.settimeout(0.0)
+        return LiveTerminalConnection(client, channel)
     except Exception as error:
-        return f"SSH 连接或命令执行失败：{error}", None
-    finally:
         client.close()
+        raise TerminalConnectionError(f"SSH 连接失败：{error}") from error
 
 
 def load_private_key(paramiko, private_key: str):
@@ -128,3 +220,7 @@ def load_private_key(paramiko, private_key: str):
         except Exception as error:
             errors.append(str(error))
     raise ValueError(f"私钥解析失败：{errors[-1] if errors else '未知错误'}")
+
+
+def normalize_terminal_output(output: str) -> str:
+    return output.replace("\r\n", "\n").replace("\r", "\n").rstrip()

@@ -8,7 +8,7 @@ from host_management.models import ManagedHost
 from operations.responses import bad_request
 
 from .models import TerminalSession
-from .services import create_terminal_session, greeting_for, run_session_command, session_payload, terminal_tree_payload
+from .services import TerminalConnectionError, create_terminal_session, run_session_command, session_payload, terminal_tree_payload
 
 
 @api_view(["GET"])
@@ -24,8 +24,12 @@ def terminal_sessions(request):
     except (TypeError, ValueError, ManagedHost.DoesNotExist):
         return bad_request("请选择要连接的主机")
 
-    session = create_terminal_session(host)
-    return Response(session_payload(session, greeting_for(host)), status=status.HTTP_201_CREATED)
+    try:
+        session, greeting = create_terminal_session(host)
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+    return Response(session_payload(session, greeting), status=status.HTTP_201_CREATED)
 
 
 @api_view(["POST"])
