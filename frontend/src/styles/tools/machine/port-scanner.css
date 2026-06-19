@@ -1,0 +1,84 @@
+.ports-config h3 {
+  margin: 14px 0 10px;
+  font-size: 15px;
+}
+
+.port-presets {
+  margin: 12px 0 14px;
+}
+
+.port-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.port-summary article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #d8e5f4;
+  border-radius: 8px;
+  background: #f6f9fd;
+}
+
+.port-summary span {
+  display: block;
+  color: #536b8a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.port-summary strong {
+  display: block;
+  margin-top: 8px;
+  color: #008dff;
+  font-size: 16px;
+  word-break: break-all;
+}
+
+.port-open-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.port-open-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 10px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-color: #bceac8;
+  background: #f0fff5;
+  text-align: left;
+}
+
+.port-open-item strong {
+  grid-row: span 2;
+  color: #009e46;
+  font-size: 20px;
+}
+
+.port-open-item span {
+  min-width: 0;
+  color: #133c65;
+  font-size: 12px;
+}
+
+.port-open-item small {
+  color: #617792;
+  font-weight: 800;
+}
+
+.port-inline-grid {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.4fr) minmax(78px, 0.55fr) minmax(78px, 0.55fr);
+  gap: 10px;
+}
+
+.port-inline-grid label {
+  margin: 0 0 10px;
+}

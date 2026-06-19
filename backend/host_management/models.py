@@ -1,0 +1,70 @@
+from django.db import models
+
+
+class HostGroup(models.Model):
+    name = models.CharField(max_length=120)
+    parent = models.ForeignKey("self", null=True, blank=True, related_name="children", on_delete=models.CASCADE)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["parent", "name"], name="unique_host_group_name_per_parent"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class ManagedHost(models.Model):
+    OS_CHOICES = [
+        ("ubuntu", "Ubuntu"),
+        ("centos", "CentOS"),
+        ("debian", "Debian"),
+    ]
+
+    name = models.CharField(max_length=160)
+    group = models.ForeignKey(HostGroup, related_name="hosts", on_delete=models.PROTECT)
+    public_ip = models.GenericIPAddressField(protocol="IPv4", null=True, blank=True)
+    private_ip = models.GenericIPAddressField(protocol="IPv4")
+    port = models.PositiveIntegerField(default=22)
+    login_user = models.CharField(max_length=120, blank=True)
+    login_password = models.CharField(max_length=256, blank=True)
+    private_key_name = models.CharField(max_length=180, blank=True)
+    private_key = models.TextField(blank=True)
+    remark = models.TextField(blank=True)
+    cpu = models.PositiveSmallIntegerField(default=2)
+    memory = models.PositiveSmallIntegerField(default=4)
+    os = models.CharField(max_length=20, choices=OS_CHOICES, default="centos")
+    verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(fields=["private_ip"], name="unique_managed_host_private_ip"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class HostCredential(models.Model):
+    name = models.CharField(max_length=120)
+    username = models.CharField(max_length=120)
+    password = models.CharField(max_length=256, blank=True)
+    port = models.PositiveIntegerField(default=22)
+    private_key_name = models.CharField(max_length=180, blank=True)
+    private_key = models.TextField(blank=True)
+    remark = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(fields=["name"], name="unique_host_credential_name"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name

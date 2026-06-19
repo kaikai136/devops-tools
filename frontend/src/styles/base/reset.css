@@ -1,0 +1,30 @@
+:root {
+  color: #06214a;
+  font-family: Inter, "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+  background: #edf3fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  min-height: 100vh;
+  background: #eaf1fa;
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

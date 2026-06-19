@@ -1,0 +1,244 @@
+.subnet-workbench {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  overflow: auto;
+  padding-bottom: 18px;
+}
+
+.subnet-workbench .panel {
+  min-width: 0;
+  padding: 18px;
+}
+
+.subnet-top-grid {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.subnet-config-panel,
+.subnet-result-panel,
+.subnet-list-panel,
+.subnet-binary-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.subnet-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.subnet-panel-head h2 {
+  margin: 0;
+}
+
+.subnet-panel-head p {
+  margin: 0;
+  color: #526b8a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.subnet-panel-head.compact {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.subnet-presets {
+  margin: 0;
+}
+
+.subnet-presets button {
+  min-height: 32px;
+  border-color: #b8d8ff;
+  background: #f5fbff;
+  color: #0755d8;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.subnet-control-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 320px;
+  gap: 10px;
+  align-items: end;
+}
+
+.subnet-control-grid label {
+  margin: 0;
+}
+
+.subnet-actions {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 80px;
+  gap: 10px;
+}
+
+.subnet-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.subnet-summary-grid article {
+  min-width: 0;
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 1px solid #d8e5f4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.subnet-summary-grid span {
+  display: block;
+  color: #536b8a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.subnet-summary-grid strong {
+  display: block;
+  margin-top: 8px;
+  color: #0755d8;
+  font-size: 15px;
+  font-weight: 900;
+  word-break: break-all;
+}
+
+.binary-grid {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 12px 12px;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid #d8e5f4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.binary-grid > span {
+  color: #536b8a;
+  font-weight: 900;
+}
+
+.binary-grid code {
+  color: #009e68;
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 800;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.binary-grid code span {
+  font-family: inherit;
+}
+
+.binary-grid code .network-bits {
+  color: #009e68;
+}
+
+.binary-grid code .host-bits {
+  color: #f04b4b;
+}
+
+.subnet-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.subnet-mode-tabs button {
+  min-height: 44px;
+  border-color: #cfe0f6;
+  background: #f8fbff;
+  color: #607087;
+  font-size: 16px;
+}
+
+.subnet-mode-tabs button.active {
+  border-color: #8bb7ff;
+  background: #eef5ff;
+  color: #0755d8;
+}
+
+.subnet-split-line {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 88px;
+  gap: 10px;
+  align-items: end;
+}
+
+.subnet-split-line label {
+  margin: 0;
+}
+
+.subnet-split-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.subnet-split-summary article {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #d8e5f4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.subnet-split-summary span {
+  display: block;
+  color: #536b8a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.subnet-split-summary strong {
+  display: block;
+  margin-top: 8px;
+  color: #0755d8;
+  font-size: 15px;
+}
+
+.subnet-table {
+  overflow: auto;
+  border: 1px solid #d8e5f4;
+  border-radius: 8px;
+}
+
+.subnet-table-head,
+.subnet-table-row {
+  display: grid;
+  grid-template-columns: 64px minmax(180px, 1fr) minmax(260px, 1.4fr) minmax(180px, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 780px;
+  padding: 10px 12px;
+}
+
+.subnet-table-head {
+  background: #f1f6fc;
+  color: #263f5c;
+  font-weight: 900;
+}
+
+.subnet-table-row {
+  min-height: 44px;
+  border-top: 1px solid #e4edf7;
+  background: #fff;
+  color: #0b2850;
+  font-size: 13px;
+}
+
+.subnet-generated {
+  margin: 0;
+  color: #526b8a;
+  font-size: 12px;
+  font-weight: 700;
+}

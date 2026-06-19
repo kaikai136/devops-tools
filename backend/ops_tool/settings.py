@@ -15,6 +15,11 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "accounts",
+    "network_tools",
+    "passwords",
+    "authenticators",
+    "host_management",
     "operations",
 ]
 
@@ -69,7 +74,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["operations.authentication.CsrfExemptSessionAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": ["accounts.authentication.CsrfExemptSessionAuthentication"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
 }

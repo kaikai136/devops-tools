@@ -1,0 +1,102 @@
+.ping-detail-box,
+.ping-chart-panel {
+  border: 1px solid #d9e6f5;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 16px;
+}
+
+.ping-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ping-section-title h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.ping-section-title button {
+  min-height: 36px;
+  color: #7c8aa0;
+}
+
+.ping-detail-list {
+  display: grid;
+  gap: 8px;
+  max-height: 190px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid #e0ebf7;
+  border-radius: 12px;
+  background: #f7fbff;
+}
+
+.ping-empty {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  color: #73859c;
+  font-weight: 800;
+}
+
+.ping-row {
+  display: grid;
+  grid-template-columns: 72px minmax(120px, 1fr) 80px 100px;
+  gap: 10px;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #fff;
+  color: #2a4566;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ping-row strong {
+  color: #04336d;
+}
+
+.ping-row.timeout {
+  background: #fff7f7;
+}
+
+.ping-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.ping-metrics article {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  border: 1px solid #d8e5f4;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ping-metrics strong {
+  color: #0a234d;
+  font-size: 18px;
+}
+
+.ping-metrics span {
+  color: #536b8a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.danger-text {
+  color: #ff4b5f !important;
+}
+
+.purple-text {
+  color: #8d55ff !important;
+}

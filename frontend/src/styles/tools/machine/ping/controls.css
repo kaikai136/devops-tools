@@ -1,0 +1,121 @@
+.ping-page {
+  gap: 16px;
+  overflow: auto;
+  padding-bottom: 20px;
+}
+
+.ping-config,
+.ping-results {
+  padding: 18px;
+}
+
+.panel-title.compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-title.compact h2 {
+  margin: 0;
+}
+
+.ping-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ping-presets button {
+  min-height: 32px;
+  border-color: #9ed5ff;
+  background: #f2fbff;
+  color: #008cf0;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.ping-form-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.6fr) repeat(3, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.ping-target-block {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.35fr) minmax(64px, 0.42fr) minmax(90px, 0.58fr) minmax(90px, 0.58fr);
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ping-target-block label {
+  margin: 0;
+}
+
+.ping-target-block button {
+  min-width: 0;
+}
+
+.ping-actions {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 72px 72px;
+  gap: 10px;
+}
+
+.ping-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 8px;
+}
+
+.ping-inline-grid label {
+  margin: 0;
+}
+
+.ping-inline-grid button {
+  min-width: 0;
+}
+
+.ping-form-grid label {
+  margin: 0;
+}
+
+.ping-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #45607f;
+  font-weight: 800;
+}
+
+.ping-check.top-check {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.ping-check input {
+  width: 14px;
+  height: 14px;
+}
+
+.link-button {
+  min-height: 28px;
+  margin-top: 8px;
+  border: 0;
+  background: transparent;
+  color: #115de8;
+  padding: 0 4px;
+  text-align: left;
+}
+
+.link-button.top-link {
+  flex: 0 0 auto;
+  margin: 0;
+  text-align: right;
+}

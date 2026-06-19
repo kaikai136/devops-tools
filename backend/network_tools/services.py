@@ -1,18 +1,10 @@
-import base64
-import hashlib
-import io
 import ipaddress
 import platform
 import re
-import secrets
 import socket
-import string
 import subprocess
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
-
-import pyotp
-import qrcode
 
 
 def get_local_ip() -> str:
@@ -380,7 +372,8 @@ def calculate_ping_metrics(entries: list[dict]) -> dict:
 
 def run_ping_session(host: str, count: int, timeout_ms: int, interval_ms: int) -> dict:
     details = []
-    for sequence in range(1, max(1, min(200, count)) + 1):
+    bounded_count = max(1, min(200, count))
+    for sequence in range(1, bounded_count + 1):
         result = ping_once(host, timeout_ms)
         details.append(
             {
@@ -392,7 +385,7 @@ def run_ping_session(host: str, count: int, timeout_ms: int, interval_ms: int) -
                 "timestamp": round(time.time() * 1000),
             }
         )
-        if sequence < count:
+        if sequence < bounded_count:
             time.sleep(max(100, interval_ms) / 1000)
 
     return {"details": details, "metrics": calculate_ping_metrics(details)}
@@ -454,82 +447,3 @@ def split_subnets(input_text: str, target_prefix: int, limit: int = 64) -> list[
             }
         )
     return results
-
-
-def generate_password(
-    length: int,
-    include_uppercase: bool,
-    include_lowercase: bool,
-    include_numbers: bool,
-    include_symbols: bool,
-) -> str:
-    groups = []
-    if include_uppercase:
-        groups.append("ABCDEFGHJKLMNPQRSTUVWXYZ")
-    if include_lowercase:
-        groups.append("abcdefghijkmnopqrstuvwxyz")
-    if include_numbers:
-        groups.append("23456789")
-    if include_symbols:
-        groups.append("!@#$%^&*_-+=?")
-
-    if not groups:
-        raise ValueError("至少选择一种字符类型")
-
-    length = max(len(groups), min(64, max(6, int(length))))
-    characters = [secrets.choice(group) for group in groups]
-    pool = "".join(groups)
-    characters.extend(secrets.choice(pool) for _ in range(length - len(characters)))
-    secrets.SystemRandom().shuffle(characters)
-    return "".join(characters)
-
-
-def normalize_totp_algorithm(value: str) -> str:
-    normalized = value.replace("-", "").upper()
-    if normalized not in {"SHA1", "SHA256", "SHA512"}:
-        raise ValueError("TOTP 算法仅支持 SHA-1、SHA-256、SHA-512")
-    return normalized
-
-
-def normalize_totp_secret(secret: str) -> str:
-    value = secret.replace(" ", "").replace("-", "").upper()
-    if not value:
-        raise ValueError("请输入 Base32 密钥")
-    pyotp.TOTP(value).now()
-    return value
-
-
-def build_totp_uri(entry) -> str:
-    return pyotp.totp.TOTP(
-        entry.secret,
-        digits=entry.digits,
-        interval=entry.period,
-        digest=totp_digest(entry.algorithm),
-    ).provisioning_uri(name=entry.account_name or "Authenticator", issuer_name=entry.issuer or None)
-
-
-def generate_totp(entry) -> dict:
-    totp = pyotp.TOTP(entry.secret, digits=entry.digits, interval=entry.period, digest=totp_digest(entry.algorithm))
-    now = int(time.time())
-    remaining = entry.period - (now % entry.period)
-    return {
-        "code": totp.now(),
-        "remaining_seconds": remaining,
-        "period": entry.period,
-    }
-
-
-def totp_digest(algorithm: str):
-    return {
-        "SHA1": hashlib.sha1,
-        "SHA256": hashlib.sha256,
-        "SHA512": hashlib.sha512,
-    }[normalize_totp_algorithm(algorithm)]
-
-
-def generate_qr_data_url(text: str) -> str:
-    image = qrcode.make(text)
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"

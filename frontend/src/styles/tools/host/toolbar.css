@@ -1,0 +1,76 @@
+.host-toolbar {
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.host-toolbar > input {
+  width: min(320px, 34vw);
+  min-height: 36px;
+  border: 1px solid #d8e2ee;
+  border-radius: 0;
+  background: #fff;
+  padding: 0 14px;
+}
+
+.host-toolbar-actions {
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.host-toolbar-actions button {
+  min-height: 36px;
+  border-radius: 0;
+}
+
+.terminal-action {
+  min-width: 112px;
+  background: #2364f5;
+  color: #fff;
+}
+
+.secondary-blue {
+  background: #2364f5;
+}
+
+.status-tabs {
+  display: inline-flex;
+  border: 1px solid #2c65ff;
+}
+
+.status-tabs button {
+  min-width: 72px;
+  border: 0;
+  color: #173252;
+  background: #fff;
+}
+
+.status-tabs button.active {
+  color: #1359f2;
+  background: #eef5ff;
+}
+
+.icon-only {
+  width: 34px;
+  min-width: 34px;
+  border: 0;
+  background: transparent;
+  color: #173252;
+  padding: 0;
+  font-size: 18px;
+}
+
+.host-stats-line {
+  gap: 10px;
+  color: #526b8a;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+
+.host-stats-line span {
+  border-radius: 999px;
+  background: #f2f7ff;
+  padding: 5px 10px;
+}

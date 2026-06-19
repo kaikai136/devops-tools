@@ -1,0 +1,41 @@
+.tool-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.ip-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.tool-grid,
+.auth-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(520px, 1.65fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.machine-probe-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 18px;
+}
+
+.machine-ping-column,
+.machine-port-column {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  align-content: start;
+}
+
+.machine-ping-column > .panel,
+.machine-port-column > .panel {
+  min-width: 0;
+}

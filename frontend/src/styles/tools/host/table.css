@@ -1,0 +1,170 @@
+.host-table {
+  min-width: 1180px;
+  border-top: 1px solid #edf1f6;
+}
+
+.host-table-row {
+  display: grid;
+  grid-template-columns:
+    minmax(100px, 0.8fr)
+    minmax(120px, 1fr)
+    minmax(150px, 1.1fr)
+    minmax(80px, 0.65fr)
+    minmax(64px, 0.45fr)
+    minmax(130px, 0.9fr)
+    minmax(130px, 1fr)
+    minmax(86px, 0.65fr)
+    minmax(96px, 0.65fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  border-bottom: 1px solid #edf1f6;
+  padding: 0 18px;
+}
+
+.host-table-row.head {
+  min-height: 56px;
+  background: #f8fafc;
+  color: #173252;
+  font-weight: 900;
+}
+
+.host-sort-button {
+  min-height: auto;
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.host-sort-button em {
+  color: #6a7f9a;
+  font-style: normal;
+  font-size: 12px;
+}
+
+.host-sort-button.active {
+  color: #0755d8;
+}
+
+.host-name-link {
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: #0755d8;
+  padding: 0;
+  text-align: left;
+  font-weight: 800;
+}
+
+.host-group-cell,
+.host-user-cell,
+.host-port-cell,
+.host-remark-cell {
+  min-width: 0;
+  overflow: hidden;
+  color: #173252;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-remark-cell {
+  color: #526b8a;
+  font-size: 13px;
+}
+
+.host-ip-stack {
+  display: grid;
+  gap: 5px;
+  color: #173252;
+  font-weight: 700;
+}
+
+.host-ip-stack span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ip-tag {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 20px;
+  border-radius: 5px;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ip-tag.public {
+  background: #ffe0a6;
+  color: #b15e00;
+}
+
+.ip-tag.private {
+  background: #bceaff;
+  color: #116483;
+}
+
+.host-config {
+  gap: 8px;
+  color: #173252;
+}
+
+.os-badge {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f97316, #ef4444);
+}
+
+.os-badge.ubuntu {
+  background: conic-gradient(#f97316 0 33%, #7c3aed 0 66%, #22c55e 0);
+}
+
+.os-badge.debian {
+  background: linear-gradient(135deg, #e11d48, #fb7185);
+}
+
+.verify-badge {
+  justify-self: start;
+  border: 1px solid #ffbf64;
+  color: #f08a00;
+  background: #fff8ef;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.verify-badge.verified {
+  border-color: #8ddd85;
+  color: #12a22a;
+  background: #f1fff0;
+}
+
+.host-actions {
+  gap: 12px;
+}
+
+.host-actions button {
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: #0755d8;
+  padding: 0;
+  font-size: 13px;
+}
+
+.host-actions .danger {
+  color: #ff3f55;
+}
+
+.host-empty {
+  margin-top: 18px;
+}
