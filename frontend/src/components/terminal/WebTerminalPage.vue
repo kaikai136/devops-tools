@@ -72,6 +72,7 @@ const ANSI_CONTROL_PREFIX_PATTERN = /^\x1b(?:\[[0-?]*[ -/]*)?$/;
 const CONTROL_C = '\x03';
 const MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS = 250;
 const MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS = 1200;
+const MAX_CONNECTING_TERMINALS = 2;
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -108,6 +109,8 @@ const isLoadingTree = ref(false);
 const treeError = ref('');
 const highlightEnabled = ref(true);
 const terminalContainers = new Map<string, HTMLElement>();
+const pendingConnectTabIds: string[] = [];
+const connectingTabIds = new Set<string>();
 
 const rows = computed(() => {
   const query = search.value.trim().toLowerCase();
@@ -179,7 +182,7 @@ async function openHostTab(host: TerminalHost) {
   await nextTick();
   const tab = getTabById(createdTab.id) ?? createdTab;
   mountTerminal(tab);
-  connectTab(tab);
+  enqueueConnectTab(tab);
 }
 
 async function activateTab(tabId: string) {
@@ -298,6 +301,30 @@ function mountTerminal(tab: TerminalTab) {
   tab.terminal.focus();
 }
 
+function enqueueConnectTab(tab: TerminalTab) {
+  if (tab.status !== 'connecting' || pendingConnectTabIds.includes(tab.id) || connectingTabIds.has(tab.id)) return;
+  pendingConnectTabIds.push(tab.id);
+  drainConnectQueue();
+}
+
+function drainConnectQueue() {
+  while (connectingTabIds.size < MAX_CONNECTING_TERMINALS && pendingConnectTabIds.length) {
+    const tabId = pendingConnectTabIds.shift();
+    if (!tabId) continue;
+
+    const tab = getTabById(tabId);
+    if (!tab || tab.status !== 'connecting') continue;
+
+    connectingTabIds.add(tab.id);
+    connectTab(tab);
+  }
+}
+
+function finishConnectingTab(tab: TerminalTab) {
+  if (!connectingTabIds.delete(tab.id)) return;
+  drainConnectQueue();
+}
+
 function connectTab(tab: TerminalTab) {
   const socket = new WebSocket(buildWebSocketUrl(tab.host.id));
   tab.socket = socket;
@@ -309,9 +336,11 @@ function connectTab(tab: TerminalTab) {
       tab.status = 'error';
       tab.terminal.writeln('\r\n\x1b[31mWebSocket 连接失败。\x1b[0m');
     }
+    finishConnectingTab(tab);
   });
   socket.addEventListener('close', () => {
     tab.socket = null;
+    finishConnectingTab(tab);
     if (tab.status === 'connected' || tab.status === 'connecting') {
       tab.status = 'closed';
       tab.terminal.writeln('\r\n\x1b[33m连接已关闭。\x1b[0m');
@@ -331,6 +360,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   if (message.type === 'ready') {
     tab.status = 'connected';
     tab.sessionId = message.sessionId ?? null;
+    finishConnectingTab(tab);
     fitTerminal(tab);
     return;
   }
@@ -345,12 +375,14 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
 
   if (message.type === 'error') {
     tab.status = 'error';
+    finishConnectingTab(tab);
     tab.terminal.writeln(`\r\n\x1b[31m${message.message ?? '终端连接失败'}\x1b[0m`);
     return;
   }
 
   if (message.type === 'closed') {
     tab.status = 'closed';
+    finishConnectingTab(tab);
     tab.terminal.writeln(`\r\n\x1b[33m${message.reason ?? '连接已关闭'}\x1b[0m`);
   }
 }
@@ -393,6 +425,8 @@ async function closeTab(tab: TerminalTab) {
 
 function disposeTab(tab: TerminalTab) {
   tab.status = 'closed';
+  removePendingConnectTab(tab.id);
+  finishConnectingTab(tab);
   if (tab.socket && tab.socket.readyState !== WebSocket.CLOSED) {
     tab.socket.close();
   }
@@ -402,6 +436,13 @@ function disposeTab(tab: TerminalTab) {
   for (const disposable of tab.disposables) disposable.dispose();
   tab.disposables = [];
   tab.terminal.dispose();
+}
+
+function removePendingConnectTab(tabId: string) {
+  const index = pendingConnectTabIds.indexOf(tabId);
+  if (index !== -1) {
+    pendingConnectTabIds.splice(index, 1);
+  }
 }
 
 function setTerminalContainer(tabId: string, element: unknown) {

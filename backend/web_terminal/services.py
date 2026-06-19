@@ -73,6 +73,12 @@ class LiveTerminalConnection:
 
 LIVE_TERMINALS: dict[str, LiveTerminalConnection] = {}
 
+SSH_CONNECT_ATTEMPTS = 3
+SSH_CONNECT_TIMEOUT = 15
+SSH_BANNER_TIMEOUT = 30
+SSH_AUTH_TIMEOUT = 20
+SSH_RETRY_DELAY_SECONDS = 0.8
+
 
 def host_payload(host: ManagedHost) -> dict:
     return {
@@ -183,30 +189,56 @@ def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> Li
     except ImportError:
         raise TerminalConnectionError("后端未安装 paramiko，无法建立 SSH 连接。请安装 requirements.txt 后重启后端。")
 
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     target = str(host.public_ip or host.private_ip)
+    pkey = load_private_key(paramiko, host.private_key)
 
-    try:
-        pkey = load_private_key(paramiko, host.private_key)
-        client.connect(
-            hostname=target,
-            port=host.port,
-            username=host.login_user,
-            password=host.login_password or None,
-            pkey=pkey,
-            timeout=10,
-            banner_timeout=10,
-            auth_timeout=10,
-            look_for_keys=False,
-            allow_agent=False,
-        )
-        channel = client.invoke_shell(term="xterm", width=cols, height=rows)
-        channel.settimeout(0.0)
-        return LiveTerminalConnection(client, channel)
-    except Exception as error:
-        client.close()
-        raise TerminalConnectionError(f"SSH 连接失败：{error}") from error
+    errors: list[str] = []
+    for attempt in range(1, SSH_CONNECT_ATTEMPTS + 1):
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        try:
+            client.connect(
+                hostname=target,
+                port=host.port,
+                username=host.login_user,
+                password=host.login_password or None,
+                pkey=pkey,
+                timeout=SSH_CONNECT_TIMEOUT,
+                banner_timeout=SSH_BANNER_TIMEOUT,
+                auth_timeout=SSH_AUTH_TIMEOUT,
+                look_for_keys=False,
+                allow_agent=False,
+            )
+            transport = client.get_transport()
+            if transport is not None:
+                transport.set_keepalive(30)
+            channel = client.invoke_shell(term="xterm", width=cols, height=rows)
+            channel.settimeout(0.0)
+            return LiveTerminalConnection(client, channel)
+        except Exception as error:
+            errors.append(str(error))
+            client.close()
+            if attempt >= SSH_CONNECT_ATTEMPTS or not should_retry_ssh_connect_error(error):
+                break
+            time.sleep(SSH_RETRY_DELAY_SECONDS * attempt)
+
+    last_error = errors[-1] if errors else "unknown error"
+    raise TerminalConnectionError(f"SSH 连接失败：{last_error}")
+
+
+def should_retry_ssh_connect_error(error: Exception) -> bool:
+    message = str(error).lower()
+    retry_markers = (
+        "error reading ssh protocol banner",
+        "error reading protocol banner",
+        "timed out",
+        "timeout",
+        "connection reset",
+        "connection aborted",
+        "temporarily unavailable",
+    )
+    return any(marker in message for marker in retry_markers)
 
 
 def load_private_key(paramiko, private_key: str):
