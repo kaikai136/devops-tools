@@ -9,4 +9,5 @@ urlpatterns = [
     path("", include("passwords.urls")),
     path("", include("authenticators.urls")),
     path("", include("host_management.urls")),
+    path("", include("web_terminal.urls")),
 ]

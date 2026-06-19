@@ -395,7 +395,17 @@ export function useHostManager({
   }
 
   function openWebTerminal(host?: ManagedHost) {
-    showToast('Web 终端', host ? `正在打开 ${host.name} 的 Web 终端入口。` : '请选择主机后打开 Web 终端。');
+    const params = new URLSearchParams();
+    if (host) {
+      params.set('host', String(host.id));
+    } else if (selectedHostGroup.value) {
+      params.set('group', String(selectedHostGroup.value));
+    }
+    const url = `/terminal.html${params.toString() ? `?${params.toString()}` : ''}`;
+    const target = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!target) {
+      showToast('Web 终端', '浏览器阻止了新窗口，请允许弹窗后重试。');
+    }
   }
 
   function addManagedHost(group = selectedHostGroup.value ?? flatHostGroups.value[0]?.key ?? null) {

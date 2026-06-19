@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "passwords",
     "authenticators",
     "host_management",
+    "web_terminal",
     "operations",
 ]
 
