@@ -235,7 +235,8 @@ input {
 }
 
 .terminal-tabs button.active {
-  background: #252525;
+  background: #6d28d9;
+  color: #fff;
 }
 
 .terminal-tabs button.error {
@@ -272,6 +273,12 @@ input {
 
 .terminal-tab-status.error {
   background: #ff6969;
+}
+
+.terminal-tab-status.unread {
+  background: #ff3b3b;
+  box-shadow: 0 0 0 0 rgb(255 59 59 / 70%);
+  animation: terminal-unread-pulse 1s ease-out infinite;
 }
 
 .terminal-tab-status.closed {
@@ -324,4 +331,21 @@ input {
   color: #8ea1b8;
   font-size: 14px;
   font-weight: 700;
+}
+
+@keyframes terminal-unread-pulse {
+  0% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(255 59 59 / 70%);
+  }
+
+  70% {
+    opacity: 0.42;
+    box-shadow: 0 0 0 6px rgb(255 59 59 / 0%);
+  }
+
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgb(255 59 59 / 0%);
+  }
 }

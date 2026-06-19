@@ -40,6 +40,7 @@ interface TerminalTab {
   resizeObserver: ResizeObserver | null;
   highlightState: TerminalHighlightState;
   suppressInterruptUntil: number;
+  hasUnreadOutput: boolean;
 }
 
 type TreeRow =
@@ -69,7 +70,8 @@ interface TerminalHighlightState {
 const ANSI_CONTROL_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
 const ANSI_CONTROL_PREFIX_PATTERN = /^\x1b(?:\[[0-?]*[ -/]*)?$/;
 const CONTROL_C = '\x03';
-const MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS = 600;
+const MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS = 250;
+const MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS = 1200;
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -171,12 +173,6 @@ function toggleGroup(group: TerminalGroup) {
 }
 
 async function openHostTab(host: TerminalHost) {
-  const existing = tabs.value.find((tab) => tab.host.id === host.id && tab.status !== 'closed');
-  if (existing) {
-    await activateTab(existing.id);
-    return;
-  }
-
   const tab = createTerminalTab(host);
   tabs.value = [...tabs.value, tab];
   activeTabId.value = tab.id;
@@ -190,6 +186,7 @@ async function activateTab(tabId: string) {
   await nextTick();
   const tab = tabs.value.find((item) => item.id === tabId);
   if (tab) {
+    tab.hasUnreadOutput = false;
     mountTerminal(tab);
     fitTerminal(tab);
     tab.terminal.focus();
@@ -235,6 +232,7 @@ function createTerminalTab(host: TerminalHost): TerminalTab {
       pendingControl: '',
     },
     suppressInterruptUntil: 0,
+    hasUnreadOutput: false,
   };
 }
 
@@ -249,8 +247,12 @@ function handleTerminalKey(event: KeyboardEvent, terminal: Terminal) {
   return false;
 }
 
+function suppressMouseInterrupt(tab: TerminalTab, duration: number) {
+  tab.suppressInterruptUntil = Math.max(tab.suppressInterruptUntil, Date.now() + duration);
+}
+
 function markTerminalDoubleClick(tab: TerminalTab) {
-  tab.suppressInterruptUntil = Date.now() + MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS;
+  suppressMouseInterrupt(tab, MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS);
 }
 
 function getSendableTerminalData(tab: TerminalTab, data: string) {
@@ -276,6 +278,8 @@ function mountTerminal(tab: TerminalTab) {
     }),
   );
   const handleMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0) return;
+    suppressMouseInterrupt(tab, MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS);
     if (event.detail >= 2) markTerminalDoubleClick(tab);
   };
   const handleDoubleClick = () => markTerminalDoubleClick(tab);
@@ -332,6 +336,9 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
 
   if (message.type === 'output') {
     tab.terminal.write(highlightTerminalOutput(message.data ?? '', tab.highlightState));
+    if (tab.id !== activeTabId.value) {
+      tab.hasUnreadOutput = true;
+    }
     return;
   }
 
@@ -566,7 +573,7 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
           @click="activateTab(tab.id)"
         >
           <span class="terminal-tab-label">{{ tab.host.name }}</span>
-          <span class="terminal-tab-status" :class="tab.status"></span>
+          <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
           <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)">×</span>
         </button>
       </div>
