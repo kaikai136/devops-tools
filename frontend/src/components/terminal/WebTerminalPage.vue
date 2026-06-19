@@ -39,6 +39,7 @@ interface TerminalTab {
   disposables: IDisposable[];
   resizeObserver: ResizeObserver | null;
   highlightState: TerminalHighlightState;
+  suppressInterruptUntil: number;
 }
 
 type TreeRow =
@@ -67,6 +68,8 @@ interface TerminalHighlightState {
 
 const ANSI_CONTROL_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
 const ANSI_CONTROL_PREFIX_PATTERN = /^\x1b(?:\[[0-?]*[ -/]*)?$/;
+const CONTROL_C = '\x03';
+const MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS = 600;
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -231,6 +234,7 @@ function createTerminalTab(host: TerminalHost): TerminalTab {
       sgrActive: false,
       pendingControl: '',
     },
+    suppressInterruptUntil: 0,
   };
 }
 
@@ -245,6 +249,15 @@ function handleTerminalKey(event: KeyboardEvent, terminal: Terminal) {
   return false;
 }
 
+function markTerminalDoubleClick(tab: TerminalTab) {
+  tab.suppressInterruptUntil = Date.now() + MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS;
+}
+
+function getSendableTerminalData(tab: TerminalTab, data: string) {
+  if (!data.includes(CONTROL_C) || Date.now() > tab.suppressInterruptUntil) return data;
+  return data.split(CONTROL_C).join('');
+}
+
 function mountTerminal(tab: TerminalTab) {
   if (tab.mounted) return;
   const container = terminalContainers.get(tab.id);
@@ -254,11 +267,26 @@ function mountTerminal(tab: TerminalTab) {
   tab.mounted = true;
   tab.disposables.push(
     tab.terminal.onData((data) => {
+      const sendableData = getSendableTerminalData(tab, data);
+      if (!sendableData) return;
+
       if (tab.socket?.readyState === WebSocket.OPEN) {
-        tab.socket.send(JSON.stringify({ type: 'input', data }));
+        tab.socket.send(JSON.stringify({ type: 'input', data: sendableData }));
       }
     }),
   );
+  const handleMouseDown = (event: MouseEvent) => {
+    if (event.detail >= 2) markTerminalDoubleClick(tab);
+  };
+  const handleDoubleClick = () => markTerminalDoubleClick(tab);
+  container.addEventListener('mousedown', handleMouseDown, true);
+  container.addEventListener('dblclick', handleDoubleClick, true);
+  tab.disposables.push({
+    dispose: () => {
+      container.removeEventListener('mousedown', handleMouseDown, true);
+      container.removeEventListener('dblclick', handleDoubleClick, true);
+    },
+  });
   tab.resizeObserver = new ResizeObserver(() => fitTerminal(tab));
   tab.resizeObserver.observe(container);
   fitTerminal(tab);
