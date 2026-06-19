@@ -173,10 +173,11 @@ function toggleGroup(group: TerminalGroup) {
 }
 
 async function openHostTab(host: TerminalHost) {
-  const tab = createTerminalTab(host);
-  tabs.value = [...tabs.value, tab];
-  activeTabId.value = tab.id;
+  const createdTab = createTerminalTab(host);
+  tabs.value = [...tabs.value, createdTab];
+  activeTabId.value = createdTab.id;
   await nextTick();
+  const tab = getTabById(createdTab.id) ?? createdTab;
   mountTerminal(tab);
   connectTab(tab);
 }
@@ -337,7 +338,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   if (message.type === 'output') {
     tab.terminal.write(highlightTerminalOutput(message.data ?? '', tab.highlightState));
     if (tab.id !== activeTabId.value) {
-      tab.hasUnreadOutput = true;
+      markTabUnread(tab.id);
     }
     return;
   }
@@ -351,6 +352,17 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   if (message.type === 'closed') {
     tab.status = 'closed';
     tab.terminal.writeln(`\r\n\x1b[33m${message.reason ?? '连接已关闭'}\x1b[0m`);
+  }
+}
+
+function getTabById(tabId: string) {
+  return tabs.value.find((item) => item.id === tabId) ?? null;
+}
+
+function markTabUnread(tabId: string) {
+  const tab = getTabById(tabId);
+  if (tab && tab.id !== activeTabId.value) {
+    tab.hasUnreadOutput = true;
   }
 }
 

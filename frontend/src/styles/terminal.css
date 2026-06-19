@@ -277,8 +277,8 @@ input {
 
 .terminal-tab-status.unread {
   background: #ff3b3b;
-  box-shadow: 0 0 0 0 rgb(255 59 59 / 70%);
-  animation: terminal-unread-pulse 1s ease-out infinite;
+  box-shadow: 0 0 0 0 rgb(255 59 59 / 74%);
+  animation: terminal-unread-pulse 0.9s ease-out infinite;
 }
 
 .terminal-tab-status.closed {
@@ -336,16 +336,19 @@ input {
 @keyframes terminal-unread-pulse {
   0% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgb(255 59 59 / 70%);
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgb(255 59 59 / 74%);
   }
 
   70% {
-    opacity: 0.42;
+    opacity: 0.48;
+    transform: scale(0.82);
     box-shadow: 0 0 0 6px rgb(255 59 59 / 0%);
   }
 
   100% {
     opacity: 1;
+    transform: scale(1);
     box-shadow: 0 0 0 0 rgb(255 59 59 / 0%);
   }
 }
