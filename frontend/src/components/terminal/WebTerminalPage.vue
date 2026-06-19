@@ -622,6 +622,7 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
           v-for="tab in tabs"
           :key="tab.id"
           type="button"
+          class="terminal-tab"
           :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
           @click="activateTab(tab.id)"
         >
@@ -634,10 +635,11 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
         <div v-if="!tabs.length" class="terminal-empty">双击左侧主机名连接 SSH 终端。</div>
         <div
           v-for="tab in tabs"
-          v-show="tab.id === activeTabId"
           :key="tab.id"
           :ref="(element) => setTerminalContainer(tab.id, element)"
           class="terminal-panel"
+          :class="{ active: tab.id === activeTabId }"
+          :aria-hidden="tab.id !== activeTabId"
         ></div>
       </div>
     </section>
