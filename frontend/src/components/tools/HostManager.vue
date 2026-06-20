@@ -1,6 +1,27 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue';
+
 import { useAppContext } from '../../appContext';
 import AppIcon from '../common/AppIcon.vue';
+
+const hostColumnOptions = [
+  { key: 'group', label: '主机分组', width: 'minmax(100px, 0.8fr)', minWidth: 100 },
+  { key: 'name', label: '机器别名', width: 'minmax(120px, 1fr)', minWidth: 120 },
+  { key: 'ip', label: 'IP地址', width: 'minmax(150px, 1.1fr)', minWidth: 150 },
+  { key: 'machine', label: '机器名称', width: 'minmax(110px, 0.8fr)', minWidth: 110 },
+  { key: 'user', label: '用户', width: 'minmax(80px, 0.65fr)', minWidth: 80 },
+  { key: 'port', label: '端口', width: 'minmax(64px, 0.45fr)', minWidth: 64 },
+  { key: 'config', label: '配置信息', width: 'minmax(130px, 0.9fr)', minWidth: 130 },
+  { key: 'remark', label: '备注', width: 'minmax(130px, 1fr)', minWidth: 130 },
+  { key: 'status', label: '状态', width: 'minmax(86px, 0.65fr)', minWidth: 86 },
+  { key: 'actions', label: '操作', width: 'minmax(132px, 0.8fr)', minWidth: 132 },
+] as const;
+
+type HostColumnKey = (typeof hostColumnOptions)[number]['key'];
+type HostColumnVisibility = Record<HostColumnKey, boolean>;
+
+const hostColumnStorageKey = 'ops-tool.host-manager.columns';
+const fallbackHostColumnKey: HostColumnKey = 'name';
 
 const {
   activeTool,
@@ -64,10 +85,102 @@ const {
   deleteManagedHostsInGroup,
   deleteHostGroup,
 } = useAppContext();
+
+const hostColumnSettingsOpen = ref(false);
+const hostColumnVisibility = ref<HostColumnVisibility>(loadHostColumnVisibility());
+const visibleHostTableColumns = computed(() => hostColumnOptions.filter((column) => hostColumnVisibility.value[column.key]));
+const allHostColumnsVisible = computed(() => visibleHostTableColumns.value.length === hostColumnOptions.length);
+const someHostColumnsVisible = computed(() => visibleHostTableColumns.value.length > 0);
+const hostTableStyle = computed<Record<string, string>>(() => {
+  const columns = visibleHostTableColumns.value;
+  const minimumWidth = columns.reduce((total, column) => total + column.minWidth, 0) + Math.max(0, columns.length - 1) * 12 + 200;
+
+  return {
+    '--host-table-columns': columns.map((column) => column.width).join(' ') || 'minmax(180px, 1fr)',
+    '--host-table-min-width': `${Math.max(760, minimumWidth)}px`,
+  };
+});
+
+function closeHostMenus() {
+  closeHostGroupMenu();
+  closeHostColumnSettings();
+}
+
+function toggleHostColumnSettings() {
+  closeHostGroupMenu();
+  hostColumnSettingsOpen.value = !hostColumnSettingsOpen.value;
+}
+
+function closeHostColumnSettings() {
+  hostColumnSettingsOpen.value = false;
+}
+
+function isHostColumnVisible(key: HostColumnKey) {
+  return hostColumnVisibility.value[key];
+}
+
+function isOnlyVisibleHostColumn(key: HostColumnKey) {
+  return hostColumnVisibility.value[key] && visibleHostTableColumns.value.length === 1;
+}
+
+function updateHostColumnVisibility(key: HostColumnKey, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  if (!checked && isOnlyVisibleHostColumn(key)) return;
+  setHostColumnVisibility({ ...hostColumnVisibility.value, [key]: checked });
+}
+
+function toggleAllHostColumns(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const next = createHostColumnVisibility(checked);
+  if (!checked) next[fallbackHostColumnKey] = true;
+  setHostColumnVisibility(next);
+}
+
+function resetHostColumns() {
+  setHostColumnVisibility(createHostColumnVisibility(true));
+}
+
+function setHostColumnVisibility(next: HostColumnVisibility) {
+  if (!Object.values(next).some(Boolean)) next[fallbackHostColumnKey] = true;
+  hostColumnVisibility.value = next;
+  saveHostColumnVisibility(next);
+}
+
+function loadHostColumnVisibility(): HostColumnVisibility {
+  const fallback = createHostColumnVisibility(true);
+  if (typeof window === 'undefined') return fallback;
+
+  const raw = window.localStorage.getItem(hostColumnStorageKey);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<Record<HostColumnKey, unknown>>;
+    const visibility = createHostColumnVisibility(true);
+    for (const column of hostColumnOptions) {
+      if (typeof parsed[column.key] === 'boolean') visibility[column.key] = parsed[column.key];
+    }
+    if (!Object.values(visibility).some(Boolean)) visibility[fallbackHostColumnKey] = true;
+    return visibility;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveHostColumnVisibility(visibility: HostColumnVisibility) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(hostColumnStorageKey, JSON.stringify(visibility));
+}
+
+function createHostColumnVisibility(visible: boolean): HostColumnVisibility {
+  return hostColumnOptions.reduce((visibility, column) => {
+    visibility[column.key] = visible;
+    return visibility;
+  }, {} as HostColumnVisibility);
+}
 </script>
 
 <template>
-  <section v-if="activeTool === 'hosts'" class="host-manager-page" @click="closeHostGroupMenu">
+  <section v-if="activeTool === 'hosts'" class="host-manager-page" @click="closeHostMenus">
     <article class="panel host-groups-panel">
       <div class="host-group-head">
         <h2>分组列表</h2>
@@ -184,6 +297,43 @@ const {
             <button :class="{ active: hostStatusFilter === 'unverified' }" type="button" @click="hostStatusFilter = 'unverified'">未验证</button>
           </div>
           <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadHostManagement"><AppIcon name="refresh" :size="16" /></button>
+          <div class="host-column-settings" @click.stop>
+            <button
+              class="icon-only"
+              type="button"
+              title="列设置"
+              aria-label="列设置"
+              :aria-expanded="hostColumnSettingsOpen"
+              @click="toggleHostColumnSettings"
+            >
+              <AppIcon name="settings" :size="16" />
+            </button>
+            <div v-if="hostColumnSettingsOpen" class="host-column-menu">
+              <div class="host-column-menu-head">
+                <label class="host-column-all">
+                  <input
+                    type="checkbox"
+                    :checked="allHostColumnsVisible"
+                    :indeterminate.prop="someHostColumnsVisible && !allHostColumnsVisible"
+                    @change="toggleAllHostColumns"
+                  />
+                  <span>列显示</span>
+                </label>
+                <button type="button" class="host-column-reset" @click="resetHostColumns">重置</button>
+              </div>
+              <div class="host-column-options">
+                <label v-for="column in hostColumnOptions" :key="column.key" class="host-column-option">
+                  <input
+                    type="checkbox"
+                    :checked="hostColumnVisibility[column.key]"
+                    :disabled="isOnlyVisibleHostColumn(column.key)"
+                    @change="updateHostColumnVisibility(column.key, $event)"
+                  />
+                  <span>{{ column.label }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="host-stats-line">
@@ -192,45 +342,45 @@ const {
         <span>未验证 {{ managedHostStats.unverified }}</span>
         <span v-if="isLoadingHosts">加载中</span>
       </div>
-      <div class="host-table">
+      <div class="host-table" :style="hostTableStyle">
         <div class="host-table-row head">
-          <span>主机分组</span>
-          <button class="host-sort-button" :class="{ active: hostSortKey === 'name', desc: hostSortKey === 'name' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('name')">
+          <span v-if="isHostColumnVisible('group')">主机分组</span>
+          <button v-if="isHostColumnVisible('name')" class="host-sort-button" :class="{ active: hostSortKey === 'name', desc: hostSortKey === 'name' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('name')">
             机器别名 <em>{{ hostSortMark('name') }}</em>
           </button>
-          <button class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
+          <button v-if="isHostColumnVisible('ip')" class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
             IP地址 <em>{{ hostSortMark('ip') }}</em>
           </button>
-          <span>机器名称</span>
-          <span>用户</span>
-          <span>端口</span>
-          <span>配置信息</span>
-          <span>备注</span>
-          <span>状态</span>
-          <span>操作</span>
+          <span v-if="isHostColumnVisible('machine')">机器名称</span>
+          <span v-if="isHostColumnVisible('user')">用户</span>
+          <span v-if="isHostColumnVisible('port')">端口</span>
+          <span v-if="isHostColumnVisible('config')">配置信息</span>
+          <span v-if="isHostColumnVisible('remark')">备注</span>
+          <span v-if="isHostColumnVisible('status')">状态</span>
+          <span v-if="isHostColumnVisible('actions')">操作</span>
         </div>
         <div v-for="host in visibleManagedHosts" :key="host.id" class="host-table-row">
-          <span class="host-group-cell">{{ hostGroupName(host.group) }}</span>
-          <button class="host-name-link" type="button" @click="openWebTerminal(host)">{{ host.name }}</button>
-          <div class="host-ip-stack">
+          <span v-if="isHostColumnVisible('group')" class="host-group-cell">{{ hostGroupName(host.group) }}</span>
+          <button v-if="isHostColumnVisible('name')" class="host-name-link" type="button" @click="openWebTerminal(host)">{{ host.name }}</button>
+          <div v-if="isHostColumnVisible('ip')" class="host-ip-stack">
             <span v-if="host.publicIp"><i class="ip-tag public">公</i>{{ host.publicIp }}</span>
-            <span><i class="ip-tag private">内</i>{{ host.privateIp }}</span>
+            <span>{{ host.privateIp }}</span>
           </div>
-          <span class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
-          <span class="host-user-cell">{{ host.loginUser || '-' }}</span>
-          <span class="host-port-cell">{{ host.port || 22 }}</span>
-          <div class="host-config">
+          <span v-if="isHostColumnVisible('machine')" class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
+          <span v-if="isHostColumnVisible('user')" class="host-user-cell">{{ host.loginUser || '-' }}</span>
+          <span v-if="isHostColumnVisible('port')" class="host-port-cell">{{ host.port || 22 }}</span>
+          <div v-if="isHostColumnVisible('config')" class="host-config">
             <template v-if="host.verified && host.cpu > 0 && host.memory > 0">
               <span class="os-badge" :class="host.os"></span>
               <strong>{{ host.cpu }}核 {{ host.memory }}GB</strong>
             </template>
             <span v-else class="host-config-empty" aria-label="配置信息为空"></span>
           </div>
-          <span class="host-remark-cell" :title="host.remark">{{ host.remark || '-' }}</span>
-          <span class="verify-badge" :class="{ verified: host.verified, failed: host.verifyStatus === 'failed' }">
+          <span v-if="isHostColumnVisible('remark')" class="host-remark-cell" :title="host.remark">{{ host.remark || '-' }}</span>
+          <span v-if="isHostColumnVisible('status')" class="verify-badge" :class="{ verified: host.verified, failed: host.verifyStatus === 'failed' }">
             {{ host.verified ? '已验证' : host.verifyStatus === 'failed' ? '验证失败' : '未验证' }}
           </span>
-          <div class="host-actions">
+          <div v-if="isHostColumnVisible('actions')" class="host-actions">
             <button type="button" @click="editManagedHost(host)">编辑</button>
             <button type="button" :disabled="verifyingHostIds.has(host.id)" @click="verifyManagedHost(host)">
               {{ verifyingHostIds.has(host.id) ? '验证中' : '验证' }}

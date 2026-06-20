@@ -61,6 +61,73 @@
   font-size: 18px;
 }
 
+.host-column-settings {
+  position: relative;
+  display: inline-flex;
+}
+
+.host-column-menu {
+  position: absolute;
+  z-index: 70;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 176px;
+  border: 1px solid #e2e7ef;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(31, 45, 71, 0.16);
+}
+
+.host-column-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.host-column-all,
+.host-column-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #173252;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.host-column-all input,
+.host-column-option input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2364f5;
+}
+
+.host-column-option input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.host-column-options {
+  display: grid;
+  gap: 9px;
+  padding: 13px 14px 14px;
+}
+
+.host-column-reset {
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: #1359f2;
+  padding: 0;
+  font-size: 13px;
+}
+
 .host-stats-line {
   gap: 10px;
   color: #526b8a;

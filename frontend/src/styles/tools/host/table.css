@@ -1,21 +1,11 @@
 .host-table {
-  min-width: 1300px;
+  min-width: var(--host-table-min-width, 1300px);
   border-top: 1px solid #edf1f6;
 }
 
 .host-table-row {
   display: grid;
-  grid-template-columns:
-    minmax(100px, 0.8fr)
-    minmax(120px, 1fr)
-    minmax(150px, 1.1fr)
-    minmax(110px, 0.8fr)
-    minmax(80px, 0.65fr)
-    minmax(64px, 0.45fr)
-    minmax(130px, 0.9fr)
-    minmax(130px, 1fr)
-    minmax(86px, 0.65fr)
-    minmax(132px, 0.8fr);
+  grid-template-columns: var(--host-table-columns);
   align-items: center;
   gap: 12px;
   min-height: 72px;
