@@ -15,9 +15,11 @@ export function useAppState() {
 const activeTool = ref<ToolKey>('ip');
 const groupsOpen = ref({ network: true, host: true, security: true });
 const sidebarCollapsed = ref(false);
+const hoveredNavGroup = ref<string | null>(null);
 const toast = ref<{ title: string; message: string; visible: boolean; leaving: boolean; scope: ToolKey } | null>(null);
 let toastTimer: number | undefined;
 let toastLeaveTimer: number | undefined;
+let navFlyoutTimer: number | undefined;
 
 const localIp = ref('198.18.0.1');
 const selectedHost = ref('192.168.1.1');
@@ -227,8 +229,25 @@ function setActiveTool(key: ToolKey) {
   activeTool.value = key;
 }
 
+function selectNavItem(key: ToolKey) {
+  setActiveTool(key);
+  closeNavFlyout(80);
+}
+
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value;
+}
+
+function openNavFlyout(key: string) {
+  window.clearTimeout(navFlyoutTimer);
+  hoveredNavGroup.value = key;
+}
+
+function closeNavFlyout(delay = 220) {
+  window.clearTimeout(navFlyoutTimer);
+  navFlyoutTimer = window.setTimeout(() => {
+    hoveredNavGroup.value = null;
+  }, delay);
 }
 
 function navItemIcon(key: ToolKey): IconName {
@@ -279,6 +298,7 @@ let authTimer: number | undefined;
 const appState = {
   groupsOpen,
   sidebarCollapsed,
+  hoveredNavGroup,
   toast,
   localIp,
   navGroups,
@@ -286,7 +306,10 @@ const appState = {
   scopedToastVisible,
   toastTone,
   setActiveTool,
+  selectNavItem,
   toggleSidebar,
+  openNavFlyout,
+  closeNavFlyout,
   navItemIcon,
   navGroupIcon,
   authImportFile,
@@ -459,6 +482,7 @@ onUnmounted(() => {
   cleanupClickWords?.();
   cleanupPointerTrail?.();
   window.clearInterval(authTimer);
+  window.clearTimeout(navFlyoutTimer);
   window.clearTimeout(toastTimer);
   window.clearTimeout(toastLeaveTimer);
 });

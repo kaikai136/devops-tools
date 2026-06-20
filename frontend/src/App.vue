@@ -19,6 +19,7 @@ const {
   activeTool,
   groupsOpen,
   sidebarCollapsed,
+  hoveredNavGroup,
   toast,
   localIp,
   selectedHost,
@@ -28,7 +29,10 @@ const {
   scopedToastVisible,
   toastTone,
   setActiveTool,
+  selectNavItem,
   toggleSidebar,
+  openNavFlyout,
+  closeNavFlyout,
   navItemIcon,
   navGroupIcon,
   saveAuthEntries,
@@ -85,20 +89,29 @@ const {
                 class="nav-item"
                 :class="{ active: activeTool === item.key }"
                 type="button"
-              @click="setActiveTool(item.key)"
-            >
+                @click="setActiveTool(item.key)"
+              >
                 <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
                 <span>{{ item.label }}</span>
               </button>
             </div>
           </Transition>
-          <div v-if="sidebarCollapsed" class="nav-flyout-wrap">
+          <div
+            v-if="sidebarCollapsed"
+            class="nav-flyout-wrap"
+            :class="{ open: hoveredNavGroup === group.key }"
+            @mouseenter="openNavFlyout(group.key)"
+            @mouseleave="() => closeNavFlyout()"
+            @focusin="openNavFlyout(group.key)"
+            @focusout="() => closeNavFlyout()"
+          >
             <button
               class="nav-group-compact"
               :class="{ active: group.items.some((item) => item.key === activeTool) }"
               type="button"
               :title="group.label"
               :aria-label="group.label"
+              @click="groupsOpen[group.key] = true"
             >
               <span class="nav-icon"><AppIcon :name="navGroupIcon(group.key)" :size="18" /></span>
             </button>
@@ -111,7 +124,7 @@ const {
                 :class="{ active: activeTool === item.key }"
                 type="button"
                 role="menuitem"
-                @click="setActiveTool(item.key)"
+                @click="selectNavItem(item.key)"
               >
                 <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
                 <span>{{ item.label }}</span>

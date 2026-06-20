@@ -12,6 +12,7 @@
 
 .sidebar {
   position: sticky;
+  z-index: 40;
   top: 0;
   height: 100vh;
   overflow-y: auto;
@@ -23,6 +24,7 @@
 }
 
 .sidebar.collapsed {
+  z-index: 80;
   padding: 14px 10px;
   overflow: visible;
   border-right-color: #d6e3f4;
@@ -258,7 +260,13 @@
 
 .nav-flyout-wrap {
   position: relative;
+  z-index: 1;
   display: grid;
+  padding: 2px 0;
+}
+
+.nav-flyout-wrap.open {
+  z-index: 120;
 }
 
 .nav-group-compact {
@@ -273,7 +281,7 @@
 
 .nav-group-compact:hover,
 .nav-group-compact.active,
-.nav-flyout-wrap:focus-within .nav-group-compact {
+.nav-flyout-wrap.open .nav-group-compact {
   color: #fff;
   background: linear-gradient(135deg, #1b63f0, #8530de);
   box-shadow: 0 10px 18px rgba(104, 48, 222, 0.26);
@@ -281,10 +289,10 @@
 
 .nav-flyout {
   position: absolute;
-  top: 0;
-  left: calc(100% + 12px);
-  z-index: 20;
-  width: 168px;
+  top: 2px;
+  left: calc(100% + 6px);
+  z-index: 130;
+  width: 176px;
   padding: 10px;
   border: 1px solid #cfe0f6;
   border-radius: 8px;
@@ -292,8 +300,13 @@
   box-shadow: 0 16px 34px rgba(40, 77, 124, 0.16);
   opacity: 0;
   visibility: hidden;
-  transform: translateX(-4px);
-  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+  pointer-events: none;
+  transform: translateX(-4px) scale(0.98);
+  transform-origin: left top;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0s linear 0.18s;
 }
 
 .nav-flyout::before {
@@ -301,15 +314,16 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -12px;
-  width: 12px;
+  left: -18px;
+  width: 18px;
 }
 
-.nav-flyout-wrap:hover .nav-flyout,
-.nav-flyout-wrap:focus-within .nav-flyout {
+.nav-flyout-wrap.open .nav-flyout {
   opacity: 1;
   visibility: visible;
-  transform: translateX(0);
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+  transition-delay: 0s;
 }
 
 .nav-flyout strong {
@@ -329,6 +343,7 @@
   border-radius: 7px;
   color: #102945;
   font-weight: 800;
+  cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease;
 }
 
