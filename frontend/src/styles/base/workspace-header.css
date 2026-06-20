@@ -18,14 +18,18 @@
 
 .page-header {
   flex: 0 0 auto;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  justify-content: stretch;
   align-items: center;
-  flex-wrap: wrap;
   gap: 24px;
   min-height: clamp(88px, 10vh, 106px);
   padding: clamp(14px, 1.1vw, 20px) clamp(16px, 1.5vw, 26px);
   margin-bottom: 10px;
+}
+
+.page-title-block {
+  min-width: 0;
 }
 
 .page-header h1 {
@@ -59,6 +63,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
+  justify-content: flex-end;
   gap: 10px;
 }
 

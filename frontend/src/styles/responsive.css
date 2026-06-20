@@ -64,6 +64,10 @@
     grid-template-columns: 1fr;
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar {
     position: static;
     height: auto;
@@ -93,10 +97,13 @@
 
   .page-header {
     align-items: flex-start;
+    grid-template-columns: 1fr;
   }
 
   .header-stats {
+    grid-column: 1 / -1;
     width: 100%;
+    justify-content: flex-start;
   }
 
   .top-toast {

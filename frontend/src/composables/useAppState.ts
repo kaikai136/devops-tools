@@ -13,6 +13,7 @@ import { useSubnetCalculator } from './features/useSubnetCalculator';
 export function useAppState() {
 const activeTool = ref<ToolKey>('ip');
 const groupsOpen = ref({ network: true, host: true, security: true });
+const sidebarCollapsed = ref(false);
 const toast = ref<{ title: string; message: string; visible: boolean; leaving: boolean; scope: ToolKey } | null>(null);
 let toastTimer: number | undefined;
 let toastLeaveTimer: number | undefined;
@@ -225,6 +226,10 @@ function setActiveTool(key: ToolKey) {
   activeTool.value = key;
 }
 
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
+
 function navItemIcon(key: ToolKey) {
   return { ip: '⌂', hosts: '▣', accounts: '◫', ports: '∞', subnet: '╫', auth: '⊙', password: '✦' }[key];
 }
@@ -270,6 +275,7 @@ let authTimer: number | undefined;
 
 const appState = {
   groupsOpen,
+  sidebarCollapsed,
   toast,
   localIp,
   navGroups,
@@ -277,6 +283,7 @@ const appState = {
   scopedToastVisible,
   toastTone,
   setActiveTool,
+  toggleSidebar,
   navItemIcon,
   navGroupIcon,
   authImportFile,

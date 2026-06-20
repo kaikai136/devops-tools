@@ -17,6 +17,7 @@ provide(appContextKey, appState);
 const {
   activeTool,
   groupsOpen,
+  sidebarCollapsed,
   toast,
   localIp,
   selectedHost,
@@ -26,6 +27,7 @@ const {
   scopedToastVisible,
   toastTone,
   setActiveTool,
+  toggleSidebar,
   navItemIcon,
   navGroupIcon,
   saveAuthEntries,
@@ -45,10 +47,21 @@ const {
 } = appState;
 </script>
 <template>
-  <main class="app-shell">
-    <aside class="sidebar">
+  <main class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
         <img src="/captain-banner.png" alt="运维船长" />
+        <button
+          class="sidebar-toggle"
+          type="button"
+          :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+          :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+          @click="toggleSidebar"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -64,7 +77,7 @@ const {
             <span class="nav-caret">⌃</span>
           </button>
           <Transition name="nav-collapse">
-            <div v-if="groupsOpen[group.key]" class="nav-items">
+            <div v-if="groupsOpen[group.key] && !sidebarCollapsed" class="nav-items">
               <button
                 v-for="item in group.items"
                 :key="item.key"
@@ -78,6 +91,32 @@ const {
               </button>
             </div>
           </Transition>
+          <div v-if="sidebarCollapsed" class="nav-flyout-wrap">
+            <button
+              class="nav-group-compact"
+              :class="{ active: group.items.some((item) => item.key === activeTool) }"
+              type="button"
+              :title="group.label"
+              :aria-label="group.label"
+            >
+              <span class="nav-icon">{{ navGroupIcon(group.key) }}</span>
+            </button>
+            <div class="nav-flyout" role="menu">
+              <strong>{{ group.label }}</strong>
+              <button
+                v-for="item in group.items"
+                :key="item.key"
+                class="nav-flyout-item"
+                :class="{ active: activeTool === item.key }"
+                type="button"
+                role="menuitem"
+                @click="setActiveTool(item.key)"
+              >
+                <span class="nav-dot">{{ navItemIcon(item.key) }}</span>
+                <span>{{ item.label }}</span>
+              </button>
+            </div>
+          </div>
         </section>
       </nav>
     </aside>
@@ -93,7 +132,7 @@ const {
       </div>
 
       <header class="page-header">
-        <div>
+        <div class="page-title-block">
           <h1>{{ activeNavItem.label }}</h1>
           <p>
             {{ activeNavItem.desc }}
