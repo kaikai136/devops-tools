@@ -68,12 +68,23 @@ interface TerminalHighlightState {
   pendingControl: string;
 }
 
+interface PersistedTerminalTab {
+  id: string;
+  hostId: number;
+}
+
+interface PersistedTerminalWorkspace {
+  tabs: PersistedTerminalTab[];
+  activeTabId: string | null;
+}
+
 const ANSI_CONTROL_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
 const ANSI_CONTROL_PREFIX_PATTERN = /^\x1b(?:\[[0-?]*[ -/]*)?$/;
 const CONTROL_C = '\x03';
 const MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS = 250;
 const MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS = 1200;
 const MAX_CONNECTING_TERMINALS = 2;
+const TERMINAL_WORKSPACE_STORAGE_KEY = 'ops-tool.web-terminal.workspace';
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -142,11 +153,17 @@ const workspaceStatus = computed(() => {
 
 onMounted(async () => {
   await loadTree();
+  await restoreTerminalWorkspace();
   const params = new URLSearchParams(window.location.search);
   const hostId = Number(params.get('host'));
   if (hostId) {
-    const host = findHostById(groups.value, hostId);
-    if (host) await openHostTab(host);
+    const restoredTab = tabs.value.find((tab) => tab.host.id === hostId);
+    if (restoredTab) {
+      await activateTab(restoredTab.id);
+    } else {
+      const host = findHostById(groups.value, hostId);
+      if (host) await openHostTab(host);
+    }
   }
 });
 
@@ -180,6 +197,7 @@ async function openHostTab(host: TerminalHost) {
   const createdTab = createTerminalTab(host);
   tabs.value = [...tabs.value, createdTab];
   activeTabId.value = createdTab.id;
+  saveTerminalWorkspace();
   await nextTick();
   const tab = getTabById(createdTab.id) ?? createdTab;
   mountTerminal(tab);
@@ -188,6 +206,7 @@ async function openHostTab(host: TerminalHost) {
 
 async function activateTab(tabId: string) {
   activeTabId.value = tabId;
+  saveTerminalWorkspace();
   await nextTick();
   const tab = tabs.value.find((item) => item.id === tabId);
   if (tab) {
@@ -198,7 +217,7 @@ async function activateTab(tabId: string) {
   }
 }
 
-function createTerminalTab(host: TerminalHost): TerminalTab {
+function createTerminalTab(host: TerminalHost, tabId = createTerminalTabId(host.id)): TerminalTab {
   const terminal = markRaw(
     new Terminal({
       cursorBlink: true,
@@ -222,7 +241,7 @@ function createTerminalTab(host: TerminalHost): TerminalTab {
   terminal.writeln(`正在连接 ${host.name} (${host.publicIp || host.privateIp}:${host.port})...`);
 
   return {
-    id: `${host.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: tabId,
     host,
     status: 'connecting',
     terminal,
@@ -239,6 +258,10 @@ function createTerminalTab(host: TerminalHost): TerminalTab {
     suppressInterruptUntil: 0,
     hasUnreadOutput: false,
   };
+}
+
+function createTerminalTabId(hostId: number) {
+  return `${hostId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function handleTerminalKey(event: KeyboardEvent, terminal: Terminal) {
@@ -422,6 +445,79 @@ async function closeTab(tab: TerminalTab) {
     activeTabId.value = nextTab?.id ?? null;
     if (nextTab) await activateTab(nextTab.id);
   }
+  saveTerminalWorkspace();
+}
+
+async function restoreTerminalWorkspace() {
+  const workspace = loadTerminalWorkspace();
+  if (!workspace?.tabs.length || treeError.value) return;
+
+  const restoredTabs = workspace.tabs
+    .map((item) => {
+      const host = findHostById(groups.value, item.hostId);
+      return host ? createTerminalTab(host, item.id) : null;
+    })
+    .filter((tab): tab is TerminalTab => Boolean(tab));
+
+  if (!restoredTabs.length) {
+    saveTerminalWorkspace();
+    return;
+  }
+
+  tabs.value = restoredTabs;
+  activeTabId.value = restoredTabs.some((tab) => tab.id === workspace.activeTabId) ? workspace.activeTabId : restoredTabs[0].id;
+  saveTerminalWorkspace();
+
+  await nextTick();
+  for (const tab of restoredTabs) {
+    mountTerminal(tab);
+    enqueueConnectTab(tab);
+  }
+}
+
+function loadTerminalWorkspace(): PersistedTerminalWorkspace | null {
+  if (typeof window === 'undefined') return null;
+
+  const raw = window.sessionStorage.getItem(TERMINAL_WORKSPACE_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<PersistedTerminalWorkspace>;
+    if (!Array.isArray(parsed.tabs)) return null;
+
+    const seenIds = new Set<string>();
+    const persistedTabs = parsed.tabs.flatMap((item) => {
+      if (!item || typeof item !== 'object') return [];
+      const id = typeof item.id === 'string' && item.id ? item.id : '';
+      const hostId = Number(item.hostId);
+      if (!id || !Number.isFinite(hostId) || seenIds.has(id)) return [];
+      seenIds.add(id);
+      return [{ id, hostId }];
+    });
+
+    return {
+      tabs: persistedTabs,
+      activeTabId: typeof parsed.activeTabId === 'string' ? parsed.activeTabId : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveTerminalWorkspace() {
+  if (typeof window === 'undefined') return;
+
+  const workspace: PersistedTerminalWorkspace = {
+    tabs: tabs.value.map((tab) => ({ id: tab.id, hostId: tab.host.id })),
+    activeTabId: activeTabId.value,
+  };
+
+  if (!workspace.tabs.length) {
+    window.sessionStorage.removeItem(TERMINAL_WORKSPACE_STORAGE_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(TERMINAL_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
 }
 
 function disposeTab(tab: TerminalTab) {
