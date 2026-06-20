@@ -200,6 +200,7 @@ const {
           <button class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
             IP地址 <em>{{ hostSortMark('ip') }}</em>
           </button>
+          <span>机器名称</span>
           <span>用户</span>
           <span>端口</span>
           <span>配置信息</span>
@@ -214,6 +215,7 @@ const {
             <span v-if="host.publicIp"><i class="ip-tag public">公</i>{{ host.publicIp }}</span>
             <span><i class="ip-tag private">内</i>{{ host.privateIp }}</span>
           </div>
+          <span class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
           <span class="host-user-cell">{{ host.loginUser || '-' }}</span>
           <span class="host-port-cell">{{ host.port || 22 }}</span>
           <div class="host-config">

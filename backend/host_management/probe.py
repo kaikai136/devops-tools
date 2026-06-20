@@ -10,6 +10,7 @@ from .models import ManagedHost
 CPU_COMMAND = "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null"
 MEMORY_COMMAND = "awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null"
 OS_COMMAND = ". /etc/os-release 2>/dev/null && printf '%s' \"${ID:-}\" || uname -s"
+MACHINE_NAME_COMMAND = "hostname -f 2>/dev/null || hostname 2>/dev/null || uname -n"
 
 
 def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
@@ -20,15 +21,17 @@ def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
         host.verify_status = "failed"
         host.cpu = 0
         host.memory = 0
-        host.save(update_fields=["verified", "verify_status", "cpu", "memory"])
+        host.machine_name = ""
+        host.save(update_fields=["verified", "verify_status", "cpu", "memory", "machine_name"])
         return host, str(error)
 
+    host.machine_name = info["machine_name"]
     host.cpu = info["cpu"]
     host.memory = info["memory"]
     host.os = info["os"]
     host.verified = True
     host.verify_status = "verified"
-    host.save(update_fields=["cpu", "memory", "os", "verified", "verify_status"])
+    host.save(update_fields=["machine_name", "cpu", "memory", "os", "verified", "verify_status"])
     return host, None
 
 
@@ -40,6 +43,7 @@ def probe_host_info(host: ManagedHost) -> dict:
         if cpu <= 0 or memory <= 0:
             raise TerminalConnectionError("无法识别机器 CPU 或内存信息")
         return {
+            "machine_name": parse_machine_name(run_probe_command(client, MACHINE_NAME_COMMAND)),
             "cpu": cpu,
             "memory": memory,
             "os": parse_os(run_probe_command(client, OS_COMMAND)),
@@ -73,6 +77,14 @@ def parse_memory_gb(value: str) -> int:
     if memory_kb <= 0:
         return 0
     return max(1, math.ceil(memory_kb / 1024 / 1024))
+
+
+def parse_machine_name(value: str) -> str:
+    try:
+        name = value.strip().splitlines()[0].strip()
+    except IndexError:
+        return ""
+    return name[:160]
 
 
 def parse_os(value: str) -> str:

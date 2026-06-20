@@ -1,5 +1,5 @@
 .host-table {
-  min-width: 1180px;
+  min-width: 1300px;
   border-top: 1px solid #edf1f6;
 }
 
@@ -9,6 +9,7 @@
     minmax(100px, 0.8fr)
     minmax(120px, 1fr)
     minmax(150px, 1.1fr)
+    minmax(110px, 0.8fr)
     minmax(80px, 0.65fr)
     minmax(64px, 0.45fr)
     minmax(130px, 0.9fr)
@@ -62,6 +63,7 @@
 }
 
 .host-group-cell,
+.host-machine-cell,
 .host-user-cell,
 .host-port-cell,
 .host-remark-cell {
@@ -71,6 +73,10 @@
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.host-machine-cell {
+  min-height: 18px;
 }
 
 .host-remark-cell {

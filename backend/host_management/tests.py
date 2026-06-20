@@ -21,12 +21,13 @@ class HostVerifyTests(TestCase):
             verified=False,
         )
 
-        with self.patch_probe({"cpu": 4, "memory": 8, "os": "ubuntu"}):
+        with self.patch_probe({"machine_name": "prod-api-01", "cpu": 4, "memory": 8, "os": "ubuntu"}):
             updated, error = verify_host(host)
 
         self.assertIsNone(error)
         self.assertTrue(updated.verified)
         self.assertEqual(updated.verify_status, "verified")
+        self.assertEqual(updated.machine_name, "prod-api-01")
         self.assertEqual(updated.cpu, 4)
         self.assertEqual(updated.memory, 8)
         self.assertEqual(updated.os, "ubuntu")
@@ -39,6 +40,7 @@ class HostVerifyTests(TestCase):
             login_user="root",
             cpu=2,
             memory=4,
+            machine_name="old-hostname",
             verified=True,
             verify_status="verified",
         )
@@ -49,6 +51,7 @@ class HostVerifyTests(TestCase):
         self.assertEqual(error, "ssh failed")
         self.assertFalse(updated.verified)
         self.assertEqual(updated.verify_status, "failed")
+        self.assertEqual(updated.machine_name, "")
         self.assertEqual(updated.cpu, 0)
         self.assertEqual(updated.memory, 0)
 

@@ -35,6 +35,7 @@ export interface ManagedHost {
   loginPassword: string;
   privateKeyName: string;
   privateKey: string;
+  machineName: string;
   remark: string;
   cpu: number;
   memory: number;

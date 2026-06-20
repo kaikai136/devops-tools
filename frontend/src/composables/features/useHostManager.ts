@@ -117,7 +117,8 @@ export function useHostManager({
         hostStatusFilter.value === 'all' ||
         (hostStatusFilter.value === 'verified' && host.verified) ||
         (hostStatusFilter.value === 'unverified' && !host.verified);
-      const searchMatched = !query || [host.name, host.publicIp, host.privateIp].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+      const searchMatched =
+        !query || [host.name, host.machineName, host.publicIp, host.privateIp].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
       return groupMatched && statusMatched && searchMatched;
     });
 
