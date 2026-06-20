@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAppContext } from '../../appContext';
+import AppIcon from '../common/AppIcon.vue';
 
 const {
   activeTool,
@@ -111,22 +112,10 @@ const {
             </div>
             <div class="scan-actions">
               <button aria-label="识别屏幕二维码" title="识别屏幕二维码" type="button" @click="scanScreenQr">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                  <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-                  <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
-                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-                  <path d="M12 7v10" />
-                  <path d="M7 12h10" />
-                </svg>
+                <AppIcon name="scan" :size="18" />
               </button>
               <button aria-label="导入二维码图片" title="导入二维码图片" type="button" @click="triggerImageImport">
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="4" y="5" width="16" height="14" rx="2" />
-                  <path d="m8 15 2.4-2.4a1.4 1.4 0 0 1 2 0L16 16" />
-                  <path d="m14 14 1.2-1.2a1.4 1.4 0 0 1 2 0L20 15.6" />
-                  <circle cx="9" cy="9" r="1.4" />
-                </svg>
+                <AppIcon name="image" :size="18" />
               </button>
               <input ref="imageInput" hidden type="file" accept="image/*" @change="handleImageImport" />
             </div>
@@ -182,15 +171,7 @@ const {
                 <span>{{ entry.period }} 秒刷新</span>
                 <span>{{ entry.algorithm.replace('SHA', 'SHA-') }}</span>
                 <button class="qr-button" aria-label="查看二维码" title="查看二维码" type="button" @click="showQr(entry)">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="4" y="4" width="6" height="6" rx="1" />
-                    <rect x="14" y="4" width="6" height="6" rx="1" />
-                    <rect x="4" y="14" width="6" height="6" rx="1" />
-                    <path d="M14 14h2v2h-2z" />
-                    <path d="M18 14h2v2h-2z" />
-                    <path d="M14 18h2v2h-2z" />
-                    <path d="M18 18h2v2h-2z" />
-                  </svg>
+                  <AppIcon name="qr" :size="17" />
                 </button>
               </div>
             </article>

@@ -3,6 +3,7 @@ import { provide } from 'vue';
 
 import { appContextKey } from './appContext';
 import AccountManager from './components/tools/AccountManager.vue';
+import AppIcon from './components/common/AppIcon.vue';
 import AuthenticatorPanel from './components/tools/AuthenticatorPanel.vue';
 import HostManager from './components/tools/HostManager.vue';
 import IpScanner from './components/tools/IpScanner.vue';
@@ -72,9 +73,9 @@ const {
             type="button"
             @click="groupsOpen[group.key] = !groupsOpen[group.key]"
           >
-            <span class="nav-icon">{{ navGroupIcon(group.key) }}</span>
+            <span class="nav-icon"><AppIcon :name="navGroupIcon(group.key)" :size="18" /></span>
             <span>{{ group.label }}</span>
-            <span class="nav-caret">⌃</span>
+            <span class="nav-caret"><AppIcon name="chevronDown" :size="14" /></span>
           </button>
           <Transition name="nav-collapse">
             <div v-if="groupsOpen[group.key] && !sidebarCollapsed" class="nav-items">
@@ -84,9 +85,9 @@ const {
                 class="nav-item"
                 :class="{ active: activeTool === item.key }"
                 type="button"
-                @click="setActiveTool(item.key)"
-              >
-                <span class="nav-dot">{{ navItemIcon(item.key) }}</span>
+              @click="setActiveTool(item.key)"
+            >
+                <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
                 <span>{{ item.label }}</span>
               </button>
             </div>
@@ -99,7 +100,7 @@ const {
               :title="group.label"
               :aria-label="group.label"
             >
-              <span class="nav-icon">{{ navGroupIcon(group.key) }}</span>
+              <span class="nav-icon"><AppIcon :name="navGroupIcon(group.key)" :size="18" /></span>
             </button>
             <div class="nav-flyout" role="menu">
               <strong>{{ group.label }}</strong>
@@ -112,7 +113,7 @@ const {
                 role="menuitem"
                 @click="setActiveTool(item.key)"
               >
-                <span class="nav-dot">{{ navItemIcon(item.key) }}</span>
+                <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
                 <span>{{ item.label }}</span>
               </button>
             </div>
@@ -123,12 +124,14 @@ const {
 
     <section class="workspace">
       <div v-if="scopedToastVisible" class="top-toast" :class="[toastTone, { leaving: toast?.leaving }]">
-        <span class="toast-icon" aria-hidden="true">{{ toastTone === 'success' ? '✓' : toastTone === 'error' ? '!' : toastTone === 'warning' ? '!' : 'i' }}</span>
+        <span class="toast-icon" aria-hidden="true">
+          <AppIcon :name="toastTone === 'success' ? 'circleCheck' : toastTone === 'info' ? 'circleHelp' : 'alert'" :size="18" />
+        </span>
         <div class="toast-content">
           <strong>{{ toast?.title }}</strong>
           <p>{{ toast?.message }}</p>
         </div>
-        <button type="button" aria-label="关闭提示" @click="toast = null">×</button>
+        <button type="button" aria-label="关闭提示" @click="toast = null"><AppIcon name="x" :size="16" /></button>
       </div>
 
       <header class="page-header">
@@ -151,7 +154,7 @@ const {
             <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
           </template>
           <template v-else-if="activeTool === 'hosts'">
-            <button class="header-action terminal-action" type="button" @click="openWebTerminal()">Web 终端</button>
+            <button class="header-action terminal-action" type="button" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
           </template>
           <template v-else-if="activeTool === 'accounts'"></template>
           <template v-else>
@@ -176,7 +179,7 @@ const {
 
     <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = null">
       <article class="qr-modal share-modal">
-        <button class="modal-close" type="button" @click="qrPreview = null">×</button>
+        <button class="modal-close" type="button" @click="qrPreview = null"><AppIcon name="x" :size="16" /></button>
         <h2>分享二维码</h2>
         <p>扫码后可直接导入 {{ qrPreview.issuer }} 的双因子配置。</p>
         <div class="qr-frame">

@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import { useAppContext } from '../../appContext';
 import type { HostCredential } from '../../types';
+import AppIcon from '../common/AppIcon.vue';
 
 interface CredentialForm {
   name: string;
@@ -149,8 +150,8 @@ function emptyForm(): CredentialForm {
       <div class="account-toolbar">
         <input v-model="search" placeholder="输入账号名称/用户/备注搜索" />
         <div class="account-toolbar-actions">
-          <button class="primary" type="button" @click="openCreateDialog">+ 新增账号</button>
-          <button class="icon-only" type="button" title="刷新" @click="loadCredentials">↻</button>
+          <button class="primary" type="button" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</button>
+          <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadCredentials"><AppIcon name="refresh" :size="16" /></button>
         </div>
       </div>
 
@@ -193,7 +194,7 @@ function emptyForm(): CredentialForm {
 
     <div v-if="dialog" class="modal-backdrop" @click.self="dialog = null">
       <form class="account-form-modal account-horizontal-modal" @submit.prevent="saveCredential">
-        <button class="modal-close" type="button" @click="dialog = null">×</button>
+        <button class="modal-close" type="button" @click="dialog = null"><AppIcon name="x" :size="16" /></button>
         <h2>{{ dialog.mode === 'edit' ? '编辑账号' : '新增账号' }}</h2>
         <label class="account-horizontal-field required">
           <span>账号名称：</span>

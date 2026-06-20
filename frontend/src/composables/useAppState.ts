@@ -1,6 +1,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { apiGet } from '../api';
+import type { IconName } from '../components/common/AppIcon.vue';
 import { navGroups } from '../navigation';
 import type { ToolKey } from '../types';
 import { setupClickWords, setupPointerTrail } from '../utils/effects';
@@ -230,12 +231,14 @@ function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value;
 }
 
-function navItemIcon(key: ToolKey) {
-  return { ip: '⌂', hosts: '▣', accounts: '◫', ports: '∞', subnet: '╫', auth: '⊙', password: '✦' }[key];
+function navItemIcon(key: ToolKey): IconName {
+  const icons: Record<ToolKey, IconName> = { ip: 'network', hosts: 'server', accounts: 'users', ports: 'gauge', subnet: 'globe', auth: 'shield', password: 'key' };
+  return icons[key];
 }
 
-function navGroupIcon(key: string) {
-  return { network: 'Ⅱ', host: '▣', security: '⚙' }[key] ?? '□';
+function navGroupIcon(key: string): IconName {
+  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', security: 'settings' };
+  return icons[key] ?? 'dashboard';
 }
 
 async function loadLocalIp() {

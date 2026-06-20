@@ -6,6 +6,7 @@ import type { IDisposable } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
 import { apiGet } from '../../api';
+import AppIcon from '../common/AppIcon.vue';
 
 interface TerminalHost {
   id: number;
@@ -577,7 +578,7 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
       </div>
       <div class="terminal-search">
         <input v-model="search" placeholder="输入主机名/IP检索" />
-        <button type="button" title="刷新" @click="loadTree">↻</button>
+        <button type="button" title="刷新" aria-label="刷新" @click="loadTree"><AppIcon name="refresh" :size="16" /></button>
       </div>
       <div class="terminal-tree">
         <button
@@ -591,11 +592,11 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
           @dblclick="row.kind === 'host' && openHostTab(row.host)"
         >
           <template v-if="row.kind === 'group'">
-            <span>{{ collapsed.has(row.group.id) ? '▸' : '▾' }}</span>
-            <strong>▣ {{ row.group.name }}</strong>
+            <span><AppIcon :name="collapsed.has(row.group.id) ? 'chevronRight' : 'chevronDown'" :size="15" /></span>
+            <strong><AppIcon name="folder" :size="16" />{{ row.group.name }}</strong>
           </template>
           <template v-else>
-            <span>●</span>
+            <span><AppIcon name="server" :size="15" /></span>
             <strong>{{ row.host.name }}</strong>
           </template>
         </button>
@@ -628,7 +629,7 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
         >
           <span class="terminal-tab-label">{{ tab.host.name }}</span>
           <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
-          <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)">×</span>
+          <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)"><AppIcon name="x" :size="13" /></span>
         </button>
       </div>
       <div class="terminal-screen">

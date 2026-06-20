@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAppContext } from '../../appContext';
+import AppIcon from '../common/AppIcon.vue';
 
 const {
   activeTool,
@@ -70,7 +71,7 @@ const {
     <article class="panel host-groups-panel">
       <div class="host-group-head">
         <h2>分组列表</h2>
-        <button class="group-add-button" type="button" title="添加分组" aria-label="添加分组" @click.stop="openAddRootHostGroup()">＋</button>
+        <button class="group-add-button" type="button" title="添加分组" aria-label="添加分组" @click.stop="openAddRootHostGroup()"><AppIcon name="plus" :size="16" /></button>
       </div>
       <div class="host-group-list">
         <template v-for="row in hostGroupRows" :key="row.kind === 'group' ? `group-${row.group.key}` : `editor-${row.editor.mode}-${row.editor.after ?? 'end'}`">
@@ -86,8 +87,8 @@ const {
                 :class="{ expandable: row.group.children?.length }"
                 role="button"
                 @click.stop="toggleHostGroupExpanded(row.group)"
-              >{{ row.group.children?.length ? (isHostGroupExpanded(row.group) ? '▾' : '▸') : '' }}</span>
-              <span class="folder-icon">□</span>
+              ><AppIcon v-if="row.group.children?.length" :name="isHostGroupExpanded(row.group) ? 'chevronDown' : 'chevronRight'" :size="15" /></span>
+              <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
               <input
                 v-model="hostGroupInlineEdit.name"
                 class="host-group-inline-input"
@@ -124,8 +125,8 @@ const {
                 :class="{ expandable: row.group.children?.length }"
                 role="button"
                 @click.stop="toggleHostGroupExpanded(row.group)"
-              >{{ row.group.children?.length ? (isHostGroupExpanded(row.group) ? '▾' : '▸') : '' }}</span>
-              <span class="folder-icon">□</span>
+              ><AppIcon v-if="row.group.children?.length" :name="isHostGroupExpanded(row.group) ? 'chevronDown' : 'chevronRight'" :size="15" /></span>
+              <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
               <strong>{{ row.group.label }}</strong>
               <em>{{ row.group.count }}</em>
             </button>
@@ -137,7 +138,7 @@ const {
             @click.stop
           >
             <span class="folder-caret"></span>
-            <span class="folder-icon">□</span>
+            <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
             <input
               v-model="row.editor.name"
               class="host-group-inline-input"
@@ -159,15 +160,15 @@ const {
         :style="{ left: `${hostGroupMenu.x}px`, top: `${hostGroupMenu.y}px` }"
         @click.stop
       >
-        <button type="button" @click="openAddRootHostGroup(hostGroupMenu.group)"><span>□</span>新建根分组</button>
-        <button type="button" @click="openAddHostGroup(hostGroupMenu.group.key)"><span>⊞</span>新建子分组</button>
-        <button type="button" @click="openRenameHostGroup(hostGroupMenu.group)"><span>∕</span>重命名</button>
+        <button type="button" @click="openAddRootHostGroup(hostGroupMenu.group)"><span><AppIcon name="folderPlus" :size="15" /></span>新建根分组</button>
+        <button type="button" @click="openAddHostGroup(hostGroupMenu.group.key)"><span><AppIcon name="circlePlus" :size="15" /></span>新建子分组</button>
+        <button type="button" @click="openRenameHostGroup(hostGroupMenu.group)"><span><AppIcon name="edit" :size="15" /></span>重命名</button>
         <hr />
-        <button type="button" @click="addManagedHost(hostGroupMenu.group.key)"><span>▢</span>添加主机</button>
-        <button type="button" @click="openMoveHostDialog(hostGroupMenu.group)"><span>⌘</span>移动主机</button>
-        <button class="danger" type="button" @click="deleteManagedHostsInGroup(hostGroupMenu.group)"><span>×</span>删除主机</button>
+        <button type="button" @click="addManagedHost(hostGroupMenu.group.key)"><span><AppIcon name="server" :size="15" /></span>添加主机</button>
+        <button type="button" @click="openMoveHostDialog(hostGroupMenu.group)"><span><AppIcon name="upload" :size="15" /></span>移动主机</button>
+        <button class="danger" type="button" @click="deleteManagedHostsInGroup(hostGroupMenu.group)"><span><AppIcon name="trash" :size="15" /></span>删除主机</button>
         <hr />
-        <button class="danger" type="button" @click="deleteHostGroup(hostGroupMenu.group)"><span>♧</span>删除此分组</button>
+        <button class="danger" type="button" @click="deleteHostGroup(hostGroupMenu.group)"><span><AppIcon name="trash" :size="15" /></span>删除此分组</button>
       </div>
     </article>
 
@@ -175,13 +176,13 @@ const {
       <div class="host-toolbar">
         <input v-model="hostSearch" placeholder="输入名称/IP检索" />
         <div class="host-toolbar-actions">
-          <button class="primary" type="button" @click="addManagedHost()">＋ 新建</button>
+          <button class="primary" type="button" @click="addManagedHost()"><AppIcon name="plus" :size="16" />新建</button>
           <button class="primary secondary-blue" type="button" @click="verifyVisibleManagedHosts">验证</button>
           <div class="status-tabs">
             <button :class="{ active: hostStatusFilter === 'all' }" type="button" @click="hostStatusFilter = 'all'">全部</button>
             <button :class="{ active: hostStatusFilter === 'unverified' }" type="button" @click="hostStatusFilter = 'unverified'">未验证</button>
           </div>
-          <button class="icon-only" type="button" title="刷新" @click="loadHostManagement">↻</button>
+          <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadHostManagement"><AppIcon name="refresh" :size="16" /></button>
         </div>
       </div>
       <div class="host-stats-line">
@@ -240,7 +241,7 @@ const {
 
     <div v-if="rootHostGroupDialogOpen" class="modal-backdrop" @click.self="rootHostGroupDialogOpen = false">
       <form class="host-form-modal" @submit.prevent="saveRootHostGroup">
-        <button class="modal-close" type="button" @click="rootHostGroupDialogOpen = false">×</button>
+        <button class="modal-close" type="button" @click="rootHostGroupDialogOpen = false"><AppIcon name="x" :size="16" /></button>
         <h2>新建根分组</h2>
         <label>
           <span>分组名称</span>
@@ -264,7 +265,7 @@ const {
 
     <div v-if="hostDialog" class="modal-backdrop" @click.self="hostDialog = null">
       <form class="host-form-modal host-edit-modal host-horizontal-modal" @submit.prevent="saveManagedHost">
-        <button class="modal-close" type="button" @click="hostDialog = null">×</button>
+        <button class="modal-close" type="button" @click="hostDialog = null"><AppIcon name="x" :size="16" /></button>
         <h2>{{ hostDialog.mode === 'edit' ? '编辑主机' : '新增主机' }}</h2>
         <label class="host-horizontal-field required">
           <span>主机分组：</span>
@@ -325,7 +326,7 @@ const {
 
     <div v-if="hostMoveDialogOpen" class="modal-backdrop" @click.self="hostMoveDialogOpen = false">
       <form class="host-form-modal" @submit.prevent="saveMoveManagedHost">
-        <button class="modal-close" type="button" @click="hostMoveDialogOpen = false">×</button>
+        <button class="modal-close" type="button" @click="hostMoveDialogOpen = false"><AppIcon name="x" :size="16" /></button>
         <h2>移动主机</h2>
         <label>
           <span>选择主机</span>

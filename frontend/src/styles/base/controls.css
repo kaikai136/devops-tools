@@ -63,6 +63,13 @@ button {
   padding: 0 16px;
 }
 
+button:not(.icon-only):not(.modal-close):not(.qr-button):not(.sidebar-toggle):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-group-row):not(.terminal-tree-row):not(.terminal-tab) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
 button.primary {
   border: 0;
   color: #fff;
@@ -95,4 +102,9 @@ button:disabled {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.app-icon {
+  display: block;
+  flex: 0 0 auto;
 }
