@@ -33,6 +33,7 @@
 .host-sort-button {
   min-height: auto;
   justify-self: start;
+  justify-content: flex-start;
   border: 0;
   background: transparent;
   color: inherit;
@@ -54,6 +55,9 @@
 
 .host-name-link {
   min-height: auto;
+  width: 100%;
+  justify-self: start;
+  justify-content: flex-start;
   border: 0;
   background: transparent;
   color: #0755d8;

@@ -80,7 +80,7 @@
   color: #173252;
   padding: 0 10px;
   text-align: left;
-  cursor: grab;
+  cursor: pointer;
 }
 
 .host-group-row strong {
@@ -99,7 +99,7 @@
 }
 
 .host-group-row:active {
-  cursor: grabbing;
+  cursor: pointer;
 }
 
 .host-group-row.active {

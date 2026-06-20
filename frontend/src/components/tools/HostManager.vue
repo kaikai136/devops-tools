@@ -113,6 +113,7 @@ const {
               type="button"
               draggable="true"
               @click.stop="selectManagedGroup(row.group.key)"
+              @dblclick.stop="toggleHostGroupExpanded(row.group)"
               @contextmenu="openHostGroupMenu(row.group, $event)"
               @dragstart="startHostGroupDrag(row.group, $event)"
               @dragover="updateHostGroupDropTarget(row.group, $event)"
@@ -174,7 +175,7 @@ const {
 
     <article class="panel host-table-panel">
       <div class="host-toolbar">
-        <input v-model="hostSearch" placeholder="输入名称/IP检索" />
+        <input v-model="hostSearch" placeholder="输入别名/IP检索" />
         <div class="host-toolbar-actions">
           <button class="primary" type="button" @click="addManagedHost()"><AppIcon name="plus" :size="16" />新建</button>
           <button class="primary secondary-blue" type="button" @click="verifyVisibleManagedHosts">验证</button>
@@ -195,7 +196,7 @@ const {
         <div class="host-table-row head">
           <span>主机分组</span>
           <button class="host-sort-button" :class="{ active: hostSortKey === 'name', desc: hostSortKey === 'name' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('name')">
-            主机名称 <em>{{ hostSortMark('name') }}</em>
+            机器别名 <em>{{ hostSortMark('name') }}</em>
           </button>
           <button class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
             IP地址 <em>{{ hostSortMark('ip') }}</em>
@@ -276,7 +277,7 @@ const {
           </select>
         </label>
         <label class="host-horizontal-field required">
-          <span>主机名称：</span>
+          <span>机器别名：</span>
           <input v-model="hostForm.name" autofocus />
         </label>
         <label class="host-horizontal-field required">
