@@ -17,6 +17,8 @@ interface TerminalHost {
   port: number;
   loginUser: string;
   remark: string;
+  verified: boolean;
+  verifyStatus?: 'unverified' | 'verified' | 'failed';
 }
 
 interface TerminalGroup {
@@ -694,6 +696,13 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
           <template v-else>
             <span><AppIcon name="server" :size="15" /></span>
             <strong>{{ row.host.name }}</strong>
+            <i
+              v-if="row.host.verified || row.host.verifyStatus === 'failed'"
+              class="terminal-host-verify-dot"
+              :class="{ failed: row.host.verifyStatus === 'failed' }"
+              :title="row.host.verifyStatus === 'failed' ? '验证失败' : '已验证'"
+              :aria-label="row.host.verifyStatus === 'failed' ? '验证失败' : '已验证'"
+            ></i>
           </template>
         </button>
         <p v-if="isLoadingTree" class="terminal-tree-empty">加载中...</p>

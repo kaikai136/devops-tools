@@ -459,6 +459,7 @@ function emptyUserForm(): UserForm {
 
     <div v-if="deleteTarget" class="modal-backdrop" @click.self="deleteTarget = null">
       <article class="user-form-modal compact">
+        <button class="modal-close" type="button" @click="deleteTarget = null"><AppIcon name="x" :size="16" /></button>
         <h2>删除用户</h2>
         <p>确定删除账户“{{ deleteTarget.username }}”吗？</p>
         <div class="user-form-actions">

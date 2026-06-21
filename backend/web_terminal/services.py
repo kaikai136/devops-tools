@@ -90,6 +90,8 @@ def host_payload(host: ManagedHost) -> dict:
         "port": host.port,
         "loginUser": host.login_user,
         "remark": host.remark,
+        "verified": host.verified,
+        "verifyStatus": host.verify_status,
     }
 
 

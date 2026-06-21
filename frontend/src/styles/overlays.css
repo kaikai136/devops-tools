@@ -16,12 +16,60 @@
 
 .modal-close {
   position: absolute;
-  right: 10px;
-  top: 10px;
-  width: 32px;
-  min-height: 32px;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: inline-grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  place-items: center;
   padding: 0;
+  border: 1px solid #d6e3f3;
   border-radius: 50%;
+  background: #f8fbff;
+  color: #173252;
+  box-shadow: 0 6px 14px rgba(23, 50, 82, 0.08);
+  cursor: pointer;
+  line-height: 1;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.modal-close:hover {
+  border-color: #8bb8f0;
+  background: #eef6ff;
+  color: #1057d9;
+  box-shadow: 0 10px 22px rgba(23, 80, 170, 0.16);
+}
+
+.modal-close:active {
+  transform: scale(0.95);
+}
+
+.modal-close:focus-visible {
+  outline: 3px solid rgba(30, 115, 255, 0.18);
+  outline-offset: 2px;
+}
+
+.modal-close .app-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.4;
+}
+
+.qr-modal h2,
+.host-form-modal h2,
+.account-form-modal h2,
+.account-confirm-modal h2,
+.user-form-modal h2,
+.confirm-panel h3 {
+  padding-right: 46px;
 }
 
 .qr-modal img {
@@ -95,6 +143,7 @@
 }
 
 .confirm-panel article {
+  position: relative;
   width: min(380px, 100%);
   padding: 16px;
   border: 1px solid #ffd1d8;

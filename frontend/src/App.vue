@@ -212,6 +212,7 @@ const {
     </div>
     <div v-if="confirmDialog" class="confirm-panel">
       <article>
+        <button class="modal-close" type="button" @click="confirmDialog = null"><AppIcon name="x" :size="16" /></button>
         <h3>{{ confirmDialog.title }}</h3>
         <p>{{ confirmDialog.message }}</p>
         <div>

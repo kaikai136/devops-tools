@@ -236,6 +236,7 @@ function emptyForm(): CredentialForm {
 
     <div v-if="confirmDelete" class="modal-backdrop" @click.self="confirmDelete = null">
       <article class="account-confirm-modal">
+        <button class="modal-close" type="button" @click="confirmDelete = null"><AppIcon name="x" :size="16" /></button>
         <h2>删除账号</h2>
         <p>确定删除账号「{{ confirmDelete.name }}」吗？</p>
         <div class="host-form-actions">

@@ -103,6 +103,7 @@ input {
 }
 
 .terminal-tree-row strong {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   font-size: 14px;
@@ -113,6 +114,21 @@ input {
 
 .terminal-tree-row.host strong {
   font-weight: 500;
+}
+
+.terminal-host-verify-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #20bf55;
+  box-shadow: 0 0 0 2px rgba(32, 191, 85, 0.15);
+}
+
+.terminal-host-verify-dot.failed {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.14);
 }
 
 .terminal-tree-empty {
