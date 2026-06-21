@@ -10,6 +10,7 @@ import IpScanner from './components/tools/IpScanner.vue';
 import MachineProbe from './components/tools/MachineProbe.vue';
 import PasswordGenerator from './components/tools/PasswordGenerator.vue';
 import SubnetCalculator from './components/tools/SubnetCalculator.vue';
+import UserManager from './components/tools/UserManager.vue';
 import { useAppState } from './composables/useAppState';
 
 const appState = useAppState();
@@ -147,7 +148,7 @@ const {
         <button type="button" aria-label="关闭提示" @click="toast = null"><AppIcon name="x" :size="16" /></button>
       </div>
 
-      <header class="page-header">
+      <header v-if="activeTool !== 'users'" class="page-header">
         <div class="page-title-block">
           <h1>{{ activeNavItem.label }}</h1>
           <p>
@@ -169,7 +170,7 @@ const {
           <template v-else-if="activeTool === 'hosts'">
             <button class="header-action terminal-action" type="button" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
           </template>
-          <template v-else-if="activeTool === 'accounts'"></template>
+          <template v-else-if="activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
           <template v-else>
             <article><span>本机 IP</span><strong>{{ localIp }}</strong></article>
             <article
@@ -188,6 +189,7 @@ const {
       <SubnetCalculator v-if="activeTool === 'subnet'" />
       <AuthenticatorPanel v-if="activeTool === 'auth'" />
       <PasswordGenerator v-if="activeTool === 'password'" />
+      <UserManager v-if="activeTool === 'users'" />
     </section>
 
     <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = null">

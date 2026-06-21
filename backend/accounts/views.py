@@ -4,6 +4,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from operations.responses import bad_request
+from system_management.models import LoginLog
+from system_management.services import record_login_log
 
 
 def user_payload(user) -> dict:
@@ -46,12 +48,15 @@ def auth_login(request):
 
     user = authenticate(request, username=username, password=password)
     if user is None:
+        record_login_log(request, username, LoginLog.STATUS_FAILED, "账号或密码错误")
         return Response({"error": "账号或密码错误"}, status=status.HTTP_400_BAD_REQUEST)
     if not user.is_active:
+        record_login_log(request, username, LoginLog.STATUS_FAILED, "账号已停用", user)
         return Response({"error": "账号已被停用"}, status=status.HTTP_403_FORBIDDEN)
 
     login(request, user)
     request.session.set_expiry(60 * 60 * 24 * 14 if remember else 0)
+    record_login_log(request, username, LoginLog.STATUS_SUCCESS, "登录成功", user)
     return Response({"user": user_payload(user)})
 
 

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "host_management",
     "web_terminal",
     "operations",
+    "system_management",
 ]
 
 MIDDLEWARE = [

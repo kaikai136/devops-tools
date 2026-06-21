@@ -1,6 +1,6 @@
 import type { ToolKey } from './types';
 
-type NavGroupKey = 'network' | 'host' | 'security';
+type NavGroupKey = 'network' | 'host' | 'security' | 'system';
 
 export interface NavItem {
   key: ToolKey;
@@ -38,6 +38,16 @@ export const navGroups: NavGroup[] = [
     items: [
       { key: 'auth' as const, label: '双因子认证', desc: 'TOTP 动态口令' },
       { key: 'password' as const, label: '密码生成器', desc: '强密码生成与记录' },
+    ],
+  },
+  {
+    key: 'system' as const,
+    label: '系统管理',
+    items: [
+      { key: 'loginLogs' as const, label: '登录日志', desc: '查看用户登录时间、来源与状态' },
+      { key: 'users' as const, label: '用户管理', desc: '维护系统用户与账号状态' },
+      { key: 'roles' as const, label: '角色管理', desc: '配置角色权限与授权范围' },
+      { key: 'systemSettings' as const, label: '系统设置', desc: '管理系统基础参数与偏好' },
     ],
   },
 ];

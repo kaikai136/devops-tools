@@ -1,4 +1,15 @@
-export type ToolKey = 'ip' | 'hosts' | 'accounts' | 'ports' | 'subnet' | 'auth' | 'password';
+export type ToolKey =
+  | 'ip'
+  | 'hosts'
+  | 'accounts'
+  | 'ports'
+  | 'subnet'
+  | 'auth'
+  | 'password'
+  | 'loginLogs'
+  | 'users'
+  | 'roles'
+  | 'systemSettings';
 
 export interface HostResult {
   host: number;

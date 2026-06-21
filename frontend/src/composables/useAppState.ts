@@ -13,7 +13,7 @@ import { usePasswordManager } from './features/usePasswordManager';
 import { useSubnetCalculator } from './features/useSubnetCalculator';
 export function useAppState() {
 const activeTool = ref<ToolKey>('ip');
-const groupsOpen = ref({ network: true, host: true, security: true });
+const groupsOpen = ref({ network: true, host: true, security: true, system: true });
 const sidebarCollapsed = ref(false);
 const hoveredNavGroup = ref<string | null>(null);
 const toast = ref<{ title: string; message: string; visible: boolean; leaving: boolean; scope: ToolKey } | null>(null);
@@ -251,12 +251,24 @@ function closeNavFlyout(delay = 220) {
 }
 
 function navItemIcon(key: ToolKey): IconName {
-  const icons: Record<ToolKey, IconName> = { ip: 'network', hosts: 'server', accounts: 'users', ports: 'gauge', subnet: 'globe', auth: 'shield', password: 'key' };
+  const icons: Record<ToolKey, IconName> = {
+    ip: 'network',
+    hosts: 'server',
+    accounts: 'users',
+    ports: 'gauge',
+    subnet: 'globe',
+    auth: 'shield',
+    password: 'key',
+    loginLogs: 'bell',
+    users: 'user',
+    roles: 'shield',
+    systemSettings: 'settings',
+  };
   return icons[key];
 }
 
 function navGroupIcon(key: string): IconName {
-  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', security: 'settings' };
+  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', security: 'settings', system: 'dashboard' };
   return icons[key] ?? 'dashboard';
 }
 
