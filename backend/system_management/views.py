@@ -9,6 +9,7 @@ from operations.responses import bad_request
 
 from .models import LoginLog, SystemSetting
 from .serializers import LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
+from .services import ensure_builtin_admin, is_builtin_admin_user
 
 
 @api_view(["GET"])
@@ -36,6 +37,7 @@ def system_users(request):
         return staff_error
 
     User = get_user_model()
+    ensure_builtin_admin()
     if request.method == "GET":
         users = User.objects.prefetch_related("groups").order_by("id")
         return Response(SystemUserSerializer(users, many=True).data)
@@ -65,13 +67,18 @@ def system_user_detail(request, user_id: int):
     if request.method == "DELETE":
         if user.id == request.user.id:
             return bad_request("不能删除当前登录用户")
+        if is_builtin_admin_user(user):
+            return bad_request("内置管理员不允许删除")
         user.delete()
         return Response({"deleted": True})
 
     serializer = SystemUserSerializer(user, data=request.data, partial=True)
     if not serializer.is_valid():
         return bad_request(first_serializer_error(serializer.errors))
-    return Response(SystemUserSerializer(serializer.save()).data)
+    saved_user = serializer.save()
+    if is_builtin_admin_user(saved_user):
+        saved_user = ensure_builtin_admin()
+    return Response(SystemUserSerializer(saved_user).data)
 
 
 @api_view(["GET", "POST"])

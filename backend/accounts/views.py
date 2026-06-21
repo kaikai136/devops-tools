@@ -5,7 +5,7 @@ from rest_framework.response import Response
 
 from operations.responses import bad_request
 from system_management.models import LoginLog
-from system_management.services import record_login_log
+from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log
 
 
 def user_payload(user) -> dict:
@@ -39,6 +39,7 @@ def require_staff(request):
 
 @api_view(["POST"])
 def auth_login(request):
+    ensure_builtin_admin()
     username = str(request.data.get("account", request.data.get("username", ""))).strip()
     password = str(request.data.get("password", ""))
     remember = bool(request.data.get("remember", False))
@@ -81,6 +82,7 @@ def users(request):
         return staff_error
 
     User = get_user_model()
+    ensure_builtin_admin()
     if request.method == "GET":
         data = [user_payload(user) for user in User.objects.order_by("id")]
         return Response(data)
@@ -120,6 +122,8 @@ def user_detail(request, user_id: int):
     if request.method == "DELETE":
         if user.id == request.user.id:
             return bad_request("不能删除当前登录用户")
+        if is_builtin_admin_user(user):
+            return bad_request("内置管理员不允许删除")
         user.delete()
         return Response({"deleted": True})
 
@@ -129,13 +133,17 @@ def user_detail(request, user_id: int):
     if User.objects.exclude(id=user.id).filter(username=username).exists():
         return bad_request("用户名已存在")
 
-    user.username = username
-    user.email = str(request.data.get("email", user.email)).strip()
-    user.first_name = str(request.data.get("first_name", user.first_name)).strip()
-    user.is_active = bool(request.data.get("is_active", user.is_active))
-    user.is_staff = bool(request.data.get("is_staff", user.is_staff))
+    builtin_admin = is_builtin_admin_user(user)
+    if not builtin_admin:
+        user.username = username
+        user.email = str(request.data.get("email", user.email)).strip()
+        user.first_name = str(request.data.get("first_name", user.first_name)).strip()
+        user.is_active = bool(request.data.get("is_active", user.is_active))
+        user.is_staff = bool(request.data.get("is_staff", user.is_staff))
     password = str(request.data.get("password", "")).strip()
     if password:
         user.set_password(password)
     user.save()
+    if builtin_admin:
+        user = ensure_builtin_admin()
     return Response(user_payload(user))

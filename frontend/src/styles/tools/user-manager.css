@@ -233,6 +233,24 @@
   white-space: nowrap;
 }
 
+.user-login-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-builtin-badge {
+  flex: 0 0 auto;
+  border: 1px solid #bfd3ff;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1f55ff;
+  padding: 2px 7px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
 .user-status {
   display: inline-flex;
   align-items: center;
@@ -266,9 +284,18 @@
   font-size: 14px;
 }
 
+.user-row-actions button:disabled {
+  color: #a5adba;
+  cursor: not-allowed;
+}
+
 .user-row-actions .danger,
 .user-form-actions .danger {
   color: #ff4d4f;
+}
+
+.user-row-actions .danger:disabled {
+  color: #c5cad3;
 }
 
 .user-empty {

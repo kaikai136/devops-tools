@@ -3,6 +3,7 @@ from django.contrib.auth.models import Group, Permission
 from rest_framework import serializers
 
 from .models import LoginLog, SystemSetting
+from .services import is_builtin_admin_user
 
 
 class LoginLogSerializer(serializers.ModelSerializer):
@@ -26,6 +27,7 @@ class SystemUserSerializer(serializers.ModelSerializer):
     isActive = serializers.BooleanField(source="is_active", required=False)
     isStaff = serializers.BooleanField(source="is_staff", required=False)
     isSuperuser = serializers.BooleanField(source="is_superuser", read_only=True)
+    isBuiltinAdmin = serializers.SerializerMethodField()
     lastLogin = serializers.DateTimeField(source="last_login", read_only=True)
     dateJoined = serializers.DateTimeField(source="date_joined", read_only=True)
     roleIds = serializers.PrimaryKeyRelatedField(source="groups", queryset=Group.objects.all(), many=True, required=False)
@@ -41,6 +43,7 @@ class SystemUserSerializer(serializers.ModelSerializer):
             "isActive",
             "isStaff",
             "isSuperuser",
+            "isBuiltinAdmin",
             "lastLogin",
             "dateJoined",
             "roleIds",
@@ -59,6 +62,9 @@ class SystemUserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("用户名已存在")
         return username
 
+    def get_isBuiltinAdmin(self, obj):
+        return is_builtin_admin_user(obj)
+
     def validate(self, attrs):
         if self.instance is None and not str(attrs.get("password", "")).strip():
             raise serializers.ValidationError({"password": "请输入初始密码"})
@@ -74,6 +80,10 @@ class SystemUserSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         groups = validated_data.pop("groups", None)
         password = str(validated_data.pop("password", "")).strip()
+
+        if is_builtin_admin_user(instance):
+            validated_data = {}
+            groups = None
 
         for field, value in validated_data.items():
             setattr(instance, field, value)

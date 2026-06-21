@@ -13,6 +13,7 @@ interface SystemUser {
   isActive: boolean;
   isStaff: boolean;
   isSuperuser: boolean;
+  isBuiltinAdmin?: boolean;
   lastLogin: string | null;
   dateJoined: string | null;
   roleIds: number[];
@@ -113,13 +114,16 @@ async function loadUsers() {
   isLoading.value = true;
   message.value = '';
   try {
-    const [nextUsers, nextRoles] = await Promise.all([
-      apiGet<SystemUser[]>('/api/system/users/'),
-      apiGet<SystemRole[]>('/api/system/roles/'),
-    ]);
-    users.value = nextUsers;
-    roles.value = nextRoles;
+    users.value = await apiGet<SystemUser[]>('/api/system/users/');
+    try {
+      roles.value = await apiGet<SystemRole[]>('/api/system/roles/');
+    } catch (error) {
+      roles.value = [];
+      message.value = `用户已加载，角色信息加载失败：${(error as Error).message}`;
+    }
   } catch (error) {
+    users.value = [];
+    roles.value = [];
     message.value = (error as Error).message;
   } finally {
     isLoading.value = false;
@@ -133,6 +137,10 @@ function openCreateDialog() {
 }
 
 function openEditDialog(user: SystemUser) {
+  if (user.isBuiltinAdmin) {
+    message.value = '内置管理员信息固定，不允许编辑';
+    return;
+  }
   message.value = '';
   form.value = {
     username: user.username,
@@ -171,6 +179,10 @@ async function saveUser() {
 }
 
 async function toggleUserStatus(user: SystemUser) {
+  if (user.isBuiltinAdmin) {
+    message.value = '内置管理员必须保持启用';
+    return;
+  }
   message.value = '';
   try {
     const saved = await apiPut<SystemUser>(`/api/system/users/${user.id}/`, {
@@ -213,6 +225,11 @@ async function saveResetPassword() {
 
 async function deleteUser() {
   if (!deleteTarget.value) return;
+  if (deleteTarget.value.isBuiltinAdmin) {
+    message.value = '内置管理员不允许删除';
+    deleteTarget.value = null;
+    return;
+  }
   message.value = '';
   try {
     const userId = deleteTarget.value.id;
@@ -260,9 +277,19 @@ function roleNames(user: SystemUser) {
   const names = user.roleIds
     .map((roleId) => roles.value.find((role) => role.id === roleId)?.name)
     .filter(Boolean);
+  if (user.isBuiltinAdmin) names.unshift('内置管理员');
   if (user.isSuperuser) names.unshift('超级管理员');
   if (user.isStaff && !names.length) names.push('管理员');
   return names.join('、');
+}
+
+function openDeleteUser(user: SystemUser) {
+  message.value = '';
+  if (user.isBuiltinAdmin) {
+    message.value = '内置管理员不允许删除';
+    return;
+  }
+  deleteTarget.value = user;
 }
 
 function formatDate(value: string | null) {
@@ -368,7 +395,10 @@ function emptyUserForm(): UserForm {
           <span v-if="isColumnVisible('actions')">操作</span>
         </div>
         <div v-for="user in pagedUsers" :key="user.id" class="user-table-row">
-          <strong v-if="isColumnVisible('username')" class="user-login-name">{{ user.username }}</strong>
+          <strong v-if="isColumnVisible('username')" class="user-login-name">
+            {{ user.username }}
+            <em v-if="user.isBuiltinAdmin" class="user-builtin-badge">内置</em>
+          </strong>
           <span v-if="isColumnVisible('name')" class="user-real-name">{{ user.firstName || '-' }}</span>
           <span v-if="isColumnVisible('roles')" class="user-role-cell">{{ roleNames(user) || '-' }}</span>
           <span v-if="isColumnVisible('status')" class="user-status" :class="{ disabled: !user.isActive }">
@@ -376,10 +406,10 @@ function emptyUserForm(): UserForm {
           </span>
           <span v-if="isColumnVisible('lastLogin')" class="user-date-cell">{{ formatDate(user.lastLogin) }}</span>
           <div v-if="isColumnVisible('actions')" class="user-row-actions">
-            <button type="button" @click="toggleUserStatus(user)">{{ user.isActive ? '禁用' : '启用' }}</button>
-            <button type="button" @click="openEditDialog(user)">编辑</button>
+            <button type="button" :disabled="user.isBuiltinAdmin" @click="toggleUserStatus(user)">{{ user.isActive ? '禁用' : '启用' }}</button>
+            <button type="button" :disabled="user.isBuiltinAdmin" @click="openEditDialog(user)">编辑</button>
             <button type="button" @click="openResetPassword(user)">重置密码</button>
-            <button class="danger" type="button" @click="deleteTarget = user">删除</button>
+            <button class="danger" type="button" :disabled="user.isBuiltinAdmin" @click="openDeleteUser(user)">删除</button>
           </div>
         </div>
         <div v-if="!pagedUsers.length" class="user-empty">{{ isLoading ? '加载中...' : '暂无匹配账户' }}</div>
