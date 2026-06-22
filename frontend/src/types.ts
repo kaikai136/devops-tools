@@ -78,6 +78,12 @@ export interface AccountUser {
   date_joined: string | null;
 }
 
+export interface LoginPayload {
+  account: string;
+  password: string;
+  remember: boolean;
+}
+
 export interface PortScanResult {
   host: string;
   open_ports: number[];

@@ -11,6 +11,7 @@ BUILTIN_ADMIN_USERNAME = "admin"
 BUILTIN_ADMIN_EMAIL = "admin@ops.local"
 BUILTIN_ADMIN_FIRST_NAME = "System Administrator"
 BUILTIN_ADMIN_PASSWORD_ENV = "OPS_TOOL_ADMIN_PASSWORD"
+BUILTIN_ADMIN_DEFAULT_PASSWORD = "Admin@123456"
 
 
 def is_builtin_admin_user(user) -> bool:
@@ -43,12 +44,9 @@ def ensure_builtin_admin():
             setattr(user, field, value)
             update_fields.append(field)
 
-    admin_password = os.environ.get(BUILTIN_ADMIN_PASSWORD_ENV, "").strip()
-    if admin_password and not user.has_usable_password():
+    admin_password = os.environ.get(BUILTIN_ADMIN_PASSWORD_ENV, "").strip() or BUILTIN_ADMIN_DEFAULT_PASSWORD
+    if not user.check_password(admin_password):
         user.set_password(admin_password)
-        update_fields.append("password")
-    elif created:
-        user.set_unusable_password()
         update_fields.append("password")
 
     if update_fields:

@@ -4,8 +4,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from accounts.views import require_staff
-from operations.responses import bad_request
+from accounts.permissions import require_staff
+from operations.responses import bad_request, bounded_int, not_found, serializer_bad_request
 
 from .models import LoginLog, SystemSetting
 from .serializers import LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
@@ -44,7 +44,7 @@ def system_users(request):
 
     serializer = SystemUserSerializer(data=request.data)
     if not serializer.is_valid():
-        return bad_request(first_serializer_error(serializer.errors))
+        return serializer_bad_request(serializer)
     user = serializer.save()
     return Response(SystemUserSerializer(user).data, status=status.HTTP_201_CREATED)
 
@@ -59,7 +59,7 @@ def system_user_detail(request, user_id: int):
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({"error": "用户不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("用户不存在")
 
     if request.method == "GET":
         return Response(SystemUserSerializer(user).data)
@@ -74,7 +74,7 @@ def system_user_detail(request, user_id: int):
 
     serializer = SystemUserSerializer(user, data=request.data, partial=True)
     if not serializer.is_valid():
-        return bad_request(first_serializer_error(serializer.errors))
+        return serializer_bad_request(serializer)
     saved_user = serializer.save()
     if is_builtin_admin_user(saved_user):
         saved_user = ensure_builtin_admin()
@@ -92,7 +92,7 @@ def roles(request):
 
     serializer = RoleSerializer(data=request.data)
     if not serializer.is_valid():
-        return bad_request(first_serializer_error(serializer.errors))
+        return serializer_bad_request(serializer)
     return Response(RoleSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
 
 
@@ -105,7 +105,7 @@ def role_detail(request, role_id: int):
     try:
         role = Group.objects.get(id=role_id)
     except Group.DoesNotExist:
-        return Response({"error": "角色不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("角色不存在")
 
     if request.method == "GET":
         return Response(RoleSerializer(role).data)
@@ -116,7 +116,7 @@ def role_detail(request, role_id: int):
 
     serializer = RoleSerializer(role, data=request.data, partial=True)
     if not serializer.is_valid():
-        return bad_request(first_serializer_error(serializer.errors))
+        return serializer_bad_request(serializer)
     return Response(RoleSerializer(serializer.save()).data)
 
 
@@ -141,7 +141,7 @@ def system_settings(request):
 
     serializer = SystemSettingSerializer(data=request.data)
     if not serializer.is_valid():
-        return bad_request(first_serializer_error(serializer.errors))
+        return serializer_bad_request(serializer)
     return Response(SystemSettingSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
 
 
@@ -154,7 +154,7 @@ def system_setting_detail(request, setting_key: str):
     try:
         setting = SystemSetting.objects.get(key=setting_key)
     except SystemSetting.DoesNotExist:
-        return Response({"error": "系统设置不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("系统设置不存在")
 
     if request.method == "GET":
         return Response(SystemSettingSerializer(setting).data)
@@ -165,24 +165,5 @@ def system_setting_detail(request, setting_key: str):
 
     serializer = SystemSettingSerializer(setting, data=request.data, partial=True)
     if not serializer.is_valid():
-        return bad_request(first_serializer_error(serializer.errors))
+        return serializer_bad_request(serializer)
     return Response(SystemSettingSerializer(serializer.save()).data)
-
-
-def first_serializer_error(errors):
-    if isinstance(errors, dict):
-        first = next(iter(errors.values()))
-        if isinstance(first, list) and first:
-            return first[0]
-        return first
-    if isinstance(errors, list) and errors:
-        return errors[0]
-    return errors
-
-
-def bounded_int(value, *, default: int, minimum: int, maximum: int) -> int:
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        number = default
-    return min(max(number, minimum), maximum)

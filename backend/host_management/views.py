@@ -1,89 +1,23 @@
 from django.db import IntegrityError
-from django.db.models import Max, Min
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from operations.responses import bad_request
+from operations.responses import bad_request, not_found, serializer_bad_request
 
 from .models import HostCredential, HostGroup, ManagedHost
 from .probe import verify_host
 from .serializers import HostCredentialSerializer, HostGroupSerializer, ManagedHostSerializer
-from .services import build_group_counts, build_group_tree
+from .services import build_group_counts, build_group_tree, collect_descendant_ids, next_group_sort_order, reorder_group, resolve_group_parent, sync_verify_status
 
 
 def host_payload(host: ManagedHost) -> dict:
     return ManagedHostSerializer(host).data
 
 
-def sync_verify_status(host: ManagedHost) -> ManagedHost:
-    expected_status = "verified" if host.verified else "unverified"
-    if host.verify_status != expected_status:
-        host.verify_status = expected_status
-        host.save(update_fields=["verify_status"])
-    return host
-
-
 def groups_payload() -> list[dict]:
     tree = build_group_tree()
     return HostGroupSerializer(tree, many=True, context={"counts": build_group_counts(tree)}).data
-
-
-def collect_descendant_ids(group: HostGroup) -> set[int]:
-    ids = {group.id}
-    for child in HostGroup.objects.filter(parent=group):
-        ids.update(collect_descendant_ids(child))
-    return ids
-
-
-def next_group_sort_order(parent: HostGroup | None, insert: str, sort_after: object) -> int:
-    siblings = HostGroup.objects.filter(parent=parent)
-    if insert == "first":
-        first_order = siblings.aggregate(value=Min("sort_order"))["value"]
-        return (first_order - 10) if first_order is not None and first_order >= 10 else 10
-
-    if sort_after not in (None, "", "null"):
-        try:
-            anchor = siblings.get(id=int(sort_after))
-            return anchor.sort_order + 1
-        except (TypeError, ValueError, HostGroup.DoesNotExist):
-            pass
-
-    last_order = siblings.aggregate(value=Max("sort_order"))["value"]
-    return (last_order + 10) if last_order is not None else 10
-
-
-def resolve_group_parent(parent_id) -> HostGroup | None:
-    if parent_id in (None, "", "null"):
-        return None
-    try:
-        return HostGroup.objects.get(id=int(parent_id))
-    except (TypeError, ValueError, HostGroup.DoesNotExist):
-        raise ValueError("父级分组不存在")
-
-
-def reorder_group(group: HostGroup, parent: HostGroup | None, position: str, target_id) -> None:
-    siblings = list(HostGroup.objects.filter(parent=parent).exclude(id=group.id).order_by("sort_order", "id"))
-    insert_index = len(siblings)
-
-    if target_id not in (None, "", "null"):
-        try:
-            target_id = int(target_id)
-        except (TypeError, ValueError):
-            target_id = None
-        for index, sibling in enumerate(siblings):
-            if sibling.id == target_id:
-                insert_index = index + (1 if position == "after" else 0)
-                break
-    elif position == "first":
-        insert_index = 0
-
-    siblings.insert(insert_index, group)
-    for index, sibling in enumerate(siblings, start=1):
-        if sibling.parent_id != (parent.id if parent else None) or sibling.sort_order != index * 10:
-            sibling.parent = parent
-            sibling.sort_order = index * 10
-            sibling.save(update_fields=["parent", "sort_order"])
 
 
 @api_view(["GET", "POST"])
@@ -123,7 +57,7 @@ def host_group_detail(request, group_id: int):
     try:
         group = HostGroup.objects.get(id=group_id)
     except HostGroup.DoesNotExist:
-        return Response({"error": "分组不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("分组不存在")
 
     if request.method == "PUT":
         name = str(request.data.get("name", group.name)).strip()
@@ -172,7 +106,7 @@ def managed_hosts(request):
 
     serializer = ManagedHostSerializer(data=request.data)
     if not serializer.is_valid():
-        return bad_request(next(iter(serializer.errors.values()))[0])
+        return serializer_bad_request(serializer)
 
     try:
         host = serializer.save()
@@ -187,7 +121,7 @@ def managed_host_detail(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
     except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("主机不存在")
 
     if request.method == "DELETE":
         host.delete()
@@ -195,7 +129,7 @@ def managed_host_detail(request, host_id: int):
 
     serializer = ManagedHostSerializer(host, data=request.data, partial=True)
     if not serializer.is_valid():
-        return bad_request(next(iter(serializer.errors.values()))[0])
+        return serializer_bad_request(serializer)
 
     try:
         host = serializer.save()
@@ -211,7 +145,7 @@ def managed_host_verify(_request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
     except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("主机不存在")
 
     host, error = verify_host(host)
     return Response({"host": host_payload(host), "verified": host.verified, "error": error})
@@ -225,7 +159,7 @@ def host_credentials(request):
 
     serializer = HostCredentialSerializer(data=request.data)
     if not serializer.is_valid():
-        return bad_request(next(iter(serializer.errors.values()))[0])
+        return serializer_bad_request(serializer)
 
     try:
         credential = serializer.save()
@@ -239,7 +173,7 @@ def host_credential_detail(request, credential_id: int):
     try:
         credential = HostCredential.objects.get(id=credential_id)
     except HostCredential.DoesNotExist:
-        return Response({"error": "账号不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("账号不存在")
 
     if request.method == "DELETE":
         credential.delete()
@@ -247,7 +181,7 @@ def host_credential_detail(request, credential_id: int):
 
     serializer = HostCredentialSerializer(credential, data=request.data, partial=True)
     if not serializer.is_valid():
-        return bad_request(next(iter(serializer.errors.values()))[0])
+        return serializer_bad_request(serializer)
 
     try:
         credential = serializer.save()

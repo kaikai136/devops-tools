@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+from django.db.models import Max, Min
+
 from .models import HostGroup, ManagedHost
 
 
@@ -40,3 +42,68 @@ def build_group_counts(tree: list[HostGroup]) -> dict[int, int]:
     for group in tree:
         visit(group)
     return counts
+
+
+def collect_descendant_ids(group: HostGroup) -> set[int]:
+    ids = {group.id}
+    for child in HostGroup.objects.filter(parent=group):
+        ids.update(collect_descendant_ids(child))
+    return ids
+
+
+def next_group_sort_order(parent: HostGroup | None, insert: str, sort_after: object) -> int:
+    siblings = HostGroup.objects.filter(parent=parent)
+    if insert == "first":
+        first_order = siblings.aggregate(value=Min("sort_order"))["value"]
+        return (first_order - 10) if first_order is not None and first_order >= 10 else 10
+
+    if sort_after not in (None, "", "null"):
+        try:
+            anchor = siblings.get(id=int(sort_after))
+            return anchor.sort_order + 1
+        except (TypeError, ValueError, HostGroup.DoesNotExist):
+            pass
+
+    last_order = siblings.aggregate(value=Max("sort_order"))["value"]
+    return (last_order + 10) if last_order is not None else 10
+
+
+def resolve_group_parent(parent_id) -> HostGroup | None:
+    if parent_id in (None, "", "null"):
+        return None
+    try:
+        return HostGroup.objects.get(id=int(parent_id))
+    except (TypeError, ValueError, HostGroup.DoesNotExist):
+        raise ValueError("父级分组不存在")
+
+
+def reorder_group(group: HostGroup, parent: HostGroup | None, position: str, target_id) -> None:
+    siblings = list(HostGroup.objects.filter(parent=parent).exclude(id=group.id).order_by("sort_order", "id"))
+    insert_index = len(siblings)
+
+    if target_id not in (None, "", "null"):
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError):
+            target_id = None
+        for index, sibling in enumerate(siblings):
+            if sibling.id == target_id:
+                insert_index = index + (1 if position == "after" else 0)
+                break
+    elif position == "first":
+        insert_index = 0
+
+    siblings.insert(insert_index, group)
+    for index, sibling in enumerate(siblings, start=1):
+        if sibling.parent_id != (parent.id if parent else None) or sibling.sort_order != index * 10:
+            sibling.parent = parent
+            sibling.sort_order = index * 10
+            sibling.save(update_fields=["parent", "sort_order"])
+
+
+def sync_verify_status(host: ManagedHost) -> ManagedHost:
+    expected_status = "verified" if host.verified else "unverified"
+    if host.verify_status != expected_status:
+        host.verify_status = expected_status
+        host.save(update_fields=["verify_status"])
+    return host

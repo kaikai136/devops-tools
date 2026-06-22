@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 
 import { useAppContext } from '../../appContext';
+import { useColumnVisibility } from '../../composables/useColumnVisibility';
 import AppIcon from '../common/AppIcon.vue';
 
 const hostColumnOptions = [
@@ -18,7 +19,6 @@ const hostColumnOptions = [
 ] as const;
 
 type HostColumnKey = (typeof hostColumnOptions)[number]['key'];
-type HostColumnVisibility = Record<HostColumnKey, boolean>;
 
 const hostColumnStorageKey = 'ops-tool.host-manager.columns';
 const fallbackHostColumnKey: HostColumnKey = 'name';
@@ -87,10 +87,20 @@ const {
 } = useAppContext();
 
 const hostColumnSettingsOpen = ref(false);
-const hostColumnVisibility = ref<HostColumnVisibility>(loadHostColumnVisibility());
-const visibleHostTableColumns = computed(() => hostColumnOptions.filter((column) => hostColumnVisibility.value[column.key]));
-const allHostColumnsVisible = computed(() => visibleHostTableColumns.value.length === hostColumnOptions.length);
-const someHostColumnsVisible = computed(() => visibleHostTableColumns.value.length > 0);
+const {
+  visibility: hostColumnVisibility,
+  visibleColumns: visibleHostTableColumns,
+  allColumnsVisible: allHostColumnsVisible,
+  someColumnsVisible: someHostColumnsVisible,
+  isColumnVisible: isHostColumnVisible,
+  isOnlyVisibleColumn: isOnlyVisibleHostColumn,
+  updateColumnVisibility: updateHostColumnVisibility,
+  toggleAllColumns: toggleAllHostColumns,
+  resetColumns: resetHostColumns,
+} = useColumnVisibility(hostColumnOptions, {
+  storageKey: hostColumnStorageKey,
+  fallbackKey: fallbackHostColumnKey,
+});
 const hostTableStyle = computed<Record<string, string>>(() => {
   const columns = visibleHostTableColumns.value;
   const minimumWidth = columns.reduce((total, column) => total + column.minWidth, 0) + Math.max(0, columns.length - 1) * 12 + 200;
@@ -113,69 +123,6 @@ function toggleHostColumnSettings() {
 
 function closeHostColumnSettings() {
   hostColumnSettingsOpen.value = false;
-}
-
-function isHostColumnVisible(key: HostColumnKey) {
-  return hostColumnVisibility.value[key];
-}
-
-function isOnlyVisibleHostColumn(key: HostColumnKey) {
-  return hostColumnVisibility.value[key] && visibleHostTableColumns.value.length === 1;
-}
-
-function updateHostColumnVisibility(key: HostColumnKey, event: Event) {
-  const checked = (event.target as HTMLInputElement).checked;
-  if (!checked && isOnlyVisibleHostColumn(key)) return;
-  setHostColumnVisibility({ ...hostColumnVisibility.value, [key]: checked });
-}
-
-function toggleAllHostColumns(event: Event) {
-  const checked = (event.target as HTMLInputElement).checked;
-  const next = createHostColumnVisibility(checked);
-  if (!checked) next[fallbackHostColumnKey] = true;
-  setHostColumnVisibility(next);
-}
-
-function resetHostColumns() {
-  setHostColumnVisibility(createHostColumnVisibility(true));
-}
-
-function setHostColumnVisibility(next: HostColumnVisibility) {
-  if (!Object.values(next).some(Boolean)) next[fallbackHostColumnKey] = true;
-  hostColumnVisibility.value = next;
-  saveHostColumnVisibility(next);
-}
-
-function loadHostColumnVisibility(): HostColumnVisibility {
-  const fallback = createHostColumnVisibility(true);
-  if (typeof window === 'undefined') return fallback;
-
-  const raw = window.localStorage.getItem(hostColumnStorageKey);
-  if (!raw) return fallback;
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<Record<HostColumnKey, unknown>>;
-    const visibility = createHostColumnVisibility(true);
-    for (const column of hostColumnOptions) {
-      if (typeof parsed[column.key] === 'boolean') visibility[column.key] = parsed[column.key];
-    }
-    if (!Object.values(visibility).some(Boolean)) visibility[fallbackHostColumnKey] = true;
-    return visibility;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveHostColumnVisibility(visibility: HostColumnVisibility) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(hostColumnStorageKey, JSON.stringify(visibility));
-}
-
-function createHostColumnVisibility(visible: boolean): HostColumnVisibility {
-  return hostColumnOptions.reduce((visibility, column) => {
-    visibility[column.key] = visible;
-    return visibility;
-  }, {} as HostColumnVisibility);
 }
 </script>
 

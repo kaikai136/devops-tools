@@ -615,6 +615,11 @@
   background: #e5e7eb;
 }
 
+.user-password-meter.compact-meter {
+  width: auto;
+  margin: 0;
+}
+
 .user-password-meter.weak .user-password-meter-head {
   color: #f05b6c;
 }

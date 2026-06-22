@@ -2,14 +2,12 @@ import { computed, ref } from 'vue';
 
 import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import type { HostCredential, HostGroup, ManagedHost } from '../../types';
+import { compareHosts, findGroup, flattenGroups, flattenVisibleGroups, type FlatHostGroup, type HostSortKey, type SortDirection } from './hostGroups';
 
 type ConfirmFn = (title: string, message: string, actionText: string, action: () => Promise<void>) => void;
 type HostStatusFilter = 'all' | 'verified' | 'unverified';
 type HostOs = ManagedHost['os'];
-type FlatHostGroup = HostGroup & { level: number };
 type HostGroupDropPosition = 'before' | 'inside' | 'after';
-type HostSortKey = 'name' | 'ip';
-type SortDirection = 'asc' | 'desc';
 
 type HostGroupRow =
   | { kind: 'group'; group: FlatHostGroup }
@@ -739,42 +737,4 @@ function emptyHostForm(group: number | null = null, sequence = 10): ManagedHostF
     os: 'centos',
     verified: false,
   };
-}
-
-function compareHosts(left: ManagedHost, right: ManagedHost, key: HostSortKey, direction: SortDirection) {
-  const multiplier = direction === 'asc' ? 1 : -1;
-  const result =
-    key === 'ip'
-      ? ipToNumber(left.privateIp) - ipToNumber(right.privateIp)
-      : left.name.localeCompare(right.name, 'zh-CN', { numeric: true, sensitivity: 'base' });
-  return result * multiplier;
-}
-
-function ipToNumber(ip: string) {
-  const parts = ip.split('.').map((part) => Number(part));
-  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) return Number.MAX_SAFE_INTEGER;
-  return parts.reduce((value, part) => value * 256 + part, 0);
-}
-
-function flattenGroups(groups: HostGroup[], level = 0): FlatHostGroup[] {
-  return groups.flatMap((group) => [
-    { ...group, level },
-    ...flattenGroups(group.children ?? [], level + 1),
-  ]);
-}
-
-function flattenVisibleGroups(groups: HostGroup[], collapsed: Set<number>, level = 0): FlatHostGroup[] {
-  return groups.flatMap((group) => [
-    { ...group, level },
-    ...(collapsed.has(group.key) ? [] : flattenVisibleGroups(group.children ?? [], collapsed, level + 1)),
-  ]);
-}
-
-function findGroup(groups: HostGroup[], key: number): HostGroup | undefined {
-  for (const group of groups) {
-    if (group.key === key) return group;
-    const child = findGroup(group.children ?? [], key);
-    if (child) return child;
-  }
-  return undefined;
 }

@@ -1,10 +1,10 @@
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 import { apiGet } from '../api';
-import type { IconName } from '../components/common/AppIcon.vue';
-import { navGroups } from '../navigation';
-import type { ToolKey } from '../types';
 import { setupClickWords, setupPointerTrail } from '../utils/effects';
+import { useAuthSession } from './app/useAuthSession';
+import { useFeedback } from './app/useFeedback';
+import { useShellState } from './app/useShellState';
 import { useAuthenticator } from './features/useAuthenticator';
 import { useHostManager } from './features/useHostManager';
 import { useIpScanner } from './features/useIpScanner';
@@ -12,19 +12,41 @@ import { useMachineProbe } from './features/useMachineProbe';
 import { usePasswordManager } from './features/usePasswordManager';
 import { useSubnetCalculator } from './features/useSubnetCalculator';
 export function useAppState() {
-const activeTool = ref<ToolKey>('ip');
-const groupsOpen = ref({ network: true, host: true, security: true, system: true });
-const sidebarCollapsed = ref(false);
-const hoveredNavGroup = ref<string | null>(null);
-const toast = ref<{ title: string; message: string; visible: boolean; leaving: boolean; scope: ToolKey } | null>(null);
-let toastTimer: number | undefined;
-let toastLeaveTimer: number | undefined;
-let navFlyoutTimer: number | undefined;
+const shellState = useShellState();
+const {
+  activeTool,
+  groupsOpen,
+  sidebarCollapsed,
+  hoveredNavGroup,
+  navGroups,
+  activeNavItem,
+  setActiveTool,
+  selectNavItem,
+  toggleSidebar,
+  openNavFlyout,
+  closeNavFlyout,
+  navItemIcon,
+  navGroupIcon,
+  cleanupShellState,
+} = shellState;
+
+const feedback = useFeedback(activeTool);
+const {
+  toast,
+  confirmDialog,
+  scopedToastVisible,
+  toastTone,
+  showToast,
+  copyText,
+  requestConfirm,
+  runConfirmAction,
+  clearFeedback,
+  cleanupFeedback,
+} = feedback;
 
 const localIp = ref('198.18.0.1');
 const selectedHost = ref('192.168.1.1');
 
-const confirmDialog = ref<{ title: string; message: string; actionText: string; action: () => Promise<void> } | null>(null);
 const authImportFile = ref<HTMLInputElement | null>(null);
 const passwordImportFile = ref<HTMLInputElement | null>(null);
 const imageInput = ref<HTMLInputElement | null>(null);
@@ -198,80 +220,6 @@ const {
   handleImageImport,
 } = authenticator;
 
-const activeNavItem = computed(() => navGroups.flatMap((group) => group.items).find((item) => item.key === activeTool.value) ?? navGroups[0].items[0]);
-const scopedToastVisible = computed(() => toast.value?.visible && toast.value.scope === activeTool.value);
-const toastTone = computed(() => {
-  const title = toast.value?.title || '';
-  if (/(失败|错误|异常)/.test(title)) return 'error';
-  if (/(无法|警告|跳过|已经)/.test(title)) return 'warning';
-  if (/(成功|完成|已)/.test(title)) return 'success';
-  return 'info';
-});
-function showToast(title: string, message: string) {
-  window.clearTimeout(toastTimer);
-  window.clearTimeout(toastLeaveTimer);
-  toast.value = { title, message, visible: true, leaving: false, scope: activeTool.value };
-  toastTimer = window.setTimeout(() => {
-    if (!toast.value) return;
-    toast.value.leaving = true;
-    toastLeaveTimer = window.setTimeout(() => {
-      toast.value = null;
-    }, 600);
-  }, 5000);
-}
-
-async function copyText(text: string, message = '已复制到剪贴板。') {
-  await navigator.clipboard.writeText(text);
-  showToast('操作成功', message);
-}
-
-function setActiveTool(key: ToolKey) {
-  activeTool.value = key;
-}
-
-function selectNavItem(key: ToolKey) {
-  setActiveTool(key);
-  closeNavFlyout(80);
-}
-
-function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value;
-}
-
-function openNavFlyout(key: string) {
-  window.clearTimeout(navFlyoutTimer);
-  hoveredNavGroup.value = key;
-}
-
-function closeNavFlyout(delay = 220) {
-  window.clearTimeout(navFlyoutTimer);
-  navFlyoutTimer = window.setTimeout(() => {
-    hoveredNavGroup.value = null;
-  }, delay);
-}
-
-function navItemIcon(key: ToolKey): IconName {
-  const icons: Record<ToolKey, IconName> = {
-    ip: 'network',
-    hosts: 'server',
-    accounts: 'users',
-    ports: 'gauge',
-    subnet: 'globe',
-    auth: 'shield',
-    password: 'key',
-    loginLogs: 'bell',
-    users: 'user',
-    roles: 'shield',
-    systemSettings: 'settings',
-  };
-  return icons[key];
-}
-
-function navGroupIcon(key: string): IconName {
-  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', security: 'settings', system: 'dashboard' };
-  return icons[key] ?? 'dashboard';
-}
-
 async function loadLocalIp() {
   try {
     const data = await apiGet<{ ip: string }>('/api/local-ip/');
@@ -280,6 +228,18 @@ async function loadLocalIp() {
     localIp.value = '198.18.0.1';
   }
 }
+
+async function loadWorkspaceData() {
+  await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadHostManagement(), calculateSubnet(false)]);
+}
+
+const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, logout } = useAuthSession({
+  loadWorkspaceData,
+  clearSessionUi: () => {
+    clearFeedback();
+    qrPreview.value = null;
+  },
+});
 
 function selectHost(ip: string) {
   selectedHost.value = ip;
@@ -290,17 +250,6 @@ async function openPingFromHost(ip: string) {
   selectHost(ip);
   activeTool.value = 'ports';
   await runPing();
-}
-
-function requestConfirm(title: string, message: string, actionText: string, action: () => Promise<void>) {
-  confirmDialog.value = { title, message, actionText, action };
-}
-
-async function runConfirmAction() {
-  if (!confirmDialog.value) return;
-  const action = confirmDialog.value.action;
-  confirmDialog.value = null;
-  await action();
 }
 
 let cleanupClickWords: (() => void) | undefined;
@@ -317,6 +266,12 @@ const appState = {
   activeNavItem,
   scopedToastVisible,
   toastTone,
+  currentUser,
+  isAuthReady,
+  isAuthenticated,
+  loadCurrentUser,
+  login,
+  logout,
   setActiveTool,
   selectNavItem,
   toggleSidebar,
@@ -484,9 +439,9 @@ onMounted(async () => {
   document.title = '运维船长';
   cleanupClickWords = setupClickWords();
   cleanupPointerTrail = setupPointerTrail();
-  await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadHostManagement(), calculateSubnet(false)]);
+  await loadCurrentUser();
   authTimer = window.setInterval(() => {
-    if (activeTool.value === 'auth') loadAuthEntries();
+    if (isAuthenticated.value && activeTool.value === 'auth') loadAuthEntries();
   }, 1000);
 });
 
@@ -494,9 +449,8 @@ onUnmounted(() => {
   cleanupClickWords?.();
   cleanupPointerTrail?.();
   window.clearInterval(authTimer);
-  window.clearTimeout(navFlyoutTimer);
-  window.clearTimeout(toastTimer);
-  window.clearTimeout(toastLeaveTimer);
+  cleanupShellState();
+  cleanupFeedback();
 });
 
 return appState;

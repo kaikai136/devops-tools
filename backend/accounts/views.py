@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from accounts.permissions import require_login, require_staff
 from operations.responses import bad_request
 from system_management.models import LoginLog
 from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log
@@ -20,21 +21,6 @@ def user_payload(user) -> dict:
         "last_login": user.last_login.isoformat() if user.last_login else None,
         "date_joined": user.date_joined.isoformat() if user.date_joined else None,
     }
-
-
-def require_login(request):
-    if not request.user.is_authenticated:
-        return Response({"error": "请先登录"}, status=status.HTTP_401_UNAUTHORIZED)
-    return None
-
-
-def require_staff(request):
-    auth_error = require_login(request)
-    if auth_error:
-        return auth_error
-    if not request.user.is_staff:
-        return Response({"error": "没有用户管理权限"}, status=status.HTTP_403_FORBIDDEN)
-    return None
 
 
 @api_view(["POST"])
@@ -141,7 +127,7 @@ def user_detail(request, user_id: int):
         user.is_active = bool(request.data.get("is_active", user.is_active))
         user.is_staff = bool(request.data.get("is_staff", user.is_staff))
     password = str(request.data.get("password", "")).strip()
-    if password:
+    if password and not builtin_admin:
         user.set_password(password)
     user.save()
     if builtin_admin:

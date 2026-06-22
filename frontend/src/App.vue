@@ -5,6 +5,7 @@ import { appContextKey } from './appContext';
 import AccountManager from './components/tools/AccountManager.vue';
 import AppIcon from './components/common/AppIcon.vue';
 import AuthenticatorPanel from './components/tools/AuthenticatorPanel.vue';
+import LoginPage from './components/auth/LoginPage.vue';
 import HostManager from './components/tools/HostManager.vue';
 import IpScanner from './components/tools/IpScanner.vue';
 import MachineProbe from './components/tools/MachineProbe.vue';
@@ -27,6 +28,11 @@ const {
   ipScanMessage,
   navGroups,
   activeNavItem,
+  currentUser,
+  isAuthReady,
+  isAuthenticated,
+  login,
+  logout,
   scopedToastVisible,
   toastTone,
   setActiveTool,
@@ -53,7 +59,14 @@ const {
 } = appState;
 </script>
 <template>
-  <main class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+  <main v-if="!isAuthReady" class="auth-loading">
+    <div>
+      <span></span>
+      <strong>正在检查登录状态</strong>
+    </div>
+  </main>
+  <LoginPage v-else-if="!isAuthenticated" :login="login" />
+  <main v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
         <img src="/captain-banner.png" alt="运维船长" />
@@ -134,6 +147,17 @@ const {
           </div>
         </section>
       </nav>
+
+      <div class="sidebar-user">
+        <span class="sidebar-user-avatar"><AppIcon name="user" :size="17" /></span>
+        <div v-if="!sidebarCollapsed" class="sidebar-user-info">
+          <strong>{{ currentUser?.first_name || currentUser?.username }}</strong>
+          <span>{{ currentUser?.is_superuser ? '系统管理员' : '已登录' }}</span>
+        </div>
+        <button class="sidebar-logout" type="button" title="退出登录" aria-label="退出登录" @click="logout">
+          <AppIcon name="logout" :size="16" />
+        </button>
+      </div>
     </aside>
 
     <section class="workspace">
