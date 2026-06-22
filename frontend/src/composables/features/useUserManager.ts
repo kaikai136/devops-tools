@@ -43,14 +43,15 @@ export type UserColumnKey = 'username' | 'name' | 'roles' | 'status' | 'lastLogi
 export type UserColumnOption = TableColumnOption<UserColumnKey>;
 export type UserDialogState = { mode: 'create' | 'edit'; userId: number | null };
 export type MessageTone = 'error' | 'success';
+export type UserFormErrors = Partial<Record<'username' | 'firstName' | 'password' | 'confirmPassword', string>>;
 
 export const userColumnOptions: readonly UserColumnOption[] = [
   { key: 'username', label: '登录名', width: 'minmax(120px, 1fr)' },
-  { key: 'name', label: '姓名', width: 'minmax(120px, 1fr)' },
+  { key: 'name', label: '姓名', width: 'minmax(110px, 0.9fr)' },
   { key: 'roles', label: '角色', width: 'minmax(120px, 1fr)' },
-  { key: 'status', label: '状态', width: 'minmax(96px, 0.75fr)' },
-  { key: 'lastLogin', label: '最近登录', width: 'minmax(170px, 1.35fr)' },
-  { key: 'actions', label: '操作', width: 'minmax(220px, 1.55fr)' },
+  { key: 'status', label: '状态', width: 'minmax(120px, 1fr)' },
+  { key: 'lastLogin', label: '最近登录', width: 'minmax(210px, 1.8fr)' },
+  { key: 'actions', label: '操作', width: 'minmax(300px, 2fr)' },
 ];
 
 export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles' | 'auth') => void }) {
@@ -67,6 +68,8 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   const resetPasswordUser = ref<SystemUser | null>(null);
   const deleteTarget = ref<SystemUser | null>(null);
   const form = ref<UserForm>(emptyUserForm());
+  const formErrors = ref<UserFormErrors>({});
+  const submitAttempted = ref(false);
   const resetPassword = ref('');
   const showPassword = ref(false);
   const columnsOpen = ref(false);
@@ -90,6 +93,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   const passwordMeter = usePasswordStrength(formPassword);
   const resetPasswordMeter = usePasswordStrength(resetPassword);
   const passwordMismatch = computed(() => passwordsMismatch(form.value.password, form.value.confirmPassword));
+  const visibleFormErrors = computed<UserFormErrors>(() => (submitAttempted.value ? formErrors.value : {}));
 
   const filteredUsers = computed(() => {
     const query = search.value.trim().toLowerCase();
@@ -161,6 +165,8 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   function openCreateDialog() {
     clearMessage();
     showPassword.value = false;
+    submitAttempted.value = false;
+    formErrors.value = {};
     form.value = emptyUserForm();
     dialog.value = { mode: 'create', userId: null };
   }
@@ -172,6 +178,8 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     }
     clearMessage();
     showPassword.value = false;
+    submitAttempted.value = false;
+    formErrors.value = {};
     form.value = {
       username: user.username,
       email: user.email,
@@ -188,6 +196,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
 
   async function saveUser() {
     clearMessage();
+    submitAttempted.value = true;
     const payload = userPayloadFromForm();
     if (!validateUserPayload(payload)) return;
 
@@ -319,6 +328,8 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
 
   function closeAccountDialog() {
     dialog.value = null;
+    submitAttempted.value = false;
+    formErrors.value = {};
   }
 
   function closeResetPasswordDialog() {
@@ -354,31 +365,29 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   }
 
   function validateUserPayload(payload: ReturnType<typeof userPayloadFromForm>) {
+    const errors: UserFormErrors = {};
     if (!payload.username) {
-      setError('请输入登录名');
-      return false;
+      errors.username = '请输入登录名';
     }
     if (!payload.firstName) {
-      setError('请输入姓名');
-      return false;
+      errors.firstName = '请输入姓名';
     }
     if (dialog.value?.mode === 'create' && !payload.password) {
-      setError('请输入初始密码');
-      return false;
+      errors.password = '请输入初始密码';
     }
-    if (dialog.value?.mode === 'create' && !passwordMeter.isStrong.value) {
-      setError('密码至少 8 位，并包含数字、小写字母和大写字母');
-      return false;
+    if (dialog.value?.mode === 'create' && payload.password && !passwordMeter.isStrong.value) {
+      errors.password = '密码至少 8 位，并包含数字、小写字母和大写字母';
     }
     if (dialog.value?.mode === 'edit' && payload.password && !passwordMeter.isStrong.value) {
-      setError('密码至少 8 位，并包含数字、小写字母和大写字母');
-      return false;
+      errors.password = '密码至少 8 位，并包含数字、小写字母和大写字母';
     }
-    if (payload.password && form.value.password !== form.value.confirmPassword) {
-      setError('两次输入的密码不一致');
-      return false;
+    if ((dialog.value?.mode === 'create' || payload.password) && !form.value.confirmPassword.trim()) {
+      errors.confirmPassword = '请再次输入密码';
+    } else if (payload.password && form.value.password !== form.value.confirmPassword) {
+      errors.confirmPassword = '两次输入的密码不一致';
     }
-    return true;
+    formErrors.value = errors;
+    return !Object.keys(errors).length;
   }
 
   function userPayloadFromForm() {
@@ -418,6 +427,8 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     resetPasswordUser,
     deleteTarget,
     form,
+    formErrors: visibleFormErrors,
+    submitAttempted,
     resetPassword,
     showPassword,
     columnsOpen,

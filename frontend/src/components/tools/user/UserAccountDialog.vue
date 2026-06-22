@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppIcon from '../../common/AppIcon.vue';
 import type { PasswordRule, PasswordStrengthLevel } from '../../../composables/usePasswordStrength';
-import type { SystemRole, UserDialogState, UserForm } from '../../../composables/features/useUserManager';
+import type { SystemRole, UserDialogState, UserForm, UserFormErrors } from '../../../composables/features/useUserManager';
 
 defineProps<{
   dialog: UserDialogState;
@@ -14,6 +14,7 @@ defineProps<{
   passwordStrengthText: string;
   passwordHint: string;
   passwordMismatch: boolean;
+  formErrors: UserFormErrors;
   message: string;
 }>();
 
@@ -42,17 +43,19 @@ defineEmits<{
       <div class="user-form-body">
         <label :class="['user-form-row', { required: dialog.mode === 'create' }]">
           <span>登录名：</span>
-          <input v-model.trim="form.username" autofocus autocomplete="username" />
+          <input v-model.trim="form.username" :class="{ invalid: formErrors.username }" autofocus autocomplete="username" />
         </label>
+        <p v-if="formErrors.username" class="user-form-error user-form-note-indent">{{ formErrors.username }}</p>
 
         <label class="user-form-row required">
           <span>姓名：</span>
-          <input v-model.trim="form.firstName" autocomplete="name" placeholder="请输入姓名" />
+          <input v-model.trim="form.firstName" :class="{ invalid: formErrors.firstName }" autocomplete="name" placeholder="请输入姓名" />
         </label>
+        <p v-if="formErrors.firstName" class="user-form-error user-form-note-indent">{{ formErrors.firstName }}</p>
 
         <label class="user-form-row required">
           <span>密码：</span>
-          <div class="user-password-input">
+          <div class="user-password-input" :class="{ invalid: formErrors.password }">
             <input
               v-model="form.password"
               :type="showPassword ? 'text' : 'password'"
@@ -64,6 +67,7 @@ defineEmits<{
             </button>
           </div>
         </label>
+        <p v-if="formErrors.password" class="user-form-error user-form-note-indent">{{ formErrors.password }}</p>
 
         <div class="user-password-meter user-form-note-indent" :class="passwordStrengthClass">
           <div class="user-password-meter-head">
@@ -83,13 +87,16 @@ defineEmits<{
           <span>确认密码：</span>
           <input
             v-model="form.confirmPassword"
+            :class="{ invalid: formErrors.confirmPassword || passwordMismatch }"
             :type="showPassword ? 'text' : 'password'"
             autocomplete="new-password"
             placeholder="请再次输入密码"
           />
         </label>
 
-        <p v-if="passwordMismatch" class="user-form-error user-form-note-indent">两次输入的密码不一致。</p>
+        <p v-if="formErrors.confirmPassword || passwordMismatch" class="user-form-error user-form-note-indent">
+          {{ formErrors.confirmPassword || '两次输入的密码不一致。' }}
+        </p>
 
         <div class="user-form-row">
           <span>角色：</span>

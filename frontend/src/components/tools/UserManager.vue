@@ -22,6 +22,7 @@ const {
   resetPasswordUser,
   deleteTarget,
   form,
+  formErrors,
   resetPassword,
   showPassword,
   columnsOpen,
@@ -75,7 +76,7 @@ const {
       <em>/</em>
       <span>系统管理</span>
       <em>/</em>
-      <strong>用户管理</strong>
+      <strong>账户管理</strong>
     </div>
 
     <article class="user-filter-panel">
@@ -154,6 +155,7 @@ const {
       :password-strength-text="passwordStrengthText"
       :password-hint="passwordHint"
       :password-mismatch="passwordMismatch"
+      :form-errors="formErrors"
       :message="message"
       @submit="saveUser"
       @close="closeAccountDialog"

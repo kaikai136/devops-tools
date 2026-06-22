@@ -50,7 +50,7 @@ function updatePageSize(event: Event) {
       <span v-if="isColumnVisible('name')" class="user-real-name">{{ user.firstName || '-' }}</span>
       <span v-if="isColumnVisible('roles')" class="user-role-cell">{{ roleNames(user) || '-' }}</span>
       <span v-if="isColumnVisible('status')" class="user-status" :class="{ disabled: !user.isActive }">
-        <i></i>{{ loginStateText(user) }}
+        <i></i>{{ loginStateText(user) === '可登录' ? '正常' : loginStateText(user) }}
       </span>
       <span v-if="isColumnVisible('lastLogin')" class="user-date-cell">{{ formatDateTime(user.lastLogin) }}</span>
       <div v-if="isColumnVisible('actions')" class="user-row-actions">
