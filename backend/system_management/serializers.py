@@ -1,3 +1,5 @@
+import re
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from rest_framework import serializers
@@ -28,6 +30,7 @@ class SystemUserSerializer(serializers.ModelSerializer):
     isStaff = serializers.BooleanField(source="is_staff", required=False)
     isSuperuser = serializers.BooleanField(source="is_superuser", read_only=True)
     isBuiltinAdmin = serializers.SerializerMethodField()
+    canLogin = serializers.SerializerMethodField()
     lastLogin = serializers.DateTimeField(source="last_login", read_only=True)
     dateJoined = serializers.DateTimeField(source="date_joined", read_only=True)
     roleIds = serializers.PrimaryKeyRelatedField(source="groups", queryset=Group.objects.all(), many=True, required=False)
@@ -44,6 +47,7 @@ class SystemUserSerializer(serializers.ModelSerializer):
             "isStaff",
             "isSuperuser",
             "isBuiltinAdmin",
+            "canLogin",
             "lastLogin",
             "dateJoined",
             "roleIds",
@@ -62,8 +66,25 @@ class SystemUserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("用户名已存在")
         return username
 
+    def validate_password(self, value):
+        password = str(value)
+        if not password:
+            return ""
+        if len(password) < 8:
+            raise serializers.ValidationError("密码至少需要 8 位")
+        if not re.search(r"[a-z]", password):
+            raise serializers.ValidationError("密码必须包含小写字母")
+        if not re.search(r"[A-Z]", password):
+            raise serializers.ValidationError("密码必须包含大写字母")
+        if not re.search(r"\d", password):
+            raise serializers.ValidationError("密码必须包含数字")
+        return password
+
     def get_isBuiltinAdmin(self, obj):
         return is_builtin_admin_user(obj)
+
+    def get_canLogin(self, obj):
+        return bool(obj.is_active and obj.has_usable_password())
 
     def validate(self, attrs):
         if self.instance is None and not str(attrs.get("password", "")).strip():
@@ -84,6 +105,7 @@ class SystemUserSerializer(serializers.ModelSerializer):
         if is_builtin_admin_user(instance):
             validated_data = {}
             groups = None
+            password = ""
 
         for field, value in validated_data.items():
             setattr(instance, field, value)

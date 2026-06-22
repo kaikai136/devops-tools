@@ -79,8 +79,7 @@
 .user-status-tabs,
 .user-row-actions,
 .user-pagination,
-.user-form-actions,
-.user-switches {
+.user-form-actions {
   display: flex;
   align-items: center;
 }
@@ -199,6 +198,16 @@
   color: #ef4444;
   font-size: 13px;
   font-weight: 700;
+}
+
+.user-message.success {
+  color: #0f8a3b;
+}
+
+.user-modal-backdrop {
+  align-items: start;
+  padding: 70px 24px 24px;
+  overflow: auto;
 }
 
 .user-table {
@@ -350,31 +359,26 @@
 .user-form-modal {
   position: relative;
   display: grid;
-  gap: 14px;
-  width: min(520px, calc(100vw - 28px));
-  border: 1px solid #dfe5ee;
-  border-radius: 4px;
+  grid-template-rows: auto 1fr auto;
+  width: min(700px, calc(100vw - 28px));
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
+  border: 1px solid #d8dde6;
+  border-radius: 2px;
   background: #fff;
-  box-shadow: 0 24px 62px rgba(15, 23, 42, 0.22);
-  padding: 24px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.24);
+  padding: 0;
 }
 
 .user-form-modal.compact {
   width: min(420px, calc(100vw - 28px));
+  gap: 14px;
+  grid-template-rows: auto;
+  padding: 24px 22px 20px;
+  overflow: auto;
 }
 
-.user-form-modal h2 {
-  margin: 0;
-  color: #111827;
-  font-size: 18px;
-}
-
-.user-form-modal p {
-  margin: 0;
-  color: #4b5563;
-}
-
-.user-form-modal label {
+.user-form-modal.compact label {
   display: grid;
   gap: 7px;
   color: #374151;
@@ -382,14 +386,13 @@
   font-weight: 700;
 }
 
-.user-form-modal label.required > span::before {
+.user-form-modal.compact label.required > span::before {
   margin-right: 3px;
   color: #ff4d4f;
   content: "*";
 }
 
-.user-form-modal input,
-.user-form-modal select {
+.user-form-modal.compact input {
   min-height: 36px;
   border: 1px solid #d5d9e0;
   border-radius: 0;
@@ -399,39 +402,343 @@
   font: inherit;
 }
 
+.user-form-modal h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.user-form-modal p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.user-form-titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  border-bottom: 1px solid #eef0f3;
+  padding: 0 56px 0 24px;
+}
+
+.user-modal-close {
+  position: absolute;
+  top: 15px;
+  right: 18px;
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #8b95a1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.user-modal-close:hover {
+  color: #1f55ff;
+}
+
+.user-form-body {
+  display: grid;
+  gap: 18px;
+  overflow: auto;
+  padding: 26px 0 46px;
+}
+
+.user-form-row {
+  display: grid;
+  grid-template-columns: 164px 380px;
+  align-items: center;
+  gap: 0;
+  color: #111827;
+  font-size: 14px;
+}
+
+.user-form-row > span {
+  justify-self: end;
+  padding-right: 10px;
+  color: #111827;
+  font-weight: 400;
+}
+
+.user-form-row.required > span::before {
+  margin-right: 3px;
+  color: #ff4d4f;
+  content: "*";
+}
+
+.user-form-row input,
+.user-form-row select,
+.user-password-input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid #d5d9e0;
+  border-radius: 0;
+  background: #fff;
+  color: #111827;
+}
+
+.user-form-row input,
+.user-form-row select {
+  padding: 0 10px;
+  outline: 0;
+  font: inherit;
+}
+
+.user-form-row input:focus,
+.user-form-row select:focus,
+.user-password-input:focus-within {
+  border-color: #2f5cff;
+  box-shadow: 0 0 0 1px rgba(47, 92, 255, 0.08);
+}
+
+.user-form-row input::placeholder {
+  color: #b6bcc6;
+}
+
+.user-password-input {
+  display: grid;
+  grid-template-columns: 1fr 30px;
+  align-items: center;
+}
+
+.user-password-input input {
+  min-width: 0;
+  height: 30px;
+  border: 0;
+  box-shadow: none;
+}
+
+.user-password-input input:focus {
+  box-shadow: none;
+}
+
+.user-password-input button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0;
+}
+
+.user-password-input button:hover {
+  color: #1f55ff;
+}
+
+.user-role-line {
+  display: grid;
+  grid-template-columns: 304px auto;
+  align-items: center;
+  gap: 20px;
+}
+
+.user-role-line select {
+  width: 304px;
+  height: 32px;
+  border: 1px solid #d5d9e0;
+  background: #fff;
+  color: #111827;
+  padding: 0 10px;
+  font: inherit;
+}
+
+.user-link-button {
+  border: 0;
+  background: transparent;
+  color: #1f55ff;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.user-link-button:hover,
+.user-form-note button:hover {
+  text-decoration: underline;
+}
+
+.user-form-note {
+  margin: -13px 0 0 164px !important;
+  width: 420px;
+  color: #8b95a1;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.user-password-meter {
+  display: grid;
+  gap: 7px;
+  margin: -12px 0 0 164px;
+  width: 380px;
+}
+
+.user-password-meter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 18px;
+  color: #8b95a1;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.user-password-meter-head strong {
+  display: inline-grid;
+  min-width: 30px;
+  height: 16px;
+  place-items: center;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-password-meter-track {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.user-password-meter-track i {
+  height: 3px;
+  background: #e5e7eb;
+}
+
+.user-password-meter.weak .user-password-meter-head {
+  color: #f05b6c;
+}
+
+.user-password-meter.weak .user-password-meter-head strong,
+.user-password-meter.weak .user-password-meter-track i.active {
+  background: #f05b6c;
+}
+
+.user-password-meter.medium .user-password-meter-head {
+  color: #d9822b;
+}
+
+.user-password-meter.medium .user-password-meter-head strong,
+.user-password-meter.medium .user-password-meter-track i.active {
+  background: #f59e0b;
+}
+
+.user-password-meter.strong .user-password-meter-head {
+  color: #0f8a3b;
+}
+
+.user-password-meter.strong .user-password-meter-head strong,
+.user-password-meter.strong .user-password-meter-track i.active {
+  background: #22c55e;
+}
+
+.user-form-error {
+  margin: -13px 0 0 164px !important;
+  width: 420px;
+  color: #d9363e;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.user-form-note button {
+  border: 0;
+  background: transparent;
+  color: #1f55ff;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.user-form-message {
+  margin: -8px 56px 0 164px;
+}
+
 .user-form-modal select[multiple] {
   min-height: 88px;
   padding: 6px 10px;
 }
 
-.user-switches {
-  gap: 12px;
-}
-
-.user-switches label {
-  grid-template-columns: auto 1fr;
+.user-password-rules span {
+  display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  gap: 4px;
+  min-height: 24px;
   border: 1px solid #d5d9e0;
-  padding: 0 10px;
+  background: #fff;
+  color: #6b7280;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
-.user-switches input {
-  min-height: auto;
+.user-password-rules span.passed {
+  border-color: #b8e4c3;
+  background: #f1fbf4;
+  color: #0f8a3b;
+}
+
+.user-password-rules span.failed {
+  border-color: #ffcaca;
+  background: #fff5f5;
+  color: #d93025;
+}
+
+.user-inline-warning {
+  border-left: 3px solid #f59e0b;
+  background: #fff8eb;
+  padding: 8px 10px;
+  color: #8a5200 !important;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .user-form-actions {
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
+  min-height: 54px;
+  margin-top: 0;
+  padding: 10px 16px;
+  border-top: 1px solid #eef0f3;
+  background: #fff;
 }
 
 .user-form-actions button {
-  min-width: 76px;
-  min-height: 34px;
+  min-width: 64px;
+  min-height: 32px;
   border: 1px solid #d5d9e0;
   border-radius: 0;
   background: #fff;
   cursor: pointer;
+  color: #111827;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.user-form-actions .user-primary-button {
+  border-color: #2f5cff;
+  background: #2f5cff;
+  color: #fff;
+}
+
+.user-form-actions .user-primary-button:hover {
+  border-color: #1f4dff;
+  background: #1f4dff;
+}
+
+.user-form-actions .danger {
+  border-color: #ffccc7;
+  background: #fff2f0;
+  color: #d9363e;
 }
 
 @media (max-width: 920px) {
