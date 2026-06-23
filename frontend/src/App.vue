@@ -27,6 +27,7 @@ const {
   selectedHost,
   ipScanMessage,
   navGroups,
+  activeNavGroup,
   activeNavItem,
   currentUser,
   isAuthReady,
@@ -148,16 +149,6 @@ const {
         </section>
       </nav>
 
-      <div class="sidebar-user">
-        <span class="sidebar-user-avatar"><AppIcon name="user" :size="17" /></span>
-        <div v-if="!sidebarCollapsed" class="sidebar-user-info">
-          <strong>{{ currentUser?.first_name || currentUser?.username }}</strong>
-          <span>{{ currentUser?.is_superuser ? '系统管理员' : '已登录' }}</span>
-        </div>
-        <button class="sidebar-logout" type="button" title="退出登录" aria-label="退出登录" @click="logout">
-          <AppIcon name="logout" :size="16" />
-        </button>
-      </div>
     </aside>
 
     <section class="workspace">
@@ -172,13 +163,32 @@ const {
         <button type="button" aria-label="关闭提示" @click="toast = null"><AppIcon name="x" :size="16" /></button>
       </div>
 
-      <header v-if="activeTool !== 'users'" class="page-header">
-        <div class="page-title-block">
-          <h1>{{ activeNavItem.label }}</h1>
-          <p>
-            {{ activeNavItem.desc }}
-            <span v-if="activeTool === 'ip' && ipScanMessage" class="inline-status">{{ ipScanMessage }}</span>
-          </p>
+      <header class="workspace-topbar">
+        <button
+          class="workspace-menu-button"
+          type="button"
+          :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+          :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+          @click="toggleSidebar"
+        >
+          <AppIcon name="menu" :size="18" />
+        </button>
+        <div class="workspace-user">
+          <span class="workspace-user-avatar"><AppIcon name="user" :size="17" /></span>
+          <strong>{{ currentUser?.first_name || currentUser?.username }}</strong>
+          <button class="workspace-logout" type="button" title="退出登录" aria-label="退出登录" @click="logout">
+            <AppIcon name="logout" :size="16" />
+          </button>
+        </div>
+      </header>
+
+      <header class="page-header">
+        <div class="page-breadcrumb">
+          <span>首页</span>
+          <em>/</em>
+          <span>{{ activeNavGroup.label }}</span>
+          <em>/</em>
+          <strong>{{ activeTool === 'users' ? '账户管理' : activeNavItem.label }}</strong>
         </div>
         <div class="header-stats">
           <template v-if="activeTool === 'auth'">
@@ -195,6 +205,9 @@ const {
             <button class="header-action terminal-action" type="button" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
           </template>
           <template v-else-if="activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
+          <template v-else-if="activeTool === 'ip' && ipScanMessage">
+            <span class="inline-status">{{ ipScanMessage }}</span>
+          </template>
           <template v-else>
             <article><span>本机 IP</span><strong>{{ localIp }}</strong></article>
             <article

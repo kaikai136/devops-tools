@@ -1,6 +1,7 @@
 .account-page {
   flex: 1 1 auto;
   min-height: 0;
+  margin: 14px;
   overflow: hidden;
 }
 

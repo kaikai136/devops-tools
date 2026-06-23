@@ -71,14 +71,6 @@ const {
 
 <template>
   <section v-if="activeTool === 'users'" class="user-manager-page" :class="{ fullscreen }" @click="columnsOpen = false">
-    <div class="user-breadcrumb">
-      <span>首页</span>
-      <em>/</em>
-      <span>系统管理</span>
-      <em>/</em>
-      <strong>账户管理</strong>
-    </div>
-
     <article class="user-filter-panel">
       <label>
         <span>账户名称：</span>

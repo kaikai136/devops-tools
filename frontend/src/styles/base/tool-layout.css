@@ -1,6 +1,7 @@
 .tool-stack {
   display: grid;
   gap: 10px;
+  margin: 14px;
 }
 
 .ip-page {
@@ -15,6 +16,7 @@
   grid-template-columns: minmax(360px, 0.95fr) minmax(520px, 1.65fr);
   gap: 14px;
   align-items: start;
+  margin: 14px;
 }
 
 .machine-probe-grid {
@@ -23,6 +25,7 @@
   gap: 14px;
   align-items: start;
   min-height: 0;
+  margin: 14px;
   overflow: auto;
   padding-bottom: 18px;
 }

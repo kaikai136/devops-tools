@@ -11,7 +11,8 @@ export function useShellState() {
   const hoveredNavGroup = ref<string | null>(null);
   let navFlyoutTimer: number | undefined;
 
-  const activeNavItem = computed(() => navGroups.flatMap((group) => group.items).find((item) => item.key === activeTool.value) ?? navGroups[0].items[0]);
+  const activeNavGroup = computed(() => navGroups.find((group) => group.items.some((item) => item.key === activeTool.value)) ?? navGroups[0]);
+  const activeNavItem = computed(() => activeNavGroup.value.items.find((item) => item.key === activeTool.value) ?? activeNavGroup.value.items[0]);
 
   function setActiveTool(key: ToolKey) {
     activeTool.value = key;
@@ -48,6 +49,7 @@ export function useShellState() {
     sidebarCollapsed,
     hoveredNavGroup,
     navGroups,
+    activeNavGroup,
     activeNavItem,
     setActiveTool,
     selectNavItem,
