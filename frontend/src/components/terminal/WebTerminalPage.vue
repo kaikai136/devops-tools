@@ -47,8 +47,15 @@ interface TerminalTab {
 }
 
 type TreeRow =
+  | { kind: 'root'; group: TerminalRoot; level: number }
   | { kind: 'group'; group: TerminalGroup; level: number }
   | { kind: 'host'; host: TerminalHost; level: number };
+
+interface TerminalRoot {
+  id: null;
+  name: string;
+  count: number;
+}
 
 interface TerminalMessage {
   type: 'ready' | 'output' | 'error' | 'closed';
@@ -116,6 +123,8 @@ const terminalHighlightRules: TerminalHighlightRule[] = [
 
 const groups = ref<TerminalGroup[]>([]);
 const collapsed = ref<Set<number>>(new Set());
+const rootExpanded = ref(true);
+const rootLabel = ref(readTerminalRootLabel());
 const search = ref('');
 const tabs = ref<TerminalTab[]>([]);
 const activeTabId = ref<string | null>(null);
@@ -128,8 +137,11 @@ const connectingTabIds = new Set<string>();
 
 const rows = computed(() => {
   const query = search.value.trim().toLowerCase();
-  return flattenTerminalRows(groups.value, collapsed.value).filter((row) => {
+  const root: TreeRow = { kind: 'root', group: terminalRoot.value, level: 0 };
+  const treeRows = rootExpanded.value ? [root, ...flattenTerminalRows(groups.value, collapsed.value, 1)] : [root];
+  return treeRows.filter((row) => {
     if (!query) return true;
+    if (row.kind === 'root') return row.group.name.toLowerCase().includes(query);
     if (row.kind === 'group') return row.group.name.toLowerCase().includes(query);
     return [row.host.name, row.host.privateIp, row.host.publicIp, row.host.loginUser]
       .filter(Boolean)
@@ -138,6 +150,11 @@ const rows = computed(() => {
 });
 
 const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null);
+const terminalRoot = computed<TerminalRoot>(() => ({
+  id: null,
+  name: rootLabel.value,
+  count: countTerminalHosts(groups.value),
+}));
 
 const workspaceTitle = computed(() => {
   if (!activeTab.value) return '选择左侧主机开始连接';
@@ -204,6 +221,10 @@ async function openHostTab(host: TerminalHost) {
   const tab = getTabById(createdTab.id) ?? createdTab;
   mountTerminal(tab);
   enqueueConnectTab(tab);
+}
+
+function toggleRoot() {
+  rootExpanded.value = !rootExpanded.value;
 }
 
 async function activateTab(tabId: string) {
@@ -650,11 +671,15 @@ function flattenTerminalRows(source: TerminalGroup[], hidden: Set<number>, level
   return source.flatMap((group) => {
     const current: TreeRow[] = [{ kind: 'group', group, level }];
     if (!hidden.has(group.id)) {
-      current.push(...group.hosts.map((host) => ({ kind: 'host' as const, host, level: level + 1 })));
       current.push(...flattenTerminalRows(group.children, hidden, level + 1));
+      current.push(...group.hosts.map((host) => ({ kind: 'host' as const, host, level: level + 1 })));
     }
     return current;
   });
+}
+
+function countTerminalHosts(source: TerminalGroup[]): number {
+  return source.reduce((total, group) => total + group.hosts.length + countTerminalHosts(group.children), 0);
 }
 
 function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | null {
@@ -665,6 +690,11 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
     if (childHost) return childHost;
   }
   return null;
+}
+
+function readTerminalRootLabel() {
+  if (typeof window === 'undefined') return 'DEFAULT';
+  return window.localStorage.getItem('ops-tool.host-manager.root-label') || 'DEFAULT';
 }
 </script>
 
@@ -681,15 +711,20 @@ function findHostById(source: TerminalGroup[], hostId: number): TerminalHost | n
       <div class="terminal-tree">
         <button
           v-for="row in rows"
-          :key="row.kind === 'group' ? `group-${row.group.id}` : `host-${row.host.id}`"
+          :key="row.kind === 'root' ? 'group-root' : row.kind === 'group' ? `group-${row.group.id}` : `host-${row.host.id}`"
           class="terminal-tree-row"
-          :class="{ host: row.kind === 'host', active: row.kind === 'host' && activeTab?.host.id === row.host.id }"
+          :class="{ root: row.kind === 'root', host: row.kind === 'host', active: row.kind === 'host' && activeTab?.host.id === row.host.id }"
           :style="{ paddingLeft: `${12 + row.level * 24}px` }"
           type="button"
-          @click="row.kind === 'group' && toggleGroup(row.group)"
+          @click="row.kind === 'root' ? toggleRoot() : row.kind === 'group' && toggleGroup(row.group)"
           @dblclick="row.kind === 'host' && openHostTab(row.host)"
         >
-          <template v-if="row.kind === 'group'">
+          <template v-if="row.kind === 'root'">
+            <span><AppIcon :name="rootExpanded ? 'chevronDown' : 'chevronRight'" :size="15" /></span>
+            <strong><AppIcon name="folder" :size="16" />{{ row.group.name }}</strong>
+            <em>{{ row.group.count }}</em>
+          </template>
+          <template v-else-if="row.kind === 'group'">
             <span><AppIcon :name="collapsed.has(row.group.id) ? 'chevronRight' : 'chevronDown'" :size="15" /></span>
             <strong><AppIcon name="folder" :size="16" />{{ row.group.name }}</strong>
           </template>

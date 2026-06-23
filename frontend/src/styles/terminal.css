@@ -96,6 +96,10 @@ input {
   color: #0b55d8;
 }
 
+.terminal-tree-row.root {
+  font-weight: 800;
+}
+
 .terminal-tree-row span {
   width: 16px;
   color: inherit;
@@ -114,6 +118,13 @@ input {
 
 .terminal-tree-row.host strong {
   font-weight: 500;
+}
+
+.terminal-tree-row em {
+  margin-left: auto;
+  color: inherit;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .terminal-host-verify-dot {
