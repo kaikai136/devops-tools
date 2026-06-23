@@ -6,7 +6,7 @@ import { useAuthSession } from './app/useAuthSession';
 import { useFeedback } from './app/useFeedback';
 import { useShellState } from './app/useShellState';
 import { useAuthenticator } from './features/useAuthenticator';
-import { useHostManager } from './features/useHostManager';
+import { useHostManager, type HostTransferFormat } from './features/useHostManager';
 import { useIpScanner } from './features/useIpScanner';
 import { useMachineProbe } from './features/useMachineProbe';
 import { usePasswordManager } from './features/usePasswordManager';
@@ -50,6 +50,9 @@ const selectedHost = ref('192.168.1.1');
 
 const authImportFile = ref<HTMLInputElement | null>(null);
 const passwordImportFile = ref<HTMLInputElement | null>(null);
+const hostImportFile = ref<HTMLInputElement | null>(null);
+const hostTransferDialog = ref<'import' | 'export' | null>(null);
+const hostTransferFormat = ref<HostTransferFormat>('json');
 const imageInput = ref<HTMLInputElement | null>(null);
 const hostManager = useHostManager({ showToast, requestConfirm });
 const {
@@ -81,6 +84,8 @@ const {
   hostGroupDropTarget,
   verifyingHostIds,
   loadHostManagement,
+  exportHostManagement,
+  importHostManagement,
   selectManagedGroup,
   setHostSort,
   hostSortMark,
@@ -265,6 +270,39 @@ function selectHost(ip: string) {
   machineProbe.setProbeHost(ip);
 }
 
+const hostImportAccept = computed(() =>
+  hostTransferFormat.value === 'excel' ? '.xls,application/vnd.ms-excel,text/html' : 'application/json,.json',
+);
+
+function openHostTransferDialog(mode: 'import' | 'export') {
+  hostTransferDialog.value = mode;
+  hostTransferFormat.value = 'json';
+}
+
+function closeHostTransferDialog() {
+  hostTransferDialog.value = null;
+}
+
+async function confirmHostTransfer() {
+  if (hostTransferDialog.value === 'export') {
+    await exportHostManagement(hostTransferFormat.value);
+    closeHostTransferDialog();
+    return;
+  }
+  if (hostTransferDialog.value === 'import') {
+    hostImportFile.value?.click();
+    closeHostTransferDialog();
+  }
+}
+
+function triggerHostImportFile() {
+  hostImportFile.value?.click();
+}
+
+async function importSelectedHostManagement(event: Event) {
+  await importHostManagement(event, hostTransferFormat.value);
+}
+
 async function openPingFromHost(ip: string) {
   selectHost(ip);
   activeTool.value = 'ports';
@@ -301,8 +339,16 @@ const appState = {
   navGroupIcon,
   authImportFile,
   passwordImportFile,
+  hostImportFile,
+  hostImportAccept,
+  hostTransferDialog,
+  hostTransferFormat,
   triggerAuthImportFile,
   triggerPasswordImportFile,
+  triggerHostImportFile,
+  openHostTransferDialog,
+  closeHostTransferDialog,
+  confirmHostTransfer,
   importAuthEntries,
   exportPasswordRecords,
   importPasswordRecords,
@@ -358,6 +404,8 @@ const appState = {
   hostGroupDropTarget,
   verifyingHostIds,
   loadHostManagement,
+  exportHostManagement,
+  importHostManagement: importSelectedHostManagement,
   startHostGroupDrag,
   updateHostGroupDropTarget,
   clearHostGroupDropTarget,

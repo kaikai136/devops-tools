@@ -46,6 +46,7 @@ const {
   dialogTitle,
   dialogSubmitText,
   loadUsers,
+  refreshUsers,
   openCreateDialog,
   openEditDialog,
   saveUser,
@@ -89,7 +90,7 @@ const {
             <button :class="{ active: statusFilter === 'disabled' }" type="button" @click="statusFilter = 'disabled'">禁用</button>
           </div>
           <span class="user-toolbar-divider"></span>
-          <button class="user-icon-button" type="button" title="刷新" aria-label="刷新" @click="loadUsers"><AppIcon name="refresh" :size="18" /></button>
+          <button class="user-icon-button" type="button" title="刷新" aria-label="刷新" @click="refreshUsers"><AppIcon name="refresh" :size="18" /></button>
           <div class="user-column-settings" @click.stop>
             <button class="user-icon-button" type="button" title="列设置" aria-label="列设置" @click="columnsOpen = !columnsOpen"><AppIcon name="settings" :size="18" /></button>
             <div v-if="columnsOpen" class="user-column-menu">

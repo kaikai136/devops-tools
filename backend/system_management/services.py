@@ -31,6 +31,7 @@ FEATURE_PERMISSION_DEFINITIONS = [
 
 FEATURE_PERMISSION_CODE_BY_KEY = {key: f"access_{key}" for _, _, key, _ in FEATURE_PERMISSION_DEFINITIONS}
 FEATURE_PERMISSION_CODES = set(FEATURE_PERMISSION_CODE_BY_KEY.values())
+_feature_permissions_ready = False
 
 
 def is_builtin_admin_user(user) -> bool:
@@ -74,7 +75,13 @@ def ensure_builtin_admin():
 
 
 def ensure_feature_permissions():
+    global _feature_permissions_ready
     content_type = ContentType.objects.get_for_model(SystemSetting)
+    if _feature_permissions_ready:
+        cached_permissions = list(Permission.objects.filter(content_type=content_type, codename__in=FEATURE_PERMISSION_CODES))
+        if len(cached_permissions) == len(FEATURE_PERMISSION_CODES):
+            return cached_permissions
+
     permissions = []
     for _group_key, _group_label, feature_key, feature_label in FEATURE_PERMISSION_DEFINITIONS:
         permission, _created = Permission.objects.get_or_create(
@@ -87,6 +94,7 @@ def ensure_feature_permissions():
             permission.name = expected_name
             permission.save(update_fields=["name"])
         permissions.append(permission)
+    _feature_permissions_ready = True
     return permissions
 
 

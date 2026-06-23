@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group, Permission
 from rest_framework import serializers
 
 from .models import LoginLog, SystemSetting
-from .services import FEATURE_PERMISSION_CODE_BY_KEY, FEATURE_PERMISSION_CODES, is_builtin_admin_user, user_feature_permission_codes
+from .services import FEATURE_PERMISSION_CODE_BY_KEY, FEATURE_PERMISSION_CODES, is_builtin_admin_user
 
 
 class LoginLogSerializer(serializers.ModelSerializer):
@@ -34,7 +34,6 @@ class SystemUserSerializer(serializers.ModelSerializer):
     lastLogin = serializers.DateTimeField(source="last_login", read_only=True)
     dateJoined = serializers.DateTimeField(source="date_joined", read_only=True)
     roleIds = serializers.PrimaryKeyRelatedField(source="groups", queryset=Group.objects.all(), many=True, required=False)
-    featurePermissionCodes = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
@@ -52,7 +51,6 @@ class SystemUserSerializer(serializers.ModelSerializer):
             "lastLogin",
             "dateJoined",
             "roleIds",
-            "featurePermissionCodes",
             "password",
         ]
 
@@ -87,9 +85,6 @@ class SystemUserSerializer(serializers.ModelSerializer):
 
     def get_canLogin(self, obj):
         return bool(obj.is_active and obj.has_usable_password())
-
-    def get_featurePermissionCodes(self, obj):
-        return user_feature_permission_codes(obj)
 
     def validate(self, attrs):
         if self.instance is None and not str(attrs.get("password", "")).strip():

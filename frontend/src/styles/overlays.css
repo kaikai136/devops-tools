@@ -131,6 +131,112 @@
   gap: 10px;
 }
 
+.host-transfer-modal {
+  position: relative;
+  width: min(700px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid #d6e3f3;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 24px 56px rgba(36, 55, 84, 0.24);
+}
+
+.host-transfer-modal h2 {
+  margin: 0;
+  min-height: 54px;
+  padding: 0 54px 0 24px;
+  border-bottom: 1px solid #e5e9f0;
+  color: #1d2b3a;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 54px;
+}
+
+.host-transfer-body {
+  display: grid;
+  gap: 28px;
+  min-height: 210px;
+  padding: 30px 50px;
+}
+
+.transfer-row {
+  display: grid;
+  grid-template-columns: 120px 120px 120px;
+  align-items: center;
+  column-gap: 0;
+  row-gap: 18px;
+}
+
+.transfer-range-row {
+  grid-template-columns: 120px 160px;
+}
+
+.transfer-range-row .transfer-radio:nth-of-type(n + 2) {
+  grid-column: 2;
+}
+
+.transfer-label {
+  display: block;
+  color: #5c6470;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.transfer-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.transfer-radio input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #13b99f;
+}
+
+.transfer-radio span {
+  display: block;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.transfer-radio.disabled {
+  color: #b8c2d0;
+  cursor: not-allowed;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 0;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e9f0;
+}
+
+.modal-actions button {
+  min-width: 72px;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid #d8e2ee;
+  border-radius: 4px;
+  background: #fff;
+  color: #26384f;
+  font-weight: 800;
+}
+
+.modal-actions button.primary {
+  border-color: #13b99f;
+  background: #13b99f;
+  color: #fff;
+}
+
 .confirm-panel {
   position: fixed;
   inset: 0;

@@ -54,6 +54,9 @@ export const userColumnOptions: readonly UserColumnOption[] = [
   { key: 'actions', label: '操作', width: 'minmax(300px, 2fr)' },
 ];
 
+const USER_MANAGER_CACHE_TTL_MS = 60_000;
+let userManagerCache: { users: SystemUser[]; roles: SystemRole[]; loadedAt: number } | null = null;
+
 export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles' | 'auth') => void }) {
   const users = ref<SystemUser[]>([]);
   const roles = ref<SystemRole[]>([]);
@@ -94,6 +97,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   const resetPasswordMeter = usePasswordStrength(resetPassword);
   const passwordMismatch = computed(() => passwordsMismatch(form.value.password, form.value.confirmPassword));
   const visibleFormErrors = computed<UserFormErrors>(() => (submitAttempted.value ? formErrors.value : {}));
+  const roleNameById = computed(() => new Map(roles.value.map((role) => [role.id, role.name])));
 
   const filteredUsers = computed(() => {
     const query = search.value.trim().toLowerCase();
@@ -132,7 +136,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   const dialogTitle = computed(() => (dialog.value?.mode === 'edit' ? '编辑账户' : '新建账户'));
   const dialogSubmitText = computed(() => (dialog.value?.mode === 'edit' ? '保存' : '确定'));
 
-  onMounted(loadUsers);
+  onMounted(() => loadUsers());
 
   watch([search, statusFilter, pageSize], () => {
     page.value = 1;
@@ -142,24 +146,51 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     if (page.value > next) page.value = next;
   });
 
-  async function loadUsers() {
+  async function loadUsers(force = false) {
+    const now = Date.now();
+    if (!force && userManagerCache && now - userManagerCache.loadedAt < USER_MANAGER_CACHE_TTL_MS) {
+      users.value = [...userManagerCache.users];
+      roles.value = [...userManagerCache.roles];
+      clearMessage();
+      return;
+    }
+
+    if (userManagerCache) {
+      users.value = [...userManagerCache.users];
+      roles.value = [...userManagerCache.roles];
+    }
+
     isLoading.value = true;
     clearMessage();
-    try {
-      users.value = await apiGet<SystemUser[]>('/api/system/users/');
-      try {
-        roles.value = await apiGet<SystemRole[]>('/api/system/roles/');
-      } catch (error) {
-        roles.value = [];
-        setError(`用户已加载，角色信息加载失败：${errorMessage(error)}`);
-      }
-    } catch (error) {
+
+    const [userResult, roleResult] = await Promise.allSettled([
+      apiGet<SystemUser[]>('/api/system/users/'),
+      apiGet<SystemRole[]>('/api/system/roles/'),
+    ]);
+
+    if (userResult.status === 'fulfilled') {
+      users.value = userResult.value;
+    } else {
       users.value = [];
-      roles.value = [];
-      setError(errorMessage(error));
-    } finally {
+      if (!userManagerCache) roles.value = [];
+      setError(errorMessage(userResult.reason));
       isLoading.value = false;
+      return;
     }
+
+    if (roleResult.status === 'fulfilled') {
+      roles.value = roleResult.value;
+    } else {
+      roles.value = userManagerCache ? [...userManagerCache.roles] : [];
+      setError(`账户类别加载失败：${errorMessage(roleResult.reason)}`);
+    }
+
+    syncUserManagerCache();
+    isLoading.value = false;
+  }
+
+  function refreshUsers() {
+    return loadUsers(true);
   }
 
   function openCreateDialog() {
@@ -206,6 +237,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
           ? await apiPut<SystemUser>(`/api/system/users/${dialog.value.userId}/`, payload)
           : await apiPost<SystemUser>('/api/system/users/', payload);
       replaceUser(saved);
+      syncUserManagerCache();
       dialog.value = null;
       setSuccess(saved.canLogin ? `账号 ${saved.username} 已创建，可使用初始密码登录。` : `账号 ${saved.username} 已保存，启用后即可登录。`);
     } catch (error) {
@@ -225,6 +257,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
         isActive: !user.isActive,
       });
       replaceUser(saved);
+      syncUserManagerCache();
     } catch (error) {
       setError(errorMessage(error));
     }
@@ -259,6 +292,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
         password,
       });
       replaceUser(saved);
+      syncUserManagerCache();
       resetPasswordUser.value = null;
       resetPassword.value = '';
     } catch (error) {
@@ -287,6 +321,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
       const userId = deleteTarget.value.id;
       await apiDelete(`/api/system/users/${userId}/`);
       users.value = users.value.filter((user) => user.id !== userId);
+      syncUserManagerCache();
       deleteTarget.value = null;
     } catch (error) {
       setError(errorMessage(error));
@@ -295,7 +330,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
 
   function roleNames(user: SystemUser) {
     const names = user.roleIds
-      .map((roleId) => roles.value.find((role) => role.id === roleId)?.name)
+      .map((roleId) => roleNameById.value.get(roleId))
       .filter(Boolean);
     if (user.isBuiltinAdmin) names.unshift('内置管理员');
     if (user.isSuperuser) names.unshift('超级管理员');
@@ -362,6 +397,14 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     } else {
       users.value = [user, ...users.value];
     }
+  }
+
+  function syncUserManagerCache() {
+    userManagerCache = {
+      users: [...users.value],
+      roles: [...roles.value],
+      loadedAt: Date.now(),
+    };
   }
 
   function validateUserPayload(payload: ReturnType<typeof userPayloadFromForm>) {
@@ -457,6 +500,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     dialogTitle,
     dialogSubmitText,
     loadUsers,
+    refreshUsers,
     openCreateDialog,
     openEditDialog,
     saveUser,

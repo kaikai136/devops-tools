@@ -5,6 +5,8 @@ from . import views
 urlpatterns = [
     path("host-management/groups/", views.host_groups),
     path("host-management/groups/<int:group_id>/", views.host_group_detail),
+    path("host-management/export/", views.host_management_export),
+    path("host-management/import/", views.host_management_import),
     path("host-management/hosts/", views.managed_hosts),
     path("host-management/hosts/<int:host_id>/verify/", views.managed_host_verify),
     path("host-management/hosts/<int:host_id>/", views.managed_host_detail),

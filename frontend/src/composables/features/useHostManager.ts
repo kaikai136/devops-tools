@@ -2,12 +2,20 @@ import { computed, ref } from 'vue';
 
 import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import type { HostCredential, HostGroup, ManagedHost } from '../../types';
+import { readFileText } from '../../utils/files';
 import { compareHosts, findGroup, flattenGroups, flattenVisibleGroups, type FlatHostGroup, type HostSortKey, type SortDirection } from './hostGroups';
 
 type ConfirmFn = (title: string, message: string, actionText: string, action: () => Promise<void>) => void;
 type HostStatusFilter = 'all' | 'verified' | 'unverified';
 type HostOs = ManagedHost['os'];
 type HostGroupDropPosition = 'before' | 'inside' | 'after';
+export type HostTransferFormat = 'json' | 'excel';
+type ExportRow = Record<string, string | number | boolean | null>;
+type ExportColumn = {
+  field: string;
+  label: string;
+  width: number;
+};
 
 type HostGroupRow =
   | { kind: 'group'; group: FlatHostGroup }
@@ -49,6 +57,21 @@ interface HostVerifyResponse {
   host: ManagedHost;
   verified: boolean;
   error: string | null;
+}
+
+interface HostManagementExport {
+  version: number;
+  groups: ExportRow[];
+  hosts: ExportRow[];
+  credentials: ExportRow[];
+}
+
+interface HostManagementImportResponse {
+  imported: {
+    groups: number;
+    hosts: number;
+    credentials: number;
+  };
 }
 
 export function useHostManager({
@@ -159,6 +182,37 @@ export function useHostManager({
       showToast('加载失败', (error as Error).message);
     } finally {
       isLoadingHosts.value = false;
+    }
+  }
+
+  async function exportHostManagement(format: HostTransferFormat = 'json') {
+    try {
+      const payload = await apiGet<HostManagementExport>('/api/host-management/export/');
+      const date = new Date().toISOString().slice(0, 10);
+      if (format === 'excel') {
+        downloadFile(`\ufeff${buildExcelWorkbook(payload)}`, `host-management-${date}.xls`, 'application/vnd.ms-excel;charset=utf-8');
+      } else {
+        downloadFile(JSON.stringify(payload, null, 2), `host-management-${date}.json`, 'application/json;charset=utf-8');
+      }
+      showToast('导出成功', `已导出 ${payload.hosts.length} 台主机、${payload.groups.length} 个分组。`);
+    } catch (error) {
+      showToast('导出失败', (error as Error).message);
+    }
+  }
+
+  async function importHostManagement(event: Event, format: HostTransferFormat = 'json') {
+    try {
+      const text = await readFileText(event);
+      if (!text) return;
+      const payload = format === 'excel' ? parseExcelWorkbook(text) : JSON.parse(text);
+      const result = await apiPost<HostManagementImportResponse>('/api/host-management/import/', payload);
+      await loadHostManagement();
+      showToast(
+        '导入成功',
+        `已处理 ${result.imported.hosts} 台主机、${result.imported.groups} 个分组、${result.imported.credentials} 个账号。`,
+      );
+    } catch (error) {
+      showToast('导入失败', (error as Error).message);
     }
   }
 
@@ -670,6 +724,8 @@ export function useHostManager({
     hostGroupDropTarget,
     verifyingHostIds,
     loadHostManagement,
+    exportHostManagement,
+    importHostManagement,
     selectManagedGroup,
     setHostSort,
     hostSortMark,
@@ -737,4 +793,116 @@ function emptyHostForm(group: number | null = null, sequence = 10): ManagedHostF
     os: 'centos',
     verified: false,
   };
+}
+
+const exportSheets: Array<{ key: keyof HostManagementExport; title: string; columns: ExportColumn[] }> = [
+  {
+    key: 'hosts',
+    title: '主机清单',
+    columns: [{ field: 'name', label: '名称', width: 34 }],
+  },
+];
+
+function downloadFile(content: string, filename: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function buildExcelWorkbook(payload: HostManagementExport) {
+  const sheets = exportSheets
+    .map((sheet) => {
+      const rows = payload[sheet.key] as ExportRow[];
+      const colgroup = sheet.columns.map((column) => `<col style="width:${column.width * 8}px">`).join('');
+      const header = sheet.columns.map((column) => `<th data-field="${escapeHtml(column.field)}">${escapeHtml(column.label)}</th>`).join('');
+      const body = rows
+        .map((row) => `<tr>${sheet.columns.map((column) => `<td>${escapeHtml(formatExportCell(column.field, row[column.field]))}</td>`).join('')}</tr>`)
+        .join('');
+      return `<table id="sheet-${sheet.key}" data-sheet="${sheet.key}"><caption>${sheet.title}</caption><colgroup>${colgroup}</colgroup><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
+    })
+    .join('<br>');
+
+  return `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:"Microsoft YaHei",Arial,sans-serif;color:#1f2937}table{border-collapse:collapse;margin-bottom:28px;table-layout:fixed}caption{font-size:18px;font-weight:700;text-align:left;padding:12px 0 10px;color:#0f172a}th,td{border:1px solid #d9e2ef;padding:8px 10px;mso-number-format:"\\@";white-space:pre-wrap;vertical-align:middle}th{background:#eef4ff;color:#173252;font-weight:700;text-align:center}td{background:#fff}tbody tr:nth-child(even) td{background:#f8fbff}</style></head><body>${sheets}</body></html>`;
+}
+
+function parseExcelWorkbook(text: string): HostManagementExport {
+  const document = new DOMParser().parseFromString(text, 'text/html');
+  return {
+    version: 1,
+    groups: parseExcelSheet(document, 'groups'),
+    hosts: parseExcelSheet(document, 'hosts'),
+    credentials: parseExcelSheet(document, 'credentials'),
+  };
+}
+
+function parseExcelSheet(document: Document, key: string): ExportRow[] {
+  const table = document.querySelector(`#sheet-${key}, table[data-sheet="${key}"]`);
+  if (!table) return [];
+  const rows = Array.from(table.querySelectorAll('tr'));
+  const headers = Array.from(rows.shift()?.querySelectorAll('th,td') ?? []).map((cell) =>
+    resolveExportField(cell.getAttribute('data-field') || normalizeCell(cell.textContent)),
+  );
+  if (!headers.length) return [];
+
+  return rows
+    .map((row) => {
+      const cells = Array.from(row.querySelectorAll('td,th'));
+      return headers.reduce<ExportRow>((result, field, index) => {
+        if (field) result[field] = parseExportCell(field, normalizeCell(cells[index]?.textContent));
+        return result;
+      }, {});
+    })
+    .filter((row) => Object.values(row).some((value) => value !== ''));
+}
+
+function parseExportCell(field: string, value: string): string | number | boolean {
+  if (['sortOrder', 'port', 'cpu', 'memory'].includes(field)) return Number.parseInt(value || '0', 10);
+  if (field === 'verified') return ['true', '1', 'yes', '是', '已验证', 'verified'].includes(value.toLowerCase());
+  return value;
+}
+
+function resolveExportField(value: string) {
+  const normalized = normalizeCell(value);
+  return excelHeaderAliases[normalized] ?? exportSheets.flatMap((sheet) => sheet.columns).find((column) => column.label === normalized || column.field === normalized)?.field ?? normalized;
+}
+
+const excelHeaderAliases: Record<string, string> = {
+  名称: 'name',
+  机器别名: 'name',
+  账号名称: 'name',
+  分组名称: 'name',
+  分组路径: 'path',
+  上级路径: 'parentPath',
+  排序: 'sortOrder',
+  主机分组: 'groupPath',
+  '公网 IP': 'publicIp',
+  '内网 IP': 'privateIp',
+  端口: 'port',
+  机器名称: 'machineName',
+  CPU: 'cpu',
+  '内存(GB)': 'memory',
+  系统: 'os',
+  验证状态: 'verified',
+  备注: 'remark',
+  密钥文件名: 'privateKeyName',
+};
+
+function formatExportCell(field: string, value: string | number | boolean | null | undefined) {
+  if (value === null || value === undefined) return '';
+  if (field === 'verified') return value ? '已验证' : '未验证';
+  return String(value);
+}
+
+function normalizeCell(value: string | null | undefined) {
+  return (value ?? '').replace(/\u00a0/g, ' ').trim();
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char);
 }

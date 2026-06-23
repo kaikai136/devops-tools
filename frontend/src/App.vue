@@ -53,6 +53,14 @@ const {
   triggerPasswordImportFile,
   passwordImportFile,
   importPasswordRecords,
+  hostImportFile,
+  hostImportAccept,
+  hostTransferDialog,
+  hostTransferFormat,
+  openHostTransferDialog,
+  closeHostTransferDialog,
+  confirmHostTransfer,
+  importHostManagement,
   openWebTerminal,
   useSelectedIpForPing,
   qrPreview,
@@ -204,6 +212,9 @@ const {
             <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
           </template>
           <template v-else-if="activeTool === 'hosts'">
+            <button class="header-action" type="button" @click="openHostTransferDialog('import')"><AppIcon name="upload" :size="16" />导入</button>
+            <button class="header-action" type="button" @click="openHostTransferDialog('export')"><AppIcon name="download" :size="16" />导出</button>
+            <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
             <button class="header-action terminal-action" type="button" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
           </template>
           <template v-else-if="activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
@@ -232,6 +243,45 @@ const {
       <UserManager v-if="activeTool === 'users'" />
       <RoleManager v-if="activeTool === 'roles'" />
     </section>
+
+    <div v-if="hostTransferDialog" class="modal-backdrop" @click.self="closeHostTransferDialog">
+      <article class="host-transfer-modal">
+        <button class="modal-close" type="button" @click="closeHostTransferDialog"><AppIcon name="x" :size="16" /></button>
+        <h2>{{ hostTransferDialog === 'import' ? '导入' : '导出' }}</h2>
+        <div class="host-transfer-body">
+          <div class="transfer-row">
+            <span class="transfer-label">文件类型</span>
+            <label class="transfer-radio">
+              <input v-model="hostTransferFormat" type="radio" value="json" />
+              <span>JSON</span>
+            </label>
+            <label class="transfer-radio">
+              <input v-model="hostTransferFormat" type="radio" value="excel" />
+              <span>Excel</span>
+            </label>
+          </div>
+          <div v-if="hostTransferDialog === 'export'" class="transfer-row transfer-range-row">
+            <span class="transfer-label">导出范围</span>
+            <label class="transfer-radio">
+              <input type="radio" checked />
+              <span>导出所有</span>
+            </label>
+            <label class="transfer-radio disabled">
+              <input type="radio" disabled />
+              <span>仅导出选择项</span>
+            </label>
+            <label class="transfer-radio disabled">
+              <input type="radio" disabled />
+              <span>仅导出搜索结果</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" @click="closeHostTransferDialog">取消</button>
+          <button class="primary" type="button" @click="confirmHostTransfer">确定</button>
+        </div>
+      </article>
+    </div>
 
     <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = null">
       <article class="qr-modal share-modal">
