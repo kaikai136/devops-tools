@@ -18,11 +18,23 @@ type ExportColumn = {
 };
 
 type HostGroupRow =
+  | { kind: 'root'; group: HostGroupRoot }
   | { kind: 'group'; group: FlatHostGroup }
   | { kind: 'editor'; editor: HostGroupInlineEdit };
 
+type HostGroupMenuGroup = FlatHostGroup | HostGroupRoot;
+
+interface HostGroupRoot {
+  key: null;
+  label: string;
+  count: number;
+  level: 0;
+  children: FlatHostGroup[];
+  isRoot: true;
+}
+
 interface HostGroupInlineEdit {
-  mode: 'create-root' | 'create-child' | 'rename';
+  mode: 'create-root' | 'create-child' | 'rename' | 'rename-root';
   groupId: number | null;
   parent: number | null;
   after: number | null;
@@ -90,13 +102,15 @@ export function useHostManager({
   const managedHosts = ref<ManagedHost[]>([]);
   const hostCredentials = ref<HostCredential[]>([]);
   const collapsedHostGroups = ref<Set<number>>(new Set());
+  const hostGroupRootLabel = ref(readHostGroupRootLabel());
+  const hostGroupRootExpanded = ref(true);
   const isLoadingHosts = ref(false);
   const hostGroupInlineEdit = ref<HostGroupInlineEdit | null>(null);
   const rootHostGroupDialogOpen = ref(false);
   const rootHostGroupName = ref('');
   const rootHostGroupSortAfter = ref<number | null>(null);
   const isSavingHostGroup = ref(false);
-  const hostGroupMenu = ref<{ group: FlatHostGroup; x: number; y: number } | null>(null);
+  const hostGroupMenu = ref<{ group: HostGroupMenuGroup; x: number; y: number } | null>(null);
   const hostDialog = ref<{ mode: 'create' | 'edit'; hostId: number | null } | null>(null);
   const hostForm = ref<ManagedHostForm>(emptyHostForm());
   const hostMoveDialogOpen = ref(false);
@@ -106,23 +120,41 @@ export function useHostManager({
   const hostGroupDropTarget = ref<{ key: number; position: HostGroupDropPosition } | null>(null);
   const verifyingHostIds = ref<Set<number>>(new Set());
 
-  const flatHostGroups = computed(() => flattenGroups(hostGroups.value));
-  const visibleHostGroups = computed(() => flattenVisibleGroups(hostGroups.value, collapsedHostGroups.value));
+  const flatHostGroups = computed(() => flattenGroups(hostGroups.value, 1));
+  const visibleHostGroups = computed(() => flattenVisibleGroups(hostGroups.value, collapsedHostGroups.value, 1));
+  const hostGroupRoot = computed<HostGroupRoot>(() => ({
+    key: null,
+    label: hostGroupRootLabel.value,
+    count: managedHostStats.value.total,
+    level: 0,
+    children: flatHostGroups.value,
+    isRoot: true,
+  }));
 
   const hostGroupRows = computed<HostGroupRow[]>(() => {
-    const rows: HostGroupRow[] = [];
+    const rows: HostGroupRow[] = [{ kind: 'root', group: hostGroupRoot.value }];
     const edit = hostGroupInlineEdit.value;
     let inserted = false;
 
-    for (const group of visibleHostGroups.value) {
-      rows.push({ kind: 'group', group });
-      if (edit && edit.mode !== 'rename' && edit.after === group.key) {
+    if (edit?.mode === 'rename-root') {
+      rows[0] = { kind: 'editor', editor: edit };
+    }
+
+    if (hostGroupRootExpanded.value) {
+      if (edit && edit.mode !== 'rename' && edit.mode !== 'rename-root' && edit.parent === null && edit.after === null) {
         rows.push({ kind: 'editor', editor: edit });
         inserted = true;
       }
+      for (const group of visibleHostGroups.value) {
+        rows.push({ kind: 'group', group });
+        if (edit && edit.mode !== 'rename' && edit.after === group.key) {
+          rows.push({ kind: 'editor', editor: edit });
+          inserted = true;
+        }
+      }
     }
 
-    if (edit && edit.mode !== 'rename' && !inserted) {
+    if (edit && edit.mode !== 'rename' && edit.mode !== 'rename-root' && !inserted) {
       rows.push({ kind: 'editor', editor: edit });
     }
 
@@ -147,7 +179,7 @@ export function useHostManager({
   });
 
   const groupMoveHosts = computed(() => {
-    if (!hostMoveSourceGroup.value) return [];
+    if (hostMoveSourceGroup.value === null) return managedHosts.value;
     const ids = groupIdsFor(hostMoveSourceGroup.value);
     return managedHosts.value.filter((host) => ids.has(host.group));
   });
@@ -216,7 +248,7 @@ export function useHostManager({
     }
   }
 
-  function selectManagedGroup(key: number) {
+  function selectManagedGroup(key: number | null) {
     selectedHostGroup.value = key;
   }
 
@@ -251,6 +283,10 @@ export function useHostManager({
       next.add(group.key);
     }
     collapsedHostGroups.value = next;
+  }
+
+  function toggleHostGroupRootExpanded() {
+    hostGroupRootExpanded.value = !hostGroupRootExpanded.value;
   }
 
   function startHostGroupDrag(group: FlatHostGroup, event: DragEvent) {
@@ -289,7 +325,7 @@ export function useHostManager({
     if (!draggedId || !drop || draggedId === group.key) return;
 
     const dragged = flatHostGroups.value.find((item) => item.key === draggedId);
-    if (!dragged || groupIdsFor(draggedId).has(group.key)) return;
+    if (!dragged) return;
 
     const parent = drop.position === 'inside' ? group.key : parentKeyFor(group.key);
     const target = drop.position === 'inside' ? null : group.key;
@@ -320,7 +356,7 @@ export function useHostManager({
     hostGroupDropTarget.value = null;
   }
 
-  function openHostGroupMenu(group: FlatHostGroup, event: MouseEvent) {
+  function openHostGroupMenu(group: HostGroupMenuGroup, event: MouseEvent) {
     event.preventDefault();
     selectedHostGroup.value = group.key;
     hostGroupMenu.value = {
@@ -336,37 +372,34 @@ export function useHostManager({
 
   function openAddRootHostGroup(anchor = hostGroupMenu.value?.group) {
     closeHostGroupMenu();
-    hostGroupInlineEdit.value = null;
-    rootHostGroupName.value = '';
-    rootHostGroupSortAfter.value = anchor ? rootGroupKeyFor(anchor) : null;
-    rootHostGroupDialogOpen.value = true;
-  }
-
-  function rootGroupKeyFor(anchor: FlatHostGroup): number {
-    if (anchor.level === 0) return anchor.key;
-
-    const groups = flatHostGroups.value;
-    const index = groups.findIndex((group) => group.key === anchor.key);
-    for (let cursor = index; cursor >= 0; cursor -= 1) {
-      if (groups[cursor]?.level === 0) return groups[cursor].key;
-    }
-    return anchor.key;
+    const selected = selectedHostGroup.value ? flatHostGroups.value.find((group) => group.key === selectedHostGroup.value) : undefined;
+    const siblingAnchor = anchor && !isHostGroupRoot(anchor) ? anchor : selected;
+    hostGroupRootExpanded.value = true;
+    hostGroupInlineEdit.value = {
+      mode: 'create-root',
+      groupId: null,
+      parent: siblingAnchor ? parentKeyFor(siblingAnchor.key) : null,
+      after: siblingAnchor?.key ?? null,
+      level: siblingAnchor?.level ?? 1,
+      name: '',
+    };
   }
 
   function openAddHostGroup(parent: number | null = selectedHostGroup.value) {
     closeHostGroupMenu();
+    const anchor = parent ? flatHostGroups.value.find((group) => group.key === parent) : undefined;
+    hostGroupRootExpanded.value = true;
     if (parent) {
       const next = new Set(collapsedHostGroups.value);
       next.delete(parent);
       collapsedHostGroups.value = next;
     }
-    const parentGroup = parent ? flatHostGroups.value.find((group) => group.key === parent) : undefined;
     hostGroupInlineEdit.value = {
       mode: 'create-child',
       groupId: null,
       parent,
-      after: parent,
-      level: (parentGroup?.level ?? -1) + 1,
+      after: anchor?.key ?? null,
+      level: (anchor?.level ?? 0) + 1,
       name: '',
     };
   }
@@ -374,6 +407,17 @@ export function useHostManager({
   function openRenameHostGroup(group = hostGroupMenu.value?.group) {
     if (!group) return;
     closeHostGroupMenu();
+    if (isHostGroupRoot(group)) {
+      hostGroupInlineEdit.value = {
+        mode: 'rename-root',
+        groupId: null,
+        parent: null,
+        after: null,
+        level: 0,
+        name: group.label,
+      };
+      return;
+    }
     hostGroupInlineEdit.value = {
       mode: 'rename',
       groupId: group.key,
@@ -391,6 +435,14 @@ export function useHostManager({
     const name = edit.name.trim();
     if (!name) {
       cancelHostGroupInlineEdit();
+      return;
+    }
+
+    if (edit.mode === 'rename-root') {
+      hostGroupRootLabel.value = name;
+      writeHostGroupRootLabel(name);
+      hostGroupInlineEdit.value = null;
+      showToast('操作成功', '根分组已重命名。');
       return;
     }
 
@@ -433,8 +485,9 @@ export function useHostManager({
       });
       hostGroups.value = result.groups;
       selectedHostGroup.value = result.group.key;
+      hostGroupRootExpanded.value = true;
       rootHostGroupDialogOpen.value = false;
-      showToast('操作成功', '根分组已添加。');
+      showToast('操作成功', '分组已添加。');
     } catch (error) {
       showToast('保存失败', (error as Error).message);
     }
@@ -494,7 +547,8 @@ export function useHostManager({
 
   function addManagedHost(group = selectedHostGroup.value ?? flatHostGroups.value[0]?.key ?? null) {
     closeHostGroupMenu();
-    hostForm.value = emptyHostForm(group, managedHosts.value.length + 10);
+    const targetGroup = group ?? flatHostGroups.value[0]?.key ?? null;
+    hostForm.value = emptyHostForm(targetGroup, managedHosts.value.length + 10);
     hostDialog.value = { mode: 'create', hostId: null };
   }
 
@@ -585,7 +639,7 @@ export function useHostManager({
     if (!group) return;
     closeHostGroupMenu();
     hostMoveSourceGroup.value = group.key;
-    const sourceHosts = managedHosts.value.filter((host) => groupIdsFor(group.key).has(host.group));
+    const sourceHosts = group.key === null ? managedHosts.value : managedHosts.value.filter((host) => groupIdsFor(group.key).has(host.group));
     hostMoveForm.value = {
       hostId: sourceHosts[0]?.id ?? null,
       targetGroup: flatHostGroups.value.find((item) => item.key !== group.key)?.key ?? null,
@@ -617,8 +671,8 @@ export function useHostManager({
   function deleteManagedHostsInGroup(group = hostGroupMenu.value?.group) {
     if (!group) return;
     closeHostGroupMenu();
-    const ids = groupIdsFor(group.key);
-    const hosts = managedHosts.value.filter((host) => ids.has(host.group));
+    const ids = group.key === null ? null : groupIdsFor(group.key);
+    const hosts = ids === null ? managedHosts.value : managedHosts.value.filter((host) => ids.has(host.group));
     if (!hosts.length) {
       showToast('无需删除', '该分组下没有主机。');
       return;
@@ -634,6 +688,10 @@ export function useHostManager({
   function deleteHostGroup(group = hostGroupMenu.value?.group) {
     if (!group) return;
     closeHostGroupMenu();
+    if (group.key === null) {
+      showToast('无法删除根分组', 'DEFAULT 是分组列表的根级。');
+      return;
+    }
     if (group.count > 0) {
       showToast('无法删除分组', '请先删除该分组下所有的机器。');
       return;
@@ -703,9 +761,11 @@ export function useHostManager({
     hostSortDirection,
     hostGroups,
     hostCredentials,
+    hostGroupRoot,
     flatHostGroups,
     visibleHostGroups,
     hostGroupRows,
+    hostGroupRootExpanded,
     visibleManagedHosts,
     groupMoveHosts,
     managedHostStats,
@@ -732,6 +792,7 @@ export function useHostManager({
     hostGroupName,
     isHostGroupExpanded,
     toggleHostGroupExpanded,
+    toggleHostGroupRootExpanded,
     startHostGroupDrag,
     updateHostGroupDropTarget,
     clearHostGroupDropTarget,
@@ -905,4 +966,18 @@ function normalizeCell(value: string | null | undefined) {
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] ?? char);
+}
+
+function isHostGroupRoot(group: HostGroupMenuGroup): group is HostGroupRoot {
+  return 'isRoot' in group;
+}
+
+function readHostGroupRootLabel() {
+  if (typeof window === 'undefined') return 'DEFAULT';
+  return window.localStorage.getItem('ops-tool.host-manager.root-label') || 'DEFAULT';
+}
+
+function writeHostGroupRootLabel(label: string) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem('ops-tool.host-manager.root-label', label);
 }

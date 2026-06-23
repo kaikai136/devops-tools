@@ -26,8 +26,10 @@ const fallbackHostColumnKey: HostColumnKey = 'name';
 const {
   activeTool,
   hostGroups,
+  hostGroupRoot,
   flatHostGroups,
   hostGroupRows,
+  hostGroupRootExpanded,
   selectedHostGroup,
   selectManagedGroup,
   isHostGroupExpanded,
@@ -63,6 +65,7 @@ const {
   openAddRootHostGroup,
   openAddHostGroup,
   openRenameHostGroup,
+  toggleHostGroupRootExpanded,
   startHostGroupDrag,
   updateHostGroupDropTarget,
   clearHostGroupDropTarget,
@@ -134,8 +137,24 @@ function closeHostColumnSettings() {
         <button class="group-add-button" type="button" title="添加分组" aria-label="添加分组" @click.stop="openAddRootHostGroup()"><AppIcon name="plus" :size="16" /></button>
       </div>
       <div class="host-group-list">
-        <template v-for="row in hostGroupRows" :key="row.kind === 'group' ? `group-${row.group.key}` : `editor-${row.editor.mode}-${row.editor.after ?? 'end'}`">
-          <template v-if="row.kind === 'group'">
+        <template v-for="row in hostGroupRows" :key="row.kind === 'root' ? 'group-root' : row.kind === 'group' ? `group-${row.group.key}` : `editor-${row.editor.mode}-${row.editor.after ?? 'end'}`">
+          <button
+            v-if="row.kind === 'root'"
+            class="host-group-row host-group-root"
+            :class="{ active: selectedHostGroup === null }"
+            type="button"
+            @click.stop="selectManagedGroup(null)"
+            @dblclick.stop="toggleHostGroupRootExpanded"
+            @contextmenu="openHostGroupMenu(row.group, $event)"
+          >
+            <span class="folder-caret expandable" role="button" @click.stop="toggleHostGroupRootExpanded">
+              <AppIcon :name="hostGroupRootExpanded ? 'chevronDown' : 'chevronRight'" :size="15" />
+            </span>
+            <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
+            <strong>{{ row.group.label }}</strong>
+            <em>{{ row.group.count }}</em>
+          </button>
+          <template v-else-if="row.kind === 'group'">
             <div
               v-if="hostGroupInlineEdit?.mode === 'rename' && hostGroupInlineEdit.groupId === row.group.key"
               class="host-group-row editing"
@@ -194,7 +213,8 @@ function closeHostColumnSettings() {
           </template>
           <div
             v-else
-            class="host-group-row editing draft"
+            class="host-group-row editing"
+            :class="{ draft: row.editor.mode !== 'rename-root' }"
             :style="{ paddingLeft: `${10 + row.editor.level * 26}px` }"
             @click.stop
           >
@@ -209,7 +229,7 @@ function closeHostColumnSettings() {
               @keydown.enter.prevent="saveHostGroupInlineEdit"
               @keydown.esc.prevent="cancelHostGroupInlineEdit"
             />
-            <em>0</em>
+            <em>{{ row.editor.mode === 'rename-root' ? hostGroupRoot.count : 0 }}</em>
           </div>
         </template>
         <div v-if="!hostGroups.length && !hostGroupInlineEdit" class="empty-state host-empty">暂无分组。</div>
@@ -221,7 +241,7 @@ function closeHostColumnSettings() {
         :style="{ left: `${hostGroupMenu.x}px`, top: `${hostGroupMenu.y}px` }"
         @click.stop
       >
-        <button type="button" @click="openAddRootHostGroup(hostGroupMenu.group)"><span><AppIcon name="folderPlus" :size="15" /></span>新建根分组</button>
+        <button type="button" @click="openAddRootHostGroup(hostGroupMenu.group)"><span><AppIcon name="folderPlus" :size="15" /></span>新建分组</button>
         <button type="button" @click="openAddHostGroup(hostGroupMenu.group.key)"><span><AppIcon name="circlePlus" :size="15" /></span>新建子分组</button>
         <button type="button" @click="openRenameHostGroup(hostGroupMenu.group)"><span><AppIcon name="edit" :size="15" /></span>重命名</button>
         <hr />
@@ -339,30 +359,6 @@ function closeHostColumnSettings() {
       </div>
     </article>
 
-    <div v-if="rootHostGroupDialogOpen" class="modal-backdrop" @click.self="rootHostGroupDialogOpen = false">
-      <form class="host-form-modal" @submit.prevent="saveRootHostGroup">
-        <button class="modal-close" type="button" @click="rootHostGroupDialogOpen = false"><AppIcon name="x" :size="16" /></button>
-        <h2>新建根分组</h2>
-        <label>
-          <span>分组名称</span>
-          <input v-model="rootHostGroupName" autofocus placeholder="输入根分组名称" />
-        </label>
-        <label>
-          <span>插入位置</span>
-          <select v-model.number="rootHostGroupSortAfter">
-            <option :value="null">列表末尾</option>
-            <option v-for="group in flatHostGroups.filter((item) => item.level === 0)" :key="group.key" :value="group.key">
-              在 {{ group.label }} 后
-            </option>
-          </select>
-        </label>
-        <div class="host-form-actions">
-          <button type="button" @click="rootHostGroupDialogOpen = false">取消</button>
-          <button class="primary" type="submit">保存</button>
-        </div>
-      </form>
-    </div>
-
     <div v-if="hostDialog" class="modal-backdrop" @click.self="hostDialog = null">
       <form class="host-form-modal host-edit-modal host-horizontal-modal" @submit.prevent="saveManagedHost">
         <button class="modal-close" type="button" @click="hostDialog = null"><AppIcon name="x" :size="16" /></button>
@@ -370,6 +366,7 @@ function closeHostColumnSettings() {
         <label class="host-horizontal-field required">
           <span>主机分组：</span>
           <select v-model.number="hostForm.group">
+            <option disabled :value="null">{{ hostGroupRoot.label }}</option>
             <option v-for="group in flatHostGroups" :key="group.key" :value="group.key">{{ `${'　'.repeat(group.level)}${group.label}` }}</option>
           </select>
         </label>
@@ -437,6 +434,7 @@ function closeHostColumnSettings() {
         <label>
           <span>目标分组</span>
           <select v-model.number="hostMoveForm.targetGroup">
+            <option disabled :value="null">{{ hostGroupRoot.label }}</option>
             <option v-for="group in flatHostGroups" :key="group.key" :value="group.key">{{ `${'　'.repeat(group.level)}${group.label}` }}</option>
           </select>
         </label>

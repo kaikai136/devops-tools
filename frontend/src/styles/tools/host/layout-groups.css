@@ -108,6 +108,15 @@
   color: #fff;
 }
 
+.host-group-row.host-group-root {
+  padding-left: 10px;
+  font-weight: 900;
+}
+
+.host-group-row.host-group-root:not(.active) {
+  color: #0b2446;
+}
+
 .host-group-row.dragging {
   opacity: 0.45;
 }
