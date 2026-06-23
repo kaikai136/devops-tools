@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
+from django.db.models import CharField
+from django.db.models.functions import Cast
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -9,7 +11,7 @@ from operations.responses import bad_request, bounded_int, not_found, serializer
 
 from .models import LoginLog, SystemSetting
 from .serializers import LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
-from .services import ensure_builtin_admin, is_builtin_admin_user
+from .services import FEATURE_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
 
 
 @api_view(["GET"])
@@ -21,13 +23,32 @@ def login_logs(request):
     queryset = LoginLog.objects.select_related("user")
     status_filter = str(request.query_params.get("status", "")).strip()
     username = str(request.query_params.get("username", "")).strip()
-    if status_filter:
+    ip_address = str(request.query_params.get("ip", request.query_params.get("ipAddress", ""))).strip()
+    if status_filter in {LoginLog.STATUS_SUCCESS, LoginLog.STATUS_FAILED}:
         queryset = queryset.filter(status=status_filter)
     if username:
         queryset = queryset.filter(username__icontains=username)
+    if ip_address:
+        queryset = queryset.annotate(ip_address_text=Cast("ip_address", CharField())).filter(ip_address_text__icontains=ip_address)
 
-    limit = bounded_int(request.query_params.get("limit", 100), default=100, minimum=1, maximum=500)
-    return Response(LoginLogSerializer(queryset[:limit], many=True).data)
+    page = bounded_int(request.query_params.get("page", 1), default=1, minimum=1, maximum=100000)
+    page_size = bounded_int(
+        request.query_params.get("pageSize", request.query_params.get("limit", 10)),
+        default=10,
+        minimum=1,
+        maximum=100,
+    )
+    total = queryset.count()
+    start = (page - 1) * page_size
+    end = start + page_size
+    return Response(
+        {
+            "results": LoginLogSerializer(queryset[start:end], many=True).data,
+            "total": total,
+            "page": page,
+            "pageSize": page_size,
+        }
+    )
 
 
 @api_view(["GET", "POST"])
@@ -88,6 +109,7 @@ def roles(request):
         return staff_error
 
     if request.method == "GET":
+        ensure_feature_permissions()
         return Response(RoleSerializer(Group.objects.prefetch_related("permissions").order_by("id"), many=True).data)
 
     serializer = RoleSerializer(data=request.data)
@@ -127,6 +149,8 @@ def permissions(request):
         return staff_error
 
     queryset = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
+    ensure_feature_permissions()
+    queryset = queryset.filter(codename__in=FEATURE_PERMISSION_CODES).order_by("id")
     return Response(PermissionSerializer(queryset, many=True).data)
 
 

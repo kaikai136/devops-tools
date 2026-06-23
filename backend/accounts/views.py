@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from accounts.permissions import require_login, require_staff
 from operations.responses import bad_request
 from system_management.models import LoginLog
-from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log
+from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log, user_feature_permission_codes
 
 
 def user_payload(user) -> dict:
@@ -18,6 +18,7 @@ def user_payload(user) -> dict:
         "is_active": user.is_active,
         "is_staff": user.is_staff,
         "is_superuser": user.is_superuser,
+        "featurePermissionCodes": user_feature_permission_codes(user),
         "last_login": user.last_login.isoformat() if user.last_login else None,
         "date_joined": user.date_joined.isoformat() if user.date_joined else None,
     }

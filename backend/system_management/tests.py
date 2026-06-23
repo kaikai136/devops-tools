@@ -1,8 +1,17 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
 from django.test import RequestFactory, TestCase
 
 from .models import LoginLog
-from .services import BUILTIN_ADMIN_EMAIL, BUILTIN_ADMIN_FIRST_NAME, BUILTIN_ADMIN_USERNAME, ensure_builtin_admin, record_login_log
+from .services import (
+    BUILTIN_ADMIN_EMAIL,
+    BUILTIN_ADMIN_FIRST_NAME,
+    BUILTIN_ADMIN_USERNAME,
+    FEATURE_PERMISSION_CODE_BY_KEY,
+    ensure_builtin_admin,
+    ensure_feature_permissions,
+    record_login_log,
+)
 
 
 class LoginLogTests(TestCase):
@@ -20,6 +29,55 @@ class LoginLogTests(TestCase):
         self.assertEqual(str(log.ip_address), "127.0.0.1")
         self.assertEqual(log.user_agent, "unit-test")
         self.assertEqual(log.status, LoginLog.STATUS_SUCCESS)
+
+
+class LoginLogApiTests(TestCase):
+    def setUp(self):
+        self.operator = get_user_model().objects.create_user(username="operator", password="pass", is_staff=True)
+        self.client.force_login(self.operator)
+        LoginLog.objects.create(
+            user=self.operator,
+            username="admin",
+            ip_address="1.1.1.1",
+            user_agent="PC / Windows 10 / Edge 149.0.0",
+            status=LoginLog.STATUS_SUCCESS,
+        )
+        LoginLog.objects.create(
+            username="admin",
+            ip_address="1.1.1.1",
+            user_agent="PC / Mac OS X 10.15.7 / Edge 149.0.0",
+            status=LoginLog.STATUS_FAILED,
+            message="用户名或密码错误，连续多次错误账户将会被禁用",
+        )
+        LoginLog.objects.create(
+            username="guest",
+            ip_address="2.2.2.2",
+            user_agent="PC / Mac OS X 10.15.7 / Chrome 119.0.0",
+            status=LoginLog.STATUS_SUCCESS,
+        )
+
+    def test_login_log_api_filters_and_paginates(self):
+        response = self.client.get(
+            "/api/system/login-logs/",
+            {"username": "admin", "ip": "1.1", "status": LoginLog.STATUS_FAILED, "page": 1, "pageSize": 10},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["page"], 1)
+        self.assertEqual(data["pageSize"], 10)
+        self.assertEqual(data["results"][0]["username"], "admin")
+        self.assertEqual(data["results"][0]["status"], LoginLog.STATUS_FAILED)
+        self.assertEqual(data["results"][0]["ipAddress"], "1.1.1.1")
+
+    def test_login_log_api_returns_requested_page(self):
+        response = self.client.get("/api/system/login-logs/", {"page": 2, "pageSize": 2})
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 3)
+        self.assertEqual(len(data["results"]), 1)
 
 
 class BuiltinAdminTests(TestCase):
@@ -71,6 +129,35 @@ class BuiltinAdminTests(TestCase):
         self.assertTrue(admin.is_active)
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
+
+
+class FeaturePermissionTests(TestCase):
+    def setUp(self):
+        self.operator = get_user_model().objects.create_user(username="operator", password="pass", is_staff=True)
+        self.client.force_login(self.operator)
+
+    def test_permission_api_returns_feature_permissions(self):
+        response = self.client.get("/api/system/permissions/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        codenames = {item["codename"] for item in payload}
+        self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["hosts"], codenames)
+        self.assertTrue(all(item["isFeature"] for item in payload))
+
+    def test_role_can_store_feature_permissions(self):
+        ensure_feature_permissions()
+        permission = Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["hosts"])
+
+        response = self.client.post(
+            "/api/system/roles/",
+            data={"name": "主机操作员", "permissionIds": [permission.id]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        role = Group.objects.get(name="主机操作员")
+        self.assertTrue(role.permissions.filter(id=permission.id).exists())
 
 
 class SystemUserLoginFlowTests(TestCase):

@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { apiGet } from '../api';
 import { setupClickWords, setupPointerTrail } from '../utils/effects';
@@ -242,6 +242,24 @@ const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, logou
   },
 });
 
+const permittedNavGroups = computed(() => {
+  const user = currentUser.value;
+  if (!user || user.is_superuser) return navGroups;
+  const permissionCodes = new Set(user.featurePermissionCodes ?? []);
+  return navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => permissionCodes.has(`access_${item.key}`)),
+    }))
+    .filter((group) => group.items.length);
+});
+
+const permittedToolKeys = computed(() => new Set(permittedNavGroups.value.flatMap((group) => group.items.map((item) => item.key))));
+const permittedActiveNavGroup = computed(() => permittedNavGroups.value.find((group) => group.items.some((item) => item.key === activeTool.value)) ?? permittedNavGroups.value[0] ?? activeNavGroup.value);
+const permittedActiveNavItem = computed(
+  () => permittedActiveNavGroup.value.items.find((item) => item.key === activeTool.value) ?? permittedActiveNavGroup.value.items[0] ?? activeNavItem.value,
+);
+
 function selectHost(ip: string) {
   selectedHost.value = ip;
   machineProbe.setProbeHost(ip);
@@ -263,9 +281,9 @@ const appState = {
   hoveredNavGroup,
   toast,
   localIp,
-  navGroups,
-  activeNavGroup,
-  activeNavItem,
+  navGroups: permittedNavGroups,
+  activeNavGroup: permittedActiveNavGroup,
+  activeNavItem: permittedActiveNavItem,
   scopedToastVisible,
   toastTone,
   currentUser,
@@ -445,6 +463,12 @@ onMounted(async () => {
   authTimer = window.setInterval(() => {
     if (isAuthenticated.value && activeTool.value === 'auth') loadAuthEntries();
   }, 1000);
+});
+
+watch([isAuthenticated, permittedToolKeys], ([authenticated, toolKeys]) => {
+  if (!authenticated || toolKeys.has(activeTool.value)) return;
+  const firstTool = permittedNavGroups.value[0]?.items[0]?.key;
+  if (firstTool) activeTool.value = firstTool;
 });
 
 onUnmounted(() => {

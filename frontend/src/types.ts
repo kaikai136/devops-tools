@@ -74,6 +74,7 @@ export interface AccountUser {
   is_active: boolean;
   is_staff: boolean;
   is_superuser: boolean;
+  featurePermissionCodes: string[];
   last_login: string | null;
   date_joined: string | null;
 }

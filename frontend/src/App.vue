@@ -8,8 +8,10 @@ import AuthenticatorPanel from './components/tools/AuthenticatorPanel.vue';
 import LoginPage from './components/auth/LoginPage.vue';
 import HostManager from './components/tools/HostManager.vue';
 import IpScanner from './components/tools/IpScanner.vue';
+import LoginLogManager from './components/tools/LoginLogManager.vue';
 import MachineProbe from './components/tools/MachineProbe.vue';
 import PasswordGenerator from './components/tools/PasswordGenerator.vue';
+import RoleManager from './components/tools/RoleManager.vue';
 import SubnetCalculator from './components/tools/SubnetCalculator.vue';
 import UserManager from './components/tools/UserManager.vue';
 import { useAppState } from './composables/useAppState';
@@ -188,7 +190,7 @@ const {
           <em>/</em>
           <span>{{ activeNavGroup.label }}</span>
           <em>/</em>
-          <strong>{{ activeTool === 'users' ? '账户管理' : activeNavItem.label }}</strong>
+          <strong>{{ activeNavItem.label }}</strong>
         </div>
         <div class="header-stats">
           <template v-if="activeTool === 'auth'">
@@ -226,7 +228,9 @@ const {
       <SubnetCalculator v-if="activeTool === 'subnet'" />
       <AuthenticatorPanel v-if="activeTool === 'auth'" />
       <PasswordGenerator v-if="activeTool === 'password'" />
+      <LoginLogManager v-if="activeTool === 'loginLogs'" />
       <UserManager v-if="activeTool === 'users'" />
+      <RoleManager v-if="activeTool === 'roles'" />
     </section>
 
     <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = null">
