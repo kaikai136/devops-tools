@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 
+from django.utils import timezone
+
 from web_terminal.services import TerminalConnectionError, open_ssh_client
 
 from .models import ManagedHost
@@ -14,6 +16,7 @@ MACHINE_NAME_COMMAND = "hostname -f 2>/dev/null || hostname 2>/dev/null || uname
 
 
 def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
+    now = timezone.now()
     try:
         info = probe_host_info(host)
     except TerminalConnectionError as error:
@@ -22,7 +25,8 @@ def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
         host.cpu = 0
         host.memory = 0
         host.machine_name = ""
-        host.save(update_fields=["verified", "verify_status", "cpu", "memory", "machine_name"])
+        host.updated_at = now
+        host.save(update_fields=["verified", "verify_status", "cpu", "memory", "machine_name", "updated_at"])
         return host, str(error)
 
     host.machine_name = info["machine_name"]
@@ -31,7 +35,8 @@ def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
     host.os = info["os"]
     host.verified = True
     host.verify_status = "verified"
-    host.save(update_fields=["machine_name", "cpu", "memory", "os", "verified", "verify_status"])
+    host.updated_at = now
+    host.save(update_fields=["machine_name", "cpu", "memory", "os", "verified", "verify_status", "updated_at"])
     return host, None
 
 

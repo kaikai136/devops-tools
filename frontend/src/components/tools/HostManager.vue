@@ -95,6 +95,7 @@ const {
 } = useAppContext();
 
 const hostColumnSettingsOpen = ref(false);
+const selectedHostIds = ref<Set<number>>(new Set());
 const {
   visibility: hostColumnVisibility,
   visibleColumns: visibleHostTableColumns,
@@ -111,7 +112,7 @@ const {
 });
 const hostTableStyle = computed<Record<string, string>>(() => {
   const columns = visibleHostTableColumns.value;
-  const minimumWidth = columns.reduce((total, column) => total + column.minWidth, 0) + Math.max(0, columns.length - 1) * 12 + 200;
+  const minimumWidth = columns.reduce((total, column) => total + column.minWidth, 0) + columns.length * 12 + 238;
   const actionsVisible = columns.some((column) => column.key === 'actions');
   const templateColumns = columns.map((column) => {
     if (column.key === 'status') return 'var(--host-status-column-width)';
@@ -120,13 +121,41 @@ const hostTableStyle = computed<Record<string, string>>(() => {
   });
 
   return {
-    '--host-table-columns': templateColumns.join(' ') || 'minmax(180px, 1fr)',
+    '--host-table-columns': `var(--host-select-column-width) ${templateColumns.join(' ') || 'minmax(180px, 1fr)'}`,
     '--host-table-min-width': `${Math.max(760, minimumWidth)}px`,
+    '--host-select-column-width': '38px',
     '--host-status-column-width': '86px',
     '--host-actions-column-width': '132px',
     '--host-status-sticky-right': actionsVisible ? 'calc(var(--host-actions-column-width) + 12px)' : '0px',
   };
 });
+const visibleHostIds = computed(() => visibleManagedHosts.value.map((host) => host.id));
+const allVisibleHostsSelected = computed(() => visibleHostIds.value.length > 0 && visibleHostIds.value.every((id) => selectedHostIds.value.has(id)));
+const someVisibleHostsSelected = computed(() => visibleHostIds.value.some((id) => selectedHostIds.value.has(id)));
+
+function toggleAllVisibleHosts(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const next = new Set(selectedHostIds.value);
+  visibleHostIds.value.forEach((id) => {
+    if (checked) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+  });
+  selectedHostIds.value = next;
+}
+
+function toggleHostSelected(hostId: number, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const next = new Set(selectedHostIds.value);
+  if (checked) {
+    next.add(hostId);
+  } else {
+    next.delete(hostId);
+  }
+  selectedHostIds.value = next;
+}
 
 function closeHostMenus() {
   closeHostGroupMenu();
@@ -335,6 +364,15 @@ function hostPlatformType(value: string | null | undefined) {
       <div class="host-table-scroll">
         <div class="host-table" :style="hostTableStyle">
           <div class="host-table-row head">
+            <label class="host-select-cell" aria-label="选择所有可见主机">
+              <input
+                type="checkbox"
+                :checked="allVisibleHostsSelected"
+                :disabled="!visibleHostIds.length"
+                :indeterminate.prop="someVisibleHostsSelected && !allVisibleHostsSelected"
+                @change="toggleAllVisibleHosts"
+              />
+            </label>
           <span v-if="isHostColumnVisible('group')">主机分组</span>
           <button v-if="isHostColumnVisible('name')" class="host-sort-button" :class="{ active: hostSortKey === 'name', desc: hostSortKey === 'name' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('name')">
             节点 <em>{{ hostSortMark('name') }}</em>
@@ -363,6 +401,13 @@ function hostPlatformType(value: string | null | undefined) {
           <span v-if="isHostColumnVisible('actions')" class="host-sticky-cell host-actions-cell">操作</span>
         </div>
         <div v-for="host in visibleManagedHosts" :key="host.id" class="host-table-row">
+          <label class="host-select-cell" :aria-label="`选择主机 ${host.name}`">
+            <input
+              type="checkbox"
+              :checked="selectedHostIds.has(host.id)"
+              @change="toggleHostSelected(host.id, $event)"
+            />
+          </label>
           <span v-if="isHostColumnVisible('group')" class="host-group-cell">{{ hostGroupName(host.group) }}</span>
           <button v-if="isHostColumnVisible('name')" class="host-name-link" type="button" @click="openWebTerminal(host)">{{ host.name }}</button>
           <div v-if="isHostColumnVisible('ip')" class="host-ip-stack">

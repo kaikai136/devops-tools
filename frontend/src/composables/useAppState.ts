@@ -54,7 +54,8 @@ const hostImportFile = ref<HTMLInputElement | null>(null);
 const hostTransferDialog = ref<'import' | 'export' | null>(null);
 const hostTransferFormat = ref<HostTransferFormat>('json');
 const imageInput = ref<HTMLInputElement | null>(null);
-const hostManager = useHostManager({ showToast, requestConfirm });
+const currentHostCreatorUsername = ref<string | null>(null);
+const hostManager = useHostManager({ showToast, requestConfirm, currentUsername: () => currentHostCreatorUsername.value });
 const {
   hostSearch,
   selectedHostGroup,
@@ -249,6 +250,14 @@ const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, logou
     qrPreview.value = null;
   },
 });
+
+watch(
+  currentUser,
+  (user) => {
+    currentHostCreatorUsername.value = user?.username ?? null;
+  },
+  { immediate: true },
+);
 
 const permittedNavGroups = computed(() => {
   const user = currentUser.value;

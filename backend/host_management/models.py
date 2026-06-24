@@ -48,6 +48,7 @@ class ManagedHost(models.Model):
     verified = models.BooleanField(default=False)
     verify_status = models.CharField(max_length=20, choices=VERIFY_STATUS_CHOICES, default="unverified")
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="managed_hosts", null=True, blank=True, on_delete=models.SET_NULL)
 
     class Meta:

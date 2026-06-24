@@ -1,4 +1,7 @@
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -12,7 +15,27 @@ from .services import build_group_counts, build_group_tree, collect_descendant_i
 
 
 def host_payload(host: ManagedHost) -> dict:
+    if host.created_by_id and "created_by" not in getattr(host, "_state").fields_cache:
+        host = ManagedHost.objects.select_related("created_by").get(id=host.id)
     return ManagedHostSerializer(host).data
+
+
+def parse_datetime_or_none(value):
+    if not value:
+        return None
+    parsed = parse_datetime(str(value))
+    if parsed is None:
+        return None
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
+def resolve_creator(value):
+    username = str(value or "").strip()
+    if not username or username == "system":
+        return None
+    return get_user_model().objects.filter(username=username).first()
 
 
 def groups_payload() -> list[dict]:
@@ -62,6 +85,7 @@ def export_payload() -> dict:
                 "os": host.os,
                 "creator": host.created_by.username if host.created_by_id and host.created_by else "system",
                 "createdAt": host.created_at.isoformat() if host.created_at else None,
+                "updatedAt": host.updated_at.isoformat() if host.updated_at else None,
                 "verified": host.verified,
                 "verifyStatus": host.verify_status,
             }
@@ -188,7 +212,7 @@ def managed_hosts(request):
         return serializer_bad_request(serializer)
 
     try:
-        creator = request.user if request.user.is_authenticated else None
+        creator = request.user if request.user.is_authenticated else resolve_creator(request.data.get("creator"))
         host = serializer.save(created_by=creator)
     except IntegrityError:
         return bad_request("内网 IP 已存在")
@@ -292,6 +316,13 @@ def host_management_import(request):
                 for source, (target, converter) in optional_fields.items():
                     if source in item:
                         defaults[target] = converter(item.get(source))
+                if "createdAt" in item:
+                    defaults["created_at"] = parse_datetime_or_none(item.get("createdAt")) or timezone.now()
+                if "updatedAt" in item:
+                    defaults["updated_at"] = parse_datetime_or_none(item.get("updatedAt"))
+                creator = resolve_creator(item.get("creator"))
+                if creator:
+                    defaults["created_by"] = creator
                 ManagedHost.objects.update_or_create(
                     private_ip=private_ip,
                     defaults=defaults,
@@ -319,7 +350,7 @@ def managed_host_detail(request, host_id: int):
         return serializer_bad_request(serializer)
 
     try:
-        host = serializer.save()
+        host = serializer.save(updated_at=timezone.now())
     except IntegrityError:
         return bad_request("内网 IP 已存在")
     if "verified" in request.data:

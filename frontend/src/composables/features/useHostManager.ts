@@ -89,9 +89,11 @@ interface HostManagementImportResponse {
 export function useHostManager({
   showToast,
   requestConfirm,
+  currentUsername = () => null,
 }: {
   showToast: (title: string, message: string) => void;
   requestConfirm: ConfirmFn;
+  currentUsername?: () => string | null | undefined;
 }) {
   const hostSearch = ref('');
   const selectedHostGroup = ref<number | null>(null);
@@ -605,6 +607,10 @@ export function useHostManager({
     delete (payload as Partial<ManagedHostForm>).credential;
     delete (payload as Partial<ManagedHostForm>).verified;
     const mode = hostDialog.value?.mode ?? 'create';
+    const creator = currentUsername()?.trim();
+    if (mode === 'create' && creator) {
+      (payload as typeof payload & { creator: string }).creator = creator;
+    }
     const saved =
       mode === 'edit' && hostDialog.value?.hostId
         ? await apiPut<ManagedHost>(`/api/host-management/hosts/${hostDialog.value.hostId}/`, payload)
