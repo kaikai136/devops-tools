@@ -50,9 +50,13 @@ export interface ManagedHost {
   remark: string;
   cpu: number;
   memory: number;
-  os: 'ubuntu' | 'centos' | 'debian';
+  os: 'ubuntu' | 'centos' | 'debian' | 'windows';
   verified: boolean;
   verifyStatus?: 'unverified' | 'verified' | 'failed';
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  creator?: string;
+  platformType?: 'linux' | 'windows' | string;
 }
 
 export interface HostCredential {

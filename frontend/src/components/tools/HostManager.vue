@@ -3,11 +3,16 @@ import { computed, ref } from 'vue';
 
 import { useAppContext } from '../../appContext';
 import { useColumnVisibility } from '../../composables/useColumnVisibility';
+import { formatDateTime } from '../../utils/datetime';
 import AppIcon from '../common/AppIcon.vue';
 
 const hostColumnOptions = [
   { key: 'group', label: '主机分组', width: 'minmax(100px, 0.8fr)', minWidth: 100 },
-  { key: 'name', label: '机器别名', width: 'minmax(120px, 1fr)', minWidth: 120 },
+  { key: 'name', label: '节点', width: 'minmax(120px, 1fr)', minWidth: 120 },
+  { key: 'createdAt', label: '创建时间', width: 'minmax(150px, 1fr)', minWidth: 150 },
+  { key: 'updatedAt', label: '更新时间', width: 'minmax(150px, 1fr)', minWidth: 150 },
+  { key: 'creator', label: '创建者', width: 'minmax(90px, 0.65fr)', minWidth: 90 },
+  { key: 'platformType', label: '平台类型', width: 'minmax(88px, 0.6fr)', minWidth: 88 },
   { key: 'ip', label: 'IP地址', width: 'minmax(150px, 1.1fr)', minWidth: 150 },
   { key: 'machine', label: '机器名称', width: 'minmax(110px, 0.8fr)', minWidth: 110 },
   { key: 'user', label: '用户', width: 'minmax(80px, 0.65fr)', minWidth: 80 },
@@ -20,7 +25,7 @@ const hostColumnOptions = [
 
 type HostColumnKey = (typeof hostColumnOptions)[number]['key'];
 
-const hostColumnStorageKey = 'ops-tool.host-manager.columns';
+const hostColumnStorageKey = 'ops-tool.host-manager.columns.v2';
 const fallbackHostColumnKey: HostColumnKey = 'name';
 
 const {
@@ -126,6 +131,15 @@ function toggleHostColumnSettings() {
 
 function closeHostColumnSettings() {
   hostColumnSettingsOpen.value = false;
+}
+
+function formatHostDate(value: string | null | undefined) {
+  return formatDateTime(value, '-');
+}
+
+function hostPlatformType(value: string | null | undefined) {
+  const type = String(value || '').toLowerCase();
+  return type === 'windows' ? 'windows' : 'linux';
 }
 </script>
 
@@ -313,7 +327,19 @@ function closeHostColumnSettings() {
         <div class="host-table-row head">
           <span v-if="isHostColumnVisible('group')">主机分组</span>
           <button v-if="isHostColumnVisible('name')" class="host-sort-button" :class="{ active: hostSortKey === 'name', desc: hostSortKey === 'name' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('name')">
-            机器别名 <em>{{ hostSortMark('name') }}</em>
+            节点 <em>{{ hostSortMark('name') }}</em>
+          </button>
+          <button v-if="isHostColumnVisible('createdAt')" class="host-sort-button" :class="{ active: hostSortKey === 'createdAt', desc: hostSortKey === 'createdAt' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('createdAt')">
+            创建时间 <em>{{ hostSortMark('createdAt') }}</em>
+          </button>
+          <button v-if="isHostColumnVisible('updatedAt')" class="host-sort-button" :class="{ active: hostSortKey === 'updatedAt', desc: hostSortKey === 'updatedAt' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('updatedAt')">
+            更新时间 <em>{{ hostSortMark('updatedAt') }}</em>
+          </button>
+          <button v-if="isHostColumnVisible('creator')" class="host-sort-button" :class="{ active: hostSortKey === 'creator', desc: hostSortKey === 'creator' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('creator')">
+            创建者 <em>{{ hostSortMark('creator') }}</em>
+          </button>
+          <button v-if="isHostColumnVisible('platformType')" class="host-sort-button" :class="{ active: hostSortKey === 'platformType', desc: hostSortKey === 'platformType' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('platformType')">
+            平台类型 <em>{{ hostSortMark('platformType') }}</em>
           </button>
           <button v-if="isHostColumnVisible('ip')" class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
             IP地址 <em>{{ hostSortMark('ip') }}</em>
@@ -329,6 +355,12 @@ function closeHostColumnSettings() {
         <div v-for="host in visibleManagedHosts" :key="host.id" class="host-table-row">
           <span v-if="isHostColumnVisible('group')" class="host-group-cell">{{ hostGroupName(host.group) }}</span>
           <button v-if="isHostColumnVisible('name')" class="host-name-link" type="button" @click="openWebTerminal(host)">{{ host.name }}</button>
+          <span v-if="isHostColumnVisible('createdAt')" class="host-date-cell">{{ formatHostDate(host.createdAt) }}</span>
+          <span v-if="isHostColumnVisible('updatedAt')" class="host-date-cell">{{ formatHostDate(host.updatedAt) }}</span>
+          <span v-if="isHostColumnVisible('creator')" class="host-creator-cell">{{ host.creator || '-' }}</span>
+          <span v-if="isHostColumnVisible('platformType')" class="host-platform-type" :class="hostPlatformType(host.platformType)">
+            {{ hostPlatformType(host.platformType) }}
+          </span>
           <div v-if="isHostColumnVisible('ip')" class="host-ip-stack">
             <span v-if="host.publicIp"><i class="ip-tag public">公</i>{{ host.publicIp }}</span>
             <span>{{ host.privateIp }}</span>
@@ -371,13 +403,20 @@ function closeHostColumnSettings() {
           </select>
         </label>
         <label class="host-horizontal-field required">
-          <span>机器别名：</span>
+          <span>节点：</span>
           <input v-model="hostForm.name" autofocus />
         </label>
         <label class="host-horizontal-field required">
           <span>主机 IP：</span>
           <input v-model="hostForm.privateIp" />
           <small v-if="hostPrivateIpExists" class="host-field-error">IP 已存在，请重新输入。</small>
+        </label>
+        <label class="host-horizontal-field required">
+          <span>平台类型：</span>
+          <select v-model="hostForm.os">
+            <option value="centos">linux</option>
+            <option value="windows">windows</option>
+          </select>
         </label>
         <label class="host-horizontal-field">
           <span>端口：</span>

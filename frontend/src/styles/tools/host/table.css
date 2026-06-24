@@ -60,7 +60,9 @@
 .host-machine-cell,
 .host-user-cell,
 .host-port-cell,
-.host-remark-cell {
+.host-remark-cell,
+.host-date-cell,
+.host-creator-cell {
   min-width: 0;
   overflow: hidden;
   color: #173252;
@@ -76,6 +78,34 @@
 .host-remark-cell {
   color: #526b8a;
   font-size: 13px;
+}
+
+.host-date-cell,
+.host-creator-cell {
+  color: #526b8a;
+  font-size: 12px;
+}
+
+.host-platform-type {
+  justify-self: start;
+  min-width: 52px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  background: #e8eef7;
+  color: #53647a;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.host-platform-type.linux {
+  background: #e8f7ef;
+  color: #157047;
+}
+
+.host-platform-type.windows {
+  background: #e8f0ff;
+  color: #1f63f1;
 }
 
 .host-ip-stack {

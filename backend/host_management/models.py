@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -22,6 +23,7 @@ class ManagedHost(models.Model):
         ("ubuntu", "Ubuntu"),
         ("centos", "CentOS"),
         ("debian", "Debian"),
+        ("windows", "Windows"),
     ]
     VERIFY_STATUS_CHOICES = [
         ("unverified", "未验证"),
@@ -46,6 +48,7 @@ class ManagedHost(models.Model):
     verified = models.BooleanField(default=False)
     verify_status = models.CharField(max_length=20, choices=VERIFY_STATUS_CHOICES, default="unverified")
     created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="managed_hosts", null=True, blank=True, on_delete=models.SET_NULL)
 
     class Meta:
         ordering = ["id"]

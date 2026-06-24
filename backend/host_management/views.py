@@ -31,7 +31,7 @@ def group_path(group: HostGroup) -> str:
 
 def export_payload() -> dict:
     groups = HostGroup.objects.select_related("parent").order_by("sort_order", "id")
-    hosts = ManagedHost.objects.select_related("group").order_by("id")
+    hosts = ManagedHost.objects.select_related("group", "created_by").order_by("id")
     credentials = HostCredential.objects.order_by("id")
     return {
         "version": 1,
@@ -60,6 +60,8 @@ def export_payload() -> dict:
                 "cpu": host.cpu,
                 "memory": host.memory,
                 "os": host.os,
+                "creator": host.created_by.username if host.created_by_id and host.created_by else "system",
+                "createdAt": host.created_at.isoformat() if host.created_at else None,
                 "verified": host.verified,
                 "verifyStatus": host.verify_status,
             }
@@ -178,7 +180,7 @@ def host_group_detail(request, group_id: int):
 @api_view(["GET", "POST"])
 def managed_hosts(request):
     if request.method == "GET":
-        hosts = ManagedHost.objects.select_related("group").all()
+        hosts = ManagedHost.objects.select_related("group", "created_by").all()
         return Response(ManagedHostSerializer(hosts, many=True).data)
 
     serializer = ManagedHostSerializer(data=request.data)
@@ -186,7 +188,8 @@ def managed_hosts(request):
         return serializer_bad_request(serializer)
 
     try:
-        host = serializer.save()
+        creator = request.user if request.user.is_authenticated else None
+        host = serializer.save(created_by=creator)
     except IntegrityError:
         return bad_request("内网 IP 已存在")
     sync_verify_status(host)
@@ -297,13 +300,13 @@ def host_management_import(request):
     except (TypeError, ValueError, IntegrityError) as error:
         return bad_request(str(error))
 
-    return Response({"imported": imported, "groups": groups_payload(), "hosts": ManagedHostSerializer(ManagedHost.objects.select_related("group").all(), many=True).data})
+    return Response({"imported": imported, "groups": groups_payload(), "hosts": ManagedHostSerializer(ManagedHost.objects.select_related("group", "created_by").all(), many=True).data})
 
 
 @api_view(["PUT", "DELETE"])
 def managed_host_detail(request, host_id: int):
     try:
-        host = ManagedHost.objects.get(id=host_id)
+        host = ManagedHost.objects.select_related("created_by").get(id=host_id)
     except ManagedHost.DoesNotExist:
         return not_found("主机不存在")
 
@@ -327,7 +330,7 @@ def managed_host_detail(request, host_id: int):
 @api_view(["POST"])
 def managed_host_verify(_request, host_id: int):
     try:
-        host = ManagedHost.objects.get(id=host_id)
+        host = ManagedHost.objects.select_related("created_by").get(id=host_id)
     except ManagedHost.DoesNotExist:
         return not_found("主机不存在")
 

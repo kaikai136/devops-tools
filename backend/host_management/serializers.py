@@ -14,6 +14,10 @@ class ManagedHostSerializer(serializers.ModelSerializer):
     privateKey = serializers.CharField(source="private_key", required=False, allow_blank=True)
     machineName = serializers.CharField(source="machine_name", read_only=True)
     verifyStatus = serializers.CharField(source="verify_status", read_only=True)
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    updatedAt = serializers.SerializerMethodField()
+    creator = serializers.SerializerMethodField()
+    platformType = serializers.SerializerMethodField()
     remark = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
@@ -36,7 +40,22 @@ class ManagedHostSerializer(serializers.ModelSerializer):
             "os",
             "verified",
             "verifyStatus",
+            "createdAt",
+            "updatedAt",
+            "creator",
+            "platformType",
         ]
+
+    def get_updatedAt(self, host: ManagedHost):
+        updated_at = getattr(host, "updated_at", None)
+        value = updated_at or host.created_at
+        return value.isoformat() if value else None
+
+    def get_creator(self, host: ManagedHost) -> str:
+        return host.created_by.username if host.created_by_id and host.created_by else "system"
+
+    def get_platformType(self, host: ManagedHost) -> str:
+        return "windows" if (host.os or "").lower() == "windows" else "linux"
 
 
 class HostCredentialSerializer(serializers.ModelSerializer):

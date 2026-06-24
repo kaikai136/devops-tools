@@ -171,7 +171,10 @@ export function useHostManager({
         (hostStatusFilter.value === 'verified' && host.verified) ||
         (hostStatusFilter.value === 'unverified' && !host.verified);
       const searchMatched =
-        !query || [host.name, host.machineName, host.publicIp, host.privateIp].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
+        !query ||
+        [host.name, host.machineName, host.publicIp, host.privateIp, host.creator, host.platformType]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
       return groupMatched && statusMatched && searchMatched;
     });
 
@@ -935,6 +938,7 @@ function resolveExportField(value: string) {
 
 const excelHeaderAliases: Record<string, string> = {
   名称: 'name',
+  节点: 'name',
   机器别名: 'name',
   账号名称: 'name',
   分组名称: 'name',
