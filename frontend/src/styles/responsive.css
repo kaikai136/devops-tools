@@ -7,10 +7,6 @@
     grid-template-columns: 1fr;
   }
 
-  .host-table-panel {
-    overflow: auto;
-  }
-
   .password-record-panel {
     position: static;
     max-height: none;

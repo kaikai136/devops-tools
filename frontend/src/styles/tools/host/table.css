@@ -1,3 +1,9 @@
+.host-table-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
 .host-table {
   min-width: var(--host-table-min-width, 1300px);
   border-top: 1px solid #edf1f6;
@@ -13,11 +19,36 @@
   padding: 0 18px;
 }
 
+.host-sticky-cell {
+  position: sticky;
+  z-index: 2;
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  background: #fff;
+}
+
+.host-status-cell {
+  right: var(--host-status-sticky-right, 144px);
+}
+
+.host-actions-cell {
+  right: 0;
+}
+
 .host-table-row.head {
+  position: sticky;
+  z-index: 5;
+  top: 0;
   min-height: 56px;
   background: #f8fafc;
   color: #173252;
   font-weight: 900;
+}
+
+.host-table-row.head .host-sticky-cell {
+  z-index: 3;
+  background: #f8fafc;
 }
 
 .host-sort-button {

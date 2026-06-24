@@ -21,7 +21,10 @@
 }
 
 .host-table-panel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   padding: 24px;
+  overflow: hidden;
 }
 
 .host-group-head,

@@ -9,15 +9,15 @@ import AppIcon from '../common/AppIcon.vue';
 const hostColumnOptions = [
   { key: 'group', label: '主机分组', width: 'minmax(100px, 0.8fr)', minWidth: 100 },
   { key: 'name', label: '节点', width: 'minmax(120px, 1fr)', minWidth: 120 },
+  { key: 'ip', label: 'IP地址', width: 'minmax(150px, 1.1fr)', minWidth: 150 },
+  { key: 'config', label: '配置信息', width: 'minmax(130px, 0.9fr)', minWidth: 130 },
+  { key: 'machine', label: '机器名称', width: 'minmax(110px, 0.8fr)', minWidth: 110 },
+  { key: 'platformType', label: '平台类型', width: 'minmax(88px, 0.6fr)', minWidth: 88 },
+  { key: 'user', label: '用户', width: 'minmax(80px, 0.65fr)', minWidth: 80 },
+  { key: 'port', label: '端口', width: 'minmax(64px, 0.45fr)', minWidth: 64 },
   { key: 'createdAt', label: '创建时间', width: 'minmax(150px, 1fr)', minWidth: 150 },
   { key: 'updatedAt', label: '更新时间', width: 'minmax(150px, 1fr)', minWidth: 150 },
   { key: 'creator', label: '创建者', width: 'minmax(90px, 0.65fr)', minWidth: 90 },
-  { key: 'platformType', label: '平台类型', width: 'minmax(88px, 0.6fr)', minWidth: 88 },
-  { key: 'ip', label: 'IP地址', width: 'minmax(150px, 1.1fr)', minWidth: 150 },
-  { key: 'machine', label: '机器名称', width: 'minmax(110px, 0.8fr)', minWidth: 110 },
-  { key: 'user', label: '用户', width: 'minmax(80px, 0.65fr)', minWidth: 80 },
-  { key: 'port', label: '端口', width: 'minmax(64px, 0.45fr)', minWidth: 64 },
-  { key: 'config', label: '配置信息', width: 'minmax(130px, 0.9fr)', minWidth: 130 },
   { key: 'remark', label: '备注', width: 'minmax(130px, 1fr)', minWidth: 130 },
   { key: 'status', label: '状态', width: 'minmax(86px, 0.65fr)', minWidth: 86 },
   { key: 'actions', label: '操作', width: 'minmax(132px, 0.8fr)', minWidth: 132 },
@@ -112,10 +112,19 @@ const {
 const hostTableStyle = computed<Record<string, string>>(() => {
   const columns = visibleHostTableColumns.value;
   const minimumWidth = columns.reduce((total, column) => total + column.minWidth, 0) + Math.max(0, columns.length - 1) * 12 + 200;
+  const actionsVisible = columns.some((column) => column.key === 'actions');
+  const templateColumns = columns.map((column) => {
+    if (column.key === 'status') return 'var(--host-status-column-width)';
+    if (column.key === 'actions') return 'var(--host-actions-column-width)';
+    return column.width;
+  });
 
   return {
-    '--host-table-columns': columns.map((column) => column.width).join(' ') || 'minmax(180px, 1fr)',
+    '--host-table-columns': templateColumns.join(' ') || 'minmax(180px, 1fr)',
     '--host-table-min-width': `${Math.max(760, minimumWidth)}px`,
+    '--host-status-column-width': '86px',
+    '--host-actions-column-width': '132px',
+    '--host-status-sticky-right': actionsVisible ? 'calc(var(--host-actions-column-width) + 12px)' : '0px',
   };
 });
 
@@ -323,12 +332,23 @@ function hostPlatformType(value: string | null | undefined) {
         <span>未验证 {{ managedHostStats.unverified }}</span>
         <span v-if="isLoadingHosts">加载中</span>
       </div>
-      <div class="host-table" :style="hostTableStyle">
-        <div class="host-table-row head">
+      <div class="host-table-scroll">
+        <div class="host-table" :style="hostTableStyle">
+          <div class="host-table-row head">
           <span v-if="isHostColumnVisible('group')">主机分组</span>
           <button v-if="isHostColumnVisible('name')" class="host-sort-button" :class="{ active: hostSortKey === 'name', desc: hostSortKey === 'name' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('name')">
             节点 <em>{{ hostSortMark('name') }}</em>
           </button>
+          <button v-if="isHostColumnVisible('ip')" class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
+            IP地址 <em>{{ hostSortMark('ip') }}</em>
+          </button>
+          <span v-if="isHostColumnVisible('config')">配置信息</span>
+          <span v-if="isHostColumnVisible('machine')">机器名称</span>
+          <button v-if="isHostColumnVisible('platformType')" class="host-sort-button" :class="{ active: hostSortKey === 'platformType', desc: hostSortKey === 'platformType' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('platformType')">
+            平台类型 <em>{{ hostSortMark('platformType') }}</em>
+          </button>
+          <span v-if="isHostColumnVisible('user')">用户</span>
+          <span v-if="isHostColumnVisible('port')">端口</span>
           <button v-if="isHostColumnVisible('createdAt')" class="host-sort-button" :class="{ active: hostSortKey === 'createdAt', desc: hostSortKey === 'createdAt' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('createdAt')">
             创建时间 <em>{{ hostSortMark('createdAt') }}</em>
           </button>
@@ -338,36 +358,17 @@ function hostPlatformType(value: string | null | undefined) {
           <button v-if="isHostColumnVisible('creator')" class="host-sort-button" :class="{ active: hostSortKey === 'creator', desc: hostSortKey === 'creator' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('creator')">
             创建者 <em>{{ hostSortMark('creator') }}</em>
           </button>
-          <button v-if="isHostColumnVisible('platformType')" class="host-sort-button" :class="{ active: hostSortKey === 'platformType', desc: hostSortKey === 'platformType' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('platformType')">
-            平台类型 <em>{{ hostSortMark('platformType') }}</em>
-          </button>
-          <button v-if="isHostColumnVisible('ip')" class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
-            IP地址 <em>{{ hostSortMark('ip') }}</em>
-          </button>
-          <span v-if="isHostColumnVisible('machine')">机器名称</span>
-          <span v-if="isHostColumnVisible('user')">用户</span>
-          <span v-if="isHostColumnVisible('port')">端口</span>
-          <span v-if="isHostColumnVisible('config')">配置信息</span>
           <span v-if="isHostColumnVisible('remark')">备注</span>
-          <span v-if="isHostColumnVisible('status')">状态</span>
-          <span v-if="isHostColumnVisible('actions')">操作</span>
+          <span v-if="isHostColumnVisible('status')" class="host-sticky-cell host-status-cell">状态</span>
+          <span v-if="isHostColumnVisible('actions')" class="host-sticky-cell host-actions-cell">操作</span>
         </div>
         <div v-for="host in visibleManagedHosts" :key="host.id" class="host-table-row">
           <span v-if="isHostColumnVisible('group')" class="host-group-cell">{{ hostGroupName(host.group) }}</span>
           <button v-if="isHostColumnVisible('name')" class="host-name-link" type="button" @click="openWebTerminal(host)">{{ host.name }}</button>
-          <span v-if="isHostColumnVisible('createdAt')" class="host-date-cell">{{ formatHostDate(host.createdAt) }}</span>
-          <span v-if="isHostColumnVisible('updatedAt')" class="host-date-cell">{{ formatHostDate(host.updatedAt) }}</span>
-          <span v-if="isHostColumnVisible('creator')" class="host-creator-cell">{{ host.creator || '-' }}</span>
-          <span v-if="isHostColumnVisible('platformType')" class="host-platform-type" :class="hostPlatformType(host.platformType)">
-            {{ hostPlatformType(host.platformType) }}
-          </span>
           <div v-if="isHostColumnVisible('ip')" class="host-ip-stack">
             <span v-if="host.publicIp"><i class="ip-tag public">公</i>{{ host.publicIp }}</span>
             <span>{{ host.privateIp }}</span>
           </div>
-          <span v-if="isHostColumnVisible('machine')" class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
-          <span v-if="isHostColumnVisible('user')" class="host-user-cell">{{ host.loginUser || '-' }}</span>
-          <span v-if="isHostColumnVisible('port')" class="host-port-cell">{{ host.port || 22 }}</span>
           <div v-if="isHostColumnVisible('config')" class="host-config">
             <template v-if="host.verified && host.cpu > 0 && host.memory > 0">
               <span class="os-badge" :class="host.os"></span>
@@ -375,11 +376,22 @@ function hostPlatformType(value: string | null | undefined) {
             </template>
             <span v-else class="host-config-empty" aria-label="配置信息为空"></span>
           </div>
-          <span v-if="isHostColumnVisible('remark')" class="host-remark-cell" :title="host.remark">{{ host.remark || '-' }}</span>
-          <span v-if="isHostColumnVisible('status')" class="verify-badge" :class="{ verified: host.verified, failed: host.verifyStatus === 'failed' }">
-            {{ host.verified ? '已验证' : host.verifyStatus === 'failed' ? '验证失败' : '未验证' }}
+          <span v-if="isHostColumnVisible('machine')" class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
+          <span v-if="isHostColumnVisible('platformType')" class="host-platform-type" :class="hostPlatformType(host.platformType)">
+            {{ hostPlatformType(host.platformType) }}
           </span>
-          <div v-if="isHostColumnVisible('actions')" class="host-actions">
+          <span v-if="isHostColumnVisible('user')" class="host-user-cell">{{ host.loginUser || '-' }}</span>
+          <span v-if="isHostColumnVisible('port')" class="host-port-cell">{{ host.port || 22 }}</span>
+          <span v-if="isHostColumnVisible('createdAt')" class="host-date-cell">{{ formatHostDate(host.createdAt) }}</span>
+          <span v-if="isHostColumnVisible('updatedAt')" class="host-date-cell">{{ formatHostDate(host.updatedAt) }}</span>
+          <span v-if="isHostColumnVisible('creator')" class="host-creator-cell">{{ host.creator || '-' }}</span>
+          <span v-if="isHostColumnVisible('remark')" class="host-remark-cell" :title="host.remark">{{ host.remark || '-' }}</span>
+          <div v-if="isHostColumnVisible('status')" class="host-sticky-cell host-status-cell">
+            <span class="verify-badge" :class="{ verified: host.verified, failed: host.verifyStatus === 'failed' }">
+              {{ host.verified ? '已验证' : host.verifyStatus === 'failed' ? '验证失败' : '未验证' }}
+            </span>
+          </div>
+          <div v-if="isHostColumnVisible('actions')" class="host-actions host-sticky-cell host-actions-cell">
             <button type="button" @click="editManagedHost(host)">编辑</button>
             <button type="button" :disabled="verifyingHostIds.has(host.id)" @click="verifyManagedHost(host)">
               {{ verifyingHostIds.has(host.id) ? '验证中' : '验证' }}
@@ -387,7 +399,8 @@ function hostPlatformType(value: string | null | undefined) {
             <button class="danger" type="button" @click="deleteManagedHost(host)">删除</button>
           </div>
         </div>
-        <div v-if="!visibleManagedHosts.length" class="empty-state host-empty">没有匹配的主机。</div>
+          <div v-if="!visibleManagedHosts.length" class="empty-state host-empty">没有匹配的主机。</div>
+        </div>
       </div>
     </article>
 
