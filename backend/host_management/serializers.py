@@ -13,6 +13,8 @@ class ManagedHostSerializer(serializers.ModelSerializer):
     privateKeyName = serializers.CharField(source="private_key_name", required=False, allow_blank=True)
     privateKey = serializers.CharField(source="private_key", required=False, allow_blank=True)
     machineName = serializers.CharField(source="machine_name", read_only=True)
+    systemArch = serializers.CharField(source="system_arch", read_only=True)
+    systemType = serializers.CharField(source="system_type", read_only=True)
     verifyStatus = serializers.CharField(source="verify_status", read_only=True)
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
@@ -34,6 +36,8 @@ class ManagedHostSerializer(serializers.ModelSerializer):
             "privateKeyName",
             "privateKey",
             "machineName",
+            "systemArch",
+            "systemType",
             "remark",
             "cpu",
             "memory",

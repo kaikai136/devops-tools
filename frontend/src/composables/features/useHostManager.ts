@@ -174,7 +174,7 @@ export function useHostManager({
         (hostStatusFilter.value === 'unverified' && !host.verified);
       const searchMatched =
         !query ||
-        [host.name, host.machineName, host.publicIp, host.privateIp, host.creator, host.platformType]
+        [host.name, host.machineName, host.systemArch, host.systemType, host.publicIp, host.privateIp, host.creator, host.platformType]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query));
       return groupMatched && statusMatched && searchMatched;

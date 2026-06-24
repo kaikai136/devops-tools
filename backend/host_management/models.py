@@ -42,6 +42,8 @@ class ManagedHost(models.Model):
     private_key = models.TextField(blank=True)
     remark = models.TextField(blank=True)
     machine_name = models.CharField(max_length=160, blank=True)
+    system_arch = models.CharField(max_length=80, blank=True)
+    system_type = models.CharField(max_length=80, blank=True)
     cpu = models.PositiveSmallIntegerField(default=2)
     memory = models.PositiveSmallIntegerField(default=4)
     os = models.CharField(max_length=20, choices=OS_CHOICES, default="centos")

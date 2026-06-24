@@ -106,11 +106,13 @@
   color: #0755d8;
   padding: 0;
   text-align: left;
+  font-size: 15px;
   font-weight: 800;
 }
 
 .host-group-cell,
 .host-machine-cell,
+.host-system-cell,
 .host-user-cell,
 .host-port-cell,
 .host-remark-cell,
@@ -119,6 +121,7 @@
   min-width: 0;
   overflow: hidden;
   color: #173252;
+  font-size: 15px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -135,8 +138,9 @@
 
 .host-date-cell,
 .host-creator-cell {
-  color: #526b8a;
-  font-size: 12px;
+  color: #173252;
+  font-size: 15px;
+  font-weight: 900;
 }
 
 .host-platform-type {
@@ -165,7 +169,8 @@
   display: grid;
   gap: 5px;
   color: #173252;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .host-ip-stack span {
@@ -198,6 +203,7 @@
 .host-config {
   gap: 8px;
   color: #173252;
+  font-size: 15px;
 }
 
 .os-badge {

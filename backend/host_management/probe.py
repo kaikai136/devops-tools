@@ -13,6 +13,8 @@ CPU_COMMAND = "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || gre
 MEMORY_COMMAND = "awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null"
 OS_COMMAND = ". /etc/os-release 2>/dev/null && printf '%s' \"${ID:-}\" || uname -s"
 MACHINE_NAME_COMMAND = "hostname -f 2>/dev/null || hostname 2>/dev/null || uname -n"
+SYSTEM_ARCH_COMMAND = "uname -m 2>/dev/null"
+SYSTEM_TYPE_COMMAND = ". /etc/os-release 2>/dev/null && printf '%s' \"${ID:-}\" || uname -s"
 
 
 def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
@@ -33,10 +35,12 @@ def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
     host.cpu = info["cpu"]
     host.memory = info["memory"]
     host.os = info["os"]
+    host.system_arch = info["system_arch"]
+    host.system_type = info["system_type"]
     host.verified = True
     host.verify_status = "verified"
     host.updated_at = now
-    host.save(update_fields=["machine_name", "cpu", "memory", "os", "verified", "verify_status", "updated_at"])
+    host.save(update_fields=["machine_name", "cpu", "memory", "os", "system_arch", "system_type", "verified", "verify_status", "updated_at"])
     return host, None
 
 
@@ -49,6 +53,8 @@ def probe_host_info(host: ManagedHost) -> dict:
             raise TerminalConnectionError("无法识别机器 CPU 或内存信息")
         return {
             "machine_name": parse_machine_name(run_probe_command(client, MACHINE_NAME_COMMAND)),
+            "system_arch": parse_machine_arch(run_probe_command(client, SYSTEM_ARCH_COMMAND)),
+            "system_type": parse_system_type(run_probe_command(client, SYSTEM_TYPE_COMMAND)),
             "cpu": cpu,
             "memory": memory,
             "os": parse_os(run_probe_command(client, OS_COMMAND)),
@@ -90,6 +96,22 @@ def parse_machine_name(value: str) -> str:
     except IndexError:
         return ""
     return name[:160]
+
+
+def parse_machine_arch(value: str) -> str:
+    try:
+        arch = value.strip().splitlines()[0].strip()
+    except IndexError:
+        return ""
+    return arch[:80]
+
+
+def parse_system_type(value: str) -> str:
+    try:
+        system_type = value.strip().splitlines()[0].strip().lower()
+    except IndexError:
+        return ""
+    return system_type[:80]
 
 
 def parse_os(value: str) -> str:

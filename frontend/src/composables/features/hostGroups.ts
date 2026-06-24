@@ -1,7 +1,7 @@
 import type { HostGroup, ManagedHost } from '../../types';
 
 export type FlatHostGroup = HostGroup & { level: number };
-export type HostSortKey = 'name' | 'ip' | 'createdAt' | 'updatedAt' | 'creator' | 'platformType';
+export type HostSortKey = 'name' | 'ip' | 'createdAt' | 'updatedAt' | 'creator' | 'platformType' | 'systemArch' | 'systemType';
 export type SortDirection = 'asc' | 'desc';
 
 export function compareHosts(left: ManagedHost, right: ManagedHost, key: HostSortKey, direction: SortDirection) {
@@ -11,7 +11,7 @@ export function compareHosts(left: ManagedHost, right: ManagedHost, key: HostSor
     result = ipToNumber(left.privateIp) - ipToNumber(right.privateIp);
   } else if (key === 'createdAt' || key === 'updatedAt') {
     result = dateToNumber(left[key]) - dateToNumber(right[key]);
-  } else if (key === 'creator' || key === 'platformType') {
+  } else if (key === 'creator' || key === 'platformType' || key === 'systemArch' || key === 'systemType') {
     result = String(left[key] || '').localeCompare(String(right[key] || ''), 'zh-CN', { numeric: true, sensitivity: 'base' });
   } else {
     result = left.name.localeCompare(right.name, 'zh-CN', { numeric: true, sensitivity: 'base' });

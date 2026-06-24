@@ -10,8 +10,10 @@ const hostColumnOptions = [
   { key: 'group', label: '主机分组', width: 'minmax(100px, 0.8fr)', minWidth: 100 },
   { key: 'name', label: '节点', width: 'minmax(120px, 1fr)', minWidth: 120 },
   { key: 'ip', label: 'IP地址', width: 'minmax(150px, 1.1fr)', minWidth: 150 },
-  { key: 'config', label: '配置信息', width: 'minmax(130px, 0.9fr)', minWidth: 130 },
   { key: 'machine', label: '机器名称', width: 'minmax(110px, 0.8fr)', minWidth: 110 },
+  { key: 'systemArch', label: '系统架构', width: 'minmax(96px, 0.65fr)', minWidth: 96 },
+  { key: 'systemType', label: '系统类型', width: 'minmax(96px, 0.65fr)', minWidth: 96 },
+  { key: 'config', label: '配置信息', width: 'minmax(130px, 0.9fr)', minWidth: 130 },
   { key: 'platformType', label: '平台类型', width: 'minmax(88px, 0.6fr)', minWidth: 88 },
   { key: 'user', label: '用户', width: 'minmax(80px, 0.65fr)', minWidth: 80 },
   { key: 'port', label: '端口', width: 'minmax(64px, 0.45fr)', minWidth: 64 },
@@ -25,7 +27,7 @@ const hostColumnOptions = [
 
 type HostColumnKey = (typeof hostColumnOptions)[number]['key'];
 
-const hostColumnStorageKey = 'ops-tool.host-manager.columns.v2';
+const hostColumnStorageKey = 'ops-tool.host-manager.columns.v3';
 const fallbackHostColumnKey: HostColumnKey = 'name';
 
 const {
@@ -380,8 +382,14 @@ function hostPlatformType(value: string | null | undefined) {
           <button v-if="isHostColumnVisible('ip')" class="host-sort-button" :class="{ active: hostSortKey === 'ip', desc: hostSortKey === 'ip' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('ip')">
             IP地址 <em>{{ hostSortMark('ip') }}</em>
           </button>
-          <span v-if="isHostColumnVisible('config')">配置信息</span>
           <span v-if="isHostColumnVisible('machine')">机器名称</span>
+          <button v-if="isHostColumnVisible('systemArch')" class="host-sort-button" :class="{ active: hostSortKey === 'systemArch', desc: hostSortKey === 'systemArch' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('systemArch')">
+            系统架构 <em>{{ hostSortMark('systemArch') }}</em>
+          </button>
+          <button v-if="isHostColumnVisible('systemType')" class="host-sort-button" :class="{ active: hostSortKey === 'systemType', desc: hostSortKey === 'systemType' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('systemType')">
+            系统类型 <em>{{ hostSortMark('systemType') }}</em>
+          </button>
+          <span v-if="isHostColumnVisible('config')">配置信息</span>
           <button v-if="isHostColumnVisible('platformType')" class="host-sort-button" :class="{ active: hostSortKey === 'platformType', desc: hostSortKey === 'platformType' && hostSortDirection === 'desc' }" type="button" @click="setHostSort('platformType')">
             平台类型 <em>{{ hostSortMark('platformType') }}</em>
           </button>
@@ -414,6 +422,9 @@ function hostPlatformType(value: string | null | undefined) {
             <span v-if="host.publicIp"><i class="ip-tag public">公</i>{{ host.publicIp }}</span>
             <span>{{ host.privateIp }}</span>
           </div>
+          <span v-if="isHostColumnVisible('machine')" class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
+          <span v-if="isHostColumnVisible('systemArch')" class="host-system-cell">{{ host.systemArch || '-' }}</span>
+          <span v-if="isHostColumnVisible('systemType')" class="host-system-cell">{{ host.systemType || '-' }}</span>
           <div v-if="isHostColumnVisible('config')" class="host-config">
             <template v-if="host.verified && host.cpu > 0 && host.memory > 0">
               <span class="os-badge" :class="host.os"></span>
@@ -421,7 +432,6 @@ function hostPlatformType(value: string | null | undefined) {
             </template>
             <span v-else class="host-config-empty" aria-label="配置信息为空"></span>
           </div>
-          <span v-if="isHostColumnVisible('machine')" class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
           <span v-if="isHostColumnVisible('platformType')" class="host-platform-type" :class="hostPlatformType(host.platformType)">
             {{ hostPlatformType(host.platformType) }}
           </span>

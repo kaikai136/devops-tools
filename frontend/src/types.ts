@@ -47,6 +47,8 @@ export interface ManagedHost {
   privateKeyName: string;
   privateKey: string;
   machineName: string;
+  systemArch: string;
+  systemType: string;
   remark: string;
   cpu: number;
   memory: number;
