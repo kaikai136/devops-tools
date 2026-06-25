@@ -128,6 +128,19 @@ interface HostManagementImportResponse {
   };
 }
 
+interface EncryptedHostBackup {
+  version: 2;
+  encrypted: true;
+  algorithm: 'AES-GCM';
+  kdf: 'PBKDF2-SHA-256';
+  keyMode?: 'app-managed';
+  iterations: number;
+  salt: string;
+  iv: string;
+  data: string;
+  createdAt: string;
+}
+
 export function useHostManager({
   showToast,
   requestConfirm,
@@ -296,6 +309,20 @@ export function useHostManager({
     }
   }
 
+  async function backupHostManagement() {
+    try {
+      const payload = await apiGet<HostManagementExport>('/api/host-management/export/');
+      const encryptedPayload = await encryptHostBackup(payload);
+      const date = new Date().toISOString().slice(0, 10);
+      downloadFile(JSON.stringify(encryptedPayload, null, 2), `host-management-backup-${date}.enc.json`, 'application/json;charset=utf-8');
+      showToast('备份成功', `已备份 ${payload.hosts.length} 台主机、${payload.groups.length} 个分组、${payload.credentials.length} 个账号。`);
+      return true;
+    } catch (error) {
+      showToast('备份失败', (error as Error).message);
+      return false;
+    }
+  }
+
   function buildHostExportPayload(hosts: ManagedHost[], columns: readonly HostExportColumnOption[]): HostManagementExport {
     return {
       version: 1,
@@ -332,15 +359,16 @@ export function useHostManager({
     try {
       const text = await readFileText(event);
       if (!text) return;
-      const payload = format === 'excel' ? parseExcelWorkbook(text) : JSON.parse(text);
+      const parsed = format === 'excel' ? parseExcelWorkbook(text) : JSON.parse(text);
+      const payload = isEncryptedHostBackup(parsed) ? await decryptHostBackup(parsed) : parsed;
       const result = await apiPost<HostManagementImportResponse>('/api/host-management/import/', payload);
       await loadHostManagement();
       showToast(
-        '导入成功',
+        '恢复成功',
         `已处理 ${result.imported.hosts} 台主机、${result.imported.groups} 个分组、${result.imported.credentials} 个账号。`,
       );
     } catch (error) {
-      showToast('导入失败', (error as Error).message);
+      showToast('恢复失败', (error as Error).message);
     }
   }
 
@@ -885,6 +913,7 @@ export function useHostManager({
     verifyingHostIds,
     selectedManagedHostIds,
     loadHostManagement,
+    backupHostManagement,
     exportHostManagement,
     importHostManagement,
     selectManagedGroup,
@@ -975,6 +1004,85 @@ function downloadFile(content: BlobPart, filename: string, type: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+const hostBackupKeyMaterial = 'django-vue.host-management.backup.v1';
+
+async function encryptHostBackup(payload: HostManagementExport): Promise<EncryptedHostBackup> {
+  const cryptoApi = getCryptoApi();
+  const salt = cryptoApi.getRandomValues(new Uint8Array(16));
+  const iv = cryptoApi.getRandomValues(new Uint8Array(12));
+  const iterations = 210000;
+  const key = await deriveBackupKey(salt, iterations);
+  const plainText = new TextEncoder().encode(JSON.stringify(payload));
+  const cipherText = new Uint8Array(await cryptoApi.subtle.encrypt({ name: 'AES-GCM', iv }, key, plainText));
+  return {
+    version: 2,
+    encrypted: true,
+    algorithm: 'AES-GCM',
+    kdf: 'PBKDF2-SHA-256',
+    keyMode: 'app-managed',
+    iterations,
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    data: bytesToBase64(cipherText),
+    createdAt: new Date().toISOString(),
+  };
+}
+
+async function decryptHostBackup(backup: EncryptedHostBackup): Promise<HostManagementExport> {
+  const cryptoApi = getCryptoApi();
+  const salt = base64ToBytes(backup.salt);
+  const iv = base64ToBytes(backup.iv);
+  const cipherText = base64ToBytes(backup.data);
+  const key = await deriveBackupKey(salt, backup.iterations);
+  try {
+    const plainText = await cryptoApi.subtle.decrypt({ name: 'AES-GCM', iv }, key, cipherText);
+    return JSON.parse(new TextDecoder().decode(plainText));
+  } catch {
+    throw new Error('备份文件解密失败，请使用当前系统生成的加密备份文件。');
+  }
+}
+
+async function deriveBackupKey(salt: Uint8Array, iterations: number) {
+  const cryptoApi = getCryptoApi();
+  const baseKey = await cryptoApi.subtle.importKey('raw', new TextEncoder().encode(hostBackupKeyMaterial), 'PBKDF2', false, ['deriveKey']);
+  return cryptoApi.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+function getCryptoApi() {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.subtle) throw new Error('当前浏览器环境不支持安全加密接口。');
+  return cryptoApi;
+}
+
+function isEncryptedHostBackup(value: unknown): value is EncryptedHostBackup {
+  if (!value || typeof value !== 'object') return false;
+  const backup = value as Partial<EncryptedHostBackup>;
+  return backup.encrypted === true && backup.algorithm === 'AES-GCM' && backup.kdf === 'PBKDF2-SHA-256' && typeof backup.data === 'string';
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
 }
 
 function buildXlsxWorkbook(payload: HostManagementExport, hostColumns: readonly ExportColumn[] = exportSheets[0].columns) {

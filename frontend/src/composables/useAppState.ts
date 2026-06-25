@@ -88,6 +88,7 @@ const {
   verifyingHostIds,
   selectedManagedHostIds,
   loadHostManagement,
+  backupHostManagement,
   exportHostManagement,
   importHostManagement,
   selectManagedGroup,
@@ -283,9 +284,7 @@ function selectHost(ip: string) {
   machineProbe.setProbeHost(ip);
 }
 
-const hostImportAccept = computed(() =>
-  hostTransferFormat.value === 'excel' ? '.xls,application/vnd.ms-excel,text/html' : 'application/json,.json',
-);
+const hostImportAccept = computed(() => 'application/json,.json,.enc.json');
 
 function openHostTransferDialog(mode: 'import' | 'export') {
   hostTransferDialog.value = mode;
@@ -309,6 +308,11 @@ async function confirmHostTransfer() {
 }
 
 function triggerHostImportFile() {
+  hostImportFile.value?.click();
+}
+
+function triggerHostRestoreFile() {
+  hostTransferFormat.value = 'json';
   hostImportFile.value?.click();
 }
 
@@ -359,6 +363,7 @@ const appState = {
   triggerAuthImportFile,
   triggerPasswordImportFile,
   triggerHostImportFile,
+  triggerHostRestoreFile,
   openHostTransferDialog,
   closeHostTransferDialog,
   confirmHostTransfer,
@@ -421,6 +426,7 @@ const appState = {
   verifyingHostIds,
   selectedManagedHostIds,
   loadHostManagement,
+  backupHostManagement,
   exportHostManagement,
   importHostManagement: importSelectedHostManagement,
   startHostGroupDrag,

@@ -66,8 +66,10 @@ const {
   openHostTransferDialog,
   closeHostTransferDialog,
   confirmHostTransfer,
+  backupHostManagement,
   exportHostManagement,
   importHostManagement,
+  triggerHostRestoreFile,
   selectedManagedHostIds,
   visibleManagedHosts,
   openWebTerminal,
@@ -254,7 +256,8 @@ async function confirmHostExport() {
             <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
           </template>
           <template v-else-if="activeTool === 'hosts'">
-            <button class="header-action" type="button" @click="openHostTransferDialog('import')"><AppIcon name="upload" :size="16" />导入</button>
+            <button class="header-action" type="button" @click="backupHostManagement"><AppIcon name="download" :size="16" />备份</button>
+            <button class="header-action" type="button" @click="triggerHostRestoreFile"><AppIcon name="upload" :size="16" />恢复</button>
             <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
             <button class="header-action terminal-action" type="button" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
           </template>
