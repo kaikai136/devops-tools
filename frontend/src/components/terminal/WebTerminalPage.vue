@@ -260,7 +260,7 @@ function createTerminalTab(host: TerminalHost, tabId = createTerminalTabId(host.
   const fitAddon = markRaw(new FitAddon());
   terminal.loadAddon(fitAddon);
   terminal.attachCustomKeyEventHandler((event) => handleTerminalKey(event, terminal));
-  terminal.writeln('SPUG WEB TERMINAL');
+  terminal.writeln('CAPTAIN WEB TERMINAL');
   terminal.writeln(`正在连接 ${host.name} (${host.publicIp || host.privateIp}:${host.port})...`);
 
   return {
@@ -702,7 +702,7 @@ function readTerminalRootLabel() {
   <main class="terminal-shell">
     <aside class="terminal-sidebar">
       <div class="terminal-brand">
-        <strong>SPUG</strong>
+        <img src="/captain-banner.png" alt="CAPTAIN" />
       </div>
       <div class="terminal-search">
         <input v-model="search" placeholder="输入主机名/IP检索" />
