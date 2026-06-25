@@ -278,7 +278,7 @@
 .host-pagination {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 14px;
   min-height: 44px;
   padding-top: 12px;
@@ -289,7 +289,8 @@
 }
 
 .host-pagination-summary,
-.host-pagination-controls {
+.host-pagination-controls,
+.host-stats-line {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -337,4 +338,19 @@
   color: #173252;
   padding: 0 8px;
   font: inherit;
+}
+
+.host-stats-line {
+  justify-content: flex-end;
+  margin-left: auto;
+  color: #526b8a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.host-stats-line span {
+  border-radius: 999px;
+  background: #f2f7ff;
+  padding: 5px 10px;
+  white-space: nowrap;
 }

@@ -455,12 +455,6 @@ function hostPlatformType(value: string | null | undefined) {
           </div>
         </div>
       </div>
-      <div class="host-stats-line">
-        <span>共 {{ managedHostStats.total }} 台主机</span>
-        <span>已验证 {{ managedHostStats.verified }}</span>
-        <span>未验证 {{ managedHostStats.unverified }}</span>
-        <span v-if="isLoadingHosts">加载中</span>
-      </div>
       <div class="host-table-scroll">
         <div class="host-table" :style="hostTableStyle">
           <div class="host-table-row head">
@@ -581,6 +575,12 @@ function hostPlatformType(value: string | null | undefined) {
             <option :value="20">20 条/页</option>
             <option :value="50">50 条/页</option>
           </select>
+        </div>
+        <div class="host-stats-line">
+          <span>共 {{ managedHostStats.total }} 台主机</span>
+          <span>已验证 {{ managedHostStats.verified }}</span>
+          <span>未验证 {{ managedHostStats.unverified }}</span>
+          <span v-if="isLoadingHosts">加载中</span>
         </div>
       </div>
     </article>

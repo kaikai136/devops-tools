@@ -191,16 +191,3 @@
   font-size: 13px;
 }
 
-.host-stats-line {
-  gap: 10px;
-  color: #526b8a;
-  font-size: 12px;
-  font-weight: 800;
-  margin-bottom: 12px;
-}
-
-.host-stats-line span {
-  border-radius: 999px;
-  background: #f2f7ff;
-  padding: 5px 10px;
-}
