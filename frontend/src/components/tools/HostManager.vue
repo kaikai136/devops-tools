@@ -65,7 +65,9 @@ const {
   draggedHostGroupId,
   hostGroupDropTarget,
   verifyingHostIds,
+  selectedManagedHostIds,
   loadHostManagement,
+  openHostTransferDialog,
   setHostSort,
   hostSortMark,
   hostGroupName,
@@ -97,7 +99,6 @@ const {
 } = useAppContext();
 
 const hostColumnSettingsOpen = ref(false);
-const selectedHostIds = ref<Set<number>>(new Set());
 const {
   visibility: hostColumnVisibility,
   visibleColumns: visibleHostTableColumns,
@@ -132,12 +133,12 @@ const hostTableStyle = computed<Record<string, string>>(() => {
   };
 });
 const visibleHostIds = computed(() => visibleManagedHosts.value.map((host) => host.id));
-const allVisibleHostsSelected = computed(() => visibleHostIds.value.length > 0 && visibleHostIds.value.every((id) => selectedHostIds.value.has(id)));
-const someVisibleHostsSelected = computed(() => visibleHostIds.value.some((id) => selectedHostIds.value.has(id)));
+const allVisibleHostsSelected = computed(() => visibleHostIds.value.length > 0 && visibleHostIds.value.every((id) => selectedManagedHostIds.value.has(id)));
+const someVisibleHostsSelected = computed(() => visibleHostIds.value.some((id) => selectedManagedHostIds.value.has(id)));
 
 function toggleAllVisibleHosts(event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
-  const next = new Set(selectedHostIds.value);
+  const next = new Set(selectedManagedHostIds.value);
   visibleHostIds.value.forEach((id) => {
     if (checked) {
       next.add(id);
@@ -145,18 +146,18 @@ function toggleAllVisibleHosts(event: Event) {
       next.delete(id);
     }
   });
-  selectedHostIds.value = next;
+  selectedManagedHostIds.value = next;
 }
 
 function toggleHostSelected(hostId: number, event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
-  const next = new Set(selectedHostIds.value);
+  const next = new Set(selectedManagedHostIds.value);
   if (checked) {
     next.add(hostId);
   } else {
     next.delete(hostId);
   }
-  selectedHostIds.value = next;
+  selectedManagedHostIds.value = next;
 }
 
 function closeHostMenus() {
@@ -317,6 +318,7 @@ function hostPlatformType(value: string | null | undefined) {
             <button :class="{ active: hostStatusFilter === 'all' }" type="button" @click="hostStatusFilter = 'all'">全部</button>
             <button :class="{ active: hostStatusFilter === 'unverified' }" type="button" @click="hostStatusFilter = 'unverified'">未验证</button>
           </div>
+          <button class="icon-only" type="button" title="导出" aria-label="导出" @click="openHostTransferDialog('export')"><AppIcon name="download" :size="16" /></button>
           <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadHostManagement"><AppIcon name="refresh" :size="16" /></button>
           <div class="host-column-settings" @click.stop>
             <button
@@ -412,7 +414,7 @@ function hostPlatformType(value: string | null | undefined) {
           <label class="host-select-cell" :aria-label="`选择主机 ${host.name}`">
             <input
               type="checkbox"
-              :checked="selectedHostIds.has(host.id)"
+              :checked="selectedManagedHostIds.has(host.id)"
               @change="toggleHostSelected(host.id, $event)"
             />
           </label>

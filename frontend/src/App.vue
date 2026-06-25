@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { provide } from 'vue';
+import { computed, provide, ref, watch } from 'vue';
 
 import { appContextKey } from './appContext';
 import AccountManager from './components/tools/AccountManager.vue';
@@ -14,10 +14,16 @@ import PasswordGenerator from './components/tools/PasswordGenerator.vue';
 import RoleManager from './components/tools/RoleManager.vue';
 import SubnetCalculator from './components/tools/SubnetCalculator.vue';
 import UserManager from './components/tools/UserManager.vue';
+import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
 
 const appState = useAppState();
 provide(appContextKey, appState);
+
+const hostExportScope = ref<HostExportScope>('all');
+const selectedHostExportColumns = ref<Set<HostExportColumnKey>>(new Set(hostExportColumnOptions.map((column) => column.field)));
+const selectedHostExportColumnList = computed(() => [...selectedHostExportColumns.value]);
+const allHostExportColumnsSelected = computed(() => selectedHostExportColumns.value.size === hostExportColumnOptions.length);
 
 const {
   activeTool,
@@ -60,7 +66,10 @@ const {
   openHostTransferDialog,
   closeHostTransferDialog,
   confirmHostTransfer,
+  exportHostManagement,
   importHostManagement,
+  selectedManagedHostIds,
+  visibleManagedHosts,
   openWebTerminal,
   useSelectedIpForPing,
   qrPreview,
@@ -68,6 +77,39 @@ const {
   confirmDialog,
   runConfirmAction,
 } = appState;
+
+const selectedManagedHostCount = computed(() => visibleManagedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id)).length);
+
+watch(hostTransferDialog, (mode) => {
+  if (mode !== 'export') return;
+  hostExportScope.value = 'all';
+  selectedHostExportColumns.value = new Set(hostExportColumnOptions.map((column) => column.field));
+});
+
+function toggleHostExportColumn(column: HostExportColumnKey, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const next = new Set(selectedHostExportColumns.value);
+  if (checked) {
+    next.add(column);
+  } else {
+    next.delete(column);
+  }
+  selectedHostExportColumns.value = next;
+}
+
+function toggleAllHostExportColumns(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  selectedHostExportColumns.value = checked ? new Set(hostExportColumnOptions.map((column) => column.field)) : new Set();
+}
+
+async function confirmHostExport() {
+  const exported = await exportHostManagement(hostTransferFormat.value, {
+    scope: hostExportScope.value,
+    selectedIds: [...selectedManagedHostIds.value],
+    columns: selectedHostExportColumnList.value,
+  });
+  if (exported) closeHostTransferDialog();
+}
 </script>
 <template>
   <main v-if="!isAuthReady" class="auth-loading">
@@ -213,7 +255,6 @@ const {
           </template>
           <template v-else-if="activeTool === 'hosts'">
             <button class="header-action" type="button" @click="openHostTransferDialog('import')"><AppIcon name="upload" :size="16" />导入</button>
-            <button class="header-action" type="button" @click="openHostTransferDialog('export')"><AppIcon name="download" :size="16" />导出</button>
             <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
             <button class="header-action terminal-action" type="button" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
           </template>
@@ -245,40 +286,79 @@ const {
     </section>
 
     <div v-if="hostTransferDialog" class="modal-backdrop" @click.self="closeHostTransferDialog">
-      <article class="host-transfer-modal">
+      <article class="host-transfer-modal" :class="{ 'host-export-modal': hostTransferDialog === 'export' }">
         <button class="modal-close" type="button" @click="closeHostTransferDialog"><AppIcon name="x" :size="16" /></button>
-        <h2>{{ hostTransferDialog === 'import' ? '导入' : '导出' }}</h2>
-        <div class="host-transfer-body">
-          <div class="transfer-row">
-            <span class="transfer-label">文件类型</span>
-            <label class="transfer-radio">
-              <input v-model="hostTransferFormat" type="radio" value="json" />
-              <span>JSON</span>
-            </label>
-            <label class="transfer-radio">
-              <input v-model="hostTransferFormat" type="radio" value="excel" />
-              <span>Excel</span>
-            </label>
+        <template v-if="hostTransferDialog === 'export'">
+          <h2>导出实例数据</h2>
+          <div class="host-export-body">
+            <section class="export-section">
+              <span class="export-section-title">需要导出的实例</span>
+              <div class="export-scope-grid">
+                <label class="export-scope-card" :class="{ active: hostExportScope === 'all' }">
+                  <input v-model="hostExportScope" type="radio" value="all" />
+                  <span>
+                    <strong>所有实例</strong>
+                    <em>导出当前主机列表下的所有实例</em>
+                  </span>
+                </label>
+                <label class="export-scope-card" :class="{ active: hostExportScope === 'selected' }">
+                  <input v-model="hostExportScope" type="radio" value="selected" />
+                  <span>
+                    <strong>已选中的实例 {{ selectedManagedHostCount }}</strong>
+                    <em>导出当前列表中所选中的实例</em>
+                  </span>
+                </label>
+              </div>
+            </section>
+
+            <section class="export-section">
+              <span class="export-section-title">需要导出的数据列</span>
+              <div class="export-check-all">
+                <input type="checkbox" :checked="allHostExportColumnsSelected" @change="toggleAllHostExportColumns" />
+                <span>全选</span>
+              </div>
+              <div class="export-column-grid">
+                <label v-for="column in hostExportColumnOptions" :key="column.field" class="export-column-option">
+                  <input type="checkbox" :checked="selectedHostExportColumns.has(column.field)" @change="toggleHostExportColumn(column.field, $event)" />
+                  <span>{{ column.label }}</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="export-section">
+              <span class="export-section-title">导出文件格式</span>
+              <div class="export-format-row">
+                <label class="transfer-radio">
+                  <input v-model="hostTransferFormat" type="radio" value="excel" />
+                  <span>Excel</span>
+                </label>
+                <label class="transfer-radio">
+                  <input v-model="hostTransferFormat" type="radio" value="json" />
+                  <span>JSON</span>
+                </label>
+              </div>
+            </section>
           </div>
-          <div v-if="hostTransferDialog === 'export'" class="transfer-row transfer-range-row">
-            <span class="transfer-label">导出范围</span>
-            <label class="transfer-radio">
-              <input type="radio" checked />
-              <span>导出所有</span>
-            </label>
-            <label class="transfer-radio disabled">
-              <input type="radio" disabled />
-              <span>仅导出选择项</span>
-            </label>
-            <label class="transfer-radio disabled">
-              <input type="radio" disabled />
-              <span>仅导出搜索结果</span>
-            </label>
+        </template>
+        <template v-else>
+          <h2>导入</h2>
+          <div class="host-transfer-body">
+            <div class="transfer-row">
+              <span class="transfer-label">文件类型</span>
+              <label class="transfer-radio">
+                <input v-model="hostTransferFormat" type="radio" value="json" />
+                <span>JSON</span>
+              </label>
+              <label class="transfer-radio">
+                <input v-model="hostTransferFormat" type="radio" value="excel" />
+                <span>Excel</span>
+              </label>
+            </div>
           </div>
-        </div>
+        </template>
         <div class="modal-actions">
           <button type="button" @click="closeHostTransferDialog">取消</button>
-          <button class="primary" type="button" @click="confirmHostTransfer">确定</button>
+          <button class="primary" type="button" @click="hostTransferDialog === 'export' ? confirmHostExport() : confirmHostTransfer()">确定</button>
         </div>
       </article>
     </div>

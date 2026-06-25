@@ -152,6 +152,159 @@
   line-height: 54px;
 }
 
+.host-export-modal {
+  width: min(748px, calc(100vw - 32px));
+  max-height: min(92vh, 820px);
+  border-color: #d9dfe7;
+  border-radius: 2px;
+  box-shadow: 0 24px 60px rgba(19, 34, 56, 0.22);
+  overflow: hidden;
+}
+
+.host-export-modal .modal-close {
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #4b5563;
+}
+
+.host-export-modal .modal-close:hover {
+  background: #f3f6fb;
+  box-shadow: none;
+  color: #1f2937;
+}
+
+.host-export-modal h2 {
+  min-height: 56px;
+  padding: 0 54px 0 18px;
+  border-bottom: 0;
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 56px;
+}
+
+.host-export-body {
+  display: grid;
+  gap: 18px;
+  max-height: calc(min(92vh, 820px) - 122px);
+  overflow: auto;
+  padding: 0 18px 18px;
+}
+
+.export-section {
+  display: grid;
+  gap: 8px;
+}
+
+.export-section-title {
+  color: #39465a;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.export-scope-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.export-scope-card {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 10px;
+  min-height: 74px;
+  margin: 0;
+  padding: 18px 16px;
+  border: 1px solid #d6dbe3;
+  border-radius: 2px;
+  background: #fff;
+  color: #1f2937;
+}
+
+.export-scope-card.active {
+  border-color: #1677ff;
+  background: #eaf4ff;
+}
+
+.export-scope-card.disabled {
+  color: #a0a7b2;
+}
+
+.export-scope-card input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: #1677ff;
+}
+
+.export-scope-card span {
+  display: grid;
+  gap: 6px;
+}
+
+.export-scope-card strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.export-scope-card em {
+  color: #8a94a4;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.export-check-all,
+.export-column-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #39465a;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.export-check-all input,
+.export-column-option input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border-radius: 0;
+  accent-color: #1677ff;
+}
+
+.export-column-option.muted {
+  color: #b0b7c2;
+}
+
+.export-column-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  column-gap: 64px;
+  row-gap: 12px;
+  padding-top: 6px;
+}
+
+.export-format-row {
+  display: flex;
+  gap: 28px;
+  padding-bottom: 2px;
+}
+
+.host-export-modal .modal-actions {
+  padding: 12px 18px;
+}
+
 .host-transfer-body {
   display: grid;
   gap: 28px;

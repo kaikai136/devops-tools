@@ -86,6 +86,7 @@ const {
   draggedHostGroupId,
   hostGroupDropTarget,
   verifyingHostIds,
+  selectedManagedHostIds,
   loadHostManagement,
   exportHostManagement,
   importHostManagement,
@@ -288,7 +289,7 @@ const hostImportAccept = computed(() =>
 
 function openHostTransferDialog(mode: 'import' | 'export') {
   hostTransferDialog.value = mode;
-  hostTransferFormat.value = 'json';
+  hostTransferFormat.value = mode === 'export' ? 'excel' : 'json';
 }
 
 function closeHostTransferDialog() {
@@ -418,6 +419,7 @@ const appState = {
   draggedHostGroupId,
   hostGroupDropTarget,
   verifyingHostIds,
+  selectedManagedHostIds,
   loadHostManagement,
   exportHostManagement,
   importHostManagement: importSelectedHostManagement,
