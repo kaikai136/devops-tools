@@ -171,6 +171,7 @@ export function useHostManager({
   const hostDialog = ref<{ mode: 'create' | 'edit'; hostId: number | null } | null>(null);
   const hostForm = ref<ManagedHostForm>(emptyHostForm());
   const hostMoveDialogOpen = ref(false);
+  const hostMoveMode = ref<'single' | 'selected'>('single');
   const hostMoveForm = ref<HostMoveForm>({ hostId: null, targetGroup: null });
   const hostMoveSourceGroup = ref<number | null>(null);
   const draggedHostGroupId = ref<number | null>(null);
@@ -651,6 +652,17 @@ export function useHostManager({
     }
   }
 
+  async function verifySelectedManagedHosts() {
+    const hosts = managedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id));
+    if (!hosts.length) {
+      showToast('验证失败', '请先选择需要验证的主机。');
+      return;
+    }
+    for (const host of hosts) {
+      await verifyManagedHost(host);
+    }
+  }
+
   function setHostVerifying(hostId: number, active: boolean) {
     verifyingHostIds.value = setWithValue(verifyingHostIds.value, hostId, active);
   }
@@ -766,6 +778,7 @@ export function useHostManager({
   function openMoveHostDialog(group = hostGroupMenu.value?.group) {
     if (!group) return;
     closeHostGroupMenu();
+    hostMoveMode.value = 'single';
     hostMoveSourceGroup.value = group.key;
     const sourceHosts = group.key === null ? managedHosts.value : managedHosts.value.filter((host) => groupIdsFor(group.key).has(host.group));
     hostMoveForm.value = {
@@ -775,7 +788,40 @@ export function useHostManager({
     hostMoveDialogOpen.value = true;
   }
 
+  function openMoveSelectedHostsDialog() {
+    const selectedHosts = managedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id));
+    if (!selectedHosts.length) {
+      showToast('更新失败', '请先选择需要更新的主机。');
+      return;
+    }
+    hostMoveMode.value = 'selected';
+    hostMoveSourceGroup.value = null;
+    const currentGroup = selectedHosts[0]?.group ?? null;
+    hostMoveForm.value = {
+      hostId: null,
+      targetGroup: flatHostGroups.value.find((item) => item.key !== currentGroup)?.key ?? currentGroup,
+    };
+    hostMoveDialogOpen.value = true;
+  }
+
   async function saveMoveManagedHost() {
+    if (hostMoveMode.value === 'selected') {
+      const targetGroup = hostMoveForm.value.targetGroup;
+      const hosts = managedHosts.value.filter((item) => selectedManagedHostIds.value.has(item.id));
+      if (!targetGroup || !hosts.length) {
+        showToast('更新失败', '请选择主机和目标分组。');
+        return;
+      }
+      const updatedHosts = await Promise.all(hosts.map((host) => apiPut<ManagedHost>(`/api/host-management/hosts/${host.id}/`, { group: targetGroup })));
+      updatedHosts.forEach(replaceHost);
+      selectedHostGroup.value = targetGroup;
+      hostMoveDialogOpen.value = false;
+      selectedManagedHostIds.value = new Set();
+      await refreshGroupsOnly();
+      showToast('操作成功', `已更新 ${updatedHosts.length} 台主机的分组。`);
+      return;
+    }
+
     const host = managedHosts.value.find((item) => item.id === hostMoveForm.value.hostId);
     if (!host || !hostMoveForm.value.targetGroup) {
       showToast('移动失败', '请选择主机和目标分组。');
@@ -793,6 +839,22 @@ export function useHostManager({
     requestConfirm('删除主机', `确定删除主机「${host.name}」吗？`, '确定删除', async () => {
       await deleteHostById(host.id);
       showToast('操作成功', '主机已删除。');
+    });
+  }
+
+  function deleteSelectedManagedHosts() {
+    const hosts = managedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id));
+    if (!hosts.length) {
+      showToast('删除失败', '请先选择需要删除的主机。');
+      return;
+    }
+    requestConfirm('删除所选主机', `确定删除所选 ${hosts.length} 台主机吗？`, '确定删除', async () => {
+      await Promise.all(hosts.map((host) => apiDelete(`/api/host-management/hosts/${host.id}/`)));
+      const deletedIds = new Set(hosts.map((host) => host.id));
+      managedHosts.value = managedHosts.value.filter((host) => !deletedIds.has(host.id));
+      selectedManagedHostIds.value = new Set();
+      await refreshGroupsOnly();
+      showToast('操作成功', `已删除 ${hosts.length} 台主机。`);
     });
   }
 
@@ -907,6 +969,7 @@ export function useHostManager({
     hostDialog,
     hostForm,
     hostMoveDialogOpen,
+    hostMoveMode,
     hostMoveForm,
     draggedHostGroupId,
     hostGroupDropTarget,
@@ -938,6 +1001,7 @@ export function useHostManager({
     cancelHostGroupInlineEdit,
     verifyManagedHost,
     verifyVisibleManagedHosts,
+    verifySelectedManagedHosts,
     openWebTerminal,
     addManagedHost,
     editManagedHost,
@@ -945,8 +1009,10 @@ export function useHostManager({
     applyCredentialToHostForm,
     uploadHostPrivateKey,
     openMoveHostDialog,
+    openMoveSelectedHostsDialog,
     saveMoveManagedHost,
     deleteManagedHost,
+    deleteSelectedManagedHosts,
     deleteManagedHostsInGroup,
     deleteHostGroup,
   };

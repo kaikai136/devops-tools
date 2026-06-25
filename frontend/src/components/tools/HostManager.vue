@@ -61,6 +61,7 @@ const {
   hostDialog,
   hostForm,
   hostMoveDialogOpen,
+  hostMoveMode,
   hostMoveForm,
   draggedHostGroupId,
   hostGroupDropTarget,
@@ -87,18 +88,22 @@ const {
   addManagedHost,
   verifyManagedHost,
   verifyVisibleManagedHosts,
+  verifySelectedManagedHosts,
   editManagedHost,
   saveManagedHost,
   applyCredentialToHostForm,
   uploadHostPrivateKey,
   openMoveHostDialog,
+  openMoveSelectedHostsDialog,
   saveMoveManagedHost,
   deleteManagedHost,
+  deleteSelectedManagedHosts,
   deleteManagedHostsInGroup,
   deleteHostGroup,
 } = useAppContext();
 
 const hostColumnSettingsOpen = ref(false);
+const hostMoreActionsOpen = ref(false);
 const {
   visibility: hostColumnVisibility,
   visibleColumns: visibleHostTableColumns,
@@ -135,6 +140,7 @@ const hostTableStyle = computed<Record<string, string>>(() => {
 const visibleHostIds = computed(() => visibleManagedHosts.value.map((host) => host.id));
 const allVisibleHostsSelected = computed(() => visibleHostIds.value.length > 0 && visibleHostIds.value.every((id) => selectedManagedHostIds.value.has(id)));
 const someVisibleHostsSelected = computed(() => visibleHostIds.value.some((id) => selectedManagedHostIds.value.has(id)));
+const selectedManagedHostCount = computed(() => selectedManagedHostIds.value.size);
 
 function toggleAllVisibleHosts(event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
@@ -163,15 +169,47 @@ function toggleHostSelected(hostId: number, event: Event) {
 function closeHostMenus() {
   closeHostGroupMenu();
   closeHostColumnSettings();
+  closeHostMoreActions();
 }
 
 function toggleHostColumnSettings() {
   closeHostGroupMenu();
+  closeHostMoreActions();
   hostColumnSettingsOpen.value = !hostColumnSettingsOpen.value;
 }
 
 function closeHostColumnSettings() {
   hostColumnSettingsOpen.value = false;
+}
+
+function toggleHostMoreActions() {
+  closeHostGroupMenu();
+  closeHostColumnSettings();
+  hostMoreActionsOpen.value = !hostMoreActionsOpen.value;
+}
+
+function closeHostMoreActions() {
+  hostMoreActionsOpen.value = false;
+}
+
+function setHostStatusFilter(filter: 'all' | 'unverified') {
+  hostStatusFilter.value = filter;
+  closeHostMoreActions();
+}
+
+async function runVerifySelectedHosts() {
+  closeHostMoreActions();
+  await verifySelectedManagedHosts();
+}
+
+function runMoveSelectedHosts() {
+  closeHostMoreActions();
+  openMoveSelectedHostsDialog();
+}
+
+function runDeleteSelectedHosts() {
+  closeHostMoreActions();
+  deleteSelectedManagedHosts();
 }
 
 function formatHostDate(value: string | null | undefined) {
@@ -313,10 +351,39 @@ function hostPlatformType(value: string | null | undefined) {
         <input v-model="hostSearch" placeholder="输入别名/IP检索" />
         <div class="host-toolbar-actions">
           <button class="primary" type="button" @click="addManagedHost()"><AppIcon name="plus" :size="16" />新建</button>
-          <button class="primary secondary-blue" type="button" @click="verifyVisibleManagedHosts">验证</button>
-          <div class="status-tabs">
-            <button :class="{ active: hostStatusFilter === 'all' }" type="button" @click="hostStatusFilter = 'all'">全部</button>
-            <button :class="{ active: hostStatusFilter === 'unverified' }" type="button" @click="hostStatusFilter = 'unverified'">未验证</button>
+          <div class="host-more-actions" @click.stop>
+            <button
+              class="more-action-trigger"
+              type="button"
+              :aria-expanded="hostMoreActionsOpen"
+              @click="toggleHostMoreActions"
+            >
+              更多操作
+              <AppIcon name="chevronDown" :size="14" />
+            </button>
+            <div v-if="hostMoreActionsOpen" class="host-more-menu">
+              <button type="button" :disabled="!selectedManagedHostCount" @click="runVerifySelectedHosts">
+                <AppIcon name="shield" :size="15" />
+                <span>验证所选</span>
+              </button>
+              <button type="button" :class="{ active: hostStatusFilter === 'all' }" @click="setHostStatusFilter('all')">
+                <AppIcon name="search" :size="15" />
+                <span>查询全部</span>
+              </button>
+              <button type="button" :class="{ active: hostStatusFilter === 'unverified' }" @click="setHostStatusFilter('unverified')">
+                <AppIcon name="circleHelp" :size="15" />
+                <span>查未验证</span>
+              </button>
+              <hr />
+              <button type="button" :disabled="!selectedManagedHostCount" @click="runMoveSelectedHosts">
+                <AppIcon name="upload" :size="15" />
+                <span>更新所选</span>
+              </button>
+              <button class="danger" type="button" :disabled="!selectedManagedHostCount" @click="runDeleteSelectedHosts">
+                <AppIcon name="trash" :size="15" />
+                <span>删除所选</span>
+              </button>
+            </div>
           </div>
           <button class="icon-only" type="button" title="导出" aria-label="导出" @click="openHostTransferDialog('export')"><AppIcon name="download" :size="16" /></button>
           <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadHostManagement"><AppIcon name="refresh" :size="16" /></button>
@@ -533,8 +600,9 @@ function hostPlatformType(value: string | null | undefined) {
     <div v-if="hostMoveDialogOpen" class="modal-backdrop" @click.self="hostMoveDialogOpen = false">
       <form class="host-form-modal" @submit.prevent="saveMoveManagedHost">
         <button class="modal-close" type="button" @click="hostMoveDialogOpen = false"><AppIcon name="x" :size="16" /></button>
-        <h2>移动主机</h2>
-        <label>
+        <h2>{{ hostMoveMode === 'selected' ? '更新所选' : '移动主机' }}</h2>
+        <p v-if="hostMoveMode === 'selected'" class="host-move-hint">仅支持更换主机分组，已选择 {{ selectedManagedHostCount }} 台主机。</p>
+        <label v-if="hostMoveMode === 'single'">
           <span>选择主机</span>
           <select v-model.number="hostMoveForm.hostId">
             <option v-for="host in groupMoveHosts" :key="host.id" :value="host.id">{{ host.name }} · {{ host.privateIp }}</option>
@@ -549,7 +617,7 @@ function hostPlatformType(value: string | null | undefined) {
         </label>
         <div class="host-form-actions">
           <button type="button" @click="hostMoveDialogOpen = false">取消</button>
-          <button class="primary" type="submit">移动</button>
+          <button class="primary" type="submit">{{ hostMoveMode === 'selected' ? '更新' : '移动' }}</button>
         </div>
       </form>
     </div>
