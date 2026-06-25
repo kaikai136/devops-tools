@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useAppContext } from '../../appContext';
 import { useColumnVisibility } from '../../composables/useColumnVisibility';
@@ -52,7 +52,6 @@ const {
   visibleManagedHosts,
   groupMoveHosts,
   isLoadingHosts,
-  hostPrivateIpExists,
   hostGroupInlineEdit,
   rootHostGroupDialogOpen,
   rootHostGroupName,
@@ -104,6 +103,8 @@ const {
 
 const hostColumnSettingsOpen = ref(false);
 const hostMoreActionsOpen = ref(false);
+const hostPage = ref(1);
+const hostPageSize = ref(10);
 const {
   visibility: hostColumnVisibility,
   visibleColumns: visibleHostTableColumns,
@@ -137,10 +138,34 @@ const hostTableStyle = computed<Record<string, string>>(() => {
     '--host-status-sticky-right': actionsVisible ? 'calc(var(--host-actions-column-width) + 12px)' : '0px',
   };
 });
-const visibleHostIds = computed(() => visibleManagedHosts.value.map((host) => host.id));
+const hostTotalPages = computed(() => Math.max(1, Math.ceil(visibleManagedHosts.value.length / hostPageSize.value)));
+const paginatedManagedHosts = computed(() => {
+  const start = (hostPage.value - 1) * hostPageSize.value;
+  return visibleManagedHosts.value.slice(start, start + hostPageSize.value);
+});
+const visibleHostIds = computed(() => paginatedManagedHosts.value.map((host) => host.id));
 const allVisibleHostsSelected = computed(() => visibleHostIds.value.length > 0 && visibleHostIds.value.every((id) => selectedManagedHostIds.value.has(id)));
 const someVisibleHostsSelected = computed(() => visibleHostIds.value.some((id) => selectedManagedHostIds.value.has(id)));
 const selectedManagedHostCount = computed(() => selectedManagedHostIds.value.size);
+const hostPageStart = computed(() => (visibleManagedHosts.value.length ? (hostPage.value - 1) * hostPageSize.value + 1 : 0));
+const hostPageEnd = computed(() => Math.min(hostPage.value * hostPageSize.value, visibleManagedHosts.value.length));
+const hostPageNumbers = computed(() => {
+  const total = hostTotalPages.value;
+  const current = hostPage.value;
+  const from = Math.max(1, current - 2);
+  const to = Math.min(total, current + 2);
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+});
+
+watch([visibleManagedHosts, hostPageSize], () => {
+  if (hostPage.value > hostTotalPages.value) {
+    hostPage.value = hostTotalPages.value;
+  }
+});
+
+watch([hostSearch, selectedHostGroup, hostStatusFilter, hostSortKey, hostSortDirection], () => {
+  hostPage.value = 1;
+});
 
 function toggleAllVisibleHosts(event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
@@ -164,6 +189,10 @@ function toggleHostSelected(hostId: number, event: Event) {
     next.delete(hostId);
   }
   selectedManagedHostIds.value = next;
+}
+
+function setHostPage(page: number) {
+  hostPage.value = Math.min(Math.max(1, page), hostTotalPages.value);
 }
 
 function closeHostMenus() {
@@ -477,7 +506,7 @@ function hostPlatformType(value: string | null | undefined) {
           <span v-if="isHostColumnVisible('status')" class="host-sticky-cell host-status-cell">状态</span>
           <span v-if="isHostColumnVisible('actions')" class="host-sticky-cell host-actions-cell">操作</span>
         </div>
-        <div v-for="host in visibleManagedHosts" :key="host.id" class="host-table-row">
+        <div v-for="host in paginatedManagedHosts" :key="host.id" class="host-table-row">
           <label class="host-select-cell" :aria-label="`选择主机 ${host.name}`">
             <input
               type="checkbox"
@@ -526,6 +555,34 @@ function hostPlatformType(value: string | null | undefined) {
           <div v-if="!visibleManagedHosts.length" class="empty-state host-empty">没有匹配的主机。</div>
         </div>
       </div>
+      <div class="host-pagination" aria-label="主机列表分页">
+        <div class="host-pagination-summary">
+          <span>共 {{ visibleManagedHosts.length }} 条</span>
+          <span>{{ hostPageStart }}-{{ hostPageEnd }}</span>
+        </div>
+        <div class="host-pagination-controls">
+          <button class="prev" type="button" :disabled="hostPage <= 1" aria-label="上一页" @click="setHostPage(hostPage - 1)">
+            <AppIcon name="chevronRight" :size="14" />
+          </button>
+          <button
+            v-for="page in hostPageNumbers"
+            :key="page"
+            type="button"
+            :class="{ active: page === hostPage }"
+            @click="setHostPage(page)"
+          >
+            {{ page }}
+          </button>
+          <button type="button" :disabled="hostPage >= hostTotalPages" aria-label="下一页" @click="setHostPage(hostPage + 1)">
+            <AppIcon name="chevronRight" :size="14" />
+          </button>
+          <select v-model.number="hostPageSize" aria-label="每页条数">
+            <option :value="10">10 条/页</option>
+            <option :value="20">20 条/页</option>
+            <option :value="50">50 条/页</option>
+          </select>
+        </div>
+      </div>
     </article>
 
     <div v-if="hostDialog" class="modal-backdrop" @click.self="hostDialog = null">
@@ -546,7 +603,6 @@ function hostPlatformType(value: string | null | undefined) {
         <label class="host-horizontal-field required">
           <span>主机 IP：</span>
           <input v-model="hostForm.privateIp" />
-          <small v-if="hostPrivateIpExists" class="host-field-error">IP 已存在，请重新输入。</small>
         </label>
         <label class="host-horizontal-field required">
           <span>平台类型：</span>

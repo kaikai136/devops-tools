@@ -252,13 +252,6 @@ export function useHostManager({
     unverified: managedHosts.value.filter((host) => !host.verified).length,
   }));
 
-  const hostPrivateIpExists = computed(() => {
-    const privateIp = hostForm.value.privateIp.trim();
-    if (!privateIp) return false;
-    const editingId = hostDialog.value?.hostId;
-    return managedHosts.value.some((host) => host.privateIp === privateIp && host.id !== editingId);
-  });
-
   async function loadHostManagement() {
     isLoadingHosts.value = true;
     try {
@@ -719,11 +712,6 @@ export function useHostManager({
       return;
     }
 
-    if (hostPrivateIpExists.value) {
-      showToast('保存失败', 'IP 已存在，请重新输入。');
-      return;
-    }
-
     const payload = {
       ...hostForm.value,
       name: hostForm.value.name.trim(),
@@ -959,7 +947,6 @@ export function useHostManager({
     visibleManagedHosts,
     groupMoveHosts,
     managedHostStats,
-    hostPrivateIpExists,
     isLoadingHosts,
     hostGroupInlineEdit,
     rootHostGroupDialogOpen,

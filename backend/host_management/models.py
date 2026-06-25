@@ -55,9 +55,6 @@ class ManagedHost(models.Model):
 
     class Meta:
         ordering = ["id"]
-        constraints = [
-            models.UniqueConstraint(fields=["private_ip"], name="unique_managed_host_private_ip"),
-        ]
 
     def __str__(self) -> str:
         return self.name

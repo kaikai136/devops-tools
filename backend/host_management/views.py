@@ -213,11 +213,8 @@ def managed_hosts(request):
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
 
-    try:
-        creator = request.user if request.user.is_authenticated else resolve_creator(request.data.get("creator"))
-        host = serializer.save(created_by=creator)
-    except IntegrityError:
-        return bad_request("内网 IP 已存在")
+    creator = request.user if request.user.is_authenticated else resolve_creator(request.data.get("creator"))
+    host = serializer.save(created_by=creator)
     sync_verify_status(host)
     return Response(host_payload(host), status=status.HTTP_201_CREATED)
 
@@ -328,8 +325,9 @@ def host_management_import(request):
                 if creator:
                     defaults["created_by"] = creator
                 ManagedHost.objects.update_or_create(
-                    private_ip=private_ip,
-                    defaults=defaults,
+                    name=name,
+                    group=group,
+                    defaults={**defaults, "private_ip": private_ip},
                 )
                 imported["hosts"] += 1
     except (TypeError, ValueError, IntegrityError) as error:
@@ -353,10 +351,7 @@ def managed_host_detail(request, host_id: int):
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
 
-    try:
-        host = serializer.save(updated_at=timezone.now())
-    except IntegrityError:
-        return bad_request("内网 IP 已存在")
+    host = serializer.save(updated_at=timezone.now())
     if "verified" in request.data:
         sync_verify_status(host)
     return Response(host_payload(host))
