@@ -94,6 +94,9 @@ const MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS = 250;
 const MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS = 1200;
 const MAX_CONNECTING_TERMINALS = 2;
 const TERMINAL_WORKSPACE_STORAGE_KEY = 'ops-tool.web-terminal.workspace';
+const TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-width';
+const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
+const TERMINAL_SIDEBAR_MAX_WIDTH = 520;
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -131,6 +134,8 @@ const activeTabId = ref<string | null>(null);
 const isLoadingTree = ref(false);
 const treeError = ref('');
 const highlightEnabled = ref(true);
+const sidebarWidth = ref(readTerminalSidebarWidth());
+const isResizingSidebar = ref(false);
 const terminalContainers = new Map<string, HTMLElement>();
 const pendingConnectTabIds: string[] = [];
 const connectingTabIds = new Set<string>();
@@ -169,6 +174,9 @@ const workspaceStatus = computed(() => {
   if (activeTab.value.status === 'error') return '连接失败';
   return '已关闭';
 });
+const terminalShellStyle = computed<Record<string, string>>(() => ({
+  '--terminal-sidebar-width': `${sidebarWidth.value}px`,
+}));
 
 onMounted(async () => {
   await loadTree();
@@ -187,6 +195,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  stopSidebarResize();
   for (const tab of tabs.value) disposeTab(tab);
 });
 
@@ -457,6 +466,38 @@ function fitTerminal(tab: TerminalTab) {
   }
 }
 
+function startSidebarResize(event: MouseEvent) {
+  event.preventDefault();
+  isResizingSidebar.value = true;
+  window.addEventListener('mousemove', resizeSidebar);
+  window.addEventListener('mouseup', stopSidebarResize);
+  document.body.classList.add('terminal-resizing');
+}
+
+function resizeSidebar(event: MouseEvent) {
+  if (!isResizingSidebar.value) return;
+  const nextWidth = Math.min(Math.max(event.clientX, TERMINAL_SIDEBAR_MIN_WIDTH), TERMINAL_SIDEBAR_MAX_WIDTH);
+  sidebarWidth.value = nextWidth;
+  window.localStorage.setItem(TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY, String(nextWidth));
+  fitActiveTerminalSoon();
+}
+
+function stopSidebarResize() {
+  if (!isResizingSidebar.value) return;
+  isResizingSidebar.value = false;
+  window.removeEventListener('mousemove', resizeSidebar);
+  window.removeEventListener('mouseup', stopSidebarResize);
+  document.body.classList.remove('terminal-resizing');
+  fitActiveTerminalSoon();
+}
+
+function fitActiveTerminalSoon() {
+  window.requestAnimationFrame(() => {
+    const tab = activeTab.value;
+    if (tab) fitTerminal(tab);
+  });
+}
+
 async function closeTab(tab: TerminalTab) {
   const index = tabs.value.findIndex((item) => item.id === tab.id);
   disposeTab(tab);
@@ -696,14 +737,18 @@ function readTerminalRootLabel() {
   if (typeof window === 'undefined') return 'DEFAULT';
   return window.localStorage.getItem('ops-tool.host-manager.root-label') || 'DEFAULT';
 }
+
+function readTerminalSidebarWidth() {
+  if (typeof window === 'undefined') return 284;
+  const saved = Number(window.localStorage.getItem(TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY));
+  if (!Number.isFinite(saved)) return 284;
+  return Math.min(Math.max(saved, TERMINAL_SIDEBAR_MIN_WIDTH), TERMINAL_SIDEBAR_MAX_WIDTH);
+}
 </script>
 
 <template>
-  <main class="terminal-shell">
+  <main class="terminal-shell" :class="{ resizing: isResizingSidebar }" :style="terminalShellStyle">
     <aside class="terminal-sidebar">
-      <div class="terminal-brand">
-        <img src="/captain-banner.png" alt="CAPTAIN" />
-      </div>
       <div class="terminal-search">
         <input v-model="search" placeholder="输入主机名/IP检索" />
         <button type="button" title="刷新" aria-label="刷新" @click="loadTree"><AppIcon name="refresh" :size="16" /></button>
@@ -745,6 +790,13 @@ function readTerminalRootLabel() {
         <p v-else-if="!rows.length" class="terminal-tree-empty">没有匹配的主机。</p>
       </div>
     </aside>
+    <div
+      class="terminal-sidebar-resizer"
+      role="separator"
+      aria-label="调整主机列表宽度"
+      aria-orientation="vertical"
+      @mousedown="startSidebarResize"
+    ></div>
 
     <section class="terminal-workspace">
       <div class="terminal-hint">
