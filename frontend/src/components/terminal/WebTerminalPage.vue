@@ -1170,13 +1170,18 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 async function loadTerminalMonitor() {
-  const tab = activeTab.value;
-  if (!tab) {
-    terminalMonitorData.value = null;
-    terminalMonitorError.value = '';
+  if (!isTerminalMonitorVisible()) {
+    terminalMonitorRequestId += 1;
     isTerminalMonitorLoading.value = false;
+    if (!activeTab.value) {
+      terminalMonitorData.value = null;
+      terminalMonitorError.value = '';
+    }
     return;
   }
+
+  const tab = activeTab.value;
+  if (!tab) return;
 
   const requestId = ++terminalMonitorRequestId;
   isTerminalMonitorLoading.value = true;
@@ -1195,9 +1200,20 @@ async function loadTerminalMonitor() {
   }
 }
 
+function isTerminalMonitorVisible() {
+  return (
+    terminalSidebarMode.value === 'monitor' &&
+    !isTerminalSidebarCollapsed.value &&
+    document.visibilityState === 'visible' &&
+    Boolean(activeTab.value)
+  );
+}
+
 function syncTerminalMonitorPolling() {
-  if (terminalSidebarMode.value !== 'monitor' || !activeTab.value) {
+  if (!isTerminalMonitorVisible()) {
     stopTerminalMonitorPolling();
+    terminalMonitorRequestId += 1;
+    isTerminalMonitorLoading.value = false;
     if (!activeTab.value) {
       terminalMonitorData.value = null;
       terminalMonitorError.value = '';
@@ -1212,8 +1228,10 @@ function syncTerminalMonitorPolling() {
 function startTerminalMonitorPolling() {
   if (terminalMonitorTimer) return;
   terminalMonitorTimer = window.setInterval(() => {
-    if (terminalSidebarMode.value === 'monitor' && activeTab.value) {
+    if (isTerminalMonitorVisible()) {
       void loadTerminalMonitor();
+    } else {
+      syncTerminalMonitorPolling();
     }
   }, TERMINAL_MONITOR_REFRESH_MS);
 }
@@ -1275,6 +1293,10 @@ watch([activeTabId, terminalSidebarMode], () => {
   syncTerminalMonitorPolling();
 });
 
+watch(isTerminalSidebarCollapsed, () => {
+  syncTerminalMonitorPolling();
+});
+
 const workspaceStatus = computed(() => {
   if (!activeTab.value) return '';
   if (activeTab.value.status === 'connecting') return '连接中...';
@@ -1288,6 +1310,7 @@ const terminalShellStyle = computed<Record<string, string>>(() => ({
 onMounted(async () => {
   window.addEventListener('click', closeTerminalContextMenus);
   window.addEventListener('keydown', closeTerminalFileContextMenuOnEscape);
+  document.addEventListener('visibilitychange', syncTerminalMonitorPolling);
   await loadTree();
   await restoreTerminalWorkspace();
   const params = new URLSearchParams(window.location.search);
@@ -1308,6 +1331,7 @@ onBeforeUnmount(() => {
   stopTerminalMonitorPolling();
   window.removeEventListener('click', closeTerminalContextMenus);
   window.removeEventListener('keydown', closeTerminalFileContextMenuOnEscape);
+  document.removeEventListener('visibilitychange', syncTerminalMonitorPolling);
   for (const tab of tabs.value) disposeTab(tab);
 });
 
