@@ -166,7 +166,34 @@ interface TerminalFileContextMenuItem {
   enabled: boolean;
   danger?: boolean;
   separatorBefore?: boolean;
+  children?: TerminalFileContextMenuItem[];
   action: () => void | Promise<void>;
+}
+
+interface TerminalFileRenameState {
+  path: string;
+  originalName: string;
+  draftName: string;
+  saving: boolean;
+  error: string;
+}
+
+interface TerminalFileDeleteDialogState {
+  visible: boolean;
+  entry: TerminalFileEntry | null;
+  deleting: boolean;
+  error: string;
+}
+
+type TerminalFileCreateMode = 'file' | 'directory' | 'symlink';
+
+interface TerminalFileCreateDialogState {
+  visible: boolean;
+  mode: TerminalFileCreateMode;
+  name: string;
+  targetPath: string;
+  saving: boolean;
+  error: string;
 }
 
 const ANSI_CONTROL_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
@@ -181,6 +208,7 @@ const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_SIDEBAR_MAX_WIDTH = 520;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
 const TERMINAL_FILE_CONTEXT_MENU_HEIGHT = 540;
+const TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT = 300;
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -229,11 +257,33 @@ const terminalFileListProtocol = ref('');
 const terminalFileListError = ref('');
 const isTerminalFileListLoading = ref(false);
 const terminalFileUploadInput = ref<HTMLInputElement | null>(null);
+const terminalFolderUploadInput = ref<HTMLInputElement | null>(null);
+const terminalFileRenameInput = ref<HTMLInputElement | null>(null);
 const terminalFileContextMenu = ref<TerminalFileContextMenuState>({
   visible: false,
   x: 0,
   y: 0,
   entry: null,
+});
+const terminalDirectoryContextMenu = ref<Omit<TerminalFileContextMenuState, 'entry'>>({
+  visible: false,
+  x: 0,
+  y: 0,
+});
+const terminalFileRename = ref<TerminalFileRenameState | null>(null);
+const terminalFileDeleteDialog = ref<TerminalFileDeleteDialogState>({
+  visible: false,
+  entry: null,
+  deleting: false,
+  error: '',
+});
+const terminalFileCreateDialog = ref<TerminalFileCreateDialogState>({
+  visible: false,
+  mode: 'file',
+  name: '',
+  targetPath: '',
+  saving: false,
+  error: '',
 });
 const terminalFilePropertiesDialog = ref<TerminalFilePropertiesDialogState>({
   visible: false,
@@ -319,8 +369,36 @@ const terminalFileContextMenuItems = computed<TerminalFileContextMenuItem[]>(() 
     { id: 'send-name', label: '将名称发送到终端', icon: 'chevronRight', enabled: hasEntry && !isParent, action: () => sendTerminalFileTextToActiveTerminal(name) },
     { id: 'send-directory', label: '将目录路径发送到终端', icon: 'chevronsRight', enabled: hasEntry && !isParent, action: () => sendTerminalFileTextToActiveTerminal(directoryPath) },
     { id: 'properties', label: '属性...', icon: 'info', enabled: hasEntry && !isParent, separatorBefore: true, action: () => entry && openTerminalFileProperties(entry) },
-  ];
+  ].map((item) => {
+    if (item.id === 'rename') {
+      return { ...item, enabled: hasEntry && !isParent, action: () => entry && startTerminalFileRename(entry) };
+    }
+    if (item.id === 'delete') {
+      return { ...item, enabled: hasEntry && !isParent, action: () => entry && openTerminalFileDeleteDialog(entry) };
+    }
+    return item;
+  });
 });
+const terminalDirectoryContextMenuItems = computed<TerminalFileContextMenuItem[]>(() => [
+  { id: 'refresh', label: '刷新', icon: 'refresh', enabled: Boolean(activeTab.value), action: () => loadTerminalDirectory() },
+  {
+    id: 'upload',
+    label: '上传到当前文件夹...',
+    icon: 'upload',
+    enabled: Boolean(activeTab.value),
+    action: () => undefined,
+    children: [
+      { id: 'upload-file', label: '上传文件', icon: 'file', enabled: Boolean(activeTab.value), action: () => openTerminalUpload() },
+      { id: 'upload-folder', label: '上传文件夹', icon: 'folder', enabled: Boolean(activeTab.value), action: () => openTerminalFolderUpload() },
+    ],
+  },
+  { id: 'create-file', label: '新建文件', icon: 'file', enabled: Boolean(activeTab.value), separatorBefore: true, action: () => openTerminalFileCreateDialog('file') },
+  { id: 'create-directory', label: '新建文件夹', icon: 'folderPlus', enabled: Boolean(activeTab.value), action: () => openTerminalFileCreateDialog('directory') },
+  { id: 'create-symlink', label: '新建符号链接', icon: 'link', enabled: Boolean(activeTab.value), action: () => openTerminalFileCreateDialog('symlink') },
+  { id: 'copy-directory', label: '复制目录路径', icon: 'copy', enabled: Boolean(activeTab.value), separatorBefore: true, action: () => copyTerminalFileText(terminalFilePath.value) },
+  { id: 'send-directory', label: '将目录路径发送到终端', icon: 'cornerDownLeft', enabled: Boolean(activeTab.value), action: () => sendTerminalFileTextToActiveTerminal(terminalFilePath.value) },
+  { id: 'properties', label: '属性', icon: 'info', enabled: Boolean(activeTab.value), separatorBefore: true, action: () => openTerminalCurrentDirectoryProperties() },
+]);
 const terminalRoot = computed<TerminalRoot>(() => ({
   id: null,
   name: rootLabel.value,
@@ -343,6 +421,7 @@ function openTerminalFileContextMenu(entry: TerminalFileEntry, event: MouseEvent
   event.preventDefault();
   event.stopPropagation();
   selectedTerminalFile.value = entry;
+  closeTerminalDirectoryContextMenu();
   terminalFileContextMenu.value = {
     visible: true,
     ...getTerminalFileContextMenuPosition(event),
@@ -350,12 +429,30 @@ function openTerminalFileContextMenu(entry: TerminalFileEntry, event: MouseEvent
   };
 }
 
-function getTerminalFileContextMenuPosition(event: MouseEvent) {
+function openTerminalDirectoryContextMenu(event: MouseEvent) {
+  if (!activeTab.value) return;
+  const target = event.target as Element | null;
+  if (target?.closest('.terminal-file-item') || target?.closest('.terminal-file-context-menu')) return;
+  event.preventDefault();
+  event.stopPropagation();
+  selectedTerminalFile.value = null;
+  closeTerminalFileContextMenu();
+  terminalDirectoryContextMenu.value = {
+    visible: true,
+    ...getTerminalFileContextMenuPosition(event, TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT),
+  };
+}
+
+function getTerminalFileContextMenuPosition(event: MouseEvent, menuHeight = TERMINAL_FILE_CONTEXT_MENU_HEIGHT) {
   const padding = 8;
   return {
     x: Math.max(padding, Math.min(event.clientX, window.innerWidth - TERMINAL_FILE_CONTEXT_MENU_WIDTH - padding)),
-    y: Math.max(padding, Math.min(event.clientY, window.innerHeight - TERMINAL_FILE_CONTEXT_MENU_HEIGHT - padding)),
+    y: Math.max(padding, Math.min(event.clientY, window.innerHeight - menuHeight - padding)),
   };
+}
+
+function isTerminalContextSubmenuLeft(x: number) {
+  return x + TERMINAL_FILE_CONTEXT_MENU_WIDTH * 2 + 16 > window.innerWidth;
 }
 
 function closeTerminalFileContextMenu() {
@@ -363,10 +460,212 @@ function closeTerminalFileContextMenu() {
   terminalFileContextMenu.value = { visible: false, x: 0, y: 0, entry: null };
 }
 
+function closeTerminalDirectoryContextMenu() {
+  if (!terminalDirectoryContextMenu.value.visible) return;
+  terminalDirectoryContextMenu.value = { visible: false, x: 0, y: 0 };
+}
+
+function closeTerminalContextMenus() {
+  closeTerminalFileContextMenu();
+  closeTerminalDirectoryContextMenu();
+}
+
 async function runTerminalFileContextMenuItem(item: TerminalFileContextMenuItem) {
   if (!item.enabled) return;
-  closeTerminalFileContextMenu();
+  if (item.children?.length) return;
+  closeTerminalContextMenus();
   await item.action();
+}
+
+function startTerminalFileRename(entry: TerminalFileEntry) {
+  if (!activeTab.value || isParentDirectoryEntry(entry)) return;
+  selectedTerminalFile.value = entry;
+  terminalFileRename.value = {
+    path: entry.path,
+    originalName: entry.name,
+    draftName: entry.name,
+    saving: false,
+    error: '',
+  };
+  void nextTick(() => {
+    terminalFileRenameInput.value?.focus();
+    terminalFileRenameInput.value?.select();
+  });
+}
+
+function setTerminalFileRenameInput(element: Element | null) {
+  terminalFileRenameInput.value = element instanceof HTMLInputElement ? element : null;
+}
+
+function cancelTerminalFileRename() {
+  terminalFileRename.value = null;
+}
+
+async function saveTerminalFileRename() {
+  const state = terminalFileRename.value;
+  if (!activeTab.value || !state || state.saving) return;
+  const newName = state.draftName.trim();
+  if (!newName) {
+    terminalFileRename.value = { ...state, error: '请输入新名称' };
+    return;
+  }
+  if (newName === state.originalName) {
+    cancelTerminalFileRename();
+    return;
+  }
+  terminalFileRename.value = { ...state, saving: true, error: '' };
+  try {
+    await apiPost<TerminalFileProperties>(
+      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/rename/`,
+      { path: state.path, newName },
+    );
+    terminalFileRename.value = null;
+    await loadTerminalDirectory(terminalFilePath.value);
+  } catch (error) {
+    terminalFileRename.value = {
+      ...state,
+      saving: false,
+      error: error instanceof Error ? error.message : '重命名失败',
+    };
+    void nextTick(() => terminalFileRenameInput.value?.focus());
+  }
+}
+
+function isTerminalFileRenaming(entry: TerminalFileEntry) {
+  return terminalFileRename.value?.path === entry.path;
+}
+
+function openTerminalFileDeleteDialog(entry = selectedTerminalFile.value) {
+  if (!activeTab.value || !entry || isParentDirectoryEntry(entry)) return;
+  selectedTerminalFile.value = entry;
+  terminalFileDeleteDialog.value = {
+    visible: true,
+    entry,
+    deleting: false,
+    error: '',
+  };
+}
+
+function closeTerminalFileDeleteDialog() {
+  if (terminalFileDeleteDialog.value.deleting) return;
+  terminalFileDeleteDialog.value = {
+    visible: false,
+    entry: null,
+    deleting: false,
+    error: '',
+  };
+}
+
+async function confirmTerminalFileDelete() {
+  const dialog = terminalFileDeleteDialog.value;
+  if (!activeTab.value || !dialog.entry || dialog.deleting) return;
+  terminalFileDeleteDialog.value = { ...dialog, deleting: true, error: '' };
+  try {
+    await apiPost<{ deleted: boolean }>(
+      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/delete/`,
+      { path: dialog.entry.path },
+    );
+    terminalFileDeleteDialog.value = { visible: false, entry: null, deleting: false, error: '' };
+    await loadTerminalDirectory(terminalFilePath.value);
+  } catch (error) {
+    terminalFileDeleteDialog.value = {
+      ...dialog,
+      deleting: false,
+      error: error instanceof Error ? error.message : '删除失败',
+    };
+  }
+}
+
+function openTerminalFileCreateDialog(mode: TerminalFileCreateMode) {
+  if (!activeTab.value) return;
+  terminalFileCreateDialog.value = {
+    visible: true,
+    mode,
+    name: mode === 'file' ? 'new-file' : mode === 'directory' ? 'new-folder' : 'new-link',
+    targetPath: '',
+    saving: false,
+    error: '',
+  };
+}
+
+function closeTerminalFileCreateDialog() {
+  if (terminalFileCreateDialog.value.saving) return;
+  terminalFileCreateDialog.value = {
+    visible: false,
+    mode: 'file',
+    name: '',
+    targetPath: '',
+    saving: false,
+    error: '',
+  };
+}
+
+async function saveTerminalFileCreateDialog() {
+  const dialog = terminalFileCreateDialog.value;
+  if (!activeTab.value || !dialog.visible || dialog.saving) return;
+  const name = dialog.name.trim();
+  if (!name) {
+    terminalFileCreateDialog.value = { ...dialog, error: '请输入名称' };
+    return;
+  }
+  if (dialog.mode === 'symlink' && !dialog.targetPath.trim()) {
+    terminalFileCreateDialog.value = { ...dialog, error: '请输入目标路径' };
+    return;
+  }
+  terminalFileCreateDialog.value = { ...dialog, saving: true, error: '' };
+  try {
+    const endpoint =
+      dialog.mode === 'file'
+        ? 'create-file'
+        : dialog.mode === 'directory'
+          ? 'create-directory'
+          : 'create-symlink';
+    const payload =
+      dialog.mode === 'file'
+        ? { directory: terminalFilePath.value, filename: name }
+        : dialog.mode === 'directory'
+          ? { directory: terminalFilePath.value, dirname: name }
+          : { directory: terminalFilePath.value, linkName: name, targetPath: dialog.targetPath.trim() };
+    await apiPost<TerminalFileProperties>(`/api/web-terminal/hosts/${activeTab.value.host.id}/files/${endpoint}/`, payload);
+    terminalFileCreateDialog.value = {
+      visible: false,
+      mode: 'file',
+      name: '',
+      targetPath: '',
+      saving: false,
+      error: '',
+    };
+    await loadTerminalDirectory(terminalFilePath.value);
+  } catch (error) {
+    terminalFileCreateDialog.value = {
+      ...dialog,
+      saving: false,
+      error: error instanceof Error ? error.message : '创建失败',
+    };
+  }
+}
+
+function terminalFileCreateTitle() {
+  if (terminalFileCreateDialog.value.mode === 'file') return '新建文件';
+  if (terminalFileCreateDialog.value.mode === 'directory') return '新建文件夹';
+  return '新建符号链接';
+}
+
+function openTerminalCurrentDirectoryProperties() {
+  if (!activeTab.value) return;
+  void openTerminalFileProperties({
+    name: currentTerminalDirectoryName(),
+    type: 'directory',
+    modifiedAt: '',
+    path: terminalFilePath.value,
+  });
+}
+
+function currentTerminalDirectoryName() {
+  const value = String(terminalFilePath.value || '.').replace(/\/+$/, '');
+  if (!value || value === '.') return '.';
+  if (value === '/') return '/';
+  return value.split('/').filter(Boolean).pop() || value;
 }
 
 async function openTerminalFileProperties(entry: TerminalFileEntry) {
@@ -383,9 +682,12 @@ async function openTerminalFileProperties(entry: TerminalFileEntry) {
     recursive: false,
   };
   try {
-    const properties = await apiPost<TerminalFileProperties>(
-      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/properties/`,
-      { path: entry.path },
+    const properties = mergeTerminalFilePropertiesEntryIdentity(
+      await apiPost<TerminalFileProperties>(
+        `/api/web-terminal/hosts/${activeTab.value.host.id}/files/properties/`,
+        { path: entry.path },
+      ),
+      entry,
     );
     terminalFilePropertiesDialog.value = {
       ...terminalFilePropertiesDialog.value,
@@ -461,7 +763,7 @@ async function saveTerminalFileProperties() {
 
 async function loadTerminalDirectory(path = terminalFilePath.value) {
   if (!activeTab.value) return;
-  closeTerminalFileContextMenu();
+  closeTerminalContextMenus();
   const targetPath = resolveTerminalDirectoryPath(path);
   const requestId = ++terminalFileListRequestId;
   isTerminalFileListLoading.value = true;
@@ -616,6 +918,18 @@ function getTerminalFileOwnerLabel(properties: TerminalFileProperties | null) {
   return properties.owner || String(properties.uid);
 }
 
+function mergeTerminalFilePropertiesEntryIdentity(properties: TerminalFileProperties, entry: TerminalFileEntry): TerminalFileProperties {
+  const owner = shouldUseTerminalFileEntryIdentity(properties.owner, properties.uid, entry.owner) ? String(entry.owner) : properties.owner;
+  const group = shouldUseTerminalFileEntryIdentity(properties.group, properties.gid, entry.group) ? String(entry.group) : properties.group;
+  if (owner === properties.owner && group === properties.group) return properties;
+  return { ...properties, owner, group };
+}
+
+function shouldUseTerminalFileEntryIdentity(current: string, numericId: number, entryValue?: string) {
+  const value = String(entryValue || '').trim();
+  return Boolean(value && value !== '-' && value !== String(numericId) && String(current || '').trim() === String(numericId));
+}
+
 function getTerminalFileGroupLabel(properties: TerminalFileProperties | null) {
   if (!properties) return '-';
   return properties.group || String(properties.gid);
@@ -677,7 +991,14 @@ async function downloadTerminalFile(entry = selectedTerminalFile.value) {
 
 function openTerminalUpload() {
   if (!activeTab.value || isParentDirectoryEntry(selectedTerminalFile.value)) return;
+  closeTerminalContextMenus();
   terminalFileUploadInput.value?.click();
+}
+
+function openTerminalFolderUpload() {
+  if (!activeTab.value) return;
+  closeTerminalContextMenus();
+  terminalFolderUploadInput.value?.click();
 }
 
 async function uploadTerminalFile(event: Event) {
@@ -697,6 +1018,27 @@ async function uploadTerminalFile(event: Event) {
   }
 }
 
+async function uploadTerminalFolder(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!activeTab.value || !files.length) return;
+  try {
+    terminalFileListError.value = '';
+    for (const file of files) {
+      const contentBase64 = await fileToBase64(file);
+      const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      await apiPost<{ protocol: string }>(
+        `/api/web-terminal/hosts/${activeTab.value.host.id}/files/upload/`,
+        { directory: terminalFilePath.value, filename: file.name, relativePath, contentBase64 },
+      );
+    }
+    await loadTerminalDirectory(terminalFilePath.value);
+  } catch (error) {
+    terminalFileListError.value = error instanceof Error ? error.message : '文件夹上传失败';
+  }
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -710,7 +1052,7 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 watch([activeTabId, terminalSidebarMode], () => {
-  closeTerminalFileContextMenu();
+  closeTerminalContextMenus();
   if (activeTab.value && terminalSidebarMode.value === 'files') {
     terminalFilePath.value = '.';
     void loadTerminalDirectory('.');
@@ -728,7 +1070,7 @@ const terminalShellStyle = computed<Record<string, string>>(() => ({
   '--terminal-sidebar-width': `${sidebarWidth.value}px`,
 }));
 onMounted(async () => {
-  window.addEventListener('click', closeTerminalFileContextMenu);
+  window.addEventListener('click', closeTerminalContextMenus);
   window.addEventListener('keydown', closeTerminalFileContextMenuOnEscape);
   await loadTree();
   await restoreTerminalWorkspace();
@@ -747,14 +1089,17 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopSidebarResize();
-  window.removeEventListener('click', closeTerminalFileContextMenu);
+  window.removeEventListener('click', closeTerminalContextMenus);
   window.removeEventListener('keydown', closeTerminalFileContextMenuOnEscape);
   for (const tab of tabs.value) disposeTab(tab);
 });
 
 function closeTerminalFileContextMenuOnEscape(event: KeyboardEvent) {
   if (event.key !== 'Escape') return;
-  closeTerminalFileContextMenu();
+  closeTerminalContextMenus();
+  closeTerminalFileDeleteDialog();
+  closeTerminalFileCreateDialog();
+  cancelTerminalFileRename();
   closeTerminalFilePropertiesDialog();
 }
 
@@ -1403,7 +1748,7 @@ function readTerminalSidebarWidth() {
                 <span>所有者</span>
                 <span>组</span>
               </div>
-              <div class="terminal-file-list">
+              <div class="terminal-file-list" @contextmenu="openTerminalDirectoryContextMenu">
                 <div
                   v-for="entry in terminalFileEntries"
                   :key="entry.name"
@@ -1414,12 +1759,25 @@ function readTerminalSidebarWidth() {
                   :aria-disabled="!activeTab"
                   @click="selectTerminalFile(entry)"
                   @contextmenu="openTerminalFileContextMenu(entry, $event)"
-                  @dblclick="entry.type === 'directory' && openTerminalDirectory(entry)"
-                  @keydown.enter.prevent="entry.type === 'directory' && openTerminalDirectory(entry)"
+                  @dblclick="!isTerminalFileRenaming(entry) && entry.type === 'directory' && openTerminalDirectory(entry)"
+                  @keydown.enter.prevent="!isTerminalFileRenaming(entry) && entry.type === 'directory' && openTerminalDirectory(entry)"
                 >
                   <span class="terminal-file-name">
                     <AppIcon :name="entry.type === 'directory' ? 'folder' : 'settings'" :size="15" />
-                    <strong>{{ entry.name }}</strong>
+                    <input
+                      v-if="isTerminalFileRenaming(entry)"
+                      :ref="setTerminalFileRenameInput"
+                      v-model="terminalFileRename!.draftName"
+                      class="terminal-file-rename-input"
+                      type="text"
+                      :disabled="terminalFileRename?.saving"
+                      @click.stop
+                      @dblclick.stop
+                      @keydown.enter.prevent.stop="saveTerminalFileRename"
+                      @keydown.esc.prevent.stop="cancelTerminalFileRename"
+                      @blur="saveTerminalFileRename"
+                    />
+                    <strong v-else>{{ entry.name }}</strong>
                   </span>
                   <time>{{ entry.modifiedAt }}</time>
                   <span class="terminal-file-size">{{ formatTerminalFileSize(entry) }}</span>
@@ -1442,28 +1800,146 @@ function readTerminalSidebarWidth() {
               </div>
             </footer>
             <input ref="terminalFileUploadInput" hidden type="file" @change="uploadTerminalFile" />
+            <input ref="terminalFolderUploadInput" hidden type="file" multiple webkitdirectory @change="uploadTerminalFolder" />
             <div
               v-if="terminalFileContextMenu.visible"
               class="terminal-file-context-menu"
+              :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalFileContextMenu.x) }"
               :style="{ left: `${terminalFileContextMenu.x}px`, top: `${terminalFileContextMenu.y}px` }"
               role="menu"
               @click.stop
               @contextmenu.prevent.stop
             >
-              <button
+              <div
                 v-for="item in terminalFileContextMenuItems"
                 :key="item.id"
-                type="button"
-                role="menuitem"
-                class="terminal-file-context-menu-item"
-                :class="{ danger: item.danger, separator: item.separatorBefore }"
-                :disabled="!item.enabled"
-                @click="runTerminalFileContextMenuItem(item)"
+                class="terminal-file-context-menu-row"
+                :class="{ separator: item.separatorBefore }"
               >
-                <AppIcon :name="item.icon" :size="15" />
-                <span>{{ item.label }}</span>
-              </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="terminal-file-context-menu-item"
+                  :class="{ danger: item.danger }"
+                  :disabled="!item.enabled"
+                  @click="runTerminalFileContextMenuItem(item)"
+                >
+                  <AppIcon :name="item.icon" :size="15" />
+                  <span>{{ item.label }}</span>
+                  <AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
+                </button>
+                <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
+                  <button
+                    v-for="child in item.children"
+                    :key="child.id"
+                    type="button"
+                    role="menuitem"
+                    class="terminal-file-context-menu-item"
+                    :disabled="!child.enabled"
+                    @click="runTerminalFileContextMenuItem(child)"
+                  >
+                    <AppIcon :name="child.icon" :size="15" />
+                    <span>{{ child.label }}</span>
+                  </button>
+                </div>
+              </div>
             </div>
+            <div
+              v-if="terminalDirectoryContextMenu.visible"
+              class="terminal-file-context-menu terminal-file-directory-context-menu"
+              :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalDirectoryContextMenu.x) }"
+              :style="{ left: `${terminalDirectoryContextMenu.x}px`, top: `${terminalDirectoryContextMenu.y}px` }"
+              role="menu"
+              @click.stop
+              @contextmenu.prevent.stop
+            >
+              <div
+                v-for="item in terminalDirectoryContextMenuItems"
+                :key="item.id"
+                class="terminal-file-context-menu-row"
+                :class="{ separator: item.separatorBefore }"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="terminal-file-context-menu-item"
+                  :disabled="!item.enabled"
+                  @click="runTerminalFileContextMenuItem(item)"
+                >
+                  <AppIcon :name="item.icon" :size="15" />
+                  <span>{{ item.label }}</span>
+                  <AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
+                </button>
+                <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
+                  <button
+                    v-for="child in item.children"
+                    :key="child.id"
+                    type="button"
+                    role="menuitem"
+                    class="terminal-file-context-menu-item"
+                    :disabled="!child.enabled"
+                    @click="runTerminalFileContextMenuItem(child)"
+                  >
+                    <AppIcon :name="child.icon" :size="15" />
+                    <span>{{ child.label }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <Teleport to="body">
+              <div
+                v-if="terminalFileCreateDialog.visible"
+                class="modal-backdrop terminal-file-create-backdrop"
+                @click.self="closeTerminalFileCreateDialog"
+              >
+                <section class="terminal-file-create-modal" role="dialog" aria-modal="true">
+                  <header>
+                    <span><AppIcon :name="terminalFileCreateDialog.mode === 'directory' ? 'folderPlus' : terminalFileCreateDialog.mode === 'symlink' ? 'link' : 'file'" :size="20" /></span>
+                    <h2>{{ terminalFileCreateTitle() }}</h2>
+                  </header>
+                  <label class="terminal-file-create-field">
+                    <span>名称</span>
+                    <input v-model="terminalFileCreateDialog.name" type="text" :disabled="terminalFileCreateDialog.saving" @keydown.enter.prevent="saveTerminalFileCreateDialog" />
+                  </label>
+                  <label v-if="terminalFileCreateDialog.mode === 'symlink'" class="terminal-file-create-field">
+                    <span>目标路径</span>
+                    <input v-model="terminalFileCreateDialog.targetPath" type="text" :disabled="terminalFileCreateDialog.saving" @keydown.enter.prevent="saveTerminalFileCreateDialog" />
+                  </label>
+                  <p v-if="terminalFileCreateDialog.error" class="terminal-file-create-error">{{ terminalFileCreateDialog.error }}</p>
+                  <footer>
+                    <button type="button" :disabled="terminalFileCreateDialog.saving" @click="closeTerminalFileCreateDialog">取消</button>
+                    <button class="primary" type="button" :disabled="terminalFileCreateDialog.saving" @click="saveTerminalFileCreateDialog">
+                      {{ terminalFileCreateDialog.saving ? '创建中...' : '创建' }}
+                    </button>
+                  </footer>
+                </section>
+              </div>
+            </Teleport>
+            <Teleport to="body">
+              <div
+                v-if="terminalFileDeleteDialog.visible"
+                class="modal-backdrop terminal-file-delete-backdrop"
+                @click.self="closeTerminalFileDeleteDialog"
+              >
+                <section class="terminal-file-delete-modal" role="dialog" aria-modal="true">
+                  <div class="terminal-file-delete-visual" :class="terminalFileDeleteDialog.entry?.type || 'file'">
+                    <span class="terminal-file-delete-visual-card">
+                      <AppIcon :name="terminalFileDeleteDialog.entry?.type === 'directory' ? 'folder' : 'file'" :size="34" />
+                    </span>
+                    <span class="terminal-file-delete-alert"><AppIcon name="alert" :size="18" /></span>
+                  </div>
+                  <h2>确定要删除“{{ terminalFileDeleteDialog.entry?.name }}”吗？</h2>
+                  <p>此操作会从远端主机删除该{{ terminalFileDeleteDialog.entry?.type === 'directory' ? '目录及其内容' : '文件' }}。</p>
+                  <p v-if="terminalFileDeleteDialog.error" class="terminal-file-delete-error">{{ terminalFileDeleteDialog.error }}</p>
+                  <div class="terminal-file-delete-actions">
+                    <button type="button" :disabled="terminalFileDeleteDialog.deleting" @click="closeTerminalFileDeleteDialog">取消</button>
+                    <button class="danger" type="button" :disabled="terminalFileDeleteDialog.deleting" @click="confirmTerminalFileDelete">
+                      {{ terminalFileDeleteDialog.deleting ? '删除中...' : '删除' }}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </Teleport>
             <Teleport to="body">
               <div
                 v-if="terminalFilePropertiesDialog.visible"

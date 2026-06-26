@@ -1,14 +1,42 @@
 from django.test import SimpleTestCase
+from unittest.mock import patch
 
 from .services import (
     TerminalConnectionError,
+    create_remote_directory,
+    create_remote_file,
+    create_remote_symlink,
+    normalize_remote_relative_file_path,
+    normalize_remote_symlink_target,
     normalize_remote_file_octal_mode,
     normalize_remote_file_owner,
     parse_remote_stat_output,
+    remote_file_properties_payload,
 )
 
 
 class RemoteFilePropertiesTests(SimpleTestCase):
+    def test_sftp_properties_payload_uses_resolved_owner_group_names(self):
+        attrs = type(
+            "Attrs",
+            (),
+            {
+                "st_mode": 0o40755,
+                "st_uid": 0,
+                "st_gid": 0,
+                "st_size": 8192,
+                "st_mtime": 1782446272,
+                "st_atime": 1781151803,
+            },
+        )()
+
+        payload = remote_file_properties_payload("/etc", attrs, {"owner": "root", "group": "root"})
+
+        self.assertEqual(payload["owner"], "root")
+        self.assertEqual(payload["group"], "root")
+        self.assertEqual(payload["uid"], 0)
+        self.assertEqual(payload["gid"], 0)
+
     def test_parse_remote_stat_output_returns_permission_details(self):
         payload = parse_remote_stat_output(
             "/root/.bash_profile",
@@ -57,3 +85,48 @@ class RemoteFilePropertiesTests(SimpleTestCase):
             with self.subTest(value=value):
                 with self.assertRaises(TerminalConnectionError):
                     normalize_remote_file_octal_mode(value)
+
+    def test_relative_upload_path_validation(self):
+        self.assertEqual(normalize_remote_relative_file_path("folder\\child/file.txt"), "folder/child/file.txt")
+        for value in ["", "/tmp/file.txt", "../file.txt", "folder/../file.txt", "bad\nfile.txt", "bad\x00file.txt"]:
+            with self.subTest(value=value):
+                with self.assertRaises(TerminalConnectionError):
+                    normalize_remote_relative_file_path(value)
+
+    def test_symlink_target_validation(self):
+        self.assertEqual(normalize_remote_symlink_target("/var/log/app.log"), "/var/log/app.log")
+        for value in ["", "bad\npath", "bad\x00path"]:
+            with self.subTest(value=value):
+                with self.assertRaises(TerminalConnectionError):
+                    normalize_remote_symlink_target(value)
+
+    def test_create_remote_file_builds_safe_command(self):
+        with patch("web_terminal.services.run_one_shot_ssh_command") as run_command, patch(
+            "web_terminal.services.get_remote_file_properties",
+            return_value={"path": "/data/new.txt"},
+        ):
+            payload = create_remote_file(object(), "/data", "new.txt")
+
+        self.assertEqual(payload["path"], "/data/new.txt")
+        self.assertIn("test -e /data/new.txt", run_command.call_args.args[1])
+        self.assertIn(": > /data/new.txt", run_command.call_args.args[1])
+
+    def test_create_remote_directory_builds_safe_command(self):
+        with patch("web_terminal.services.run_one_shot_ssh_command") as run_command, patch(
+            "web_terminal.services.get_remote_file_properties",
+            return_value={"path": "/data/new-folder"},
+        ):
+            payload = create_remote_directory(object(), "/data", "new-folder")
+
+        self.assertEqual(payload["path"], "/data/new-folder")
+        self.assertIn("mkdir /data/new-folder", run_command.call_args.args[1])
+
+    def test_create_remote_symlink_builds_safe_command(self):
+        with patch("web_terminal.services.run_one_shot_ssh_command") as run_command, patch(
+            "web_terminal.services.get_remote_file_properties",
+            return_value={"path": "/data/app-link"},
+        ):
+            payload = create_remote_symlink(object(), "/data", "app-link", "/opt/app")
+
+        self.assertEqual(payload["path"], "/data/app-link")
+        self.assertIn("ln -s /opt/app /data/app-link", run_command.call_args.args[1])

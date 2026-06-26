@@ -10,10 +10,15 @@ from operations.responses import bad_request
 from .models import TerminalSession
 from .services import (
     TerminalConnectionError,
+    create_remote_directory,
+    create_remote_file,
+    create_remote_symlink,
     create_terminal_session,
+    delete_remote_file,
     download_remote_file,
     get_remote_file_properties,
     list_remote_directory,
+    rename_remote_file,
     run_session_command,
     session_payload,
     terminal_tree_payload,
@@ -96,8 +101,81 @@ def terminal_file_upload(request, host_id: int):
                 str(request.data.get("directory", ".")),
                 str(request.data.get("filename", "")),
                 str(request.data.get("contentBase64", "")),
+                str(request.data.get("relativePath", "")),
             )
         )
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+
+@api_view(["POST"])
+def terminal_file_create_file(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        return Response(create_remote_file(host, str(request.data.get("directory", ".")), str(request.data.get("filename", ""))))
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+
+@api_view(["POST"])
+def terminal_file_create_directory(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        return Response(create_remote_directory(host, str(request.data.get("directory", ".")), str(request.data.get("dirname", ""))))
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+
+@api_view(["POST"])
+def terminal_file_create_symlink(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        return Response(
+            create_remote_symlink(
+                host,
+                str(request.data.get("directory", ".")),
+                str(request.data.get("linkName", "")),
+                str(request.data.get("targetPath", "")),
+            )
+        )
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+
+@api_view(["POST"])
+def terminal_file_rename(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        return Response(rename_remote_file(host, str(request.data.get("path", "")), str(request.data.get("newName", ""))))
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+
+@api_view(["POST"])
+def terminal_file_delete(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        return Response(delete_remote_file(host, str(request.data.get("path", ""))))
     except TerminalConnectionError as error:
         return bad_request(error)
 

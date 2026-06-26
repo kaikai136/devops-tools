@@ -217,14 +217,14 @@ def download_remote_file(host: ManagedHost, path: str) -> dict:
     )
 
 
-def upload_remote_file(host: ManagedHost, directory: str, filename: str, content_base64: str) -> dict:
+def upload_remote_file(host: ManagedHost, directory: str, filename: str, content_base64: str, relative_path: str = "") -> dict:
     directory = normalize_remote_file_path(directory or ".")
-    filename = normalize_remote_file_name(filename)
+    upload_name = normalize_remote_relative_file_path(relative_path) if str(relative_path or "").strip() else normalize_remote_file_name(filename)
     try:
         data = base64.b64decode(content_base64 or "", validate=False)
     except Exception as error:
         raise TerminalConnectionError(f"上传文件内容解析失败：{error}")
-    path = join_remote_path(directory, filename)
+    path = join_remote_path(directory, upload_name)
     return run_remote_file_operation(
         "文件上传失败",
         (
@@ -234,6 +234,53 @@ def upload_remote_file(host: ManagedHost, directory: str, filename: str, content
         ),
         path,
     )
+
+
+def create_remote_file(host: ManagedHost, directory: str, filename: str) -> dict:
+    directory = normalize_remote_file_path(directory or ".")
+    filename = normalize_remote_file_name(filename)
+    path = join_remote_path(directory, filename)
+    run_one_shot_ssh_command(host, f"if test -e {shlex.quote(path)}; then printf %s {shlex.quote('目标已存在')} >&2; exit 1; fi; : > {shlex.quote(path)}")
+    return get_remote_file_properties(host, path)
+
+
+def create_remote_directory(host: ManagedHost, directory: str, dirname: str) -> dict:
+    directory = normalize_remote_file_path(directory or ".")
+    dirname = normalize_remote_file_name(dirname)
+    path = join_remote_path(directory, dirname)
+    run_one_shot_ssh_command(host, f"if test -e {shlex.quote(path)}; then printf %s {shlex.quote('目标已存在')} >&2; exit 1; fi; mkdir {shlex.quote(path)}")
+    return get_remote_file_properties(host, path)
+
+
+def create_remote_symlink(host: ManagedHost, directory: str, link_name: str, target_path: str) -> dict:
+    directory = normalize_remote_file_path(directory or ".")
+    link_name = normalize_remote_file_name(link_name)
+    target_path = normalize_remote_symlink_target(target_path)
+    path = join_remote_path(directory, link_name)
+    run_one_shot_ssh_command(host, f"if test -e {shlex.quote(path)}; then printf %s {shlex.quote('目标已存在')} >&2; exit 1; fi; ln -s {shlex.quote(target_path)} {shlex.quote(path)}")
+    return get_remote_file_properties(host, path)
+
+
+def rename_remote_file(host: ManagedHost, path: str, new_name: str) -> dict:
+    path = normalize_remote_file_path(path)
+    new_name = normalize_remote_file_name(new_name)
+    current = get_remote_file_properties(host, path)
+    target = join_remote_path(str(current.get("directory") or parent_remote_path(path)), new_name)
+    if target == current.get("path"):
+        return current
+    command = f"if test -e {shlex.quote(target)}; then printf %s {shlex.quote('目标已存在')} >&2; exit 1; fi; mv {shlex.quote(str(current.get('path') or path))} {shlex.quote(target)}"
+    run_one_shot_ssh_command(host, command)
+    return get_remote_file_properties(host, target)
+
+
+def delete_remote_file(host: ManagedHost, path: str) -> dict:
+    path = normalize_remote_file_path(path)
+    current = get_remote_file_properties(host, path)
+    current_path = str(current.get("path") or path)
+    if current_path.rstrip("/") in {"", ".", "~", "/"}:
+        raise TerminalConnectionError("不能删除根目录或当前目录")
+    run_one_shot_ssh_command(host, f"rm -rf {shlex.quote(current_path)}")
+    return {"deleted": True, "path": current_path, "directory": current.get("directory") or parent_remote_path(current_path)}
 
 
 def get_remote_file_properties(host: ManagedHost, path: str) -> dict:
@@ -294,6 +341,23 @@ def normalize_remote_file_name(filename: str) -> str:
     if not filename or filename in {".", ".."} or "\x00" in filename:
         raise TerminalConnectionError("上传文件名不合法")
     return filename
+
+
+def normalize_remote_relative_file_path(path: str) -> str:
+    value = str(path or "").strip().replace("\\", "/")
+    if not value or value.startswith("/") or "\x00" in value or "\n" in value or "\r" in value:
+        raise TerminalConnectionError("上传相对路径不合法")
+    parts = [part for part in value.split("/") if part]
+    if not parts or any(part in {".", ".."} for part in parts):
+        raise TerminalConnectionError("上传相对路径不合法")
+    return "/".join(parts)
+
+
+def normalize_remote_symlink_target(target_path: str) -> str:
+    value = str(target_path or "").strip()
+    if not value or "\x00" in value or "\n" in value or "\r" in value:
+        raise TerminalConnectionError("符号链接目标不合法")
+    return value
 
 
 def normalize_remote_file_owner(value: str, label: str) -> str:
@@ -379,7 +443,7 @@ def get_remote_file_properties_with_sftp(host: ManagedHost, path: str) -> dict:
             stat_payload["path"] = current_path
             return stat_payload
         except Exception:
-            return remote_file_properties_payload(current_path, attrs)
+            return remote_file_properties_payload(current_path, attrs, resolve_remote_identity_names(client, attrs))
     finally:
         client.close()
 
@@ -488,11 +552,14 @@ def parse_remote_stat_output(path: str, output: str) -> dict:
     }
 
 
-def remote_file_properties_payload(path: str, attrs) -> dict:
+def remote_file_properties_payload(path: str, attrs, identities: dict | None = None) -> dict:
     mode = int(attrs.st_mode or 0)
     octal_mode = f"{mode & 0o7777:04o}"
     uid = int(getattr(attrs, "st_uid", 0) or 0)
     gid = int(getattr(attrs, "st_gid", 0) or 0)
+    identities = identities or {}
+    owner = normalize_remote_stat_identity(str(identities.get("owner", "")), str(uid))
+    group = normalize_remote_stat_identity(str(identities.get("group", "")), str(gid))
     return {
         "name": path.rstrip("/").split("/")[-1] or path,
         "path": path,
@@ -501,8 +568,8 @@ def remote_file_properties_payload(path: str, attrs) -> dict:
         "size": int(attrs.st_size or 0),
         "modifiedAt": format_remote_timestamp(float(attrs.st_mtime or 0)),
         "accessedAt": format_remote_timestamp(float(attrs.st_atime or 0)),
-        "owner": str(uid),
-        "group": str(gid),
+        "owner": owner,
+        "group": group,
         "uid": uid,
         "gid": gid,
         "permissions": stat.filemode(mode),
@@ -514,6 +581,34 @@ def remote_file_properties_payload(path: str, attrs) -> dict:
             "sticky": bool(mode & stat.S_ISVTX),
         },
     }
+
+
+def resolve_remote_identity_names(client, attrs) -> dict:
+    uid = str(int(getattr(attrs, "st_uid", 0) or 0))
+    gid = str(int(getattr(attrs, "st_gid", 0) or 0))
+    return {
+        "owner": resolve_remote_user_name(client, uid),
+        "group": resolve_remote_group_name(client, gid),
+    }
+
+
+def resolve_remote_user_name(client, uid: str) -> str:
+    return run_optional_client_command(client, f"getent passwd {shlex.quote(uid)} 2>/dev/null | cut -d: -f1") or run_optional_client_command(
+        client,
+        f"id -nu {shlex.quote(uid)} 2>/dev/null",
+    )
+
+
+def resolve_remote_group_name(client, gid: str) -> str:
+    return run_optional_client_command(client, f"getent group {shlex.quote(gid)} 2>/dev/null | cut -d: -f1")
+
+
+def run_optional_client_command(client, command: str, timeout: int = 10) -> str:
+    try:
+        output = run_client_command(client, command, timeout=timeout).strip().splitlines()
+    except Exception:
+        return ""
+    return output[-1].strip() if output else ""
 
 
 def normalize_remote_stat_identity(name: str, numeric_id: str) -> str:
@@ -661,6 +756,7 @@ def upload_remote_file_with_sftp(host: ManagedHost, path: str, data: bytes) -> d
     try:
         sftp = client.open_sftp()
         try:
+            ensure_remote_sftp_directory(sftp, parent_remote_path(path))
             with sftp.open(path, "wb") as remote_file:
                 remote_file.write(data)
         finally:
@@ -670,16 +766,31 @@ def upload_remote_file_with_sftp(host: ManagedHost, path: str, data: bytes) -> d
         client.close()
 
 
+def ensure_remote_sftp_directory(sftp, directory: str) -> None:
+    directory = str(directory or "").strip()
+    if directory in {"", ".", "/", "~"}:
+        return
+    current = "/" if directory.startswith("/") else ""
+    for part in [item for item in directory.split("/") if item]:
+        current = f"{current.rstrip('/')}/{part}" if current else part
+        try:
+            sftp.stat(current)
+        except Exception:
+            sftp.mkdir(current)
+
+
 def upload_remote_file_with_scp_enhanced(host: ManagedHost, path: str, data: bytes) -> dict:
     encoded = base64.b64encode(data)
     quoted_path = shlex.quote(path)
-    run_one_shot_ssh_upload(host, f"base64 -d > {quoted_path}", encoded)
+    quoted_parent = shlex.quote(parent_remote_path(path))
+    run_one_shot_ssh_upload(host, f"mkdir -p {quoted_parent} && base64 -d > {quoted_path}", encoded)
     return {"size": len(data)}
 
 
 def upload_remote_file_with_scp_normal(host: ManagedHost, path: str, data: bytes) -> dict:
     quoted_path = shlex.quote(path)
-    run_one_shot_ssh_upload(host, f"cat > {quoted_path}", data)
+    quoted_parent = shlex.quote(parent_remote_path(path))
+    run_one_shot_ssh_upload(host, f"mkdir -p {quoted_parent} && cat > {quoted_path}", data)
     return {"size": len(data)}
 
 

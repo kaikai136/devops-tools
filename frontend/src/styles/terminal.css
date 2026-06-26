@@ -415,6 +415,20 @@ input {
   white-space: nowrap;
 }
 
+.terminal-file-rename-input {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  border: 1px solid #7aa7ee;
+  border-radius: 4px;
+  background: #fff;
+  color: #17283c;
+  padding: 0 7px;
+  font: 700 13px Consolas, "Courier New", monospace;
+  outline: 2px solid rgb(31 99 241 / 14%);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
+}
+
 .terminal-file-status {
   display: flex;
   align-items: center;
@@ -478,9 +492,19 @@ input {
   color: #334155;
 }
 
+.terminal-file-context-menu-row {
+  position: relative;
+}
+
+.terminal-file-context-menu-row.separator {
+  margin-top: 4px;
+  border-top: 1px solid #d8e0ea;
+  padding-top: 4px;
+}
+
 .terminal-file-context-menu-item {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr) 14px;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -493,6 +517,10 @@ input {
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+}
+
+.terminal-file-context-submenu .terminal-file-context-menu-item {
+  grid-template-columns: 24px minmax(0, 1fr);
 }
 
 .terminal-file-context-menu-item.separator {
@@ -537,6 +565,271 @@ input {
 
 .terminal-file-context-menu-item:disabled .app-icon {
   color: #aeb8c5;
+}
+
+.terminal-file-context-submenu {
+  position: absolute;
+  top: -4px;
+  left: calc(100% - 2px);
+  display: none;
+  width: 190px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #f8fafc;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
+  padding: 4px 0;
+}
+
+.terminal-file-context-menu.submenu-left .terminal-file-context-submenu {
+  right: calc(100% - 2px);
+  left: auto;
+}
+
+.terminal-file-context-menu-row:hover > .terminal-file-context-submenu {
+  display: block;
+}
+
+.terminal-file-directory-context-menu {
+  z-index: 82;
+}
+
+.terminal-file-create-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 94;
+  background: rgb(5 16 36 / 46%);
+  padding: 24px;
+}
+
+.terminal-file-create-modal {
+  display: grid;
+  gap: 14px;
+  width: min(380px, calc(100vw - 44px));
+  border: 1px solid #d6dee8;
+  border-radius: 7px;
+  background: #fff;
+  color: #26364a;
+  padding: 20px 22px;
+  box-shadow: 0 20px 54px rgb(15 23 42 / 28%);
+}
+
+.terminal-file-create-modal header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.terminal-file-create-modal header span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 7px;
+  background: #edf4ff;
+  color: #1670e8;
+}
+
+.terminal-file-create-modal h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.terminal-file-create-field {
+  display: grid;
+  gap: 7px;
+  color: #667386;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.terminal-file-create-field input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #26364a;
+  padding: 0 10px;
+  font: 700 13px Consolas, "Courier New", monospace;
+}
+
+.terminal-file-create-field input:focus {
+  border-color: #7aa7ee;
+  outline: 2px solid rgb(31 99 241 / 14%);
+}
+
+.terminal-file-create-error {
+  margin: 0;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff1f1;
+  color: #dc2626;
+  padding: 7px 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.terminal-file-create-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #d9e1eb;
+  padding-top: 14px;
+}
+
+.terminal-file-create-modal footer button {
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #26364a;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.terminal-file-create-modal footer button.primary {
+  border-color: #1670e8;
+  background: #1670e8;
+  color: #fff;
+}
+
+.terminal-file-create-modal button:disabled,
+.terminal-file-create-modal input:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.terminal-file-delete-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 95;
+  background: rgb(3 8 18 / 74%);
+  padding: 24px;
+}
+
+.terminal-file-delete-modal {
+  display: grid;
+  justify-items: center;
+  width: min(360px, calc(100vw - 44px));
+  border: 1px solid #d6dee8;
+  border-radius: 7px;
+  background: #fff;
+  color: #1f2937;
+  padding: 26px 24px 24px;
+  box-shadow: 0 22px 60px rgb(0 0 0 / 36%);
+  text-align: center;
+}
+
+.terminal-file-delete-visual {
+  position: relative;
+  display: grid;
+  width: 76px;
+  height: 62px;
+  place-items: center;
+  margin-bottom: 12px;
+}
+
+.terminal-file-delete-visual-card {
+  display: grid;
+  width: 58px;
+  height: 50px;
+  place-items: center;
+  border: 1px solid #d8e2ef;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8fbff 0%, #edf4ff 100%);
+  color: #1670e8;
+  box-shadow: 0 8px 18px rgb(31 99 241 / 14%);
+}
+
+.terminal-file-delete-visual.directory .terminal-file-delete-visual-card {
+  background: linear-gradient(180deg, #fff9e8 0%, #fff0c4 100%);
+  color: #d99a1a;
+  box-shadow: 0 8px 18px rgb(217 154 26 / 16%);
+}
+
+.terminal-file-delete-alert {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #dc5b68;
+  color: #fff;
+  box-shadow: 0 6px 14px rgb(220 91 104 / 34%);
+}
+
+.terminal-file-delete-modal h2 {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.55;
+}
+
+.terminal-file-delete-modal p {
+  margin: 8px 0 0;
+  color: #667386;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.terminal-file-delete-error {
+  width: 100%;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff1f1;
+  padding: 7px 8px;
+  color: #dc2626 !important;
+  font-weight: 800 !important;
+}
+
+.terminal-file-delete-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  margin-top: 22px;
+}
+
+.terminal-file-delete-actions button {
+  min-height: 38px;
+  border: 1px solid #b9d4f6;
+  border-radius: 7px;
+  background: #f8fbff;
+  color: #26364a;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.terminal-file-delete-actions button:focus {
+  outline: 2px solid rgb(31 99 241 / 20%);
+}
+
+.terminal-file-delete-actions button.danger {
+  border-color: #dc5b68;
+  background: #dc5b68;
+  color: #fff;
+}
+
+.terminal-file-delete-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
 .terminal-file-properties-backdrop {
