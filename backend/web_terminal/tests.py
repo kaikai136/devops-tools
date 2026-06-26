@@ -1,12 +1,20 @@
-from django.test import SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from unittest.mock import patch
 
+from host_management.models import HostGroup, ManagedHost
+
+from . import views
 from .consumers import (
+    CWD_HOOK_ECHO_OFF,
+    CWD_HOOK_ECHO_ON,
+    CWD_HOOK_INSTALL_SCRIPT,
     CWD_HOOK_SCRIPT,
     CWD_MARKER_END,
     CWD_MARKER_START,
+    TerminalConsumer,
     filter_changed_cwd_paths,
     strip_cwd_markers,
+    strip_cwd_hook_install_echo,
     strip_cwd_markers_with_pending,
 )
 from .services import (
@@ -14,6 +22,11 @@ from .services import (
     create_remote_directory,
     create_remote_file,
     create_remote_symlink,
+    parse_monitor_disks,
+    parse_monitor_memory,
+    parse_monitor_network,
+    parse_monitor_network_rates,
+    parse_remote_resource_monitor_output,
     normalize_remote_relative_file_path,
     normalize_remote_symlink_target,
     normalize_remote_file_octal_mode,
@@ -24,6 +37,43 @@ from .services import (
 
 
 class RemoteFilePropertiesTests(SimpleTestCase):
+    monitor_output = """SECTION:system
+hostname=VM-0-23-centos
+arch=x86_64
+kernel=Linux 5.10
+os=CentOS Linux 7
+uptime=39450240.00
+SECTION:cpu1
+cpu  100 0 50 850 0 0 0 0 0 0
+cpu0 50 0 20 430 0 0 0 0 0 0
+cpu1 50 0 30 420 0 0 0 0 0 0
+SECTION:load
+0.13 0.06 0.06 1/123 456
+SECTION:cpu2
+cpu  120 0 60 920 0 0 0 0 0 0
+cpu0 60 0 25 465 0 0 0 0 0 0
+cpu1 60 0 35 455 0 0 0 0 0 0
+SECTION:mem
+MemTotal:        7780432 kB
+MemFree:         6800000 kB
+MemAvailable:   6800000 kB
+Buffers:          100000 kB
+Cached:           600000 kB
+SReclaimable:      50000 kB
+SECTION:net1
+Inter-|   Receive                                                |  Transmit
+ eth0: 1000 0 0 0 0 0 0 0 2000 0 0 0 0 0 0 0
+ lo: 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0
+SECTION:net2
+Inter-|   Receive                                                |  Transmit
+ eth0: 7800 0 0 0 0 0 0 0 5200 0 0 0 0 0 0 0
+SECTION:df
+Filesystem Type 1B-blocks Used Available Use% Mounted on
+/dev/vda1 ext4 42949672960 10737418240 32212254720 25% /
+tmpfs tmpfs 1000 1 999 1% /run
+/dev/vdb1 xfs 107374182400 53687091200 53687091200 50% /data
+"""
+
     def test_strip_cwd_markers_extracts_path_and_keeps_visible_output(self):
         output, paths = strip_cwd_markers(f"before{CWD_MARKER_START}/opt{CWD_MARKER_END}after")
 
@@ -65,6 +115,92 @@ class RemoteFilePropertiesTests(SimpleTestCase):
     def test_cwd_hook_emits_only_when_pwd_changes(self):
         self.assertIn('if [ "$PWD" != "$__captain_last_cwd" ]; then', CWD_HOOK_SCRIPT)
         self.assertNotIn("\n__captain_emit_cwd\n", CWD_HOOK_SCRIPT)
+
+    def test_install_cwd_hook_uses_single_line_script_and_drains_only_install_output(self):
+        class FakeConnection:
+            def __init__(self):
+                self.sent = []
+                self.read_count = 0
+
+            def send_data(self, data):
+                self.sent.append(data)
+
+            def read_available_raw(self, timeout=4.0, idle_timeout=0.35):
+                self.read_count += 1
+                return "root@host:~# "
+
+        consumer = TerminalConsumer()
+        consumer.connection = FakeConnection()
+        consumer.suppress_internal_echo_until = 0.0
+
+        consumer._install_cwd_hook()
+
+        self.assertEqual(consumer.connection.sent, [CWD_HOOK_ECHO_OFF, CWD_HOOK_INSTALL_SCRIPT, CWD_HOOK_ECHO_ON])
+        self.assertEqual(consumer.connection.read_count, 3)
+        self.assertNotIn("\nif ", CWD_HOOK_INSTALL_SCRIPT)
+        self.assertGreater(consumer.suppress_internal_echo_until, 0)
+
+    def test_send_initial_output_preserves_remote_login_banner(self):
+        class FakeConnection:
+            def read_available_raw(self, timeout=4.0, idle_timeout=0.35):
+                return "Welcome to Ubuntu 24.04 LTS\r\nLast login: Sat Jun 27 01:14:16 2026\r\nroot@vm:~# "
+
+        sent_messages = []
+        consumer = TerminalConsumer()
+        consumer.connection = FakeConnection()
+        consumer.pending_output = ""
+        consumer.current_cwd = ""
+        consumer.transcript_chunks = []
+        consumer.send = lambda text_data=None, bytes_data=None, close=False: sent_messages.append(text_data)
+
+        consumer._send_initial_output()
+
+        self.assertIn("Welcome to Ubuntu 24.04 LTS", sent_messages[0])
+        self.assertIn("Last login", sent_messages[0])
+        self.assertIn("Welcome to Ubuntu 24.04 LTS", consumer.transcript_chunks[0])
+
+    def test_strip_cwd_hook_install_echo_removes_internal_script(self):
+        output = f"prompt\r\n{CWD_HOOK_ECHO_OFF}{CWD_HOOK_SCRIPT}{CWD_HOOK_ECHO_ON}ready\r\n"
+
+        self.assertEqual(strip_cwd_hook_install_echo(output), "prompt\r\nready\r\n")
+
+    def test_parse_remote_resource_monitor_output(self):
+        payload = parse_remote_resource_monitor_output(self.monitor_output)
+
+        self.assertEqual(payload["system"]["hostname"], "VM-0-23-centos")
+        self.assertEqual(payload["system"]["arch"], "x86_64")
+        self.assertEqual(payload["cpu"]["cores"], 2)
+        self.assertEqual(payload["cpu"]["load1"], 0.13)
+        self.assertEqual(payload["cpu"]["usagePercent"], 30.0)
+        self.assertEqual(payload["memory"]["totalBytes"], 7780432 * 1024)
+        self.assertEqual(payload["network"][0]["name"], "eth0")
+        self.assertEqual(payload["network"][0]["rxBytesPerSecond"], 6800.0)
+        self.assertEqual(len(payload["disks"]), 2)
+        self.assertEqual(payload["disks"][1]["mountpoint"], "/data")
+
+    def test_parse_monitor_memory_uses_available_memory(self):
+        payload = parse_monitor_memory("MemTotal: 1000 kB\nMemAvailable: 250 kB\nCached: 100 kB\n")
+
+        self.assertEqual(payload["totalBytes"], 1000 * 1024)
+        self.assertEqual(payload["usedBytes"], 750 * 1024)
+        self.assertEqual(payload["usagePercent"], 75.0)
+
+    def test_parse_monitor_network_rates(self):
+        first = parse_monitor_network("eth0: 1000 0 0 0 0 0 0 0 2000 0 0 0 0 0 0 0")
+        second = parse_monitor_network("eth0: 4072 0 0 0 0 0 0 0 6096 0 0 0 0 0 0 0")
+        rates = parse_monitor_network_rates(first, second, 1)
+
+        self.assertEqual(rates, [{"name": "eth0", "rxBytesPerSecond": 3072.0, "txBytesPerSecond": 4096.0}])
+
+    def test_parse_monitor_disks_filters_virtual_filesystems(self):
+        disks = parse_monitor_disks(
+            "Filesystem Type 1B-blocks Used Available Use% Mounted on\n"
+            "tmpfs tmpfs 1024 0 1024 0% /run\n"
+            "/dev/vda1 ext4 2048 1024 1024 50% /\n"
+        )
+
+        self.assertEqual(len(disks), 1)
+        self.assertEqual(disks[0]["filesystem"], "/dev/vda1")
 
     def test_sftp_properties_payload_uses_resolved_owner_group_names(self):
         attrs = type(
@@ -212,3 +348,32 @@ class RemoteFilePropertiesTests(SimpleTestCase):
 
         self.assertEqual(payload["path"], "/data/app-link")
         self.assertIn("ln -s /opt/app /data/app-link", run_command.call_args.args[1])
+
+
+class TerminalMonitorViewTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.group = HostGroup.objects.create(name="monitor-tests")
+
+    def test_terminal_monitor_returns_not_found_for_missing_host(self):
+        request = self.factory.post("/api/web-terminal/hosts/999/monitor/", data={}, content_type="application/json")
+
+        response = views.terminal_monitor(request, 999)
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data["error"], "主机不存在")
+
+    def test_terminal_monitor_returns_bad_request_on_probe_failure(self):
+        host = ManagedHost.objects.create(
+            name="monitor-host",
+            group=self.group,
+            private_ip="10.0.0.5",
+            login_user="root",
+        )
+        request = self.factory.post(f"/api/web-terminal/hosts/{host.id}/monitor/", data={}, content_type="application/json")
+
+        with patch("web_terminal.views.get_remote_resource_monitor", side_effect=TerminalConnectionError("当前主机不支持资源监控")):
+            response = views.terminal_monitor(request, host.id)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "当前主机不支持资源监控")

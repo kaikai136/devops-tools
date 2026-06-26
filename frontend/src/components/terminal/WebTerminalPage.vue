@@ -30,7 +30,7 @@ interface TerminalGroup {
 }
 
 type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
-type TerminalSidebarMode = 'hosts' | 'files';
+type TerminalSidebarMode = 'hosts' | 'files' | 'monitor';
 
 interface TerminalTab {
   id: string;
@@ -114,6 +114,44 @@ interface TerminalFileDownloadResponse {
   protocol: string;
   filename: string;
   contentBase64: string;
+}
+
+interface TerminalMonitorResponse {
+  system: {
+    hostname: string;
+    arch: string;
+    os: string;
+    kernel: string;
+    uptimeSeconds: number;
+  };
+  cpu: {
+    usagePercent: number;
+    load1: number;
+    load5: number;
+    load15: number;
+    cores: number;
+  };
+  memory: {
+    totalBytes: number;
+    usedBytes: number;
+    availableBytes: number;
+    cacheBytes: number;
+    usagePercent: number;
+  };
+  network: Array<{
+    name: string;
+    rxBytesPerSecond: number;
+    txBytesPerSecond: number;
+  }>;
+  disks: Array<{
+    filesystem: string;
+    type: string;
+    mountpoint: string;
+    totalBytes: number;
+    usedBytes: number;
+    availableBytes: number;
+    usagePercent: number;
+  }>;
 }
 
 interface TerminalFileProperties {
@@ -216,6 +254,7 @@ const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
 const TERMINAL_FILE_CONTEXT_MENU_HEIGHT = 540;
 const TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT = 300;
+const TERMINAL_MONITOR_REFRESH_MS = 5000;
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -306,6 +345,11 @@ const terminalFilePropertiesDialog = ref<TerminalFilePropertiesDialogState>({
   recursive: false,
 });
 let terminalFileListRequestId = 0;
+const terminalMonitorData = ref<TerminalMonitorResponse | null>(null);
+const isTerminalMonitorLoading = ref(false);
+const terminalMonitorError = ref('');
+let terminalMonitorRequestId = 0;
+let terminalMonitorTimer: ReturnType<typeof window.setInterval> | null = null;
 
 const groups = ref<TerminalGroup[]>([]);
 const collapsed = ref<Set<number>>(new Set());
@@ -358,6 +402,7 @@ const terminalFileStatusText = computed(() => {
   return '待加载';
 });
 const terminalFileFollowCwdLabel = computed(() => (isTerminalFileFollowingCwd.value ? '停止跟踪终端目录' : '跟踪终端目录'));
+const terminalMonitorNodeName = computed(() => activeTab.value?.host.name ?? '请选择服务器');
 const terminalFileContextMenuItems = computed<TerminalFileContextMenuItem[]>(() => {
   const entry = terminalFileContextMenu.value.entry;
   const hasEntry = Boolean(entry);
@@ -1124,12 +1169,110 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+async function loadTerminalMonitor() {
+  const tab = activeTab.value;
+  if (!tab) {
+    terminalMonitorData.value = null;
+    terminalMonitorError.value = '';
+    isTerminalMonitorLoading.value = false;
+    return;
+  }
+
+  const requestId = ++terminalMonitorRequestId;
+  isTerminalMonitorLoading.value = true;
+  try {
+    const response = await apiPost<TerminalMonitorResponse>(`/api/web-terminal/hosts/${tab.host.id}/monitor/`, {});
+    if (requestId !== terminalMonitorRequestId) return;
+    terminalMonitorData.value = response;
+    terminalMonitorError.value = '';
+  } catch (error) {
+    if (requestId !== terminalMonitorRequestId) return;
+    terminalMonitorError.value = error instanceof Error ? error.message : '资源监控读取失败';
+  } finally {
+    if (requestId === terminalMonitorRequestId) {
+      isTerminalMonitorLoading.value = false;
+    }
+  }
+}
+
+function syncTerminalMonitorPolling() {
+  if (terminalSidebarMode.value !== 'monitor' || !activeTab.value) {
+    stopTerminalMonitorPolling();
+    if (!activeTab.value) {
+      terminalMonitorData.value = null;
+      terminalMonitorError.value = '';
+    }
+    return;
+  }
+
+  void loadTerminalMonitor();
+  startTerminalMonitorPolling();
+}
+
+function startTerminalMonitorPolling() {
+  if (terminalMonitorTimer) return;
+  terminalMonitorTimer = window.setInterval(() => {
+    if (terminalSidebarMode.value === 'monitor' && activeTab.value) {
+      void loadTerminalMonitor();
+    }
+  }, TERMINAL_MONITOR_REFRESH_MS);
+}
+
+function stopTerminalMonitorPolling() {
+  if (!terminalMonitorTimer) return;
+  window.clearInterval(terminalMonitorTimer);
+  terminalMonitorTimer = null;
+}
+
+function formatMonitorPercent(value: number) {
+  return `${formatMonitorNumber(value, 1)}%`;
+}
+
+function formatMonitorNumber(value: number, digits = 1) {
+  if (!Number.isFinite(value)) return '0';
+  return Number(value).toFixed(digits).replace(/\.0$/, '');
+}
+
+function formatMonitorBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${formatMonitorNumber(value, unitIndex >= 3 ? 2 : 1)} ${units[unitIndex]}`;
+}
+
+function formatMonitorRate(bytesPerSecond: number) {
+  return `${formatMonitorBytes(bytesPerSecond)}/s`;
+}
+
+function formatMonitorUptime(seconds: number) {
+  const totalDays = Math.floor(Math.max(0, seconds) / 86400);
+  if (totalDays >= 1) return `${totalDays}天`;
+  const hours = Math.floor(Math.max(0, seconds) / 3600);
+  if (hours >= 1) return `${hours}小时`;
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  return `${minutes}分钟`;
+}
+
+function monitorProgressStyle(value: number): Record<string, string> {
+  const percent = Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+  return {
+    '--value': String(percent),
+    width: `${percent}%`,
+  };
+}
+
 watch([activeTabId, terminalSidebarMode], () => {
   closeTerminalContextMenus();
   if (activeTab.value && terminalSidebarMode.value === 'files') {
     terminalFilePath.value = '.';
     void loadTerminalDirectory('.');
   }
+  syncTerminalMonitorPolling();
 });
 
 const workspaceStatus = computed(() => {
@@ -1162,6 +1305,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopSidebarResize();
+  stopTerminalMonitorPolling();
   window.removeEventListener('click', closeTerminalContextMenus);
   window.removeEventListener('keydown', closeTerminalFileContextMenuOnEscape);
   for (const tab of tabs.value) disposeTab(tab);
@@ -1838,6 +1982,15 @@ function readTerminalSidebarCollapsed() {
           <AppIcon name="folder" :size="19" />
         </button>
         <button
+          type="button"
+          title="资源监控"
+          aria-label="资源监控"
+          :class="{ active: terminalSidebarMode === 'monitor' }"
+          @click="selectTerminalSidebarMode('monitor')"
+        >
+          <AppIcon name="monitor" :size="18" />
+        </button>
+        <button
           class="terminal-sidebar-collapse-button"
           type="button"
           :title="terminalSidebarToggleLabel"
@@ -1891,7 +2044,7 @@ function readTerminalSidebarCollapsed() {
             <p v-else-if="!rows.length" class="terminal-tree-empty">没有匹配的主机。</p>
           </div>
         </template>
-        <template v-else>
+        <template v-else-if="terminalSidebarMode === 'files'">
           <div class="terminal-file-browser">
             <header class="terminal-file-title">
               <strong>文件浏览器</strong>
@@ -2305,6 +2458,124 @@ function readTerminalSidebarCollapsed() {
                 </section>
               </div>
             </Teleport>
+          </div>
+        </template>
+        <template v-else>
+          <div class="terminal-monitor-panel">
+            <header class="terminal-monitor-title">
+              <strong>资源监控</strong>
+              <span>{{ terminalMonitorNodeName }}</span>
+              <button
+                class="terminal-monitor-refresh"
+                type="button"
+                title="刷新"
+                aria-label="刷新"
+                :disabled="!activeTab || isTerminalMonitorLoading"
+                @click="loadTerminalMonitor"
+              >
+                <AppIcon name="refresh" :size="15" />
+              </button>
+            </header>
+
+            <div v-if="!activeTab" class="terminal-monitor-empty">请选择服务器</div>
+            <div v-else class="terminal-monitor-body">
+              <p v-if="terminalMonitorError" class="terminal-monitor-error">{{ terminalMonitorError }}</p>
+
+              <template v-if="terminalMonitorData">
+                <section class="terminal-monitor-card terminal-monitor-system">
+                  <h3><AppIcon name="monitor" :size="15" />系统</h3>
+                  <dl>
+                    <div>
+                      <dt>主机名称</dt>
+                      <dd>{{ terminalMonitorData.system.hostname }}</dd>
+                    </div>
+                    <div>
+                      <dt>系统架构</dt>
+                      <dd>{{ terminalMonitorData.system.arch }}</dd>
+                    </div>
+                    <div>
+                      <dt>操作系统</dt>
+                      <dd>{{ terminalMonitorData.system.os }}</dd>
+                    </div>
+                    <div>
+                      <dt>运行时长</dt>
+                      <dd>{{ formatMonitorUptime(terminalMonitorData.system.uptimeSeconds) }}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section class="terminal-monitor-card">
+                  <h3><AppIcon name="cpu" :size="15" />CPU</h3>
+                  <div class="terminal-monitor-usage">
+                    <div class="terminal-monitor-ring" :style="monitorProgressStyle(terminalMonitorData.cpu.usagePercent)">
+                      <span>{{ formatMonitorNumber(terminalMonitorData.cpu.usagePercent, 0) }}%</span>
+                    </div>
+                    <div class="terminal-monitor-usage-main">
+                      <div>
+                        <span>平均使用率</span>
+                        <strong>{{ formatMonitorPercent(terminalMonitorData.cpu.usagePercent) }}</strong>
+                      </div>
+                      <i><b :style="monitorProgressStyle(terminalMonitorData.cpu.usagePercent)"></b></i>
+                      <em>{{ terminalMonitorData.cpu.cores }} CPU</em>
+                    </div>
+                  </div>
+                  <div class="terminal-monitor-loads">
+                    <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load1, 2) }}</strong><em>1分钟</em></span>
+                    <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load5, 2) }}</strong><em>5分钟</em></span>
+                    <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load15, 2) }}</strong><em>15分钟</em></span>
+                  </div>
+                </section>
+
+                <section class="terminal-monitor-card">
+                  <h3><AppIcon name="gauge" :size="15" />内存</h3>
+                  <div class="terminal-monitor-usage">
+                    <div class="terminal-monitor-ring" :style="monitorProgressStyle(terminalMonitorData.memory.usagePercent)">
+                      <span>{{ formatMonitorNumber(terminalMonitorData.memory.usagePercent, 0) }}%</span>
+                    </div>
+                    <div class="terminal-monitor-usage-main">
+                      <div>
+                        <span>RAM</span>
+                        <strong>{{ formatMonitorPercent(terminalMonitorData.memory.usagePercent) }}</strong>
+                      </div>
+                      <i><b :style="monitorProgressStyle(terminalMonitorData.memory.usagePercent)"></b></i>
+                      <em>{{ formatMonitorBytes(terminalMonitorData.memory.usedBytes) }} / {{ formatMonitorBytes(terminalMonitorData.memory.totalBytes) }}</em>
+                    </div>
+                  </div>
+                  <div class="terminal-monitor-memory-extra">
+                    <span>剩余 {{ formatMonitorBytes(terminalMonitorData.memory.availableBytes) }}</span>
+                    <span>缓存 {{ formatMonitorBytes(terminalMonitorData.memory.cacheBytes) }}</span>
+                  </div>
+                </section>
+
+                <section class="terminal-monitor-card">
+                  <h3><AppIcon name="network" :size="15" />网络</h3>
+                  <div v-if="terminalMonitorData.network.length" class="terminal-monitor-network-list">
+                    <div v-for="item in terminalMonitorData.network" :key="item.name" class="terminal-monitor-network-item">
+                      <strong>{{ item.name }}</strong>
+                      <span><em>↑{{ formatMonitorRate(item.txBytesPerSecond) }}</em><em>↓{{ formatMonitorRate(item.rxBytesPerSecond) }}</em></span>
+                      <i><b :style="monitorProgressStyle(Math.min(100, (item.rxBytesPerSecond + item.txBytesPerSecond) / 1024))"></b></i>
+                    </div>
+                  </div>
+                  <p v-else class="terminal-monitor-muted">暂无网卡数据</p>
+                </section>
+
+                <section class="terminal-monitor-card">
+                  <h3><AppIcon name="hardDrive" :size="15" />磁盘</h3>
+                  <div v-if="terminalMonitorData.disks.length" class="terminal-monitor-disk-list">
+                    <div v-for="disk in terminalMonitorData.disks" :key="`${disk.filesystem}-${disk.mountpoint}`" class="terminal-monitor-disk-item">
+                      <div>
+                        <strong>{{ disk.mountpoint }}</strong>
+                        <em>{{ disk.filesystem }} · {{ disk.type }}</em>
+                      </div>
+                      <span>{{ formatMonitorPercent(disk.usagePercent) }}</span>
+                      <i><b :style="monitorProgressStyle(disk.usagePercent)"></b></i>
+                      <p>{{ formatMonitorBytes(disk.usedBytes) }} / {{ formatMonitorBytes(disk.totalBytes) }}，可用 {{ formatMonitorBytes(disk.availableBytes) }}</p>
+                    </div>
+                  </div>
+                  <p v-else class="terminal-monitor-muted">暂无磁盘数据</p>
+                </section>
+              </template>
+            </div>
           </div>
         </template>
       </div>

@@ -34,6 +34,22 @@ CWD_HOOK_SCRIPT = (
     "  esac\n"
     "fi\n"
 )
+CWD_HOOK_INSTALL_SCRIPT = (
+    "__captain_last_cwd=\"$PWD\"; "
+    "__captain_emit_cwd(){ if [ \"$PWD\" != \"$__captain_last_cwd\" ]; then "
+    "__captain_last_cwd=\"$PWD\"; printf '\\033]1337;CaptainCwd=%s\\007' \"$PWD\"; fi; }; "
+    "if [ -n \"$ZSH_VERSION\" ]; then "
+    "autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook precmd __captain_emit_cwd || precmd_functions+=(__captain_emit_cwd); "
+    "else case \"$PROMPT_COMMAND\" in *__captain_emit_cwd*) ;; '') PROMPT_COMMAND='__captain_emit_cwd' ;; "
+    "*) PROMPT_COMMAND=\"__captain_emit_cwd; $PROMPT_COMMAND\" ;; esac; fi\n"
+)
+CWD_HOOK_ECHO_OFF = "stty -echo 2>/dev/null\n"
+CWD_HOOK_ECHO_ON = "stty echo 2>/dev/null\n"
+CWD_HOOK_ECHO_FRAGMENTS = tuple(
+    fragment
+    for fragment in [CWD_HOOK_ECHO_OFF.strip(), CWD_HOOK_ECHO_ON.strip(), CWD_HOOK_INSTALL_SCRIPT.strip(), *CWD_HOOK_SCRIPT.splitlines()]
+    if fragment
+)
 
 
 def strip_cwd_markers(output: str) -> tuple[str, list[str]]:
@@ -78,6 +94,17 @@ def filter_changed_cwd_paths(paths: list[str], current_path: str) -> tuple[list[
     return changed_paths, current_path
 
 
+def strip_cwd_hook_install_echo(output: str) -> str:
+    cleaned = output.replace("\x1b[200~", "").replace("\x1b[201~", "")
+    internal_lines = {fragment.strip() for fragment in CWD_HOOK_ECHO_FRAGMENTS}
+    visible_lines: list[str] = []
+    for line in cleaned.splitlines(keepends=True):
+        if line.strip() in internal_lines:
+            continue
+        visible_lines.append(line)
+    return "".join(visible_lines)
+
+
 class TerminalConsumer(WebsocketConsumer):
     connection: LiveTerminalConnection | None = None
     session: TerminalSession | None = None
@@ -86,12 +113,14 @@ class TerminalConsumer(WebsocketConsumer):
     transcript_chunks: list[str]
     pending_output: str
     current_cwd: str
+    suppress_internal_echo_until: float
 
     def connect(self):
         self.stop_reader = threading.Event()
         self.transcript_chunks = []
         self.pending_output = ""
         self.current_cwd = ""
+        self.suppress_internal_echo_until = 0.0
         self.accept()
 
         host_id = self.scope["url_route"]["kwargs"]["host_id"]
@@ -108,6 +137,7 @@ class TerminalConsumer(WebsocketConsumer):
             self.close()
             return
 
+        self._send_initial_output()
         self._install_cwd_hook()
         self.send(text_data=json.dumps({"type": "ready", "sessionId": str(self.session.session_id)}, ensure_ascii=False))
         self.reader_thread = threading.Thread(target=self._read_ssh_output, name=f"terminal-{self.session.session_id}", daemon=True)
@@ -170,6 +200,8 @@ class TerminalConsumer(WebsocketConsumer):
             try:
                 output = self.connection.read_raw()
                 if output:
+                    if time.monotonic() < self.suppress_internal_echo_until:
+                        output = strip_cwd_hook_install_echo(output)
                     cleaned_output, cwd_paths, self.pending_output = strip_cwd_markers_with_pending(self.pending_output + output)
                     cwd_paths, self.current_cwd = filter_changed_cwd_paths(cwd_paths, self.current_cwd)
                     if cleaned_output:
@@ -205,11 +237,49 @@ class TerminalConsumer(WebsocketConsumer):
     def _send_error(self, message: str):
         self.send(text_data=json.dumps({"type": "error", "message": message}, ensure_ascii=False))
 
-    def _install_cwd_hook(self):
+    def _send_initial_output(self):
         if self.connection is None:
             return
         try:
-            self.connection.send_data(CWD_HOOK_SCRIPT)
+            output = self.connection.read_available_raw(timeout=3.0, idle_timeout=0.35)
+        except Exception:
+            return
+        if not output:
+            return
+        cleaned_output, cwd_paths, self.pending_output = strip_cwd_markers_with_pending(output)
+        cwd_paths, self.current_cwd = filter_changed_cwd_paths(cwd_paths, self.current_cwd)
+        if cleaned_output:
+            self.transcript_chunks.append(cleaned_output)
+            self.send(text_data=json.dumps({"type": "output", "data": cleaned_output}, ensure_ascii=False))
+        for path in cwd_paths:
+            self.send(text_data=json.dumps({"type": "cwd", "path": path}, ensure_ascii=False))
+
+    def _install_cwd_hook(self):
+        if self.connection is None:
+            return
+        echo_disabled = False
+        try:
+            self.suppress_internal_echo_until = time.monotonic() + 2.0
+            self.connection.send_data(CWD_HOOK_ECHO_OFF)
+            echo_disabled = True
+            self._drain_cwd_hook_output()
+            self.connection.send_data(CWD_HOOK_INSTALL_SCRIPT)
+            self._drain_cwd_hook_output()
+        except Exception:
+            pass
+        finally:
+            if echo_disabled and self.connection is not None:
+                try:
+                    self.connection.send_data(CWD_HOOK_ECHO_ON)
+                    self._drain_cwd_hook_output()
+                except Exception:
+                    pass
+
+    def _drain_cwd_hook_output(self):
+        if self.connection is None:
+            return
+        try:
+            self.connection.read_available_raw(timeout=0.8, idle_timeout=0.12)
         except Exception:
             pass
 

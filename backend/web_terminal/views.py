@@ -17,6 +17,7 @@ from .services import (
     delete_remote_file,
     download_remote_file,
     get_remote_file_properties,
+    get_remote_resource_monitor,
     list_remote_directory,
     rename_remote_file,
     run_session_command,
@@ -70,6 +71,19 @@ def terminal_file_list(request, host_id: int):
 
     try:
         return Response(list_remote_directory(host, str(request.data.get("path", "."))))
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+
+@api_view(["POST"])
+def terminal_monitor(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        return Response(get_remote_resource_monitor(host))
     except TerminalConnectionError as error:
         return bad_request(error)
 
