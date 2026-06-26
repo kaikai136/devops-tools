@@ -192,6 +192,8 @@ interface TerminalFileCreateDialogState {
   mode: TerminalFileCreateMode;
   name: string;
   targetPath: string;
+  octalMode: string;
+  openAfterCreate: boolean;
   saving: boolean;
   error: string;
 }
@@ -283,6 +285,8 @@ const terminalFileCreateDialog = ref<TerminalFileCreateDialogState>({
   mode: 'file',
   name: '',
   targetPath: '',
+  octalMode: '0644',
+  openAfterCreate: false,
   saving: false,
   error: '',
 });
@@ -581,11 +585,14 @@ async function confirmTerminalFileDelete() {
 
 function openTerminalFileCreateDialog(mode: TerminalFileCreateMode) {
   if (!activeTab.value) return;
+  const isDirectory = mode === 'directory';
   terminalFileCreateDialog.value = {
     visible: true,
     mode,
-    name: mode === 'file' ? 'new-file' : mode === 'directory' ? 'new-folder' : 'new-link',
+    name: mode === 'file' ? 'new-file' : isDirectory ? 'new-folder' : 'new-link',
     targetPath: '',
+    octalMode: isDirectory ? '0755' : '0644',
+    openAfterCreate: isDirectory,
     saving: false,
     error: '',
   };
@@ -598,6 +605,8 @@ function closeTerminalFileCreateDialog() {
     mode: 'file',
     name: '',
     targetPath: '',
+    octalMode: '0644',
+    openAfterCreate: false,
     saving: false,
     error: '',
   };
@@ -625,20 +634,27 @@ async function saveTerminalFileCreateDialog() {
           : 'create-symlink';
     const payload =
       dialog.mode === 'file'
-        ? { directory: terminalFilePath.value, filename: name }
+        ? { directory: terminalFilePath.value, filename: name, octalMode: normalizeTerminalFileOctalMode(dialog.octalMode) }
         : dialog.mode === 'directory'
-          ? { directory: terminalFilePath.value, dirname: name }
+          ? { directory: terminalFilePath.value, dirname: name, octalMode: normalizeTerminalFileOctalMode(dialog.octalMode) }
           : { directory: terminalFilePath.value, linkName: name, targetPath: dialog.targetPath.trim() };
-    await apiPost<TerminalFileProperties>(`/api/web-terminal/hosts/${activeTab.value.host.id}/files/${endpoint}/`, payload);
+    const created = await apiPost<TerminalFileProperties>(`/api/web-terminal/hosts/${activeTab.value.host.id}/files/${endpoint}/`, payload);
     terminalFileCreateDialog.value = {
       visible: false,
       mode: 'file',
       name: '',
       targetPath: '',
+      octalMode: '0644',
+      openAfterCreate: false,
       saving: false,
       error: '',
     };
+    if (dialog.mode === 'directory' && dialog.openAfterCreate) {
+      await loadTerminalDirectory(created.path);
+      return;
+    }
     await loadTerminalDirectory(terminalFilePath.value);
+    selectedTerminalFile.value = terminalFileEntries.value.find((entry) => entry.path === created.path || entry.name === created.name) ?? null;
   } catch (error) {
     terminalFileCreateDialog.value = {
       ...dialog,
@@ -652,6 +668,45 @@ function terminalFileCreateTitle() {
   if (terminalFileCreateDialog.value.mode === 'file') return '新建文件';
   if (terminalFileCreateDialog.value.mode === 'directory') return '新建文件夹';
   return '新建符号链接';
+}
+
+function terminalFileCreateNameLabel() {
+  if (terminalFileCreateDialog.value.mode === 'directory') return '目录：';
+  if (terminalFileCreateDialog.value.mode === 'file') return '文件：';
+  return '名称：';
+}
+
+function terminalFileCreateOpenLabel() {
+  return terminalFileCreateDialog.value.mode === 'directory' ? '创建后打开目录' : '创建后打开文件';
+}
+
+function isTerminalFileCreatePermissionChecked(mask: number) {
+  const mode = Number.parseInt(terminalFileCreateDialog.value.octalMode || '0', 8) || 0;
+  return Boolean(mode & mask);
+}
+
+function setTerminalFileCreatePermission(mask: number, checked: boolean) {
+  const current = Number.parseInt(terminalFileCreateDialog.value.octalMode || '0', 8) || 0;
+  const next = checked ? current | mask : current & ~mask;
+  terminalFileCreateDialog.value.octalMode = (next & 0o7777).toString(8).padStart(4, '0');
+}
+
+function setTerminalFileCreatePermissionFromEvent(mask: number, event: Event) {
+  setTerminalFileCreatePermission(mask, (event.target as HTMLInputElement).checked);
+}
+
+function getTerminalFileCreateSpecialOctalDigit() {
+  return normalizeTerminalFileOctalMode(terminalFileCreateDialog.value.octalMode).charAt(0);
+}
+
+function getTerminalFileCreateStandardOctalMode() {
+  return normalizeTerminalFileOctalMode(terminalFileCreateDialog.value.octalMode).slice(1);
+}
+
+function updateTerminalFileCreateOctalMode(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const standardMode = String(input.value || '').replace(/[^0-7]/g, '').slice(-3).padStart(3, '0');
+  terminalFileCreateDialog.value.octalMode = `${getTerminalFileCreateSpecialOctalDigit()}${standardMode}`;
 }
 
 function openTerminalCurrentDirectoryProperties() {
@@ -1759,12 +1814,20 @@ function readTerminalSidebarCollapsed() {
               <span class="terminal-file-node">{{ activeTerminalNodeName }}</span>
             </header>
             <div class="terminal-file-toolbar">
-              <button type="button" title="新建文件" aria-label="新建文件"><AppIcon name="plus" :size="15" /></button>
-              <button type="button" title="新建文件夹" aria-label="新建文件夹"><AppIcon name="folderPlus" :size="15" /></button>
+              <button type="button" title="新建文件" aria-label="新建文件" @click="openTerminalFileCreateDialog('file')"><AppIcon name="plus" :size="15" /></button>
+              <button type="button" title="新建文件夹" aria-label="新建文件夹" @click="openTerminalFileCreateDialog('directory')"><AppIcon name="folderPlus" :size="15" /></button>
               <span></span>
               <button type="button" title="上传" aria-label="上传" @click="openTerminalUpload"><AppIcon name="upload" :size="15" /></button>
               <button type="button" title="下载" aria-label="下载" @click="downloadTerminalFile()"><AppIcon name="download" :size="15" /></button>
-              <button type="button" title="删除" aria-label="删除"><AppIcon name="trash" :size="15" /></button>
+              <button
+                type="button"
+                title="删除"
+                aria-label="删除"
+                :disabled="!selectedTerminalFile || isParentDirectoryEntry(selectedTerminalFile)"
+                @click="openTerminalFileDeleteDialog()"
+              >
+                <AppIcon name="trash" :size="15" />
+              </button>
               <span></span>
               <button type="button" title="返回上级" aria-label="返回上级" @click="openTerminalParentDirectory"><AppIcon name="chevronRight" :size="15" /></button>
               <button type="button" title="刷新" aria-label="刷新" @click="loadTerminalDirectory()"><AppIcon name="refresh" :size="15" /></button>
@@ -1930,23 +1993,69 @@ function readTerminalSidebarCollapsed() {
               >
                 <section class="terminal-file-create-modal" role="dialog" aria-modal="true">
                   <header>
-                    <span><AppIcon :name="terminalFileCreateDialog.mode === 'directory' ? 'folderPlus' : terminalFileCreateDialog.mode === 'symlink' ? 'link' : 'file'" :size="20" /></span>
                     <h2>{{ terminalFileCreateTitle() }}</h2>
-                  </header>
-                  <label class="terminal-file-create-field">
-                    <span>名称</span>
-                    <input v-model="terminalFileCreateDialog.name" type="text" :disabled="terminalFileCreateDialog.saving" @keydown.enter.prevent="saveTerminalFileCreateDialog" />
-                  </label>
-                  <label v-if="terminalFileCreateDialog.mode === 'symlink'" class="terminal-file-create-field">
-                    <span>目标路径</span>
-                    <input v-model="terminalFileCreateDialog.targetPath" type="text" :disabled="terminalFileCreateDialog.saving" @keydown.enter.prevent="saveTerminalFileCreateDialog" />
-                  </label>
-                  <p v-if="terminalFileCreateDialog.error" class="terminal-file-create-error">{{ terminalFileCreateDialog.error }}</p>
-                  <footer>
-                    <button type="button" :disabled="terminalFileCreateDialog.saving" @click="closeTerminalFileCreateDialog">取消</button>
-                    <button class="primary" type="button" :disabled="terminalFileCreateDialog.saving" @click="saveTerminalFileCreateDialog">
-                      {{ terminalFileCreateDialog.saving ? '创建中...' : '创建' }}
+                    <button type="button" aria-label="关闭" :disabled="terminalFileCreateDialog.saving" @click="closeTerminalFileCreateDialog">
+                      <AppIcon name="x" :size="16" />
                     </button>
+                  </header>
+                  <div class="terminal-file-create-body">
+                    <label class="terminal-file-create-name-row">
+                      <span>{{ terminalFileCreateNameLabel() }}</span>
+                      <input v-model="terminalFileCreateDialog.name" type="text" :disabled="terminalFileCreateDialog.saving" autofocus @keydown.enter.prevent="saveTerminalFileCreateDialog" />
+                    </label>
+                    <label v-if="terminalFileCreateDialog.mode === 'symlink'" class="terminal-file-create-name-row">
+                      <span>目标路径：</span>
+                      <input v-model="terminalFileCreateDialog.targetPath" type="text" :disabled="terminalFileCreateDialog.saving" @keydown.enter.prevent="saveTerminalFileCreateDialog" />
+                    </label>
+                    <div v-if="terminalFileCreateDialog.mode !== 'symlink'" class="terminal-file-create-permissions">
+                      <span class="terminal-file-create-label">权限：</span>
+                      <div class="terminal-file-create-permission-grid" role="group" aria-label="权限">
+                        <span></span>
+                        <span>用户</span>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o400)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o400, $event)" /> R</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o200)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o200, $event)" /> W</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o100)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o100, $event)" /> X</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o4000)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o4000, $event)" /> UID</label>
+                        <span></span>
+                        <span>组</span>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o040)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o040, $event)" /> R</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o020)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o020, $event)" /> W</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o010)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o010, $event)" /> X</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o2000)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o2000, $event)" /> GID</label>
+                        <span></span>
+                        <span>其他</span>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o004)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o004, $event)" /> R</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o002)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o002, $event)" /> W</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o001)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o001, $event)" /> X</label>
+                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o1000)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o1000, $event)" /> 粘性</label>
+                      </div>
+                    </div>
+                    <label v-if="terminalFileCreateDialog.mode !== 'symlink'" class="terminal-file-create-octal-row">
+                      <span>八进制</span>
+                      <em>{{ getTerminalFileCreateSpecialOctalDigit() }}</em>
+                      <input
+                        :value="getTerminalFileCreateStandardOctalMode()"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="3"
+                        :disabled="terminalFileCreateDialog.saving"
+                        @input="updateTerminalFileCreateOctalMode"
+                        @keydown.enter.prevent="saveTerminalFileCreateDialog"
+                      />
+                    </label>
+                    <p v-if="terminalFileCreateDialog.error" class="terminal-file-create-error">{{ terminalFileCreateDialog.error }}</p>
+                  </div>
+                  <footer>
+                    <label v-if="terminalFileCreateDialog.mode !== 'symlink'" class="terminal-file-create-open-after">
+                      <input v-model="terminalFileCreateDialog.openAfterCreate" type="checkbox" :disabled="terminalFileCreateDialog.saving" />
+                      <span>{{ terminalFileCreateOpenLabel() }}</span>
+                    </label>
+                    <div>
+                      <button type="button" :disabled="terminalFileCreateDialog.saving" @click="closeTerminalFileCreateDialog">取消</button>
+                      <button class="primary" type="button" :disabled="terminalFileCreateDialog.saving" @click="saveTerminalFileCreateDialog">
+                        {{ terminalFileCreateDialog.saving ? '创建中...' : '确定' }}
+                      </button>
+                    </div>
                   </footer>
                 </section>
               </div>

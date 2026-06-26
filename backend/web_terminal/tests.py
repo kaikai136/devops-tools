@@ -111,6 +111,22 @@ class RemoteFilePropertiesTests(SimpleTestCase):
         self.assertIn("test -e /data/new.txt", run_command.call_args.args[1])
         self.assertIn(": > /data/new.txt", run_command.call_args.args[1])
 
+    def test_create_remote_file_applies_requested_mode(self):
+        with patch("web_terminal.services.run_one_shot_ssh_command") as run_command, patch(
+            "web_terminal.services.get_remote_file_properties",
+            return_value={"path": "/data/new.txt"},
+        ):
+            payload = create_remote_file(object(), "/data", "new.txt", "0644")
+
+        self.assertEqual(payload["path"], "/data/new.txt")
+        self.assertEqual(run_command.call_count, 2)
+        self.assertIn(": > /data/new.txt", run_command.call_args_list[0].args[1])
+        self.assertIn("chmod 0644 /data/new.txt", run_command.call_args_list[1].args[1])
+
+    def test_create_remote_file_rejects_invalid_mode(self):
+        with self.assertRaises(TerminalConnectionError):
+            create_remote_file(object(), "/data", "new.txt", "999")
+
     def test_create_remote_directory_builds_safe_command(self):
         with patch("web_terminal.services.run_one_shot_ssh_command") as run_command, patch(
             "web_terminal.services.get_remote_file_properties",
@@ -120,6 +136,22 @@ class RemoteFilePropertiesTests(SimpleTestCase):
 
         self.assertEqual(payload["path"], "/data/new-folder")
         self.assertIn("mkdir /data/new-folder", run_command.call_args.args[1])
+
+    def test_create_remote_directory_applies_requested_mode(self):
+        with patch("web_terminal.services.run_one_shot_ssh_command") as run_command, patch(
+            "web_terminal.services.get_remote_file_properties",
+            return_value={"path": "/data/new-folder"},
+        ):
+            payload = create_remote_directory(object(), "/data", "new-folder", "0755")
+
+        self.assertEqual(payload["path"], "/data/new-folder")
+        self.assertEqual(run_command.call_count, 2)
+        self.assertIn("mkdir /data/new-folder", run_command.call_args_list[0].args[1])
+        self.assertIn("chmod 0755 /data/new-folder", run_command.call_args_list[1].args[1])
+
+    def test_create_remote_directory_rejects_invalid_mode(self):
+        with self.assertRaises(TerminalConnectionError):
+            create_remote_directory(object(), "/data", "new-folder", "12345")
 
     def test_create_remote_symlink_builds_safe_command(self):
         with patch("web_terminal.services.run_one_shot_ssh_command") as run_command, patch(

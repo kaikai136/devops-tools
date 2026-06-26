@@ -116,7 +116,14 @@ def terminal_file_create_file(request, host_id: int):
         return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
 
     try:
-        return Response(create_remote_file(host, str(request.data.get("directory", ".")), str(request.data.get("filename", ""))))
+        return Response(
+            create_remote_file(
+                host,
+                str(request.data.get("directory", ".")),
+                str(request.data.get("filename", "")),
+                str(request.data.get("octalMode", "")),
+            )
+        )
     except TerminalConnectionError as error:
         return bad_request(error)
 
@@ -129,7 +136,14 @@ def terminal_file_create_directory(request, host_id: int):
         return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
 
     try:
-        return Response(create_remote_directory(host, str(request.data.get("directory", ".")), str(request.data.get("dirname", ""))))
+        return Response(
+            create_remote_directory(
+                host,
+                str(request.data.get("directory", ".")),
+                str(request.data.get("dirname", "")),
+                str(request.data.get("octalMode", "")),
+            )
+        )
     except TerminalConnectionError as error:
         return bad_request(error)
 

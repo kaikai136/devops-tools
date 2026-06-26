@@ -236,19 +236,25 @@ def upload_remote_file(host: ManagedHost, directory: str, filename: str, content
     )
 
 
-def create_remote_file(host: ManagedHost, directory: str, filename: str) -> dict:
+def create_remote_file(host: ManagedHost, directory: str, filename: str, octal_mode: str = "") -> dict:
     directory = normalize_remote_file_path(directory or ".")
     filename = normalize_remote_file_name(filename)
+    octal_mode = normalize_remote_file_octal_mode(octal_mode) if str(octal_mode or "").strip() else ""
     path = join_remote_path(directory, filename)
     run_one_shot_ssh_command(host, f"if test -e {shlex.quote(path)}; then printf %s {shlex.quote('目标已存在')} >&2; exit 1; fi; : > {shlex.quote(path)}")
+    if octal_mode:
+        run_one_shot_ssh_command(host, f"chmod {octal_mode} {shlex.quote(path)}")
     return get_remote_file_properties(host, path)
 
 
-def create_remote_directory(host: ManagedHost, directory: str, dirname: str) -> dict:
+def create_remote_directory(host: ManagedHost, directory: str, dirname: str, octal_mode: str = "") -> dict:
     directory = normalize_remote_file_path(directory or ".")
     dirname = normalize_remote_file_name(dirname)
+    octal_mode = normalize_remote_file_octal_mode(octal_mode) if str(octal_mode or "").strip() else ""
     path = join_remote_path(directory, dirname)
     run_one_shot_ssh_command(host, f"if test -e {shlex.quote(path)}; then printf %s {shlex.quote('目标已存在')} >&2; exit 1; fi; mkdir {shlex.quote(path)}")
+    if octal_mode:
+        run_one_shot_ssh_command(host, f"chmod {octal_mode} {shlex.quote(path)}")
     return get_remote_file_properties(host, path)
 
 
