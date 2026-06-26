@@ -1,7 +1,14 @@
 from django.test import SimpleTestCase
 from unittest.mock import patch
 
-from .consumers import CWD_MARKER_END, CWD_MARKER_START, strip_cwd_markers, strip_cwd_markers_with_pending
+from .consumers import (
+    CWD_HOOK_SCRIPT,
+    CWD_MARKER_END,
+    CWD_MARKER_START,
+    filter_changed_cwd_paths,
+    strip_cwd_markers,
+    strip_cwd_markers_with_pending,
+)
 from .services import (
     TerminalConnectionError,
     create_remote_directory,
@@ -48,6 +55,16 @@ class RemoteFilePropertiesTests(SimpleTestCase):
         self.assertEqual(output, "next")
         self.assertEqual(paths, ["/opt"])
         self.assertEqual(pending, "")
+
+    def test_filter_changed_cwd_paths_ignores_repeated_paths(self):
+        paths, current_path = filter_changed_cwd_paths(["/root", "/root", "/opt", "/opt"], "/root")
+
+        self.assertEqual(paths, ["/opt"])
+        self.assertEqual(current_path, "/opt")
+
+    def test_cwd_hook_emits_only_when_pwd_changes(self):
+        self.assertIn('if [ "$PWD" != "$__captain_last_cwd" ]; then', CWD_HOOK_SCRIPT)
+        self.assertNotIn("\n__captain_emit_cwd\n", CWD_HOOK_SCRIPT)
 
     def test_sftp_properties_payload_uses_resolved_owner_group_names(self):
         attrs = type(

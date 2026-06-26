@@ -17,7 +17,13 @@ from .services import LiveTerminalConnection, TerminalConnectionError, open_live
 CWD_MARKER_START = "\x1b]1337;CaptainCwd="
 CWD_MARKER_END = "\x07"
 CWD_HOOK_SCRIPT = (
-    "__captain_emit_cwd(){ printf '\\033]1337;CaptainCwd=%s\\007' \"$PWD\"; }\n"
+    "__captain_last_cwd=\"$PWD\"\n"
+    "__captain_emit_cwd(){\n"
+    "  if [ \"$PWD\" != \"$__captain_last_cwd\" ]; then\n"
+    "    __captain_last_cwd=\"$PWD\"\n"
+    "    printf '\\033]1337;CaptainCwd=%s\\007' \"$PWD\"\n"
+    "  fi\n"
+    "}\n"
     "if [ -n \"$ZSH_VERSION\" ]; then\n"
     "  autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook precmd __captain_emit_cwd || precmd_functions+=(__captain_emit_cwd)\n"
     "else\n"
@@ -27,7 +33,6 @@ CWD_HOOK_SCRIPT = (
     "    *) PROMPT_COMMAND=\"__captain_emit_cwd; $PROMPT_COMMAND\" ;;\n"
     "  esac\n"
     "fi\n"
-    "__captain_emit_cwd\n"
 )
 
 
@@ -61,6 +66,18 @@ def strip_cwd_markers_with_pending(output: str) -> tuple[str, list[str], str]:
     return "".join(cleaned_parts), paths, ""
 
 
+def filter_changed_cwd_paths(paths: list[str], current_path: str) -> tuple[list[str], str]:
+    changed_paths: list[str] = []
+
+    for path in paths:
+        if path == current_path:
+            continue
+        changed_paths.append(path)
+        current_path = path
+
+    return changed_paths, current_path
+
+
 class TerminalConsumer(WebsocketConsumer):
     connection: LiveTerminalConnection | None = None
     session: TerminalSession | None = None
@@ -68,11 +85,13 @@ class TerminalConsumer(WebsocketConsumer):
     stop_reader: threading.Event
     transcript_chunks: list[str]
     pending_output: str
+    current_cwd: str
 
     def connect(self):
         self.stop_reader = threading.Event()
         self.transcript_chunks = []
         self.pending_output = ""
+        self.current_cwd = ""
         self.accept()
 
         host_id = self.scope["url_route"]["kwargs"]["host_id"]
@@ -152,6 +171,7 @@ class TerminalConsumer(WebsocketConsumer):
                 output = self.connection.read_raw()
                 if output:
                     cleaned_output, cwd_paths, self.pending_output = strip_cwd_markers_with_pending(self.pending_output + output)
+                    cwd_paths, self.current_cwd = filter_changed_cwd_paths(cwd_paths, self.current_cwd)
                     if cleaned_output:
                         self.transcript_chunks.append(cleaned_output)
                         self._send_to_consumer({"type": "terminal.output", "data": cleaned_output})
