@@ -23,7 +23,7 @@ input {
 }
 
 .terminal-shell.sidebar-collapsed {
-  grid-template-columns: var(--terminal-sidebar-width, 42px) 0 minmax(0, 1fr);
+  grid-template-columns: var(--terminal-sidebar-width, 42px) 6px minmax(0, 1fr);
 }
 
 .terminal-sidebar {
@@ -110,10 +110,10 @@ input {
 }
 
 .terminal-shell.sidebar-collapsed .terminal-sidebar-resizer {
-  width: 0;
-  border-left: 0;
-  background: transparent;
-  cursor: default;
+  width: 6px;
+  border-left: 1px solid #d8e0ea;
+  background: linear-gradient(90deg, rgba(31, 99, 241, 0.06), rgba(31, 99, 241, 0.14), transparent);
+  cursor: ew-resize;
 }
 
 .terminal-sidebar-resizer:hover,

@@ -210,8 +210,9 @@ const MAX_CONNECTING_TERMINALS = 2;
 const TERMINAL_WORKSPACE_STORAGE_KEY = 'ops-tool.web-terminal.workspace';
 const TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-width';
 const TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-collapsed';
+const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
-const TERMINAL_SIDEBAR_MAX_WIDTH = 520;
+const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
 const TERMINAL_FILE_CONTEXT_MENU_HEIGHT = 540;
 const TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT = 300;
@@ -320,6 +321,8 @@ const terminalSidebarMode = ref<TerminalSidebarMode>('hosts');
 const sidebarWidth = ref(readTerminalSidebarWidth());
 const isTerminalSidebarCollapsed = ref(readTerminalSidebarCollapsed());
 const isResizingSidebar = ref(false);
+let sidebarResizeStartX = 0;
+let sidebarResizeStartWidth = TERMINAL_SIDEBAR_DEFAULT_WIDTH;
 const terminalContainers = new Map<string, HTMLElement>();
 const pendingConnectTabIds: string[] = [];
 const connectingTabIds = new Set<string>();
@@ -1494,10 +1497,16 @@ function fitTerminal(tab: TerminalTab) {
   }
 }
 
-function startSidebarResize(event: MouseEvent) {
-  if (isTerminalSidebarCollapsed.value) return;
+function startSidebarResize(event: MouseEvent, options: { alignToPointer?: boolean } = {}) {
   event.preventDefault();
+  if (isTerminalSidebarCollapsed.value) setTerminalSidebarCollapsed(false);
+  sidebarResizeStartX = event.clientX;
+  sidebarResizeStartWidth = sidebarWidth.value;
   isResizingSidebar.value = true;
+  if (options.alignToPointer) {
+    sidebarWidth.value = clampTerminalSidebarWidth(event.clientX);
+    sidebarResizeStartWidth = sidebarWidth.value;
+  }
   window.addEventListener('mousemove', resizeSidebar);
   window.addEventListener('mouseup', stopSidebarResize);
   document.body.classList.add('terminal-resizing');
@@ -1505,10 +1514,19 @@ function startSidebarResize(event: MouseEvent) {
 
 function resizeSidebar(event: MouseEvent) {
   if (!isResizingSidebar.value) return;
-  const nextWidth = Math.min(Math.max(event.clientX, TERMINAL_SIDEBAR_MIN_WIDTH), TERMINAL_SIDEBAR_MAX_WIDTH);
+  const nextWidth = clampTerminalSidebarWidth(sidebarResizeStartWidth + event.clientX - sidebarResizeStartX);
   sidebarWidth.value = nextWidth;
   window.localStorage.setItem(TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY, String(nextWidth));
   fitActiveTerminalSoon();
+}
+
+function clampTerminalSidebarWidth(width: number) {
+  const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
+  const maxWidth = Math.max(
+    TERMINAL_SIDEBAR_MIN_WIDTH,
+    viewportWidth - TERMINAL_WORKSPACE_MIN_WIDTH,
+  );
+  return Math.min(Math.max(width, TERMINAL_SIDEBAR_MIN_WIDTH), maxWidth);
 }
 
 function stopSidebarResize() {
@@ -1785,10 +1803,10 @@ function readTerminalRootLabel() {
 }
 
 function readTerminalSidebarWidth() {
-  if (typeof window === 'undefined') return 284;
+  if (typeof window === 'undefined') return TERMINAL_SIDEBAR_DEFAULT_WIDTH;
   const saved = Number(window.localStorage.getItem(TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY));
-  if (!Number.isFinite(saved)) return 284;
-  return Math.min(Math.max(saved, TERMINAL_SIDEBAR_MIN_WIDTH), TERMINAL_SIDEBAR_MAX_WIDTH);
+  if (!Number.isFinite(saved)) return TERMINAL_SIDEBAR_DEFAULT_WIDTH;
+  return clampTerminalSidebarWidth(saved);
 }
 
 function readTerminalSidebarCollapsed() {
@@ -1800,7 +1818,7 @@ function readTerminalSidebarCollapsed() {
 <template>
   <main class="terminal-shell" :class="{ resizing: isResizingSidebar, 'sidebar-collapsed': isTerminalSidebarCollapsed }" :style="terminalShellStyle">
     <aside class="terminal-sidebar">
-      <nav class="terminal-side-switch" aria-label="终端侧栏切换" @dblclick.stop="toggleTerminalSidebar">
+      <nav class="terminal-side-switch" aria-label="终端侧栏切换" @mousedown.self="startSidebarResize" @dblclick.stop="toggleTerminalSidebar">
         <button
           type="button"
           title="服务器列表"
@@ -2296,7 +2314,7 @@ function readTerminalSidebarCollapsed() {
       role="separator"
       aria-label="调整主机列表宽度"
       aria-orientation="vertical"
-      @mousedown="startSidebarResize"
+      @mousedown="startSidebarResize($event, { alignToPointer: true })"
     ></div>
 
     <section class="terminal-workspace">
