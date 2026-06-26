@@ -116,6 +116,11 @@ interface TerminalFileDownloadResponse {
   contentBase64: string;
 }
 
+interface TerminalFileUploadItem {
+  file: File;
+  relativePath?: string;
+}
+
 interface TerminalMonitorResponse {
   system: {
     hostname: string;
@@ -324,6 +329,7 @@ const terminalFileDeleteDialog = ref<TerminalFileDeleteDialogState>({
   deleting: false,
   error: '',
 });
+const isTerminalFileDragOver = ref(false);
 const terminalFileCreateDialog = ref<TerminalFileCreateDialogState>({
   visible: false,
   mode: 'file',
@@ -1107,6 +1113,22 @@ async function downloadTerminalFile(entry = selectedTerminalFile.value) {
   }
 }
 
+function getTerminalFileDownloadUrl(entry: TerminalFileEntry) {
+  if (!activeTab.value) return '';
+  const params = new URLSearchParams({ path: entry.path });
+  return `/api/web-terminal/hosts/${activeTab.value.host.id}/files/download/raw/?${params.toString()}`;
+}
+
+function startTerminalFileDragDownload(entry: TerminalFileEntry, event: DragEvent) {
+  if (!activeTab.value || entry.type !== 'file' || isParentDirectoryEntry(entry) || !event.dataTransfer) return;
+  selectedTerminalFile.value = entry;
+  const downloadUrl = new URL(getTerminalFileDownloadUrl(entry), window.location.origin).toString();
+  event.dataTransfer.effectAllowed = 'copy';
+  event.dataTransfer.setData('DownloadURL', `application/octet-stream:${entry.name}:${downloadUrl}`);
+  event.dataTransfer.setData('text/uri-list', downloadUrl);
+  event.dataTransfer.setData('text/plain', entry.name);
+}
+
 function openTerminalUpload() {
   if (!activeTab.value || isParentDirectoryEntry(selectedTerminalFile.value)) return;
   closeTerminalContextMenus();
@@ -1124,16 +1146,7 @@ async function uploadTerminalFile(event: Event) {
   const file = input.files?.[0];
   input.value = '';
   if (!activeTab.value || !file) return;
-  try {
-    const contentBase64 = await fileToBase64(file);
-    const response = await apiPost<{ protocol: string }>(
-      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/upload/`,
-      { directory: terminalFilePath.value, filename: file.name, contentBase64 },
-    );
-    await loadTerminalDirectory(terminalFilePath.value);
-  } catch (error) {
-    terminalFileListError.value = error instanceof Error ? error.message : '文件上传失败';
-  }
+  await uploadTerminalFiles([{ file }]);
 }
 
 async function uploadTerminalFolder(event: Event) {
@@ -1141,20 +1154,69 @@ async function uploadTerminalFolder(event: Event) {
   const files = Array.from(input.files || []);
   input.value = '';
   if (!activeTab.value || !files.length) return;
+  await uploadTerminalFiles(
+    files.map((file) => ({
+      file,
+      relativePath: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+    })),
+  );
+}
+
+async function uploadTerminalFiles(items: TerminalFileUploadItem[]) {
+  if (!activeTab.value || !items.length) return;
   try {
     terminalFileListError.value = '';
-    for (const file of files) {
+    for (const item of items) {
+      const file = item.file;
       const contentBase64 = await fileToBase64(file);
-      const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
       await apiPost<{ protocol: string }>(
         `/api/web-terminal/hosts/${activeTab.value.host.id}/files/upload/`,
-        { directory: terminalFilePath.value, filename: file.name, relativePath, contentBase64 },
+        { directory: terminalFilePath.value, filename: file.name, relativePath: item.relativePath || '', contentBase64 },
       );
     }
     await loadTerminalDirectory(terminalFilePath.value);
   } catch (error) {
-    terminalFileListError.value = error instanceof Error ? error.message : '文件夹上传失败';
+    terminalFileListError.value = error instanceof Error ? error.message : '文件上传失败';
+  } finally {
+    isTerminalFileDragOver.value = false;
   }
+}
+
+function onTerminalFileDragEnter(event: DragEvent) {
+  if (!activeTab.value || !hasLocalDragFiles(event)) return;
+  event.preventDefault();
+  isTerminalFileDragOver.value = true;
+}
+
+function onTerminalFileDragOver(event: DragEvent) {
+  if (!activeTab.value || !hasLocalDragFiles(event)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+  isTerminalFileDragOver.value = true;
+}
+
+function onTerminalFileDragLeave(event: DragEvent) {
+  if (!(event.currentTarget instanceof HTMLElement)) return;
+  const nextTarget = event.relatedTarget;
+  if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
+  isTerminalFileDragOver.value = false;
+}
+
+async function onTerminalFileDrop(event: DragEvent) {
+  if (!activeTab.value || !hasLocalDragFiles(event)) return;
+  event.preventDefault();
+  const files = Array.from(event.dataTransfer?.files || []);
+  isTerminalFileDragOver.value = false;
+  if (!files.length) return;
+  await uploadTerminalFiles(files.map((file) => ({ file, relativePath: getDroppedFileRelativePath(file) })));
+}
+
+function hasLocalDragFiles(event: DragEvent) {
+  return Array.from(event.dataTransfer?.types || []).includes('Files');
+}
+
+function getDroppedFileRelativePath(file: File) {
+  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || '';
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -2108,17 +2170,27 @@ function readTerminalSidebarCollapsed() {
                 <span>所有者</span>
                 <span>组</span>
               </div>
-              <div class="terminal-file-list" @contextmenu="openTerminalDirectoryContextMenu">
+              <div
+                class="terminal-file-list"
+                :class="{ 'drag-over': isTerminalFileDragOver }"
+                @contextmenu="openTerminalDirectoryContextMenu"
+                @dragenter="onTerminalFileDragEnter"
+                @dragover="onTerminalFileDragOver"
+                @dragleave="onTerminalFileDragLeave"
+                @drop="onTerminalFileDrop"
+              >
                 <div
                   v-for="entry in terminalFileEntries"
                   :key="entry.name"
                   class="terminal-file-item"
                   :class="{ selected: selectedTerminalFile?.name === entry.name, parent: isParentDirectoryEntry(entry) }"
+                  :draggable="activeTab && entry.type === 'file' && !isParentDirectoryEntry(entry)"
                   role="button"
                   :tabindex="activeTab ? 0 : -1"
                   :aria-disabled="!activeTab"
                   @click="selectTerminalFile(entry)"
                   @contextmenu="openTerminalFileContextMenu(entry, $event)"
+                  @dragstart="startTerminalFileDragDownload(entry, $event)"
                   @dblclick="!isTerminalFileRenaming(entry) && entry.type === 'directory' && openTerminalDirectory(entry)"
                   @keydown.enter.prevent="!isTerminalFileRenaming(entry) && entry.type === 'directory' && openTerminalDirectory(entry)"
                 >
@@ -2148,6 +2220,10 @@ function readTerminalSidebarCollapsed() {
                 <p v-if="!activeTab" class="terminal-tree-empty">请选择服务器</p>
                 <p v-else-if="isTerminalFileListLoading" class="terminal-tree-empty">目录加载中...</p>
                 <p v-else-if="terminalFileListError" class="terminal-tree-empty">{{ terminalFileListError }}</p>
+                <div v-if="isTerminalFileDragOver" class="terminal-file-drop-hint">
+                  <AppIcon name="upload" :size="22" />
+                  <strong>释放后上传到当前目录</strong>
+                </div>
               </div>
             </div>
             <footer class="terminal-file-status">

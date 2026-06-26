@@ -1,7 +1,10 @@
+import base64
+from urllib.parse import quote
 from uuid import UUID
 
 from rest_framework import status
 from rest_framework.decorators import api_view
+from django.http import HttpResponse
 from rest_framework.response import Response
 
 from host_management.models import ManagedHost
@@ -99,6 +102,28 @@ def terminal_file_download(request, host_id: int):
         return Response(download_remote_file(host, str(request.data.get("path", ""))))
     except TerminalConnectionError as error:
         return bad_request(error)
+
+
+@api_view(["GET"])
+def terminal_file_download_attachment(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        payload = download_remote_file(host, str(request.query_params.get("path", "")))
+        filename = str(payload.get("filename") or "download")
+        content = base64.b64decode(str(payload.get("contentBase64") or ""), validate=False)
+    except TerminalConnectionError as error:
+        return bad_request(error)
+    except Exception:
+        return bad_request("文件下载失败")
+
+    response = HttpResponse(content, content_type="application/octet-stream")
+    response["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(filename)}"
+    response["Content-Length"] = str(len(content))
+    return response
 
 
 @api_view(["POST"])

@@ -1,3 +1,5 @@
+import base64
+
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from unittest.mock import patch
 
@@ -377,3 +379,28 @@ class TerminalMonitorViewTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["error"], "当前主机不支持资源监控")
+
+
+class TerminalFileDownloadAttachmentTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.group = HostGroup.objects.create(name="download-tests")
+
+    def test_terminal_file_download_attachment_returns_raw_file(self):
+        host = ManagedHost.objects.create(
+            name="download-host",
+            group=self.group,
+            private_ip="10.0.0.6",
+            login_user="root",
+        )
+        request = self.factory.get(f"/api/web-terminal/hosts/{host.id}/files/download/raw/?path=/tmp/config.toml")
+
+        with patch(
+            "web_terminal.views.download_remote_file",
+            return_value={"filename": "config.toml", "contentBase64": base64.b64encode(b"port=22").decode("ascii")},
+        ):
+            response = views.terminal_file_download_attachment(request, host.id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"port=22")
+        self.assertIn("config.toml", response["Content-Disposition"])
