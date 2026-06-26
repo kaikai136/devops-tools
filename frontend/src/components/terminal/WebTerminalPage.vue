@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
-import { apiGet } from '../../api';
+import { apiGet, apiPost } from '../../api';
 import AppIcon from '../common/AppIcon.vue';
 
 interface TerminalHost {
@@ -29,6 +29,7 @@ interface TerminalGroup {
 }
 
 type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
+type TerminalSidebarMode = 'hosts' | 'files';
 
 interface TerminalTab {
   id: string;
@@ -87,6 +88,34 @@ interface PersistedTerminalWorkspace {
   activeTabId: string | null;
 }
 
+interface TerminalFileEntry {
+  name: string;
+  type: 'directory' | 'file';
+  modifiedAt: string;
+  path: string;
+  size?: number | string;
+}
+
+interface TerminalFilePreviewResponse {
+  path: string;
+  protocol: string;
+  attempts: Array<{ protocol: string; status: 'success' | 'failed'; error?: string }>;
+  content: string;
+}
+
+interface TerminalFileListResponse {
+  path: string;
+  protocol: string;
+  entries: TerminalFileEntry[];
+}
+
+interface TerminalFileDownloadResponse {
+  path: string;
+  protocol: string;
+  filename: string;
+  contentBase64: string;
+}
+
 const ANSI_CONTROL_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
 const ANSI_CONTROL_PREFIX_PATTERN = /^\x1b(?:\[[0-?]*[ -/]*)?$/;
 const CONTROL_C = '\x03';
@@ -123,6 +152,37 @@ const terminalHighlightRules: TerminalHighlightRule[] = [
     close: '\x1b[49m',
   },
 ];
+const initialTerminalFileEntries: TerminalFileEntry[] = [
+  { name: '..', type: 'directory', modifiedAt: '', path: '..' },
+  { name: '.ansible', type: 'directory', modifiedAt: '2025/03/11', path: '~/.ansible' },
+  { name: '.cache', type: 'directory', modifiedAt: '2025/05/07', path: '~/.cache' },
+  { name: '.config', type: 'directory', modifiedAt: '2025/05/07', path: '~/.config' },
+  { name: '.ctcss', type: 'directory', modifiedAt: '2025/08/01', path: '~/.ctcss' },
+  { name: '.docker', type: 'directory', modifiedAt: '2026/01/20', path: '~/.docker' },
+  { name: '.ssh', type: 'directory', modifiedAt: '2025/03/11', path: '~/.ssh' },
+  { name: '.vim', type: 'directory', modifiedAt: '2026/04/10', path: '~/.vim' },
+  { name: 'download_test', type: 'directory', modifiedAt: '2026/01/14', path: '~/download_test' },
+  { name: '.bash_history', type: 'file', modifiedAt: '2026/05/25', path: '~/.bash_history', size: '18.5 KB' },
+  { name: '.bashrc', type: 'file', modifiedAt: '2019/12/05', path: '~/.bashrc', size: '3.7 KB' },
+  { name: '.lesshst', type: 'file', modifiedAt: '2025/10/15', path: '~/.lesshst', size: '1.2 KB' },
+];
+
+const terminalFileEntries = ref<TerminalFileEntry[]>(initialTerminalFileEntries);
+const selectedTerminalFile = ref<TerminalFileEntry | null>(initialTerminalFileEntries.find((entry) => entry.type === 'file') ?? null);
+const terminalFilePath = ref('.');
+const terminalFileListProtocol = ref('');
+const terminalFileListError = ref('');
+const isTerminalFileListLoading = ref(false);
+const terminalFilePreviewContent = ref('');
+const terminalFilePreviewProtocol = ref('');
+const terminalFilePreviewError = ref('');
+const isTerminalFilePreviewLoading = ref(false);
+const terminalFileUploadInput = ref<HTMLInputElement | null>(null);
+const terminalFileListHeight = ref(0.54);
+const terminalFilePreviewHeight = ref(0.5);
+const terminalFileResizeMode = ref<'list' | 'preview' | null>(null);
+let terminalFilePreviewRequestId = 0;
+let terminalFileListRequestId = 0;
 
 const groups = ref<TerminalGroup[]>([]);
 const collapsed = ref<Set<number>>(new Set());
@@ -134,6 +194,7 @@ const activeTabId = ref<string | null>(null);
 const isLoadingTree = ref(false);
 const treeError = ref('');
 const highlightEnabled = ref(true);
+const terminalSidebarMode = ref<TerminalSidebarMode>('hosts');
 const sidebarWidth = ref(readTerminalSidebarWidth());
 const isResizingSidebar = ref(false);
 const terminalContainers = new Map<string, HTMLElement>();
@@ -155,6 +216,20 @@ const rows = computed(() => {
 });
 
 const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null);
+const activeTerminalNodeName = computed(() => activeTab.value?.host.name ?? '未选择主机');
+const previewableTerminalFile = computed(() =>
+  selectedTerminalFile.value?.type === 'file' ? selectedTerminalFile.value : null,
+);
+const terminalFilePreviewAttempts = computed(() =>
+  terminalFilePreviewProtocol.value
+    ? `已使用 ${terminalFilePreviewProtocol.value}`
+    : '按 SFTP、SCP enhanced、SCP 顺序尝试',
+);
+const terminalFileStatusText = computed(() => {
+  if (isTerminalFileListLoading.value) return '目录加载中...';
+  if (terminalFileListProtocol.value) return `目录 ${terminalFileListProtocol.value}`;
+  return '目录待加载';
+});
 const terminalRoot = computed<TerminalRoot>(() => ({
   id: null,
   name: rootLabel.value,
@@ -167,6 +242,163 @@ const workspaceTitle = computed(() => {
   return `${host.name} / ${host.publicIp || host.privateIp}:${host.port}`;
 });
 
+function selectTerminalFile(entry: TerminalFileEntry) {
+  if (!activeTab.value) return;
+  selectedTerminalFile.value = entry;
+}
+
+async function loadTerminalDirectory(path = terminalFilePath.value) {
+  if (!activeTab.value) return;
+  const targetPath = resolveTerminalDirectoryPath(path);
+  const requestId = ++terminalFileListRequestId;
+  isTerminalFileListLoading.value = true;
+  terminalFileListError.value = '';
+
+  try {
+    const response = await apiPost<TerminalFileListResponse>(
+      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/list/`,
+      { path: targetPath },
+    );
+    if (requestId !== terminalFileListRequestId) return;
+    terminalFilePath.value = response.path;
+    terminalFileEntries.value = response.entries;
+    terminalFileListProtocol.value = response.protocol;
+    selectedTerminalFile.value = response.entries.find((entry) => entry.type === 'file') ?? response.entries[0] ?? null;
+  } catch (error) {
+    if (requestId !== terminalFileListRequestId) return;
+    terminalFileListError.value = error instanceof Error ? error.message : '目录加载失败';
+  } finally {
+    if (requestId === terminalFileListRequestId) {
+      isTerminalFileListLoading.value = false;
+    }
+  }
+}
+
+function openTerminalDirectory(entry: TerminalFileEntry) {
+  if (!activeTab.value || entry.type !== 'directory') return;
+  void loadTerminalDirectory(entry.path);
+}
+
+function openTerminalParentDirectory() {
+  void loadTerminalDirectory(parentTerminalDirectoryPath(terminalFilePath.value));
+}
+
+function resolveTerminalDirectoryPath(path: string) {
+  const value = String(path || '.').trim();
+  if (value === '..') return parentTerminalDirectoryPath(terminalFilePath.value);
+  if (value.startsWith('/') || value.startsWith('~') || value === '.') return value;
+  if (terminalFilePath.value === '/' || terminalFilePath.value === '') return `/${value}`;
+  if (terminalFilePath.value === '.') return value;
+  return `${terminalFilePath.value.replace(/\/+$/, '')}/${value}`;
+}
+
+function parentTerminalDirectoryPath(path: string) {
+  const value = String(path || '.').replace(/\/+$/, '');
+  if (!value || value === '.' || value === '~') return '.';
+  if (value === '/') return '/';
+  if (value.startsWith('~/')) {
+    const parent = value.slice(0, value.lastIndexOf('/'));
+    return parent || '~';
+  }
+  const parent = value.slice(0, value.lastIndexOf('/'));
+  return parent || (value.startsWith('/') ? '/' : '.');
+}
+
+async function previewTerminalFile(entry = selectedTerminalFile.value) {
+  if (!activeTab.value) return;
+  if (!entry || entry.type !== 'file') return;
+  selectedTerminalFile.value = entry;
+  const requestId = ++terminalFilePreviewRequestId;
+  isTerminalFilePreviewLoading.value = true;
+  terminalFilePreviewError.value = '';
+  terminalFilePreviewProtocol.value = '';
+
+  try {
+    const response = await apiPost<TerminalFilePreviewResponse>(
+      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/preview/`,
+      { path: entry.path },
+    );
+    if (requestId !== terminalFilePreviewRequestId) return;
+    terminalFilePreviewContent.value = response.content;
+    terminalFilePreviewProtocol.value = response.protocol;
+  } catch (error) {
+    if (requestId !== terminalFilePreviewRequestId) return;
+    terminalFilePreviewContent.value = '';
+    terminalFilePreviewError.value = error instanceof Error ? error.message : '文件预览失败';
+  } finally {
+    if (requestId === terminalFilePreviewRequestId) {
+      isTerminalFilePreviewLoading.value = false;
+    }
+  }
+}
+
+async function downloadTerminalFile(entry = selectedTerminalFile.value) {
+  if (!activeTab.value || !entry || entry.type !== 'file') return;
+  try {
+    const response = await apiPost<TerminalFileDownloadResponse>(
+      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/download/`,
+      { path: entry.path },
+    );
+    terminalFilePreviewProtocol.value = response.protocol;
+    const bytes = Uint8Array.from(window.atob(response.contentBase64), (char) => char.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = response.filename || entry.name;
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    terminalFilePreviewError.value = error instanceof Error ? error.message : '文件下载失败';
+  }
+}
+
+function openTerminalUpload() {
+  if (!activeTab.value) return;
+  terminalFileUploadInput.value?.click();
+}
+
+async function uploadTerminalFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!activeTab.value || !file) return;
+  try {
+    const contentBase64 = await fileToBase64(file);
+    const response = await apiPost<{ protocol: string }>(
+      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/upload/`,
+      { directory: terminalFilePath.value, filename: file.name, contentBase64 },
+    );
+    terminalFileListProtocol.value = response.protocol;
+    await loadTerminalDirectory(terminalFilePath.value);
+  } catch (error) {
+    terminalFileListError.value = error instanceof Error ? error.message : '文件上传失败';
+  }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      resolve(result.includes(',') ? result.split(',')[1] : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+watch([activeTabId, terminalSidebarMode], () => {
+  terminalFilePreviewRequestId += 1;
+  terminalFilePreviewContent.value = '';
+  terminalFilePreviewProtocol.value = '';
+  terminalFilePreviewError.value = '';
+  isTerminalFilePreviewLoading.value = false;
+  if (activeTab.value && terminalSidebarMode.value === 'files') {
+    terminalFilePath.value = '.';
+    void loadTerminalDirectory('.');
+  }
+});
+
 const workspaceStatus = computed(() => {
   if (!activeTab.value) return '';
   if (activeTab.value.status === 'connecting') return '连接中...';
@@ -176,6 +408,11 @@ const workspaceStatus = computed(() => {
 });
 const terminalShellStyle = computed<Record<string, string>>(() => ({
   '--terminal-sidebar-width': `${sidebarWidth.value}px`,
+}));
+const terminalFileBrowserStyle = computed<Record<string, string>>(() => ({
+  '--terminal-file-list-fr': `${terminalFileListHeight.value}fr`,
+  '--terminal-file-preview-fr': `${terminalFilePreviewHeight.value}fr`,
+  '--terminal-file-transfer-fr': `${1 - terminalFilePreviewHeight.value}fr`,
 }));
 
 onMounted(async () => {
@@ -196,6 +433,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopSidebarResize();
+  stopTerminalFileResize();
   for (const tab of tabs.value) disposeTab(tab);
 });
 
@@ -491,6 +729,44 @@ function stopSidebarResize() {
   fitActiveTerminalSoon();
 }
 
+function startTerminalFileResize(mode: 'list' | 'preview', event: MouseEvent) {
+  event.preventDefault();
+  terminalFileResizeMode.value = mode;
+  document.body.classList.add('terminal-file-resizing');
+  resizeTerminalFilePanels(event);
+  window.addEventListener('mousemove', resizeTerminalFilePanels);
+  window.addEventListener('mouseup', stopTerminalFileResize);
+}
+
+function resizeTerminalFilePanels(event: MouseEvent) {
+  const mode = terminalFileResizeMode.value;
+  const browser = document.querySelector<HTMLElement>('.terminal-file-browser');
+  if (!mode || !browser) return;
+
+  const rect = browser.getBoundingClientRect();
+  const fixedRowsHeight = 36 + 38 + 30 + 34 + 12 + 28;
+  const availableHeight = Math.max(240, rect.height - fixedRowsHeight);
+
+  if (mode === 'list') {
+    const listY = event.clientY - rect.top - 36 - 38 - 30;
+    terminalFileListHeight.value = Math.min(0.76, Math.max(0.28, listY / availableHeight));
+    return;
+  }
+
+  const lowerHeight = availableHeight * Math.max(0.24, 1 - terminalFileListHeight.value);
+  const lowerTop = 36 + 38 + 30 + availableHeight * terminalFileListHeight.value + 34 + 6;
+  const previewY = event.clientY - rect.top - lowerTop;
+  terminalFilePreviewHeight.value = Math.min(0.78, Math.max(0.25, previewY / lowerHeight));
+}
+
+function stopTerminalFileResize() {
+  if (!terminalFileResizeMode.value) return;
+  terminalFileResizeMode.value = null;
+  window.removeEventListener('mousemove', resizeTerminalFilePanels);
+  window.removeEventListener('mouseup', stopTerminalFileResize);
+  document.body.classList.remove('terminal-file-resizing');
+}
+
 function fitActiveTerminalSoon() {
   window.requestAnimationFrame(() => {
     const tab = activeTab.value;
@@ -749,45 +1025,185 @@ function readTerminalSidebarWidth() {
 <template>
   <main class="terminal-shell" :class="{ resizing: isResizingSidebar }" :style="terminalShellStyle">
     <aside class="terminal-sidebar">
-      <div class="terminal-search">
-        <input v-model="search" placeholder="输入主机名/IP检索" />
-        <button type="button" title="刷新" aria-label="刷新" @click="loadTree"><AppIcon name="refresh" :size="16" /></button>
-      </div>
-      <div class="terminal-tree">
+      <nav class="terminal-side-switch" aria-label="终端侧栏切换">
         <button
-          v-for="row in rows"
-          :key="row.kind === 'root' ? 'group-root' : row.kind === 'group' ? `group-${row.group.id}` : `host-${row.host.id}`"
-          class="terminal-tree-row"
-          :class="{ root: row.kind === 'root', host: row.kind === 'host', active: row.kind === 'host' && activeTab?.host.id === row.host.id }"
-          :style="{ paddingLeft: `${12 + row.level * 24}px` }"
           type="button"
-          @click="row.kind === 'root' ? toggleRoot() : row.kind === 'group' && toggleGroup(row.group)"
-          @dblclick="row.kind === 'host' && openHostTab(row.host)"
+          title="服务器列表"
+          aria-label="服务器列表"
+          :class="{ active: terminalSidebarMode === 'hosts' }"
+          @click="terminalSidebarMode = 'hosts'"
         >
-          <template v-if="row.kind === 'root'">
-            <span><AppIcon :name="rootExpanded ? 'chevronDown' : 'chevronRight'" :size="15" /></span>
-            <strong><AppIcon name="folder" :size="16" />{{ row.group.name }}</strong>
-            <em>{{ row.group.count }}</em>
-          </template>
-          <template v-else-if="row.kind === 'group'">
-            <span><AppIcon :name="collapsed.has(row.group.id) ? 'chevronRight' : 'chevronDown'" :size="15" /></span>
-            <strong><AppIcon name="folder" :size="16" />{{ row.group.name }}</strong>
-          </template>
-          <template v-else>
-            <span><AppIcon name="server" :size="15" /></span>
-            <strong>{{ row.host.name }}</strong>
-            <i
-              v-if="row.host.verified || row.host.verifyStatus === 'failed'"
-              class="terminal-host-verify-dot"
-              :class="{ failed: row.host.verifyStatus === 'failed' }"
-              :title="row.host.verifyStatus === 'failed' ? '验证失败' : '已验证'"
-              :aria-label="row.host.verifyStatus === 'failed' ? '验证失败' : '已验证'"
-            ></i>
-          </template>
+          <AppIcon name="server" :size="18" />
         </button>
-        <p v-if="isLoadingTree" class="terminal-tree-empty">加载中...</p>
-        <p v-else-if="treeError" class="terminal-tree-empty">{{ treeError }}</p>
-        <p v-else-if="!rows.length" class="terminal-tree-empty">没有匹配的主机。</p>
+        <button
+          type="button"
+          title="FTP 文件夹"
+          aria-label="FTP 文件夹"
+          :class="{ active: terminalSidebarMode === 'files' }"
+          @click="terminalSidebarMode = 'files'"
+        >
+          <AppIcon name="folder" :size="19" />
+        </button>
+      </nav>
+      <div class="terminal-sidebar-panel">
+        <template v-if="terminalSidebarMode === 'hosts'">
+          <div class="terminal-search">
+            <input v-model="search" placeholder="输入主机名/IP检索" />
+            <button type="button" title="刷新" aria-label="刷新" @click="loadTree"><AppIcon name="refresh" :size="16" /></button>
+          </div>
+          <div class="terminal-tree">
+            <button
+              v-for="row in rows"
+              :key="row.kind === 'root' ? 'group-root' : row.kind === 'group' ? `group-${row.group.id}` : `host-${row.host.id}`"
+              class="terminal-tree-row"
+              :class="{ root: row.kind === 'root', host: row.kind === 'host', active: row.kind === 'host' && activeTab?.host.id === row.host.id }"
+              :style="{ paddingLeft: `${12 + row.level * 24}px` }"
+              type="button"
+              @click="row.kind === 'root' ? toggleRoot() : row.kind === 'group' && toggleGroup(row.group)"
+              @dblclick="row.kind === 'host' && openHostTab(row.host)"
+            >
+              <template v-if="row.kind === 'root'">
+                <span><AppIcon :name="rootExpanded ? 'chevronDown' : 'chevronRight'" :size="15" /></span>
+                <strong><AppIcon name="folder" :size="16" />{{ row.group.name }}</strong>
+                <em>{{ row.group.count }}</em>
+              </template>
+              <template v-else-if="row.kind === 'group'">
+                <span><AppIcon :name="collapsed.has(row.group.id) ? 'chevronRight' : 'chevronDown'" :size="15" /></span>
+                <strong><AppIcon name="folder" :size="16" />{{ row.group.name }}</strong>
+              </template>
+              <template v-else>
+                <span><AppIcon name="server" :size="15" /></span>
+                <strong>{{ row.host.name }}</strong>
+                <i
+                  v-if="row.host.verified || row.host.verifyStatus === 'failed'"
+                  class="terminal-host-verify-dot"
+                  :class="{ failed: row.host.verifyStatus === 'failed' }"
+                  :title="row.host.verifyStatus === 'failed' ? '验证失败' : '已验证'"
+                  :aria-label="row.host.verifyStatus === 'failed' ? '验证失败' : '已验证'"
+                ></i>
+              </template>
+            </button>
+            <p v-if="isLoadingTree" class="terminal-tree-empty">加载中...</p>
+            <p v-else-if="treeError" class="terminal-tree-empty">{{ treeError }}</p>
+            <p v-else-if="!rows.length" class="terminal-tree-empty">没有匹配的主机。</p>
+          </div>
+        </template>
+        <template v-else>
+          <div class="terminal-file-browser" :style="terminalFileBrowserStyle">
+            <header class="terminal-file-title">
+              <strong>文件浏览器</strong>
+              <span class="terminal-file-node">{{ activeTerminalNodeName }}</span>
+            </header>
+            <div class="terminal-file-toolbar">
+              <button type="button" title="新建文件" aria-label="新建文件"><AppIcon name="plus" :size="15" /></button>
+              <button type="button" title="新建文件夹" aria-label="新建文件夹"><AppIcon name="folderPlus" :size="15" /></button>
+              <span></span>
+              <button type="button" title="上传" aria-label="上传" @click="openTerminalUpload"><AppIcon name="upload" :size="15" /></button>
+              <button type="button" title="下载" aria-label="下载" @click="downloadTerminalFile()"><AppIcon name="download" :size="15" /></button>
+              <button type="button" title="删除" aria-label="删除"><AppIcon name="trash" :size="15" /></button>
+              <span></span>
+              <button type="button" title="返回上级" aria-label="返回上级" @click="openTerminalParentDirectory"><AppIcon name="chevronRight" :size="15" /></button>
+              <button type="button" title="刷新" aria-label="刷新" @click="loadTerminalDirectory()"><AppIcon name="refresh" :size="15" /></button>
+              <span></span>
+              <button type="button" title="搜索" aria-label="搜索"><AppIcon name="search" :size="15" /></button>
+            </div>
+            <div class="terminal-file-path">
+              <span>{{ terminalFilePath }}</span>
+              <button type="button" title="收藏路径" aria-label="收藏路径"><AppIcon name="folder" :size="14" /></button>
+            </div>
+            <div class="terminal-file-table">
+              <div class="terminal-file-table-head">
+                <button type="button">名称 <em>▲</em></button>
+                <span>修改时间</span>
+                <span>操作</span>
+              </div>
+              <div class="terminal-file-list">
+                <div
+                  v-for="entry in terminalFileEntries"
+                  :key="entry.name"
+                  class="terminal-file-item"
+                  :class="{ selected: selectedTerminalFile?.name === entry.name }"
+                  role="button"
+                  :tabindex="activeTab ? 0 : -1"
+                  :aria-disabled="!activeTab"
+                  @click="selectTerminalFile(entry)"
+                  @dblclick="entry.type === 'directory' ? openTerminalDirectory(entry) : previewTerminalFile(entry)"
+                  @keydown.enter.prevent="entry.type === 'directory' ? openTerminalDirectory(entry) : previewTerminalFile(entry)"
+                >
+                  <span class="terminal-file-name">
+                    <AppIcon :name="entry.type === 'directory' ? 'folder' : 'settings'" :size="15" />
+                    <strong>{{ entry.name }}</strong>
+                  </span>
+                  <time>{{ entry.modifiedAt }}</time>
+                  <span class="terminal-file-actions">
+                    <button v-if="entry.type === 'file'" type="button" title="预览" aria-label="预览" @click.stop="previewTerminalFile(entry)">
+                      <AppIcon name="eye" :size="13" />
+                    </button>
+                    <button v-if="entry.type === 'file'" type="button" title="下载" aria-label="下载" @click.stop="downloadTerminalFile(entry)">
+                      <AppIcon name="download" :size="13" />
+                    </button>
+                    <button type="button" title="删除" aria-label="删除" @click.stop>
+                      <AppIcon name="trash" :size="13" />
+                    </button>
+                  </span>
+                </div>
+                <p v-if="!activeTab" class="terminal-tree-empty">请选择服务器</p>
+                <p v-else-if="isTerminalFileListLoading" class="terminal-tree-empty">目录加载中...</p>
+                <p v-else-if="terminalFileListError" class="terminal-tree-empty">{{ terminalFileListError }}</p>
+              </div>
+            </div>
+            <footer class="terminal-file-status">
+              <span>共 {{ terminalFileEntries.length }} 项</span>
+              <span>{{ terminalFileStatusText }}</span>
+              <div>
+                <button type="button" title="打开本地目录" aria-label="打开本地目录"><AppIcon name="folder" :size="15" /></button>
+                <button type="button" title="同步" aria-label="同步" @click="loadTerminalDirectory()"><AppIcon name="refresh" :size="15" /></button>
+                <button type="button" title="传输队列" aria-label="传输队列" @click="openTerminalUpload"><AppIcon name="upload" :size="15" /></button>
+              </div>
+            </footer>
+            <div
+              class="terminal-file-splitter"
+              role="separator"
+              aria-label="调整文件列表高度"
+              @mousedown="startTerminalFileResize('list', $event)"
+            ></div>
+            <input ref="terminalFileUploadInput" hidden type="file" @change="uploadTerminalFile" />
+            <section class="terminal-file-preview">
+              <header>
+                <strong>文件预览</strong>
+                <span>{{ previewableTerminalFile?.name || '未选择文件' }}</span>
+              </header>
+              <div class="terminal-file-preview-meta">
+                <span>{{ terminalFilePreviewAttempts }}</span>
+              </div>
+              <pre v-if="terminalFilePreviewContent">{{ terminalFilePreviewContent }}</pre>
+              <div v-else-if="isTerminalFilePreviewLoading" class="terminal-file-preview-empty">正在尝试连接...</div>
+              <div v-else-if="terminalFilePreviewError" class="terminal-file-preview-empty error">{{ terminalFilePreviewError }}</div>
+              <div v-else class="terminal-file-preview-empty">请选择文件预览</div>
+            </section>
+            <div
+              class="terminal-file-splitter"
+              role="separator"
+              aria-label="调整文件预览高度"
+              @mousedown="startTerminalFileResize('preview', $event)"
+            ></div>
+            <section class="terminal-transfer-panel">
+              <header>
+                <strong>文件传输</strong>
+                <div>
+                  <button type="button" title="暂停" aria-label="暂停">Ⅱ</button>
+                  <button type="button" title="开始" aria-label="开始">▶</button>
+                  <button type="button" title="清空" aria-label="清空"><AppIcon name="trash" :size="15" /></button>
+                </div>
+              </header>
+              <div class="terminal-transfer-empty">
+                <span>↔</span>
+                <strong>无传输记录</strong>
+              </div>
+            </section>
+            <div class="terminal-local-path">C:\Users\kaikai\Downloads</div>
+          </div>
+        </template>
       </div>
     </aside>
     <div
