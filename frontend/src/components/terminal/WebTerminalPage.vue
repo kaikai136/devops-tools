@@ -204,6 +204,7 @@ const MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS = 1200;
 const MAX_CONNECTING_TERMINALS = 2;
 const TERMINAL_WORKSPACE_STORAGE_KEY = 'ops-tool.web-terminal.workspace';
 const TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-width';
+const TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-collapsed';
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_SIDEBAR_MAX_WIDTH = 520;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
@@ -309,6 +310,7 @@ const treeError = ref('');
 const highlightEnabled = ref(true);
 const terminalSidebarMode = ref<TerminalSidebarMode>('hosts');
 const sidebarWidth = ref(readTerminalSidebarWidth());
+const isTerminalSidebarCollapsed = ref(readTerminalSidebarCollapsed());
 const isResizingSidebar = ref(false);
 const terminalContainers = new Map<string, HTMLElement>();
 const pendingConnectTabIds: string[] = [];
@@ -330,6 +332,7 @@ const rows = computed(() => {
 
 const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null);
 const activeTerminalNodeName = computed(() => activeTab.value?.host.name ?? '未选择主机');
+const terminalSidebarToggleLabel = computed(() => (isTerminalSidebarCollapsed.value ? '展开侧栏' : '收起侧栏'));
 const terminalFileProtocolLabel = computed(() => formatTerminalFileProtocol(terminalFileListProtocol.value));
 const terminalFileStatus = computed<'idle' | 'loading' | 'success' | 'error'>(() => {
   if (isTerminalFileListLoading.value) return 'loading';
@@ -1067,7 +1070,7 @@ const workspaceStatus = computed(() => {
   return '已关闭';
 });
 const terminalShellStyle = computed<Record<string, string>>(() => ({
-  '--terminal-sidebar-width': `${sidebarWidth.value}px`,
+  '--terminal-sidebar-width': `${isTerminalSidebarCollapsed.value ? 42 : sidebarWidth.value}px`,
 }));
 onMounted(async () => {
   window.addEventListener('click', closeTerminalContextMenus);
@@ -1371,6 +1374,7 @@ function fitTerminal(tab: TerminalTab) {
 }
 
 function startSidebarResize(event: MouseEvent) {
+  if (isTerminalSidebarCollapsed.value) return;
   event.preventDefault();
   isResizingSidebar.value = true;
   window.addEventListener('mousemove', resizeSidebar);
@@ -1392,6 +1396,23 @@ function stopSidebarResize() {
   window.removeEventListener('mousemove', resizeSidebar);
   window.removeEventListener('mouseup', stopSidebarResize);
   document.body.classList.remove('terminal-resizing');
+  fitActiveTerminalSoon();
+}
+
+function selectTerminalSidebarMode(mode: TerminalSidebarMode) {
+  terminalSidebarMode.value = mode;
+  if (isTerminalSidebarCollapsed.value) setTerminalSidebarCollapsed(false);
+}
+
+function toggleTerminalSidebar() {
+  setTerminalSidebarCollapsed(!isTerminalSidebarCollapsed.value);
+}
+
+function setTerminalSidebarCollapsed(collapsed: boolean) {
+  isTerminalSidebarCollapsed.value = collapsed;
+  window.localStorage.setItem(TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0');
+  if (collapsed) stopSidebarResize();
+  closeTerminalContextMenus();
   fitActiveTerminalSoon();
 }
 
@@ -1648,18 +1669,23 @@ function readTerminalSidebarWidth() {
   if (!Number.isFinite(saved)) return 284;
   return Math.min(Math.max(saved, TERMINAL_SIDEBAR_MIN_WIDTH), TERMINAL_SIDEBAR_MAX_WIDTH);
 }
+
+function readTerminalSidebarCollapsed() {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
+}
 </script>
 
 <template>
-  <main class="terminal-shell" :class="{ resizing: isResizingSidebar }" :style="terminalShellStyle">
+  <main class="terminal-shell" :class="{ resizing: isResizingSidebar, 'sidebar-collapsed': isTerminalSidebarCollapsed }" :style="terminalShellStyle">
     <aside class="terminal-sidebar">
-      <nav class="terminal-side-switch" aria-label="终端侧栏切换">
+      <nav class="terminal-side-switch" aria-label="终端侧栏切换" @dblclick.stop="toggleTerminalSidebar">
         <button
           type="button"
           title="服务器列表"
           aria-label="服务器列表"
           :class="{ active: terminalSidebarMode === 'hosts' }"
-          @click="terminalSidebarMode = 'hosts'"
+          @click="selectTerminalSidebarMode('hosts')"
         >
           <AppIcon name="server" :size="18" />
         </button>
@@ -1668,9 +1694,19 @@ function readTerminalSidebarWidth() {
           title="FTP 文件夹"
           aria-label="FTP 文件夹"
           :class="{ active: terminalSidebarMode === 'files' }"
-          @click="terminalSidebarMode = 'files'"
+          @click="selectTerminalSidebarMode('files')"
         >
           <AppIcon name="folder" :size="19" />
+        </button>
+        <button
+          class="terminal-sidebar-collapse-button"
+          type="button"
+          :title="terminalSidebarToggleLabel"
+          :aria-label="terminalSidebarToggleLabel"
+          :aria-pressed="isTerminalSidebarCollapsed"
+          @click="toggleTerminalSidebar"
+        >
+          <AppIcon name="chevronsRight" :size="17" />
         </button>
       </nav>
       <div class="terminal-sidebar-panel">
