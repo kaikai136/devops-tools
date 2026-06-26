@@ -26,6 +26,8 @@ input {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: #f8fafc;
 }
 
@@ -68,6 +70,8 @@ input {
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .terminal-sidebar-resizer {
@@ -199,19 +203,16 @@ input {
 
 .terminal-file-browser {
   display: grid;
+  grid-row: 1 / -1;
   grid-template-rows:
     36px
     38px
     30px
-    minmax(120px, var(--terminal-file-list-fr, 0.54fr))
-    34px
-    6px
-    minmax(90px, var(--terminal-file-preview-fr, 0.5fr))
-    6px
-    minmax(74px, var(--terminal-file-transfer-fr, 0.5fr))
-    28px;
+    minmax(0, 1fr)
+    34px;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
   background: #f6f9fc;
   color: #173252;
 }
@@ -259,7 +260,6 @@ input {
 
 .terminal-file-toolbar button,
 .terminal-file-status button,
-.terminal-transfer-panel button,
 .terminal-file-path button {
   display: inline-grid;
   place-items: center;
@@ -275,7 +275,6 @@ input {
 
 .terminal-file-toolbar button:hover,
 .terminal-file-status button:hover,
-.terminal-transfer-panel button:hover,
 .terminal-file-path button:hover {
   background: #eaf1ff;
   color: #1f63f1;
@@ -296,12 +295,16 @@ input {
   display: grid;
   grid-template-rows: 30px minmax(0, 1fr);
   min-height: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: 1px solid #d8e0ea;
 }
 
 .terminal-file-table-head {
   display: grid;
-  grid-template-columns: minmax(116px, 1fr) 86px 72px;
+  grid-template-columns: minmax(180px, 1fr) 128px 80px 112px 88px 88px;
+  min-width: 676px;
   border-bottom: 1px solid #cdd8e5;
   background: #e8f1fb;
   color: #44617f;
@@ -331,14 +334,18 @@ input {
 
 .terminal-file-list {
   min-height: 0;
-  overflow: auto;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   background: #f8fafc;
 }
 
 .terminal-file-item {
   display: grid;
-  grid-template-columns: minmax(116px, 1fr) 86px 72px;
+  grid-template-columns: minmax(180px, 1fr) 128px 80px 112px 88px 88px;
   align-items: center;
+  min-width: 676px;
   width: 100%;
   min-height: 30px;
   border: 0;
@@ -355,6 +362,10 @@ input {
 
 .terminal-file-item.selected {
   background: #e6f0ff;
+}
+
+.terminal-file-item.parent {
+  color: #334155;
 }
 
 .terminal-file-item[aria-disabled="true"] {
@@ -375,40 +386,24 @@ input {
   color: #f5b51b;
 }
 
-.terminal-file-item time {
+.terminal-file-item time,
+.terminal-file-item > span:not(.terminal-file-name) {
   overflow: hidden;
   color: #8190a3;
   padding-right: 8px;
+  padding-left: 10px;
   font-family: Consolas, "Courier New", monospace;
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.terminal-file-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 2px;
-  padding-right: 6px;
+.terminal-file-size {
+  text-align: right;
 }
 
-.terminal-file-actions button {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: #6d7c8e;
-  padding: 0;
-  cursor: pointer;
-}
-
-.terminal-file-actions button:hover {
-  background: #dbeafe;
-  color: #1f63f1;
+.terminal-file-permissions {
+  letter-spacing: 0;
 }
 
 .terminal-file-name strong {
@@ -438,164 +433,430 @@ input {
   margin-left: auto;
 }
 
-.terminal-file-splitter {
-  position: relative;
-  z-index: 2;
-  border-bottom: 1px solid #d8e0ea;
-  background: #edf3fa;
-  cursor: ns-resize;
-}
-
-.terminal-file-splitter::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 2px;
-  width: 36px;
-  height: 2px;
+.terminal-file-protocol {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border: 1px solid #cbd5e1;
   border-radius: 999px;
-  background: #b8c5d4;
-  transform: translateX(-50%);
-}
-
-.terminal-file-splitter:hover,
-body.terminal-file-resizing .terminal-file-splitter {
-  background: #dfeaff;
-}
-
-body.terminal-file-resizing {
-  cursor: ns-resize;
-  user-select: none;
-}
-
-.terminal-file-preview {
-  display: grid;
-  grid-template-rows: 32px 24px minmax(0, 1fr);
-  min-height: 0;
-  border-bottom: 1px solid #d8e0ea;
-  background: #f8fafc;
-}
-
-.terminal-file-preview header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 10px;
-  border-bottom: 1px solid #d8e0ea;
-  color: #173252;
-  font-size: 12px;
+  background: #eef2f7;
+  color: #64748b;
+  padding: 0 8px;
+  font-size: 11px;
   font-weight: 900;
-}
-
-.terminal-file-preview header span {
-  min-width: 0;
-  overflow: hidden;
-  color: #718198;
-  font-family: Consolas, "Courier New", monospace;
-  font-weight: 700;
-  text-overflow: ellipsis;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.terminal-file-preview-meta {
-  display: flex;
+.terminal-file-protocol.loading {
+  border-color: #f5c56b;
+  background: #fff7df;
+  color: #9a5b00;
+}
+
+.terminal-file-protocol.success {
+  border-color: #8bd4a1;
+  background: #e9f9ef;
+  color: #1f7a3d;
+}
+
+.terminal-file-protocol.error {
+  border-color: #f2a7a7;
+  background: #fff1f1;
+  color: #b42318;
+}
+
+.terminal-file-context-menu {
+  position: fixed;
+  z-index: 80;
+  width: 220px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #f8fafc;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
+  padding: 4px 0;
+  color: #334155;
+}
+
+.terminal-file-context-menu-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
-  min-width: 0;
-  padding: 0 10px;
-  border-bottom: 1px solid #e2e8f0;
-  color: #62748d;
-  font-size: 12px;
-  font-weight: 800;
+  gap: 8px;
+  width: 100%;
+  min-height: 31px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
 }
 
-.terminal-file-preview-meta span {
+.terminal-file-context-menu-item.separator {
+  margin-top: 4px;
+  border-top: 1px solid #d8e0ea;
+  padding-top: 4px;
+}
+
+.terminal-file-context-menu-item .app-icon {
+  justify-self: center;
+  color: #64748b;
+}
+
+.terminal-file-context-menu-item span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.terminal-file-preview pre {
-  min-height: 0;
-  overflow: auto;
-  margin: 0;
-  padding: 8px 10px;
-  color: #173252;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
+.terminal-file-context-menu-item:hover:not(:disabled) {
+  background: #eaf1ff;
+  color: #1f63f1;
 }
 
-.terminal-file-preview-empty {
+.terminal-file-context-menu-item:hover:not(:disabled) .app-icon {
+  color: #1f63f1;
+}
+
+.terminal-file-context-menu-item.danger {
+  color: #dc2626;
+}
+
+.terminal-file-context-menu-item.danger .app-icon {
+  color: #dc2626;
+}
+
+.terminal-file-context-menu-item:disabled {
+  color: #9aa8ba;
+  cursor: not-allowed;
+}
+
+.terminal-file-context-menu-item:disabled .app-icon {
+  color: #aeb8c5;
+}
+
+.terminal-file-properties-backdrop {
+  position: fixed;
+  inset: 0;
   display: grid;
   place-items: center;
-  min-height: 0;
-  color: #9aa8ba;
-  font-size: 13px;
-  font-weight: 800;
+  z-index: 90;
+  background: rgb(5 16 36 / 42%);
+  padding: 24px;
 }
 
-.terminal-file-preview-empty.error {
-  padding: 12px;
-  color: #dc2626;
-  text-align: center;
-}
-
-.terminal-transfer-panel {
-  display: grid;
-  grid-template-rows: 36px minmax(0, 1fr);
-  min-height: 0;
-  border-bottom: 1px solid #d8e0ea;
-  background: #f8fafc;
-}
-
-.terminal-transfer-panel header {
+.terminal-file-properties-modal {
+  position: relative;
   display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 48px));
+  max-height: min(820px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid #cfd8e3;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 16px 42px rgb(15 23 42 / 26%);
+  color: #26364a;
+}
+
+.terminal-file-properties-head {
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 10px;
-  border-bottom: 1px solid #d8e0ea;
+  gap: 10px;
+  min-height: 46px;
+  min-width: 0;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid #d6dee8;
+}
+
+.terminal-file-properties-head h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-file-properties-close {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #4b5563;
+  padding: 0;
+  cursor: pointer;
+}
+
+.terminal-file-properties-close:hover {
+  background: #f1f5f9;
+  color: #111827;
+}
+
+.terminal-file-properties-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+}
+
+.terminal-file-properties-icon .app-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.terminal-file-properties-icon.file {
+  color: #1667d8;
+}
+
+.terminal-file-properties-icon.directory {
+  color: #e3a700;
+}
+
+.terminal-file-properties-body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  max-height: min(716px, calc(100vh - 160px));
+  padding: 16px 22px 12px;
+  scrollbar-width: none;
+}
+
+.terminal-file-properties-body::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-file-properties-section {
+  display: grid;
+  gap: 10px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid #d4dde8;
+  margin-bottom: 14px;
+}
+
+.terminal-file-properties-section:last-child {
+  margin-bottom: 0;
+}
+
+.terminal-file-properties-section h3 {
+  margin: 0;
+  color: #5b6778;
   font-size: 13px;
   font-weight: 900;
 }
 
-.terminal-transfer-panel header div {
-  display: flex;
-  gap: 4px;
+.terminal-file-properties-details {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 8px 10px;
+  margin: 0;
+  font-size: 13px;
 }
 
-.terminal-transfer-empty {
+.terminal-file-properties-details dt {
+  color: #667386;
+  font-weight: 800;
+}
+
+.terminal-file-properties-details dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #2f3b4c;
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 700;
+}
+
+.terminal-file-properties-field {
   display: grid;
-  place-content: center;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
   gap: 8px;
-  min-height: 0;
-  color: #9aa8ba;
+  color: #667386;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.terminal-file-properties-field input,
+.terminal-file-octal-field input {
+  width: 100%;
+  min-height: 31px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #26364a;
+  padding: 0 10px;
+  font: 700 13px Consolas, "Courier New", monospace;
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 6%);
+}
+
+.terminal-file-properties-field input:focus,
+.terminal-file-octal-field input:focus {
+  border-color: #7aa7ee;
+  outline: 2px solid rgb(31 99 241 / 14%);
+}
+
+.terminal-file-permission-table {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 6px;
+  color: #5f6d7d;
+  font-size: 13px;
+  table-layout: fixed;
+}
+
+.terminal-file-permission-table th,
+.terminal-file-permission-table td {
+  height: 32px;
+  border-right: 1px solid #d8e0ea;
+  border-bottom: 1px solid #d8e0ea;
+  background: #f8fafc;
   text-align: center;
 }
 
-.terminal-transfer-empty span {
-  font-size: 22px;
+.terminal-file-permission-table thead th {
+  background: #eaf0f6;
+  font-weight: 900;
 }
 
-.terminal-transfer-empty strong {
-  font-size: 14px;
+.terminal-file-permission-table tbody th {
+  padding-left: 12px;
+  text-align: left;
+  font-weight: 800;
 }
 
-.terminal-local-path {
-  display: flex;
+.terminal-file-permission-table tr:last-child th,
+.terminal-file-permission-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.terminal-file-permission-table th:last-child,
+.terminal-file-permission-table td:last-child {
+  border-right: 0;
+}
+
+.terminal-file-permission-table label {
+  display: inline-flex;
   align-items: center;
-  min-width: 0;
-  overflow: hidden;
-  padding: 0 10px;
+  gap: 6px;
+}
+
+.terminal-file-permission-table input,
+.terminal-file-recursive-field input {
+  width: 16px;
+  height: 16px;
+  accent-color: #1670e8;
+}
+
+.terminal-file-octal-field {
+  display: grid;
+  grid-template-columns: 1fr auto 72px;
+  align-items: center;
+  gap: 8px;
+  color: #667386;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.terminal-file-octal-field span {
+  justify-self: start;
+}
+
+.terminal-file-octal-field em {
+  color: #9aa6b5;
+  font: normal 700 13px Consolas, "Courier New", monospace;
+}
+
+.terminal-file-octal-field input {
+  min-height: 30px;
+  text-align: center;
+}
+
+.terminal-file-recursive-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7788;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.terminal-file-properties-empty {
+  display: grid;
+  min-height: 230px;
+  place-items: center;
+  padding: 24px;
+  color: #7b8798;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.terminal-file-properties-empty.error,
+.terminal-file-properties-error {
+  color: #dc2626;
+}
+
+.terminal-file-properties-error {
+  margin: 0;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff1f1;
+  padding: 8px 9px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.terminal-file-properties-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 58px;
+  border-top: 1px solid #d9e1eb;
+  background: #fff;
+  padding: 0 22px;
+}
+
+.terminal-file-properties-actions button {
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
   background: #f8fafc;
-  color: #7c8ca1;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #26364a;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.terminal-file-properties-actions button.primary {
+  border-color: #1670e8;
+  background: #1670e8;
+  color: #fff;
+}
+
+.terminal-file-properties-actions button:disabled,
+.terminal-file-properties-modal input:disabled,
+.terminal-file-properties-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .terminal-workspace {
