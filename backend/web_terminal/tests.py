@@ -1,6 +1,7 @@
 from django.test import SimpleTestCase
 from unittest.mock import patch
 
+from .consumers import CWD_MARKER_END, CWD_MARKER_START, strip_cwd_markers, strip_cwd_markers_with_pending
 from .services import (
     TerminalConnectionError,
     create_remote_directory,
@@ -16,6 +17,38 @@ from .services import (
 
 
 class RemoteFilePropertiesTests(SimpleTestCase):
+    def test_strip_cwd_markers_extracts_path_and_keeps_visible_output(self):
+        output, paths = strip_cwd_markers(f"before{CWD_MARKER_START}/opt{CWD_MARKER_END}after")
+
+        self.assertEqual(output, "beforeafter")
+        self.assertEqual(paths, ["/opt"])
+
+    def test_strip_cwd_markers_supports_multiple_paths(self):
+        output, paths = strip_cwd_markers(
+            f"{CWD_MARKER_START}/root{CWD_MARKER_END}prompt{CWD_MARKER_START}/opt/app{CWD_MARKER_END}"
+        )
+
+        self.assertEqual(output, "prompt")
+        self.assertEqual(paths, ["/root", "/opt/app"])
+
+    def test_strip_cwd_markers_leaves_regular_output_unchanged(self):
+        output, paths = strip_cwd_markers("regular terminal output\r\n")
+
+        self.assertEqual(output, "regular terminal output\r\n")
+        self.assertEqual(paths, [])
+
+    def test_strip_cwd_markers_keeps_partial_marker_pending(self):
+        output, paths, pending = strip_cwd_markers_with_pending(f"prompt{CWD_MARKER_START}/op")
+
+        self.assertEqual(output, "prompt")
+        self.assertEqual(paths, [])
+        self.assertEqual(pending, f"{CWD_MARKER_START}/op")
+
+        output, paths, pending = strip_cwd_markers_with_pending(pending + f"t{CWD_MARKER_END}next")
+        self.assertEqual(output, "next")
+        self.assertEqual(paths, ["/opt"])
+        self.assertEqual(pending, "")
+
     def test_sftp_properties_payload_uses_resolved_owner_group_names(self):
         attrs = type(
             "Attrs",

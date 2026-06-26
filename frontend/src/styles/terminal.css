@@ -313,6 +313,16 @@ input {
   color: #1f63f1;
 }
 
+.terminal-file-status button.active {
+  background: #1f63f1;
+  color: #fff;
+}
+
+.terminal-file-status button.active:hover {
+  background: #1857d8;
+  color: #fff;
+}
+
 .terminal-file-toolbar button:disabled,
 .terminal-file-status button:disabled,
 .terminal-file-path button:disabled {

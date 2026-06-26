@@ -46,6 +46,8 @@ interface TerminalTab {
   highlightState: TerminalHighlightState;
   suppressInterruptUntil: number;
   hasUnreadOutput: boolean;
+  currentCwd: string;
+  reconnectHintShown: boolean;
 }
 
 type TreeRow =
@@ -60,9 +62,10 @@ interface TerminalRoot {
 }
 
 interface TerminalMessage {
-  type: 'ready' | 'output' | 'error' | 'closed';
+  type: 'ready' | 'output' | 'cwd' | 'error' | 'closed';
   sessionId?: string;
   data?: string;
+  path?: string;
   message?: string;
   reason?: string;
 }
@@ -258,6 +261,7 @@ const selectedTerminalFile = ref<TerminalFileEntry | null>(initialTerminalFileEn
 const terminalFilePath = ref('.');
 const terminalFileListProtocol = ref('');
 const terminalFileListError = ref('');
+const isTerminalFileFollowingCwd = ref(false);
 const isTerminalFileListLoading = ref(false);
 const terminalFileUploadInput = ref<HTMLInputElement | null>(null);
 const terminalFolderUploadInput = ref<HTMLInputElement | null>(null);
@@ -350,6 +354,7 @@ const terminalFileStatusText = computed(() => {
   if (terminalFileStatus.value === 'success') return terminalFileProtocolLabel.value;
   return '待加载';
 });
+const terminalFileFollowCwdLabel = computed(() => (isTerminalFileFollowingCwd.value ? '停止跟踪终端目录' : '跟踪终端目录'));
 const terminalFileContextMenuItems = computed<TerminalFileContextMenuItem[]>(() => {
   const entry = terminalFileContextMenu.value.entry;
   const hasEntry = Boolean(entry);
@@ -856,6 +861,13 @@ function openTerminalParentDirectory() {
   void loadTerminalDirectory(parentTerminalDirectoryPath(terminalFilePath.value));
 }
 
+function toggleTerminalFileCwdFollow() {
+  isTerminalFileFollowingCwd.value = !isTerminalFileFollowingCwd.value;
+  if (isTerminalFileFollowingCwd.value && activeTab.value?.currentCwd) {
+    void loadTerminalDirectory(activeTab.value.currentCwd);
+  }
+}
+
 function resolveTerminalDirectoryPath(path: string) {
   const value = String(path || '.').trim();
   if (value === '..') return parentTerminalDirectoryPath(terminalFilePath.value);
@@ -1208,6 +1220,9 @@ async function activateTab(tabId: string) {
     mountTerminal(tab);
     fitTerminal(tab);
     tab.terminal.focus();
+    if (isTerminalFileFollowingCwd.value && tab.currentCwd) {
+      void loadTerminalDirectory(tab.currentCwd);
+    }
   }
 }
 
@@ -1251,6 +1266,8 @@ function createTerminalTab(host: TerminalHost, tabId = createTerminalTabId(host.
     },
     suppressInterruptUntil: 0,
     hasUnreadOutput: false,
+    currentCwd: '',
+    reconnectHintShown: false,
   };
 }
 
@@ -1291,6 +1308,12 @@ function mountTerminal(tab: TerminalTab) {
   tab.mounted = true;
   tab.disposables.push(
     tab.terminal.onData((data) => {
+      if (tab.status === 'closed' || tab.status === 'error') {
+        if (data.includes('\r')) reconnectTerminalTab(tab);
+        return;
+      }
+      if (tab.status === 'connecting') return;
+
       const sendableData = getSendableTerminalData(tab, data);
       if (!sendableData) return;
 
@@ -1343,7 +1366,39 @@ function finishConnectingTab(tab: TerminalTab) {
   drainConnectQueue();
 }
 
+function resetTerminalHighlightState(tab: TerminalTab) {
+  tab.highlightState = {
+    sgrActive: false,
+    pendingControl: '',
+  };
+}
+
+function showTerminalReconnectHint(tab: TerminalTab, reason = '') {
+  if (tab.reconnectHintShown) return;
+  if (reason) {
+    tab.terminal.writeln(`\r\n\x1b[33m${reason}\x1b[0m`);
+  }
+  tab.terminal.writeln('\x1b[32m[会话已断开]\x1b[0m');
+  tab.terminal.writeln('\x1b[32m[按回车键重新连接]\x1b[0m');
+  tab.reconnectHintShown = true;
+}
+
+function reconnectTerminalTab(tab: TerminalTab) {
+  if (tab.status !== 'closed' && tab.status !== 'error') return;
+  tab.status = 'connecting';
+  tab.sessionId = null;
+  tab.currentCwd = '';
+  tab.socket = null;
+  tab.reconnectHintShown = false;
+  resetTerminalHighlightState(tab);
+  removePendingConnectTab(tab.id);
+  finishConnectingTab(tab);
+  tab.terminal.writeln('\r\n\x1b[32m[正在重新连接...]\x1b[0m');
+  enqueueConnectTab(tab);
+}
+
 function connectTab(tab: TerminalTab) {
+  tab.reconnectHintShown = false;
   const socket = new WebSocket(buildWebSocketUrl(tab.host.id));
   tab.socket = socket;
 
@@ -1352,7 +1407,7 @@ function connectTab(tab: TerminalTab) {
   socket.addEventListener('error', () => {
     if (tab.status !== 'closed') {
       tab.status = 'error';
-      tab.terminal.writeln('\r\n\x1b[31mWebSocket 连接失败。\x1b[0m');
+      showTerminalReconnectHint(tab, 'WebSocket 连接失败。');
     }
     finishConnectingTab(tab);
   });
@@ -1361,7 +1416,7 @@ function connectTab(tab: TerminalTab) {
     finishConnectingTab(tab);
     if (tab.status === 'connected' || tab.status === 'connecting') {
       tab.status = 'closed';
-      tab.terminal.writeln('\r\n\x1b[33m连接已关闭。\x1b[0m');
+      showTerminalReconnectHint(tab, '连接已关闭。');
     }
   });
 }
@@ -1378,6 +1433,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   if (message.type === 'ready') {
     tab.status = 'connected';
     tab.sessionId = message.sessionId ?? null;
+    tab.reconnectHintShown = false;
     finishConnectingTab(tab);
     fitTerminal(tab);
     return;
@@ -1391,17 +1447,27 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
     return;
   }
 
+  if (message.type === 'cwd') {
+    const path = String(message.path || '').trim();
+    if (!path) return;
+    tab.currentCwd = path;
+    if (isTerminalFileFollowingCwd.value && tab.id === activeTabId.value) {
+      void loadTerminalDirectory(path);
+    }
+    return;
+  }
+
   if (message.type === 'error') {
     tab.status = 'error';
     finishConnectingTab(tab);
-    tab.terminal.writeln(`\r\n\x1b[31m${message.message ?? '终端连接失败'}\x1b[0m`);
+    showTerminalReconnectHint(tab, message.message ?? '终端连接失败');
     return;
   }
 
   if (message.type === 'closed') {
     tab.status = 'closed';
     finishConnectingTab(tab);
-    tab.terminal.writeln(`\r\n\x1b[33m${message.reason ?? '连接已关闭'}\x1b[0m`);
+    showTerminalReconnectHint(tab, message.reason ?? '连接已关闭');
   }
 }
 
@@ -1893,9 +1959,16 @@ function readTerminalSidebarCollapsed() {
               <span>共 {{ terminalFileEntries.length }} 项</span>
               <span class="terminal-file-protocol" :class="terminalFileStatus">{{ terminalFileStatusText }}</span>
               <div>
-                <button type="button" title="打开本地目录" aria-label="打开本地目录"><AppIcon name="folder" :size="15" /></button>
-                <button type="button" title="同步" aria-label="同步" @click="loadTerminalDirectory()"><AppIcon name="refresh" :size="15" /></button>
-                <button type="button" title="传输队列" aria-label="传输队列" @click="openTerminalUpload"><AppIcon name="upload" :size="15" /></button>
+                <button
+                  type="button"
+                  :title="terminalFileFollowCwdLabel"
+                  :aria-label="terminalFileFollowCwdLabel"
+                  :aria-pressed="isTerminalFileFollowingCwd"
+                  :class="{ active: isTerminalFileFollowingCwd }"
+                  @click="toggleTerminalFileCwdFollow"
+                >
+                  <AppIcon name="refresh" :size="15" />
+                </button>
               </div>
             </footer>
             <input ref="terminalFileUploadInput" hidden type="file" @change="uploadTerminalFile" />
