@@ -1,10 +1,9 @@
-import base64
 from urllib.parse import quote
 from uuid import UUID
 
 from rest_framework import status
 from rest_framework.decorators import api_view
-from django.http import HttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.response import Response
 
 from host_management.models import ManagedHost
@@ -25,6 +24,7 @@ from .services import (
     rename_remote_file,
     run_session_command,
     session_payload,
+    stream_remote_file_content,
     terminal_tree_payload,
     update_remote_file_properties,
     upload_remote_file,
@@ -79,6 +79,19 @@ def terminal_file_list(request, host_id: int):
 
 
 @api_view(["POST"])
+def terminal_file_download_list(request, host_id: int):
+    try:
+        host = ManagedHost.objects.get(id=host_id)
+    except ManagedHost.DoesNotExist:
+        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        return Response(list_remote_directory(host, str(request.data.get("path", "."))))
+    except TerminalConnectionError as error:
+        return bad_request(error)
+
+
+@api_view(["POST"])
 def terminal_monitor(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -112,17 +125,25 @@ def terminal_file_download_attachment(request, host_id: int):
         return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
 
     try:
-        payload = download_remote_file(host, str(request.query_params.get("path", "")))
+        payload = stream_remote_file_content(
+            host,
+            str(request.query_params.get("path", "")),
+            str(request.query_params.get("protocol", "auto")),
+        )
         filename = str(payload.get("filename") or "download")
-        content = base64.b64decode(str(payload.get("contentBase64") or ""), validate=False)
+        content = payload.get("content") or b""
     except TerminalConnectionError as error:
         return bad_request(error)
     except Exception:
         return bad_request("文件下载失败")
 
-    response = HttpResponse(content, content_type="application/octet-stream")
+    response_class = StreamingHttpResponse if not isinstance(content, (bytes, bytearray)) else HttpResponse
+    response = response_class(content, content_type="application/octet-stream")
     response["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(filename)}"
-    response["Content-Length"] = str(len(content))
+    if "size" in payload:
+        response["Content-Length"] = str(int(payload.get("size") or 0))
+    else:
+        response["Content-Length"] = str(len(content))
     return response
 
 

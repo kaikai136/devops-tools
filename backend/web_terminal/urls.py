@@ -8,6 +8,7 @@ urlpatterns = [
     path("web-terminal/sessions/<uuid:session_id>/commands/", views.terminal_commands),
     path("web-terminal/hosts/<int:host_id>/monitor/", views.terminal_monitor),
     path("web-terminal/hosts/<int:host_id>/files/list/", views.terminal_file_list),
+    path("web-terminal/hosts/<int:host_id>/files/list-download/", views.terminal_file_download_list),
     path("web-terminal/hosts/<int:host_id>/files/download/", views.terminal_file_download),
     path("web-terminal/hosts/<int:host_id>/files/download/raw/", views.terminal_file_download_attachment),
     path("web-terminal/hosts/<int:host_id>/files/upload/", views.terminal_file_upload),

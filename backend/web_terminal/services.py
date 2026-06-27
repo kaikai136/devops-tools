@@ -85,7 +85,7 @@ SSH_CONNECT_TIMEOUT = 15
 SSH_BANNER_TIMEOUT = 30
 SSH_AUTH_TIMEOUT = 20
 SSH_RETRY_DELAY_SECONDS = 0.8
-REMOTE_FILE_DOWNLOAD_MAX_BYTES = 20 * 1024 * 1024
+REMOTE_FILE_STREAM_CHUNK_BYTES = 1024 * 1024
 REMOTE_FILE_OWNER_PATTERN = re.compile(r"^[^\s:\x00-\x1f\x7f]+$")
 REMOTE_FILE_OCTAL_MODE_PATTERN = re.compile(r"^[0-7]{3,4}$")
 REMOTE_MONITOR_SAMPLE_INTERVAL_SECONDS = 1
@@ -264,6 +264,45 @@ def download_remote_file(host: ManagedHost, path: str) -> dict:
     )
 
 
+def download_remote_file_content(host: ManagedHost, path: str) -> dict:
+    path = normalize_remote_file_path(path)
+    payload = run_remote_file_operation(
+        "文件下载失败",
+        (
+            ("SFTP protocol", lambda: download_remote_file_content_with_sftp(host, path)),
+            ("SCP (enhanced speed)", lambda: download_remote_file_content_with_scp_enhanced(host, path)),
+            ("SCP (normal speed)", lambda: download_remote_file_content_with_scp_normal(host, path)),
+        ),
+        path,
+    )
+    return {"filename": path.rstrip("/").split("/")[-1] or "download", "content": payload["content"]}
+
+
+def stream_remote_file_content(host: ManagedHost, path: str, protocol: str = "auto") -> dict:
+    path = normalize_remote_file_path(path)
+    protocol = normalize_remote_download_protocol(protocol)
+    if protocol == "sftp":
+        payload = stream_remote_file_content_with_sftp(host, path)
+        payload.setdefault("path", path)
+        payload.setdefault("protocol", "SFTP protocol")
+        return payload
+    if protocol == "scp":
+        payload = stream_remote_file_content_with_scp(host, path)
+        payload.setdefault("path", path)
+        payload.setdefault("protocol", "SCP command")
+        return payload
+    try:
+        payload = stream_remote_file_content_with_scp(host, path)
+        payload.setdefault("path", path)
+        payload.setdefault("protocol", "SCP command")
+        return payload
+    except Exception:
+        payload = stream_remote_file_content_with_sftp(host, path)
+        payload.setdefault("path", path)
+        payload.setdefault("protocol", "SFTP protocol")
+        return payload
+
+
 def upload_remote_file(host: ManagedHost, directory: str, filename: str, content_base64: str, relative_path: str = "") -> dict:
     directory = normalize_remote_file_path(directory or ".")
     upload_name = normalize_remote_relative_file_path(relative_path) if str(relative_path or "").strip() else normalize_remote_file_name(filename)
@@ -404,6 +443,15 @@ def normalize_remote_relative_file_path(path: str) -> str:
     if not parts or any(part in {".", ".."} for part in parts):
         raise TerminalConnectionError("上传相对路径不合法")
     return "/".join(parts)
+
+
+def normalize_remote_download_protocol(protocol: str) -> str:
+    value = str(protocol or "auto").strip().lower()
+    if value in {"", "auto"}:
+        return "auto"
+    if value in {"sftp", "scp"}:
+        return value
+    raise TerminalConnectionError("下载方式不合法")
 
 
 def normalize_remote_symlink_target(target_path: str) -> str:
@@ -969,35 +1017,117 @@ def natural_sort_key(value: str):
 
 
 def download_remote_file_with_sftp(host: ManagedHost, path: str) -> dict:
+    payload = download_remote_file_content_with_sftp(host, path)
+    return encode_remote_download(path, payload["content"])
+
+
+def download_remote_file_content_with_sftp(host: ManagedHost, path: str) -> dict:
     client = open_ssh_client(host)
     try:
         sftp = client.open_sftp()
         try:
             with sftp.open(path, "rb") as remote_file:
-                data = remote_file.read(REMOTE_FILE_DOWNLOAD_MAX_BYTES + 1)
+                data = remote_file.read()
         finally:
             sftp.close()
-        return encode_remote_download(path, data)
+        return {"content": data}
     finally:
         client.close()
 
 
-def download_remote_file_with_scp_enhanced(host: ManagedHost, path: str) -> dict:
+def stream_remote_file_content_with_sftp(host: ManagedHost, path: str) -> dict:
+    client = open_ssh_client(host)
+    sftp = None
+    remote_file = None
+    try:
+        sftp = client.open_sftp()
+        attrs = sftp.stat(path)
+        remote_file = sftp.open(path, "rb")
+    except Exception:
+        if remote_file is not None:
+            remote_file.close()
+        if sftp is not None:
+            sftp.close()
+        client.close()
+        raise
+
+    def chunks():
+        try:
+            while True:
+                chunk = remote_file.read(REMOTE_FILE_STREAM_CHUNK_BYTES)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            remote_file.close()
+            sftp.close()
+            client.close()
+
+    return {
+        "filename": path.rstrip("/").split("/")[-1] or "download",
+        "content": chunks(),
+        "size": int(getattr(attrs, "st_size", 0) or 0),
+    }
+
+
+def stream_remote_file_content_with_scp(host: ManagedHost, path: str) -> dict:
+    client = open_ssh_client(host)
     quoted_path = shlex.quote(path)
-    command = f"dd if={quoted_path} bs={REMOTE_FILE_DOWNLOAD_MAX_BYTES} count=1 2>/dev/null | base64 | tr -d '\\n'"
-    output = run_one_shot_ssh_command(host, command)
-    if not output.strip():
-        raise TerminalConnectionError("远端未返回文件内容")
-    return encode_remote_download(path, base64.b64decode(output.strip(), validate=False))
+    command = f"stat -c %s -- {quoted_path} 2>/dev/null; cat -- {quoted_path}"
+    try:
+        _, stdout, stderr = client.exec_command(command, timeout=30)
+    except Exception:
+        client.close()
+        raise
+    size_line = stdout.readline().strip()
+    try:
+        size = int(size_line or "0")
+    except ValueError:
+        size = 0
+
+    def chunks():
+        try:
+            while True:
+                chunk = stdout.read(REMOTE_FILE_STREAM_CHUNK_BYTES)
+                if not chunk:
+                    break
+                yield chunk
+            error_output = stderr.read().decode("utf-8", errors="replace").strip()
+            exit_code = stdout.channel.recv_exit_status()
+            if exit_code != 0:
+                raise TerminalConnectionError(error_output or f"远端下载命令退出码 {exit_code}")
+        finally:
+            client.close()
+
+    return {
+        "filename": path.rstrip("/").split("/")[-1] or "download",
+        "content": chunks(),
+        "size": size,
+    }
 
 
-def download_remote_file_with_scp_normal(host: ManagedHost, path: str) -> dict:
+def download_remote_file_with_scp_enhanced(host: ManagedHost, path: str) -> dict:
+    payload = download_remote_file_content_with_scp_enhanced(host, path)
+    return encode_remote_download(path, payload["content"])
+
+
+def download_remote_file_content_with_scp_enhanced(host: ManagedHost, path: str) -> dict:
     quoted_path = shlex.quote(path)
     command = f"base64 {quoted_path} | tr -d '\\n'"
     output = run_one_shot_ssh_command(host, command)
-    if not output.strip():
-        raise TerminalConnectionError("远端未返回文件内容")
-    return encode_remote_download(path, base64.b64decode(output.strip(), validate=False))
+    return {"content": base64.b64decode(output.strip(), validate=False)}
+
+
+def download_remote_file_with_scp_normal(host: ManagedHost, path: str) -> dict:
+    payload = download_remote_file_content_with_scp_normal(host, path)
+    return encode_remote_download(path, payload["content"])
+
+
+def download_remote_file_content_with_scp_normal(host: ManagedHost, path: str) -> dict:
+    quoted_path = shlex.quote(path)
+    command = f"base64 {quoted_path} | tr -d '\\n'"
+    output = run_one_shot_ssh_command(host, command)
+    return {"content": base64.b64decode(output.strip(), validate=False)}
 
 
 def upload_remote_file_with_sftp(host: ManagedHost, path: str, data: bytes) -> dict:
@@ -1044,8 +1174,6 @@ def upload_remote_file_with_scp_normal(host: ManagedHost, path: str, data: bytes
 
 
 def encode_remote_download(path: str, data: bytes) -> dict:
-    if len(data) > REMOTE_FILE_DOWNLOAD_MAX_BYTES:
-        raise TerminalConnectionError("文件超过 20 MB，暂不支持浏览器直接下载")
     filename = path.rstrip("/").split("/")[-1] or "download"
     return {"filename": filename, "contentBase64": base64.b64encode(data).decode("ascii"), "size": len(data)}
 

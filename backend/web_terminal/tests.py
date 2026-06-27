@@ -1,5 +1,3 @@
-import base64
-
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from unittest.mock import patch
 
@@ -393,14 +391,15 @@ class TerminalFileDownloadAttachmentTests(TestCase):
             private_ip="10.0.0.6",
             login_user="root",
         )
-        request = self.factory.get(f"/api/web-terminal/hosts/{host.id}/files/download/raw/?path=/tmp/config.toml")
+        request = self.factory.get(f"/api/web-terminal/hosts/{host.id}/files/download/raw/?path=/tmp/config.toml&protocol=scp")
 
         with patch(
-            "web_terminal.views.download_remote_file",
-            return_value={"filename": "config.toml", "contentBase64": base64.b64encode(b"port=22").decode("ascii")},
-        ):
+            "web_terminal.views.stream_remote_file_content",
+            return_value={"filename": "config.toml", "content": b"port=22"},
+        ) as mocked_download:
             response = views.terminal_file_download_attachment(request, host.id)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"port=22")
         self.assertIn("config.toml", response["Content-Disposition"])
+        mocked_download.assert_called_once_with(host, "/tmp/config.toml", "scp")
