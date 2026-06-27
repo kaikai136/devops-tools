@@ -3,13 +3,17 @@ from uuid import UUID
 
 from rest_framework import status
 from rest_framework.decorators import api_view
+from django.db import transaction
+from django.db.models import Max
 from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.response import Response
 
+from accounts.permissions import require_login
 from host_management.models import ManagedHost
-from operations.responses import bad_request
+from operations.responses import bad_request, not_found, serializer_bad_request
 
-from .models import TerminalSession
+from .models import TerminalQuickCommand, TerminalSession
+from .serializers import TerminalQuickCommandSerializer
 from .services import (
     TerminalConnectionError,
     create_remote_directory,
@@ -29,6 +33,86 @@ from .services import (
     update_remote_file_properties,
     upload_remote_file,
 )
+
+
+def next_quick_command_sort_order(category: str) -> int:
+    latest = TerminalQuickCommand.objects.filter(category=category).aggregate(value=Max("sort_order"))["value"]
+    return int(latest or 0) + 10
+
+
+def quick_command_queryset():
+    return TerminalQuickCommand.objects.all()
+
+
+@api_view(["GET", "POST"])
+def terminal_quick_commands(request):
+    auth_error = require_login(request)
+    if auth_error:
+        return auth_error
+
+    if request.method == "GET":
+        return Response(TerminalQuickCommandSerializer(quick_command_queryset(), many=True).data)
+
+    payload = request.data.copy()
+    category = str(payload.get("category", "")).strip()
+    if "sortOrder" not in payload and category:
+        payload["sortOrder"] = next_quick_command_sort_order(category)
+    serializer = TerminalQuickCommandSerializer(data=payload)
+    if not serializer.is_valid():
+        return serializer_bad_request(serializer)
+    return Response(TerminalQuickCommandSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["PUT", "DELETE"])
+def terminal_quick_command_detail(request, command_id: int):
+    auth_error = require_login(request)
+    if auth_error:
+        return auth_error
+
+    try:
+        command = TerminalQuickCommand.objects.get(id=command_id)
+    except TerminalQuickCommand.DoesNotExist:
+        return not_found("快捷命令不存在")
+
+    if request.method == "DELETE":
+        command.delete()
+        return Response({"deleted": True})
+
+    payload = request.data.copy()
+    serializer = TerminalQuickCommandSerializer(command, data=payload, partial=True)
+    if not serializer.is_valid():
+        return serializer_bad_request(serializer)
+    return Response(TerminalQuickCommandSerializer(serializer.save()).data)
+
+
+@api_view(["POST"])
+def terminal_quick_commands_reorder(request):
+    auth_error = require_login(request)
+    if auth_error:
+        return auth_error
+
+    ids = request.data.get("ids")
+    if not isinstance(ids, list) or not ids:
+        return bad_request("请提供快捷命令排序列表")
+
+    try:
+        command_ids = [int(command_id) for command_id in ids]
+    except (TypeError, ValueError):
+        return bad_request("快捷命令 ID 无效")
+
+    commands = list(TerminalQuickCommand.objects.filter(id__in=command_ids))
+    commands_by_id = {command.id: command for command in commands}
+    missing_ids = [command_id for command_id in command_ids if command_id not in commands_by_id]
+    if missing_ids:
+        return bad_request(f"快捷命令不存在：{missing_ids[0]}")
+
+    with transaction.atomic():
+        for index, command_id in enumerate(command_ids, start=1):
+            command = commands_by_id[command_id]
+            command.sort_order = index * 10
+            command.save(update_fields=["sort_order", "updated_at"])
+
+    return Response(TerminalQuickCommandSerializer(quick_command_queryset(), many=True).data)
 
 
 @api_view(["GET"])

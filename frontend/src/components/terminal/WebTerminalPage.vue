@@ -5,7 +5,7 @@ import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
-import { apiGet, apiPost } from '../../api';
+import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import AppIcon from '../common/AppIcon.vue';
 import type { IconName } from '../common/AppIcon.vue';
 
@@ -30,7 +30,7 @@ interface TerminalGroup {
 }
 
 type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
-type TerminalSidebarMode = 'hosts' | 'files' | 'monitor';
+type TerminalSidebarMode = 'hosts' | 'files' | 'monitor' | 'commands';
 type TerminalTransferKind = 'upload' | 'download';
 type TerminalTransferStatus = 'queued' | 'running' | 'success' | 'error' | 'canceled';
 type TerminalDownloadProtocol = 'auto' | 'scp' | 'sftp';
@@ -203,6 +203,36 @@ interface TerminalMonitorResponse {
   }>;
 }
 
+interface TerminalQuickCommand {
+  id: number;
+  name: string;
+  category: string;
+  command: string;
+  description: string;
+  enabled: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface TerminalQuickCommandDraft {
+  name: string;
+  category: string;
+  command: string;
+  description: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+interface TerminalQuickCommandDialogState {
+  visible: boolean;
+  mode: 'create' | 'edit';
+  commandId: number | null;
+  draft: TerminalQuickCommandDraft;
+  saving: boolean;
+  error: string;
+}
+
 interface TerminalFileProperties {
   name: string;
   path: string;
@@ -318,6 +348,11 @@ const TERMINAL_MONITOR_REFRESH_MS = 5000;
 const TERMINAL_TRANSFER_PANEL_DEFAULT_HEIGHT = 170;
 const TERMINAL_TRANSFER_PANEL_MIN_HEIGHT = 96;
 const TERMINAL_TRANSFER_PANEL_MAX_HEIGHT = 360;
+const TERMINAL_QUICK_COMMAND_PANEL_HEIGHT_STORAGE_KEY = 'ops-tool.web-terminal.quick-command-panel-height';
+const TERMINAL_QUICK_COMMAND_PANEL_COLLAPSED_STORAGE_KEY = 'ops-tool.web-terminal.quick-command-panel-collapsed';
+const TERMINAL_QUICK_COMMAND_PANEL_DEFAULT_HEIGHT = 260;
+const TERMINAL_QUICK_COMMAND_PANEL_MIN_HEIGHT = 160;
+const TERMINAL_QUICK_COMMAND_PANEL_MAX_HEIGHT = 420;
 const TERMINAL_DOWNLOAD_FILE_CONCURRENCY = 1;
 const TERMINAL_DOWNLOAD_DIRECTORY_PICKER_ID = 'terminal-download-directory';
 const TERMINAL_LOCAL_FILENAME_RESERVED_CHARS = /[<>:"/\\|?*\x00-\x1f]/g;
@@ -463,6 +498,24 @@ const isTerminalMonitorLoading = ref(false);
 const terminalMonitorError = ref('');
 let terminalMonitorRequestId = 0;
 let terminalMonitorTimer: ReturnType<typeof window.setInterval> | null = null;
+const terminalQuickCommands = ref<TerminalQuickCommand[]>([]);
+const terminalQuickCommandCategory = ref('all');
+const terminalQuickCommandSearch = ref('');
+const isTerminalQuickCommandLoading = ref(false);
+const terminalQuickCommandError = ref('');
+const terminalQuickCommandPanelHeight = ref(readTerminalQuickCommandPanelHeight());
+const isTerminalQuickCommandPanelCollapsed = ref(readTerminalQuickCommandPanelCollapsed());
+const isTerminalQuickCommandPanelResizing = ref(false);
+const terminalQuickCommandDialog = ref<TerminalQuickCommandDialogState>({
+  visible: false,
+  mode: 'create',
+  commandId: null,
+  draft: createTerminalQuickCommandDraft(),
+  saving: false,
+  error: '',
+});
+let terminalQuickCommandResizeStartY = 0;
+let terminalQuickCommandResizeStartHeight = TERMINAL_QUICK_COMMAND_PANEL_DEFAULT_HEIGHT;
 
 const groups = ref<TerminalGroup[]>([]);
 const collapsed = ref<Set<number>>(new Set());
@@ -547,6 +600,25 @@ const terminalFileStatusText = computed(() => {
 });
 const terminalFileFollowCwdLabel = computed(() => (isTerminalFileFollowingCwd.value ? '停止跟踪终端目录' : '跟踪终端目录'));
 const terminalMonitorNodeName = computed(() => activeTab.value?.host.name ?? '请选择服务器');
+const terminalQuickCommandCategories = computed(() => {
+  const categories = terminalQuickCommands.value.map((command) => command.category).filter(Boolean);
+  return [...new Set(categories)].sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'));
+});
+const filteredTerminalQuickCommands = computed(() => {
+  const query = terminalQuickCommandSearch.value.trim().toLowerCase();
+  return terminalQuickCommands.value.filter((command) => {
+    const matchesCategory = terminalQuickCommandCategory.value === 'all' || command.category === terminalQuickCommandCategory.value;
+    if (!matchesCategory) return false;
+    if (!query) return true;
+    return [command.name, command.category, command.command, command.description]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
+});
+const activeTerminalReady = computed(() => activeTab.value?.status === 'connected' && activeTab.value.socket?.readyState === WebSocket.OPEN);
+const terminalQuickCommandPanelStyle = computed<Record<string, string>>(() => ({
+  '--terminal-quick-command-height': `${terminalQuickCommandPanelHeight.value}px`,
+}));
 const terminalFileContextMenuItems = computed<TerminalFileContextMenuItem[]>(() => {
   const entry = terminalFileContextMenu.value.entry;
   const targetEntries = getTerminalFileActionEntries(entry);
@@ -882,6 +954,166 @@ function scrollActiveTerminalTabIntoView() {
   const activeButton = tabsElement.querySelector<HTMLElement>(`[data-terminal-tab-id="${cssEscape(activeTabId.value)}"]`);
   activeButton?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   window.setTimeout(syncTerminalTabsScrollState, 220);
+}
+
+function createTerminalQuickCommandDraft(command?: TerminalQuickCommand | null): TerminalQuickCommandDraft {
+  return {
+    name: command?.name ?? '',
+    category: command?.category ?? terminalQuickCommands.value[0]?.category ?? 'Linux',
+    command: command?.command ?? '',
+    description: command?.description ?? '',
+    enabled: command?.enabled ?? true,
+    sortOrder: command?.sortOrder ?? 0,
+  };
+}
+
+async function loadTerminalQuickCommands() {
+  isTerminalQuickCommandLoading.value = true;
+  terminalQuickCommandError.value = '';
+  try {
+    terminalQuickCommands.value = await apiGet<TerminalQuickCommand[]>('/api/web-terminal/quick-commands/');
+    if (
+      terminalQuickCommandCategory.value !== 'all' &&
+      !terminalQuickCommands.value.some((command) => command.category === terminalQuickCommandCategory.value)
+    ) {
+      terminalQuickCommandCategory.value = 'all';
+    }
+  } catch (error) {
+    terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令加载失败';
+  } finally {
+    isTerminalQuickCommandLoading.value = false;
+  }
+}
+
+function openTerminalQuickCommandDialog(command: TerminalQuickCommand | null = null) {
+  terminalQuickCommandDialog.value = {
+    visible: true,
+    mode: command ? 'edit' : 'create',
+    commandId: command?.id ?? null,
+    draft: createTerminalQuickCommandDraft(command),
+    saving: false,
+    error: '',
+  };
+}
+
+function closeTerminalQuickCommandDialog() {
+  if (terminalQuickCommandDialog.value.saving) return;
+  terminalQuickCommandDialog.value = {
+    visible: false,
+    mode: 'create',
+    commandId: null,
+    draft: createTerminalQuickCommandDraft(),
+    saving: false,
+    error: '',
+  };
+}
+
+function terminalQuickCommandPayload(draft: TerminalQuickCommandDraft) {
+  return {
+    name: draft.name.trim(),
+    category: draft.category.trim(),
+    command: draft.command.trim(),
+    description: draft.description.trim(),
+    enabled: draft.enabled,
+    sortOrder: draft.sortOrder,
+  };
+}
+
+async function saveTerminalQuickCommandDialog() {
+  const dialog = terminalQuickCommandDialog.value;
+  if (!dialog.visible || dialog.saving) return;
+  const payload = terminalQuickCommandPayload(dialog.draft);
+  if (!payload.name || !payload.category || !payload.command) {
+    terminalQuickCommandDialog.value = { ...dialog, error: '请填写名称、分类和命令内容' };
+    return;
+  }
+
+  terminalQuickCommandDialog.value = { ...dialog, saving: true, error: '' };
+  try {
+    const saved =
+      dialog.mode === 'edit' && dialog.commandId
+        ? await apiPut<TerminalQuickCommand>(`/api/web-terminal/quick-commands/${dialog.commandId}/`, payload)
+        : await apiPost<TerminalQuickCommand>('/api/web-terminal/quick-commands/', payload);
+    const nextCommands =
+      dialog.mode === 'edit'
+        ? terminalQuickCommands.value.map((command) => (command.id === saved.id ? saved : command))
+        : [...terminalQuickCommands.value, saved];
+    terminalQuickCommands.value = sortTerminalQuickCommands(nextCommands);
+    terminalQuickCommandCategory.value = saved.category;
+    closeTerminalQuickCommandDialog();
+  } catch (error) {
+    terminalQuickCommandDialog.value = {
+      ...dialog,
+      saving: false,
+      error: error instanceof Error ? error.message : '快捷命令保存失败',
+    };
+  }
+}
+
+async function deleteTerminalQuickCommand(command: TerminalQuickCommand) {
+  if (!window.confirm(`删除快捷命令“${command.name}”？`)) return;
+  try {
+    await apiDelete<{ deleted: boolean }>(`/api/web-terminal/quick-commands/${command.id}/`);
+    terminalQuickCommands.value = terminalQuickCommands.value.filter((item) => item.id !== command.id);
+  } catch (error) {
+    terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令删除失败';
+  }
+}
+
+async function toggleTerminalQuickCommand(command: TerminalQuickCommand) {
+  try {
+    const saved = await apiPut<TerminalQuickCommand>(`/api/web-terminal/quick-commands/${command.id}/`, {
+      ...command,
+      enabled: !command.enabled,
+    });
+    terminalQuickCommands.value = terminalQuickCommands.value.map((item) => (item.id === saved.id ? saved : item));
+  } catch (error) {
+    terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令状态更新失败';
+  }
+}
+
+async function moveTerminalQuickCommand(command: TerminalQuickCommand, direction: -1 | 1) {
+  const visibleCommands = filteredTerminalQuickCommands.value;
+  const visibleIndex = visibleCommands.findIndex((item) => item.id === command.id);
+  const target = visibleCommands[visibleIndex + direction];
+  if (!target) return;
+
+  const nextCommands = [...terminalQuickCommands.value];
+  const sourceIndex = nextCommands.findIndex((item) => item.id === command.id);
+  const targetIndex = nextCommands.findIndex((item) => item.id === target.id);
+  if (sourceIndex === -1 || targetIndex === -1) return;
+
+  [nextCommands[sourceIndex], nextCommands[targetIndex]] = [nextCommands[targetIndex], nextCommands[sourceIndex]];
+  await saveTerminalQuickCommandOrder(nextCommands);
+}
+
+async function saveTerminalQuickCommandOrder(nextCommands: TerminalQuickCommand[]) {
+  const previousCommands = terminalQuickCommands.value;
+  terminalQuickCommands.value = nextCommands.map((command, index) => ({ ...command, sortOrder: (index + 1) * 10 }));
+  try {
+    terminalQuickCommands.value = await apiPost<TerminalQuickCommand[]>('/api/web-terminal/quick-commands/reorder/', {
+      ids: terminalQuickCommands.value.map((command) => command.id),
+    });
+  } catch (error) {
+    terminalQuickCommands.value = previousCommands;
+    terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令排序保存失败';
+  }
+}
+
+function sortTerminalQuickCommands(commands: TerminalQuickCommand[]) {
+  return [...commands].sort(
+    (left, right) =>
+      left.category.localeCompare(right.category, 'zh-Hans-CN') ||
+      left.sortOrder - right.sortOrder ||
+      left.id - right.id,
+  );
+}
+
+function sendQuickCommandToTerminal(command: TerminalQuickCommand, execute: boolean) {
+  if (!command.enabled || !activeTerminalReady.value || !activeTab.value) return;
+  const data = execute ? `${command.command}\r` : command.command;
+  activeTab.value.socket?.send(JSON.stringify({ type: 'input', data }));
+  activeTab.value.terminal.focus();
 }
 
 function closeTerminalContextMenus() {
@@ -2112,6 +2344,60 @@ function clampTerminalTransferPanelHeight(height: number) {
   return Math.min(Math.max(height, TERMINAL_TRANSFER_PANEL_MIN_HEIGHT), maxHeight);
 }
 
+function toggleTerminalQuickCommandPanel() {
+  isTerminalQuickCommandPanelCollapsed.value = !isTerminalQuickCommandPanelCollapsed.value;
+  window.localStorage.setItem(
+    TERMINAL_QUICK_COMMAND_PANEL_COLLAPSED_STORAGE_KEY,
+    isTerminalQuickCommandPanelCollapsed.value ? '1' : '0',
+  );
+  fitActiveTerminalSoon();
+}
+
+function startTerminalQuickCommandPanelResize(event: MouseEvent) {
+  if (event.button !== 0 || isTerminalQuickCommandPanelCollapsed.value) return;
+  event.preventDefault();
+  isTerminalQuickCommandPanelResizing.value = true;
+  terminalQuickCommandResizeStartY = event.clientY;
+  terminalQuickCommandResizeStartHeight = terminalQuickCommandPanelHeight.value;
+  window.addEventListener('mousemove', resizeTerminalQuickCommandPanel);
+  window.addEventListener('mouseup', stopTerminalQuickCommandPanelResize);
+}
+
+function resizeTerminalQuickCommandPanel(event: MouseEvent) {
+  if (!isTerminalQuickCommandPanelResizing.value) return;
+  const delta = terminalQuickCommandResizeStartY - event.clientY;
+  const nextHeight = clampTerminalQuickCommandPanelHeight(terminalQuickCommandResizeStartHeight + delta);
+  terminalQuickCommandPanelHeight.value = nextHeight;
+  window.localStorage.setItem(TERMINAL_QUICK_COMMAND_PANEL_HEIGHT_STORAGE_KEY, String(nextHeight));
+  fitActiveTerminalSoon();
+}
+
+function stopTerminalQuickCommandPanelResize() {
+  if (!isTerminalQuickCommandPanelResizing.value) return;
+  isTerminalQuickCommandPanelResizing.value = false;
+  window.removeEventListener('mousemove', resizeTerminalQuickCommandPanel);
+  window.removeEventListener('mouseup', stopTerminalQuickCommandPanelResize);
+  fitActiveTerminalSoon();
+}
+
+function syncTerminalQuickCommandPanelHeight() {
+  const nextHeight = clampTerminalQuickCommandPanelHeight(terminalQuickCommandPanelHeight.value);
+  if (nextHeight !== terminalQuickCommandPanelHeight.value) {
+    terminalQuickCommandPanelHeight.value = nextHeight;
+    window.localStorage.setItem(TERMINAL_QUICK_COMMAND_PANEL_HEIGHT_STORAGE_KEY, String(nextHeight));
+  }
+}
+
+function clampTerminalQuickCommandPanelHeight(height: number) {
+  const viewportHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
+  const maxByViewport = viewportHeight ? Math.floor(viewportHeight * 0.46) : TERMINAL_QUICK_COMMAND_PANEL_MAX_HEIGHT;
+  const maxHeight = Math.max(
+    TERMINAL_QUICK_COMMAND_PANEL_MIN_HEIGHT,
+    Math.min(TERMINAL_QUICK_COMMAND_PANEL_MAX_HEIGHT, maxByViewport),
+  );
+  return Math.min(Math.max(height, TERMINAL_QUICK_COMMAND_PANEL_MIN_HEIGHT), maxHeight);
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2246,6 +2532,9 @@ watch([activeTabId, terminalSidebarMode], () => {
     void loadTerminalDirectory('.');
     void nextTick(syncTerminalTransferPanelHeight);
   }
+  if (terminalSidebarMode.value === 'commands' && !terminalQuickCommands.value.length && !isTerminalQuickCommandLoading.value) {
+    void loadTerminalQuickCommands();
+  }
   syncTerminalMonitorPolling();
 });
 
@@ -2262,13 +2551,16 @@ const workspaceStatus = computed(() => {
 });
 const terminalShellStyle = computed<Record<string, string>>(() => ({
   '--terminal-sidebar-width': `${isTerminalSidebarCollapsed.value ? 42 : sidebarWidth.value}px`,
+  '--terminal-quick-command-height': isTerminalQuickCommandPanelCollapsed.value ? '0px' : `${terminalQuickCommandPanelHeight.value}px`,
 }));
 onMounted(async () => {
   window.addEventListener('click', closeTerminalContextMenus);
   window.addEventListener('keydown', closeTerminalFileContextMenuOnEscape);
   window.addEventListener('resize', syncTerminalSidebarWidth);
+  window.addEventListener('resize', syncTerminalQuickCommandPanelHeight);
   window.addEventListener('resize', syncTerminalTabsScrollStateSoon);
   document.addEventListener('visibilitychange', syncTerminalMonitorPolling);
+  await loadTerminalQuickCommands();
   await loadTree();
   await restoreTerminalWorkspace();
   const params = new URLSearchParams(window.location.search);
@@ -2287,10 +2579,12 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   stopSidebarResize();
   stopTerminalTransferPanelResize();
+  stopTerminalQuickCommandPanelResize();
   stopTerminalMonitorPolling();
   window.removeEventListener('click', closeTerminalContextMenus);
   window.removeEventListener('keydown', closeTerminalFileContextMenuOnEscape);
   window.removeEventListener('resize', syncTerminalSidebarWidth);
+  window.removeEventListener('resize', syncTerminalQuickCommandPanelHeight);
   window.removeEventListener('resize', syncTerminalTabsScrollStateSoon);
   document.removeEventListener('visibilitychange', syncTerminalMonitorPolling);
   for (const tab of tabs.value) disposeTab(tab);
@@ -2686,7 +2980,20 @@ function stopSidebarResize() {
 
 function selectTerminalSidebarMode(mode: TerminalSidebarMode) {
   terminalSidebarMode.value = mode;
+  if (mode === 'commands' && isTerminalQuickCommandPanelCollapsed.value) {
+    toggleTerminalQuickCommandPanel();
+  }
+  if (mode === 'commands') {
+    setTerminalSidebarCollapsed(true);
+    return;
+  }
   if (isTerminalSidebarCollapsed.value) setTerminalSidebarCollapsed(false);
+}
+
+function toggleTerminalQuickCommandFromRail() {
+  terminalSidebarMode.value = 'commands';
+  toggleTerminalQuickCommandPanel();
+  if (!isTerminalSidebarCollapsed.value) setTerminalSidebarCollapsed(true);
 }
 
 function toggleTerminalSidebar() {
@@ -2963,6 +3270,18 @@ function readTerminalSidebarCollapsed() {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
 }
+
+function readTerminalQuickCommandPanelHeight() {
+  if (typeof window === 'undefined') return TERMINAL_QUICK_COMMAND_PANEL_DEFAULT_HEIGHT;
+  const saved = Number(window.localStorage.getItem(TERMINAL_QUICK_COMMAND_PANEL_HEIGHT_STORAGE_KEY));
+  if (!Number.isFinite(saved)) return TERMINAL_QUICK_COMMAND_PANEL_DEFAULT_HEIGHT;
+  return clampTerminalQuickCommandPanelHeight(saved);
+}
+
+function readTerminalQuickCommandPanelCollapsed() {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(TERMINAL_QUICK_COMMAND_PANEL_COLLAPSED_STORAGE_KEY) === '1';
+}
 </script>
 
 <template>
@@ -3005,6 +3324,17 @@ function readTerminalSidebarCollapsed() {
           @click="toggleTerminalSidebar"
         >
           <AppIcon name="chevronsRight" :size="17" />
+        </button>
+        <button
+          class="terminal-quick-toggle-button"
+          type="button"
+          title="双击打开/关闭快捷命令"
+          aria-label="双击打开/关闭快捷命令"
+          :aria-pressed="!isTerminalQuickCommandPanelCollapsed"
+          :class="{ active: !isTerminalQuickCommandPanelCollapsed }"
+          @dblclick.stop="toggleTerminalQuickCommandFromRail"
+        >
+          <AppIcon name="zap" :size="18" />
         </button>
       </nav>
       <div class="terminal-sidebar-panel">
@@ -3543,7 +3873,7 @@ function readTerminalSidebarCollapsed() {
             </Teleport>
           </div>
         </template>
-        <template v-else>
+        <template v-else-if="terminalSidebarMode === 'monitor'">
           <div class="terminal-monitor-panel">
             <header class="terminal-monitor-title">
               <strong>资源监控</strong>
@@ -3671,7 +4001,11 @@ function readTerminalSidebarCollapsed() {
       @mousedown="startSidebarResize($event, { alignToPointer: true })"
     ></div>
 
-    <section class="terminal-workspace">
+    <section
+      class="terminal-workspace"
+      :class="{ 'quick-panel-collapsed': isTerminalQuickCommandPanelCollapsed, 'quick-panel-resizing': isTerminalQuickCommandPanelResizing }"
+      :style="terminalQuickCommandPanelStyle"
+    >
       <div class="terminal-hint">
         <span>{{ workspaceTitle }}</span>
         <div class="terminal-hint-actions">
@@ -3763,6 +4097,191 @@ function readTerminalSidebarCollapsed() {
           :aria-hidden="tab.id !== activeTabId"
         ></div>
       </div>
+      <section class="terminal-quick-panel">
+        <button
+          class="terminal-quick-resizer"
+          type="button"
+          title="调整快捷命令面板高度"
+          aria-label="调整快捷命令面板高度"
+          :disabled="isTerminalQuickCommandPanelCollapsed"
+          @mousedown="startTerminalQuickCommandPanelResize"
+        ></button>
+        <header class="terminal-quick-header">
+          <div>
+            <strong><AppIcon name="zap" :size="15" />快捷命令</strong>
+            <span v-if="!activeTerminalReady">请选择已连接的终端</span>
+            <span v-else>{{ activeTab?.host.name }}</span>
+          </div>
+          <div class="terminal-quick-actions">
+            <button type="button" title="刷新" aria-label="刷新" :disabled="isTerminalQuickCommandLoading" @click="loadTerminalQuickCommands">
+              <AppIcon name="refresh" :size="14" />
+            </button>
+            <button type="button" title="新增命令" aria-label="新增命令" @click="openTerminalQuickCommandDialog()">
+              <AppIcon name="plus" :size="15" />
+            </button>
+            <button
+              type="button"
+              :title="isTerminalQuickCommandPanelCollapsed ? '展开快捷命令' : '收起快捷命令'"
+              :aria-label="isTerminalQuickCommandPanelCollapsed ? '展开快捷命令' : '收起快捷命令'"
+              @click="toggleTerminalQuickCommandPanel"
+            >
+              <AppIcon name="chevronDown" :size="15" />
+            </button>
+          </div>
+        </header>
+        <div v-if="!isTerminalQuickCommandPanelCollapsed" class="terminal-quick-body">
+          <aside class="terminal-quick-categories">
+            <button
+              type="button"
+              :class="{ active: terminalQuickCommandCategory === 'all' }"
+              @click="terminalQuickCommandCategory = 'all'"
+            >
+              全部
+              <span>{{ terminalQuickCommands.length }}</span>
+            </button>
+            <button
+              v-for="category in terminalQuickCommandCategories"
+              :key="category"
+              type="button"
+              :class="{ active: terminalQuickCommandCategory === category }"
+              @click="terminalQuickCommandCategory = category"
+            >
+              {{ category }}
+              <span>{{ terminalQuickCommands.filter((command) => command.category === category).length }}</span>
+            </button>
+          </aside>
+          <div class="terminal-quick-content">
+            <div class="terminal-quick-toolbar">
+              <label>
+                <AppIcon name="search" :size="14" />
+                <input v-model="terminalQuickCommandSearch" type="search" placeholder="搜索名称、分类或命令" />
+              </label>
+              <span>{{ filteredTerminalQuickCommands.length }} 条</span>
+            </div>
+            <p v-if="terminalQuickCommandError" class="terminal-quick-error">{{ terminalQuickCommandError }}</p>
+            <div class="terminal-quick-list">
+              <p v-if="isTerminalQuickCommandLoading" class="terminal-quick-empty">加载中...</p>
+              <p v-else-if="!filteredTerminalQuickCommands.length" class="terminal-quick-empty">暂无快捷命令</p>
+              <template v-else>
+                <article
+                  v-for="(command, index) in filteredTerminalQuickCommands"
+                  :key="command.id"
+                  class="terminal-quick-item"
+                  :class="{ disabled: !command.enabled }"
+                >
+                  <div class="terminal-quick-info">
+                    <div>
+                      <strong>{{ command.name }}</strong>
+                      <span>{{ command.category }}</span>
+                    </div>
+                    <code>{{ command.command }}</code>
+                    <p v-if="command.description">{{ command.description }}</p>
+                  </div>
+                  <div class="terminal-quick-item-actions">
+                    <button
+                      type="button"
+                      title="立即执行"
+                      aria-label="立即执行"
+                      :disabled="!command.enabled || !activeTerminalReady"
+                      @click="sendQuickCommandToTerminal(command, true)"
+                    >
+                      <AppIcon name="zap" :size="14" />
+                      <span>立即执行</span>
+                    </button>
+                    <button
+                      type="button"
+                      title="追加输入"
+                      aria-label="追加输入"
+                      :disabled="!command.enabled || !activeTerminalReady"
+                      @click="sendQuickCommandToTerminal(command, false)"
+                    >
+                      <AppIcon name="cornerDownLeft" :size="14" />
+                      <span>追加输入</span>
+                    </button>
+                    <button
+                      type="button"
+                      :title="command.enabled ? '禁用' : '启用'"
+                      :aria-label="command.enabled ? '禁用' : '启用'"
+                      @click="toggleTerminalQuickCommand(command)"
+                    >
+                      <AppIcon :name="command.enabled ? 'eye' : 'eyeOff'" :size="14" />
+                    </button>
+                    <button
+                      class="move-up"
+                      type="button"
+                      title="上移"
+                      aria-label="上移"
+                      :disabled="index === 0"
+                      @click="moveTerminalQuickCommand(command, -1)"
+                    >
+                      <AppIcon name="chevronDown" :size="14" />
+                    </button>
+                    <button
+                      type="button"
+                      title="下移"
+                      aria-label="下移"
+                      :disabled="index === filteredTerminalQuickCommands.length - 1"
+                      @click="moveTerminalQuickCommand(command, 1)"
+                    >
+                      <AppIcon name="chevronDown" :size="14" />
+                    </button>
+                    <button type="button" title="编辑" aria-label="编辑" @click="openTerminalQuickCommandDialog(command)">
+                      <AppIcon name="edit" :size="14" />
+                    </button>
+                    <button type="button" title="删除" aria-label="删除" @click="deleteTerminalQuickCommand(command)">
+                      <AppIcon name="trash" :size="14" />
+                    </button>
+                  </div>
+                </article>
+              </template>
+            </div>
+          </div>
+        </div>
+      </section>
     </section>
+    <Teleport to="body">
+      <div v-if="terminalQuickCommandDialog.visible" class="terminal-quick-dialog-backdrop" @click.self="closeTerminalQuickCommandDialog">
+        <article class="terminal-quick-dialog">
+          <header>
+            <strong>{{ terminalQuickCommandDialog.mode === 'create' ? '新增快捷命令' : '编辑快捷命令' }}</strong>
+            <button type="button" title="关闭" aria-label="关闭" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">
+              <AppIcon name="x" :size="16" />
+            </button>
+          </header>
+          <div class="terminal-quick-dialog-body">
+            <p v-if="terminalQuickCommandDialog.error" class="terminal-quick-error">{{ terminalQuickCommandDialog.error }}</p>
+            <label>
+              <span>名称</span>
+              <input v-model="terminalQuickCommandDialog.draft.name" type="text" :disabled="terminalQuickCommandDialog.saving" />
+            </label>
+            <label>
+              <span>分类</span>
+              <input v-model="terminalQuickCommandDialog.draft.category" type="text" list="terminal-quick-category-options" :disabled="terminalQuickCommandDialog.saving" />
+              <datalist id="terminal-quick-category-options">
+                <option v-for="category in terminalQuickCommandCategories" :key="category" :value="category"></option>
+              </datalist>
+            </label>
+            <label>
+              <span>命令</span>
+              <textarea v-model="terminalQuickCommandDialog.draft.command" :disabled="terminalQuickCommandDialog.saving" rows="4"></textarea>
+            </label>
+            <label>
+              <span>说明</span>
+              <input v-model="terminalQuickCommandDialog.draft.description" type="text" :disabled="terminalQuickCommandDialog.saving" />
+            </label>
+            <label class="terminal-quick-enabled-field">
+              <input v-model="terminalQuickCommandDialog.draft.enabled" type="checkbox" :disabled="terminalQuickCommandDialog.saving" />
+              <span>启用</span>
+            </label>
+          </div>
+          <footer>
+            <button type="button" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">取消</button>
+            <button class="primary" type="button" :disabled="terminalQuickCommandDialog.saving" @click="saveTerminalQuickCommandDialog">
+              {{ terminalQuickCommandDialog.saving ? '保存中...' : '保存' }}
+            </button>
+          </footer>
+        </article>
+      </div>
+    </Teleport>
   </main>
 </template>

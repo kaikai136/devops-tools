@@ -1,4 +1,5 @@
 from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.contrib.auth import get_user_model
 from unittest.mock import patch
 
 from host_management.models import HostGroup, ManagedHost
@@ -34,6 +35,7 @@ from .services import (
     parse_remote_stat_output,
     remote_file_properties_payload,
 )
+from .models import TerminalQuickCommand
 
 
 class RemoteFilePropertiesTests(SimpleTestCase):
@@ -403,3 +405,102 @@ class TerminalFileDownloadAttachmentTests(TestCase):
         self.assertEqual(response.content, b"port=22")
         self.assertIn("config.toml", response["Content-Disposition"])
         mocked_download.assert_called_once_with(host, "/tmp/config.toml", "scp")
+
+
+class TerminalQuickCommandApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="operator", password="pass")
+        self.client.force_login(self.user)
+        TerminalQuickCommand.objects.all().delete()
+
+    def test_quick_command_list_requires_login(self):
+        self.client.logout()
+
+        response = self.client.get("/api/web-terminal/quick-commands/")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_quick_command_list_orders_by_category_sort_and_id(self):
+        third = TerminalQuickCommand.objects.create(category="Linux", name="third", command="whoami", sort_order=30)
+        first = TerminalQuickCommand.objects.create(category="Docker", name="first", command="docker ps", sort_order=20)
+        second = TerminalQuickCommand.objects.create(category="Docker", name="second", command="docker images", sort_order=20)
+
+        response = self.client.get("/api/web-terminal/quick-commands/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["id"] for item in response.json()], [first.id, second.id, third.id])
+
+    def test_create_quick_command_trims_required_fields_and_sets_next_sort_order(self):
+        TerminalQuickCommand.objects.create(category="Linux", name="existing", command="uptime", sort_order=40)
+
+        response = self.client.post(
+            "/api/web-terminal/quick-commands/",
+            data={"category": " Linux ", "name": "  查看进程  ", "command": " ps aux ", "description": "  desc  "},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["category"], "Linux")
+        self.assertEqual(payload["name"], "查看进程")
+        self.assertEqual(payload["command"], "ps aux")
+        self.assertEqual(payload["description"], "desc")
+        self.assertEqual(payload["sortOrder"], 50)
+
+    def test_create_quick_command_rejects_missing_required_fields(self):
+        response = self.client.post(
+            "/api/web-terminal/quick-commands/",
+            data={"category": "Linux", "name": "", "command": " "},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.json())
+
+    def test_update_and_delete_quick_command(self):
+        command = TerminalQuickCommand.objects.create(category="Linux", name="old", command="uptime", enabled=True)
+
+        update_response = self.client.put(
+            f"/api/web-terminal/quick-commands/{command.id}/",
+            data={"name": "new", "category": "Linux", "command": "free -h", "enabled": False, "sortOrder": 7},
+            content_type="application/json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["name"], "new")
+        self.assertFalse(update_response.json()["enabled"])
+        self.assertEqual(update_response.json()["sortOrder"], 7)
+
+        delete_response = self.client.delete(f"/api/web-terminal/quick-commands/{command.id}/")
+
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(TerminalQuickCommand.objects.filter(id=command.id).exists())
+
+    def test_quick_command_detail_returns_not_found(self):
+        response = self.client.delete("/api/web-terminal/quick-commands/999/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_reorder_updates_sort_order_and_rejects_missing_ids(self):
+        first = TerminalQuickCommand.objects.create(category="Linux", name="first", command="one", sort_order=10)
+        second = TerminalQuickCommand.objects.create(category="Linux", name="second", command="two", sort_order=20)
+
+        response = self.client.post(
+            "/api/web-terminal/quick-commands/reorder/",
+            data={"ids": [second.id, first.id]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(second.sort_order, 10)
+        self.assertEqual(first.sort_order, 20)
+
+        missing_response = self.client.post(
+            "/api/web-terminal/quick-commands/reorder/",
+            data={"ids": [first.id, 999]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(missing_response.status_code, 400)
