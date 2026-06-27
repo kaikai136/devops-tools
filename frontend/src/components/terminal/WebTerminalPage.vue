@@ -471,6 +471,10 @@ const rootLabel = ref(readTerminalRootLabel());
 const search = ref('');
 const tabs = ref<TerminalTab[]>([]);
 const activeTabId = ref<string | null>(null);
+const isTerminalTabMenuOpen = ref(false);
+const terminalTabsRef = ref<HTMLElement | null>(null);
+const canScrollTerminalTabsLeft = ref(false);
+const canScrollTerminalTabsRight = ref(false);
 const isLoadingTree = ref(false);
 const treeError = ref('');
 const highlightEnabled = ref(true);
@@ -833,9 +837,62 @@ function closeTerminalDirectoryContextMenu() {
   terminalDirectoryContextMenu.value = { visible: false, x: 0, y: 0 };
 }
 
+function toggleTerminalTabMenu() {
+  isTerminalTabMenuOpen.value = !isTerminalTabMenuOpen.value;
+}
+
+function closeTerminalTabMenu() {
+  isTerminalTabMenuOpen.value = false;
+}
+
+function syncTerminalTabsScrollState() {
+  const tabsElement = terminalTabsRef.value;
+  if (!tabsElement) {
+    canScrollTerminalTabsLeft.value = false;
+    canScrollTerminalTabsRight.value = false;
+    return;
+  }
+
+  const maxScrollLeft = Math.max(0, tabsElement.scrollWidth - tabsElement.clientWidth);
+  canScrollTerminalTabsLeft.value = tabsElement.scrollLeft > 1;
+  canScrollTerminalTabsRight.value = tabsElement.scrollLeft < maxScrollLeft - 1;
+}
+
+function syncTerminalTabsScrollStateSoon() {
+  window.requestAnimationFrame(syncTerminalTabsScrollState);
+}
+
+function scrollTerminalTabs(direction: 'left' | 'right') {
+  const tabsElement = terminalTabsRef.value;
+  if (!tabsElement) return;
+  const distance = Math.max(120, tabsElement.clientWidth * 0.7);
+  tabsElement.scrollBy({
+    left: direction === 'left' ? -distance : distance,
+    behavior: 'smooth',
+  });
+  window.setTimeout(syncTerminalTabsScrollState, 220);
+}
+
+function scrollActiveTerminalTabIntoView() {
+  const tabsElement = terminalTabsRef.value;
+  if (!tabsElement || !activeTabId.value) {
+    syncTerminalTabsScrollStateSoon();
+    return;
+  }
+  const activeButton = tabsElement.querySelector<HTMLElement>(`[data-terminal-tab-id="${cssEscape(activeTabId.value)}"]`);
+  activeButton?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  window.setTimeout(syncTerminalTabsScrollState, 220);
+}
+
 function closeTerminalContextMenus() {
   closeTerminalFileContextMenu();
   closeTerminalDirectoryContextMenu();
+  closeTerminalTabMenu();
+}
+
+async function selectTerminalTabFromMenu(tab: TerminalTab) {
+  closeTerminalTabMenu();
+  await activateTab(tab.id);
 }
 
 async function runTerminalFileContextMenuItem(item: TerminalFileContextMenuItem) {
@@ -2210,6 +2267,7 @@ onMounted(async () => {
   window.addEventListener('click', closeTerminalContextMenus);
   window.addEventListener('keydown', closeTerminalFileContextMenuOnEscape);
   window.addEventListener('resize', syncTerminalSidebarWidth);
+  window.addEventListener('resize', syncTerminalTabsScrollStateSoon);
   document.addEventListener('visibilitychange', syncTerminalMonitorPolling);
   await loadTree();
   await restoreTerminalWorkspace();
@@ -2233,6 +2291,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('click', closeTerminalContextMenus);
   window.removeEventListener('keydown', closeTerminalFileContextMenuOnEscape);
   window.removeEventListener('resize', syncTerminalSidebarWidth);
+  window.removeEventListener('resize', syncTerminalTabsScrollStateSoon);
   document.removeEventListener('visibilitychange', syncTerminalMonitorPolling);
   for (const tab of tabs.value) disposeTab(tab);
 });
@@ -2274,6 +2333,7 @@ async function openHostTab(host: TerminalHost) {
   activeTabId.value = createdTab.id;
   saveTerminalWorkspace();
   await nextTick();
+  scrollActiveTerminalTabIntoView();
   const tab = getTabById(createdTab.id) ?? createdTab;
   mountTerminal(tab);
   enqueueConnectTab(tab);
@@ -2287,6 +2347,7 @@ async function activateTab(tabId: string) {
   activeTabId.value = tabId;
   saveTerminalWorkspace();
   await nextTick();
+  scrollActiveTerminalTabIntoView();
   const tab = tabs.value.find((item) => item.id === tabId);
   if (tab) {
     tab.hasUnreadOutput = false;
@@ -2648,10 +2709,12 @@ function fitActiveTerminalSoon() {
 }
 
 async function closeTab(tab: TerminalTab) {
+  closeTerminalTabMenu();
   const index = tabs.value.findIndex((item) => item.id === tab.id);
   disposeTab(tab);
   tabs.value = tabs.value.filter((item) => item.id !== tab.id);
   terminalContainers.delete(tab.id);
+  await nextTick();
 
   if (activeTabId.value === tab.id) {
     const nextTab = tabs.value[Math.min(index, tabs.value.length - 1)] ?? null;
@@ -2659,6 +2722,7 @@ async function closeTab(tab: TerminalTab) {
     if (nextTab) await activateTab(nextTab.id);
   }
   saveTerminalWorkspace();
+  syncTerminalTabsScrollStateSoon();
 }
 
 async function restoreTerminalWorkspace() {
@@ -2682,6 +2746,7 @@ async function restoreTerminalWorkspace() {
   saveTerminalWorkspace();
 
   await nextTick();
+  scrollActiveTerminalTabIntoView();
   for (const tab of restoredTabs) {
     mountTerminal(tab);
     enqueueConnectTab(tab);
@@ -3618,19 +3683,74 @@ function readTerminalSidebarCollapsed() {
           </label>
         </div>
       </div>
-      <div class="terminal-tabs">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          type="button"
-          class="terminal-tab"
-          :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
-          @click="activateTab(tab.id)"
-        >
-          <span class="terminal-tab-label">{{ tab.host.name }}</span>
-          <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
-          <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)"><AppIcon name="x" :size="13" /></span>
-        </button>
+      <div class="terminal-tabbar">
+        <div ref="terminalTabsRef" class="terminal-tabs" @scroll="syncTerminalTabsScrollState">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            type="button"
+            class="terminal-tab"
+            :data-terminal-tab-id="tab.id"
+            :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
+            @click="activateTab(tab.id)"
+          >
+            <span class="terminal-tab-label">{{ tab.host.name }}</span>
+            <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
+            <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)"><AppIcon name="x" :size="13" /></span>
+          </button>
+        </div>
+        <div v-if="tabs.length" class="terminal-tab-overview" @click.stop>
+          <button
+            type="button"
+            class="terminal-tab-scroll-button previous"
+            title="向左移动标签"
+            aria-label="向左移动标签"
+            :disabled="!canScrollTerminalTabsLeft"
+            @click="scrollTerminalTabs('left')"
+          >
+            <AppIcon name="chevronRight" :size="15" />
+          </button>
+          <button
+            type="button"
+            class="terminal-tab-scroll-button next"
+            title="向右移动标签"
+            aria-label="向右移动标签"
+            :disabled="!canScrollTerminalTabsRight"
+            @click="scrollTerminalTabs('right')"
+          >
+            <AppIcon name="chevronRight" :size="15" />
+          </button>
+          <button
+            type="button"
+            class="terminal-tab-menu-trigger"
+            :class="{ active: isTerminalTabMenuOpen }"
+            title="打开的标签"
+            aria-label="打开的标签"
+            :aria-expanded="isTerminalTabMenuOpen"
+            @click="toggleTerminalTabMenu"
+          >
+            <AppIcon name="link" :size="16" />
+          </button>
+          <div v-if="isTerminalTabMenuOpen" class="terminal-tab-menu" role="menu" aria-label="打开的标签">
+            <header>打开的标签</header>
+            <button
+              v-for="(tab, index) in tabs"
+              :key="`menu-${tab.id}`"
+              type="button"
+              class="terminal-tab-menu-item"
+              :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
+              role="menuitem"
+              @click="selectTerminalTabFromMenu(tab)"
+            >
+              <span class="terminal-tab-menu-check">
+                <AppIcon v-if="tab.id === activeTabId" name="check" :size="15" />
+              </span>
+              <AppIcon name="server" :size="15" />
+              <span class="terminal-tab-menu-label">{{ index + 1 }} {{ tab.host.name }}</span>
+              <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
+            </button>
+          </div>
+        </div>
       </div>
       <div class="terminal-screen">
         <div v-if="!tabs.length" class="terminal-empty">双击左侧主机名连接 SSH 终端。</div>
