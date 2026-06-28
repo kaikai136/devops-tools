@@ -97,15 +97,16 @@ const {
   clearPasswordRecords,
   passwordHistory,
   formatRecordTime,
-  deletePassword
+  deletePassword,
+  canUsePageAction,
 } = useAppContext();
 </script>
 
 <template>
       <section v-if="activeTool === 'ip'" class="tool-stack ip-page">
         <article class="panel ip-toolbar">
-          <label class="segment-field"><span>网段</span><input v-model="networkSegment" @keyup.enter="scanIp" /></label>
-          <button class="primary" type="button" :disabled="isScanningIp" @click="scanIp">{{ isScanningIp ? '扫描中' : '扫描 IP' }}</button>
+          <label class="segment-field"><span>网段</span><input v-model="networkSegment" :disabled="!canUsePageAction('ip', 'scan')" @keyup.enter="scanIp" /></label>
+          <button class="primary" type="button" :disabled="isScanningIp || !canUsePageAction('ip', 'scan')" @click="scanIp">{{ isScanningIp ? '扫描中' : '扫描 IP' }}</button>
           <div class="selected-chip">选中 IP <strong>{{ selectedHost }}</strong></div>
         </article>
         <article class="panel progress-panel">
@@ -126,8 +127,9 @@ const {
             :class="{ online: host.status === 'online', selected: selectedHost === host.ip }"
             :title="host.ip"
             type="button"
+            :disabled="!canUsePageAction('ip', 'select_host')"
             @click="selectHost(host.ip)"
-            @dblclick="openPingFromHost(host.ip)"
+            @dblclick="canUsePageAction('ports', 'ping') && openPingFromHost(host.ip)"
           >
             {{ host.host }}
           </button>

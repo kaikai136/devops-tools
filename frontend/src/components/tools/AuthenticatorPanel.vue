@@ -98,7 +98,8 @@ const {
   clearPasswordRecords,
   passwordHistory,
   formatRecordTime,
-  deletePassword
+  deletePassword,
+  canUsePageAction,
 } = useAppContext();
 </script>
 
@@ -111,10 +112,10 @@ const {
               <p>支持屏幕框选识别，也可以直接导入二维码截图或图片文件。</p>
             </div>
             <div class="scan-actions">
-              <button aria-label="识别屏幕二维码" title="识别屏幕二维码" type="button" @click="scanScreenQr">
+              <button aria-label="识别屏幕二维码" title="识别屏幕二维码" type="button" :disabled="!canUsePageAction('auth', 'scan')" @click="scanScreenQr">
                 <AppIcon name="scan" :size="18" />
               </button>
-              <button aria-label="导入二维码图片" title="导入二维码图片" type="button" @click="triggerImageImport">
+              <button aria-label="导入二维码图片" title="导入二维码图片" type="button" :disabled="!canUsePageAction('auth', 'scan')" @click="triggerImageImport">
                 <AppIcon name="image" :size="18" />
               </button>
               <input ref="imageInput" hidden type="file" accept="image/*" @change="handleImageImport" />
@@ -135,7 +136,7 @@ const {
             <label><span>刷新周期</span><select v-model.number="authForm.period"><option :value="30">30 秒</option><option :value="60">60 秒</option></select></label>
             <label><span>算法</span><select v-model="authForm.algorithm"><option value="SHA1">SHA-1</option><option value="SHA256">SHA-256</option><option value="SHA512">SHA-512</option></select></label>
           </div>
-          <button class="primary full" type="button" @click="saveAuthEntry">{{ editingAuthId ? '保存修改' : '添加条目' }}</button>
+          <button class="primary full" type="button" :disabled="!canUsePageAction('auth', editingAuthId ? 'edit' : 'create')" @click="saveAuthEntry">{{ editingAuthId ? '保存修改' : '添加条目' }}</button>
         </article>
 
         <article class="panel auth-list-panel">
@@ -146,8 +147,8 @@ const {
             </div>
             <div class="title-actions">
               <strong>{{ authEntries.length }} 条</strong>
-              <button type="button" @click="saveAuthEntries">保存</button>
-              <button class="danger" type="button" @click="clearAuthEntries">清空</button>
+              <button type="button" :disabled="!canUsePageAction('auth', 'export')" @click="saveAuthEntries">保存</button>
+              <button class="danger" type="button" :disabled="!canUsePageAction('auth', 'clear')" @click="clearAuthEntries">清空</button>
             </div>
           </div>
           <div class="auth-card-grid">
@@ -155,8 +156,8 @@ const {
               <div class="auth-card-head">
                 <div><h3>{{ entry.issuer || '未命名服务' }}</h3><p>{{ entry.account_name || '未填写账号' }}</p></div>
                 <div class="card-actions">
-                  <button type="button" @click="editAuth(entry)">编辑</button>
-                  <button class="danger" type="button" @click="deleteAuth(entry)">删除</button>
+                  <button type="button" :disabled="!canUsePageAction('auth', 'edit')" @click="editAuth(entry)">编辑</button>
+                  <button class="danger" type="button" :disabled="!canUsePageAction('auth', 'delete')" @click="deleteAuth(entry)">删除</button>
                 </div>
               </div>
               <div class="code-row">

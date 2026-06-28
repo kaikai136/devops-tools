@@ -11,7 +11,7 @@ from operations.responses import bad_request, bounded_int, not_found, serializer
 
 from .models import LoginLog, SystemSetting
 from .serializers import WATERMARK_SETTING_KEY, LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
-from .services import FEATURE_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
+from .services import UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
 
 
 @api_view(["GET"])
@@ -148,9 +148,8 @@ def permissions(request):
     if staff_error:
         return staff_error
 
-    queryset = Permission.objects.select_related("content_type").order_by("content_type__app_label", "codename")
     ensure_feature_permissions()
-    queryset = queryset.filter(codename__in=FEATURE_PERMISSION_CODES).order_by("id")
+    queryset = Permission.objects.select_related("content_type").filter(codename__in=UI_PERMISSION_CODES).order_by("id")
     return Response(PermissionSerializer(queryset, many=True).data)
 
 

@@ -18,6 +18,8 @@ interface SystemPermission {
   codename: string;
   label: string;
   featureKey: string;
+  actionKey: string;
+  permissionType: 'page' | 'action' | 'other';
   isFeature: boolean;
 }
 
@@ -28,7 +30,7 @@ interface RoleForm {
   permissionIds: number[];
 }
 
-const { activeTool } = useAppContext();
+const { activeTool, canUsePageAction } = useAppContext();
 
 const roles = ref<SystemRole[]>([]);
 const permissions = ref<SystemPermission[]>([]);
@@ -51,7 +53,18 @@ const filteredRoles = computed(() => {
 });
 
 const featurePermissions = computed(() => permissions.value.filter((permission) => permission.isFeature && permission.featureKey));
-const permissionByFeatureKey = computed(() => new Map(featurePermissions.value.map((permission) => [permission.featureKey, permission])));
+const pagePermissions = computed(() => featurePermissions.value.filter((permission) => permission.permissionType === 'page'));
+const actionPermissions = computed(() => featurePermissions.value.filter((permission) => permission.permissionType === 'action'));
+const permissionByFeatureKey = computed(() => new Map(pagePermissions.value.map((permission) => [permission.featureKey, permission])));
+const actionPermissionsByFeatureKey = computed(() => {
+  const groups = new Map<string, SystemPermission[]>();
+  actionPermissions.value.forEach((permission) => {
+    const current = groups.get(permission.featureKey) ?? [];
+    current.push(permission);
+    groups.set(permission.featureKey, current);
+  });
+  return groups;
+});
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredRoles.value.length / pageSize.value)));
 const pagedRoles = computed(() => {
   const start = (page.value - 1) * pageSize.value;
@@ -166,12 +179,15 @@ function isFeatureChecked(featureKey: string) {
 
 function setFeatureChecked(featureKey: string, checked: boolean) {
   const permission = permissionByFeatureKey.value.get(featureKey);
-  if (!permission) return;
+  const actionPermissions = actionPermissionsByFeatureKey.value.get(featureKey) ?? [];
+  if (!permission && !actionPermissions.length) return;
   const next = new Set(form.value.permissionIds);
   if (checked) {
-    next.add(permission.id);
+    if (permission) next.add(permission.id);
+    actionPermissions.forEach((actionPermission) => next.add(actionPermission.id));
   } else {
-    next.delete(permission.id);
+    if (permission) next.delete(permission.id);
+    actionPermissions.forEach((actionPermission) => next.delete(actionPermission.id));
   }
   form.value.permissionIds = [...next].sort((a, b) => a - b);
 }
@@ -184,20 +200,75 @@ function groupFeatureKeys(groupKey: string) {
   return navGroups.find((group) => group.key === groupKey)?.items.map((item) => item.key) ?? [];
 }
 
+function featurePermissionIds(featureKey: string) {
+  const ids = [];
+  const pagePermission = permissionByFeatureKey.value.get(featureKey);
+  if (pagePermission) ids.push(pagePermission.id);
+  actionPermissionsByFeatureKey.value.get(featureKey)?.forEach((permission) => ids.push(permission.id));
+  return ids;
+}
+
+function groupPermissionIds(groupKey: string) {
+  return groupFeatureKeys(groupKey).flatMap((featureKey) => featurePermissionIds(featureKey));
+}
+
 function isGroupChecked(groupKey: string) {
-  const keys = groupFeatureKeys(groupKey);
-  return keys.length > 0 && keys.every((key) => isFeatureChecked(key));
+  const ids = groupPermissionIds(groupKey);
+  return ids.length > 0 && ids.every((id) => form.value.permissionIds.includes(id));
 }
 
 function isGroupPartial(groupKey: string) {
-  const keys = groupFeatureKeys(groupKey);
-  const checkedCount = keys.filter((key) => isFeatureChecked(key)).length;
-  return checkedCount > 0 && checkedCount < keys.length;
+  const ids = groupPermissionIds(groupKey);
+  const checkedCount = ids.filter((id) => form.value.permissionIds.includes(id)).length;
+  return checkedCount > 0 && checkedCount < ids.length;
 }
 
 function toggleGroup(groupKey: string, event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
-  groupFeatureKeys(groupKey).forEach((featureKey) => setFeatureChecked(featureKey, checked));
+  const next = new Set(form.value.permissionIds);
+  groupPermissionIds(groupKey).forEach((id) => {
+    if (checked) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+  });
+  form.value.permissionIds = [...next].sort((a, b) => a - b);
+}
+
+function isFeaturePartial(featureKey: string) {
+  const ids = featurePermissionIds(featureKey);
+  const checkedCount = ids.filter((id) => form.value.permissionIds.includes(id)).length;
+  return checkedCount > 0 && checkedCount < ids.length;
+}
+
+function isActionChecked(permissionId: number) {
+  return form.value.permissionIds.includes(permissionId);
+}
+
+function setActionChecked(featureKey: string, permissionId: number, checked: boolean) {
+  const next = new Set(form.value.permissionIds);
+  if (checked) {
+    const pagePermission = permissionByFeatureKey.value.get(featureKey);
+    if (pagePermission) next.add(pagePermission.id);
+    next.add(permissionId);
+  } else {
+    next.delete(permissionId);
+  }
+  form.value.permissionIds = [...next].sort((a, b) => a - b);
+}
+
+function toggleAction(featureKey: string, permissionId: number, event: Event) {
+  setActionChecked(featureKey, permissionId, (event.target as HTMLInputElement).checked);
+}
+
+function pageActionPermissions(featureKey: string) {
+  return actionPermissionsByFeatureKey.value.get(featureKey) ?? [];
+}
+
+function displayPermissionLabel(permission: SystemPermission) {
+  const parts = permission.label.split('：');
+  return parts[1] || permission.label.replace(/^访问/, '');
 }
 
 function setPage(nextPage: number) {
@@ -216,7 +287,10 @@ function roleCode(role: SystemRole) {
 }
 
 function permissionText(role: SystemRole) {
-  return `${roleFeaturePermissionIds(role).length} 项功能`;
+  const ids = new Set(roleFeaturePermissionIds(role));
+  const pageCount = pagePermissions.value.filter((permission) => ids.has(permission.id)).length;
+  const actionCount = actionPermissions.value.filter((permission) => ids.has(permission.id)).length;
+  return `${pageCount} 个页面 / ${actionCount} 项功能`;
 }
 
 function roleFeaturePermissionIds(role: SystemRole) {
@@ -284,7 +358,7 @@ function emptyRoleForm(): RoleForm {
 
     <article class="role-list-panel">
       <div class="role-list-toolbar">
-        <button class="role-add-button" type="button" @click="openCreateDialog"><AppIcon name="circlePlus" :size="15" />新增</button>
+        <button class="role-add-button" type="button" :disabled="!canUsePageAction('roles', 'create')" @click="openCreateDialog"><AppIcon name="circlePlus" :size="15" />新增</button>
         <div class="role-toolbar-actions">
           <button class="role-icon-button" type="button" title="刷新" aria-label="刷新" @click="loadRoles"><AppIcon name="refresh" :size="18" /></button>
           <button class="role-icon-button" type="button" title="列设置" aria-label="列设置" @click.stop="columnsOpen = !columnsOpen"><AppIcon name="settings" :size="18" /></button>
@@ -310,12 +384,12 @@ function emptyRoleForm(): RoleForm {
           <span>{{ roleCode(role) }}</span>
           <span><em class="role-status">启用</em></span>
           <span>
-            <button class="role-permission-button" type="button" :title="permissionText(role)" @click="openPermissionDialog(role)">管理</button>
+            <button class="role-permission-button" type="button" :title="permissionText(role)" :disabled="!canUsePageAction('roles', 'permissions')" @click="openPermissionDialog(role)">管理</button>
           </span>
           <div class="role-row-actions">
             <button class="view" type="button" @click="openViewDialog(role)"><AppIcon name="eye" :size="13" />查看</button>
-            <button class="edit" type="button" @click="openEditDialog(role)"><AppIcon name="edit" :size="13" />编辑</button>
-            <button class="delete" type="button" @click="deleteTarget = role"><AppIcon name="trash" :size="13" />删除</button>
+            <button class="edit" type="button" :disabled="!canUsePageAction('roles', 'edit')" @click="openEditDialog(role)"><AppIcon name="edit" :size="13" />编辑</button>
+            <button class="delete" type="button" :disabled="!canUsePageAction('roles', 'delete')" @click="deleteTarget = role"><AppIcon name="trash" :size="13" />删除</button>
           </div>
         </div>
 
@@ -354,7 +428,7 @@ function emptyRoleForm(): RoleForm {
         <div v-if="dialog.mode === 'permissions' || dialog.mode === 'view'" class="role-feature-permissions">
           <div class="role-permission-tip">
             <AppIcon name="circleHelp" :size="15" />
-            <span>功能权限仅影响左侧菜单功能。权限变更后，属于该角色的账号重新登录后生效。</span>
+            <span>页面权限控制左侧菜单入口，功能权限控制页面内可用操作。权限变更后，属于该角色的账号重新登录后生效。</span>
           </div>
 
           <div class="role-permission-tree">
@@ -385,20 +459,24 @@ function emptyRoleForm(): RoleForm {
                   <input
                     type="checkbox"
                     :checked="isFeatureChecked(item.key)"
+                    :data-partial="isFeaturePartial(item.key)"
                     :disabled="dialog.mode === 'view'"
                     @change="toggleFeature(item.key, $event)"
                   />
                   <span>{{ item.label }}</span>
                 </label>
-                <label class="role-tree-node feature">
-                  <input
-                    type="checkbox"
-                    :checked="isFeatureChecked(item.key)"
-                    :disabled="dialog.mode === 'view'"
-                    @change="toggleFeature(item.key, $event)"
-                  />
-                  <span>开放{{ item.label }}</span>
-                </label>
+                <div class="role-tree-node feature">
+                  <label v-for="permission in pageActionPermissions(item.key)" :key="permission.id" class="role-action-node">
+                    <input
+                      type="checkbox"
+                      :checked="isActionChecked(permission.id)"
+                      :disabled="dialog.mode === 'view'"
+                      @change="toggleAction(item.key, permission.id, $event)"
+                    />
+                    <span>{{ displayPermissionLabel(permission) }}</span>
+                  </label>
+                  <span v-if="!pageActionPermissions(item.key).length" class="role-action-empty">暂无可配置功能</span>
+                </div>
               </div>
             </template>
           </div>

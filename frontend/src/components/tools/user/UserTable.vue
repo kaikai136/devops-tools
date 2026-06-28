@@ -14,6 +14,7 @@ defineProps<{
   isColumnVisible: (key: UserColumnKey) => boolean;
   roleNames: (user: SystemUser) => string;
   loginStateText: (user: SystemUser) => string;
+  canUsePageAction: (pageKey: string, actionKey: string) => boolean;
 }>();
 
 const emit = defineEmits<{
@@ -54,10 +55,10 @@ function updatePageSize(event: Event) {
       </span>
       <span v-if="isColumnVisible('lastLogin')" class="user-date-cell">{{ formatDateTime(user.lastLogin) }}</span>
       <div v-if="isColumnVisible('actions')" class="user-row-actions">
-        <button type="button" :disabled="user.isBuiltinAdmin" @click="$emit('toggleStatus', user)">{{ user.isActive ? '禁用' : '启用' }}</button>
-        <button type="button" :disabled="user.isBuiltinAdmin" @click="$emit('edit', user)">编辑</button>
-        <button type="button" :disabled="user.isBuiltinAdmin" @click="$emit('resetPassword', user)">重置密码</button>
-        <button class="danger" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('delete', user)">删除</button>
+        <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'toggle_status')" @click="$emit('toggleStatus', user)">{{ user.isActive ? '禁用' : '启用' }}</button>
+        <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'edit')" @click="$emit('edit', user)">编辑</button>
+        <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'reset_password')" @click="$emit('resetPassword', user)">重置密码</button>
+        <button class="danger" type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'delete')" @click="$emit('delete', user)">删除</button>
       </div>
     </div>
     <div v-if="!users.length" class="user-empty">{{ isLoading ? '加载中...' : '暂无匹配账户' }}</div>

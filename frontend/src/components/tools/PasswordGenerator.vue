@@ -97,7 +97,8 @@ const {
   clearPasswordRecords,
   passwordHistory,
   formatRecordTime,
-  deletePassword
+  deletePassword,
+  canUsePageAction,
 } = useAppContext();
 </script>
 
@@ -127,7 +128,7 @@ const {
           <div class="password-info-box">
             <div class="password-info-head">
               <h3>密码信息</h3>
-              <button type="button" :disabled="!passwordResult" @click="copyText(passwordResult, '已复制生成结果。')">复制</button>
+              <button type="button" :disabled="!passwordResult || !canUsePageAction('password', 'copy')" @click="copyText(passwordResult, '已复制生成结果。')">复制</button>
             </div>
             <div class="password-field-grid">
               <label><span>项目名称</span><textarea v-model="passwordProject" placeholder="未填写项目名称"></textarea></label>
@@ -135,8 +136,8 @@ const {
             </div>
           </div>
           <div class="password-actions">
-            <button class="primary" type="button" @click="generatePassword">生成密码</button>
-            <button type="button" :disabled="!passwordHistory.length" @click="clearPasswordRecords">清空记录</button>
+            <button class="primary" type="button" :disabled="!canUsePageAction('password', 'generate')" @click="generatePassword">生成密码</button>
+            <button type="button" :disabled="!passwordHistory.length || !canUsePageAction('password', 'clear')" @click="clearPasswordRecords">清空记录</button>
           </div>
         </article>
 
@@ -151,15 +152,15 @@ const {
                 <strong
                   class="password-copy-target"
                   title="双击复制密码"
-                  @dblclick.stop="copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)"
+                  @dblclick.stop="canUsePageAction('password', 'copy') && copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)"
                 >{{ record.password }}</strong>
                 <span>项目：{{ record.project_name || '未填写项目名称' }}</span>
                 <span>{{ record.length }} 位 · {{ passwordOptionText(record) }}</span>
                 <span>{{ formatRecordTime(record.created_at) }}</span>
               </div>
               <div class="password-record-actions">
-                <button type="button" @click="copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)">复制</button>
-                <button class="danger" type="button" @click="deletePassword(record)">删除</button>
+                <button type="button" :disabled="!canUsePageAction('password', 'copy')" @click="copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)">复制</button>
+                <button class="danger" type="button" :disabled="!canUsePageAction('password', 'delete')" @click="deletePassword(record)">删除</button>
               </div>
             </article>
             <div v-if="!passwordHistory.length" class="empty-state">还没有生成记录。</div>

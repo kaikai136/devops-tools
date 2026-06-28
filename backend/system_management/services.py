@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 
@@ -29,8 +29,78 @@ FEATURE_PERMISSION_DEFINITIONS = [
     ("system", "系统管理", "systemSettings", "系统设置"),
 ]
 
+PAGE_ACTION_PERMISSION_DEFINITIONS = [
+    ("ip", "scan", "扫描 IP"),
+    ("ip", "select_host", "选择主机"),
+    ("ports", "ping", "Ping 探测"),
+    ("ports", "port_scan", "端口扫描"),
+    ("ports", "export_ping", "导出 Ping 结果"),
+    ("subnet", "calculate", "计算子网"),
+    ("subnet", "split", "划分子网"),
+    ("subnet", "clear", "清空结果"),
+    ("hosts", "create", "新建主机"),
+    ("hosts", "edit", "编辑主机"),
+    ("hosts", "delete", "删除主机"),
+    ("hosts", "verify", "验证主机"),
+    ("hosts", "move", "移动主机"),
+    ("hosts", "filter", "筛选主机"),
+    ("hosts", "group", "管理分组"),
+    ("hosts", "import", "导入恢复"),
+    ("hosts", "export", "导出备份"),
+    ("hosts", "terminal", "Web 终端"),
+    ("accounts", "create", "新增账号"),
+    ("accounts", "edit", "编辑账号"),
+    ("accounts", "delete", "删除账号"),
+    ("auth", "scan", "扫码导入"),
+    ("auth", "import", "导入条目"),
+    ("auth", "create", "新增条目"),
+    ("auth", "edit", "编辑条目"),
+    ("auth", "delete", "删除条目"),
+    ("auth", "export", "导出保存"),
+    ("auth", "clear", "清空条目"),
+    ("password", "generate", "生成密码"),
+    ("password", "copy", "复制密码"),
+    ("password", "delete", "删除记录"),
+    ("password", "clear", "清空记录"),
+    ("password", "import", "导入历史"),
+    ("password", "export", "导出历史"),
+    ("loginLogs", "refresh", "刷新日志"),
+    ("loginLogs", "filter", "筛选日志"),
+    ("loginLogs", "columns", "列设置"),
+    ("users", "create", "新建用户"),
+    ("users", "edit", "编辑用户"),
+    ("users", "toggle_status", "启用禁用"),
+    ("users", "reset_password", "重置密码"),
+    ("users", "delete", "删除用户"),
+    ("roles", "create", "新增角色"),
+    ("roles", "edit", "编辑角色"),
+    ("roles", "permissions", "权限管理"),
+    ("roles", "delete", "删除角色"),
+    ("systemSettings", "save", "保存设置"),
+    ("systemSettings", "reset", "还原设置"),
+    ("systemSettings", "refresh", "刷新设置"),
+]
+
 FEATURE_PERMISSION_CODE_BY_KEY = {key: f"access_{key}" for _, _, key, _ in FEATURE_PERMISSION_DEFINITIONS}
+PAGE_LABEL_BY_KEY = {key: label for _, _, key, label in FEATURE_PERMISSION_DEFINITIONS}
+PAGE_ACTION_PERMISSION_CODE_BY_KEY = {
+    (feature_key, action_key): f"action_{feature_key}_{action_key}"
+    for feature_key, action_key, _action_label in PAGE_ACTION_PERMISSION_DEFINITIONS
+}
+PAGE_ACTION_PERMISSION_META_BY_CODE = {
+    code: {
+        "feature_key": feature_key,
+        "action_key": action_key,
+        "action_label": action_label,
+        "feature_label": PAGE_LABEL_BY_KEY.get(feature_key, feature_key),
+    }
+    for (feature_key, action_key), code in PAGE_ACTION_PERMISSION_CODE_BY_KEY.items()
+    for _source_feature_key, _source_action_key, action_label in PAGE_ACTION_PERMISSION_DEFINITIONS
+    if _source_feature_key == feature_key and _source_action_key == action_key
+}
 FEATURE_PERMISSION_CODES = set(FEATURE_PERMISSION_CODE_BY_KEY.values())
+PAGE_ACTION_PERMISSION_CODES = set(PAGE_ACTION_PERMISSION_CODE_BY_KEY.values())
+UI_PERMISSION_CODES = FEATURE_PERMISSION_CODES | PAGE_ACTION_PERMISSION_CODES
 _feature_permissions_ready = False
 
 
@@ -78,11 +148,12 @@ def ensure_feature_permissions():
     global _feature_permissions_ready
     content_type = ContentType.objects.get_for_model(SystemSetting)
     if _feature_permissions_ready:
-        cached_permissions = list(Permission.objects.filter(content_type=content_type, codename__in=FEATURE_PERMISSION_CODES))
-        if len(cached_permissions) == len(FEATURE_PERMISSION_CODES):
+        cached_permissions = list(Permission.objects.filter(content_type=content_type, codename__in=UI_PERMISSION_CODES))
+        if len(cached_permissions) == len(UI_PERMISSION_CODES):
             return cached_permissions
 
     permissions = []
+    page_permissions_by_key = {}
     for _group_key, _group_label, feature_key, feature_label in FEATURE_PERMISSION_DEFINITIONS:
         permission, _created = Permission.objects.get_or_create(
             content_type=content_type,
@@ -94,19 +165,47 @@ def ensure_feature_permissions():
             permission.name = expected_name
             permission.save(update_fields=["name"])
         permissions.append(permission)
+        page_permissions_by_key[feature_key] = permission
+
+    created_action_permissions_by_feature: dict[str, list[Permission]] = {}
+    for feature_key, action_key, action_label in PAGE_ACTION_PERMISSION_DEFINITIONS:
+        feature_label = PAGE_LABEL_BY_KEY.get(feature_key, feature_key)
+        permission, created = Permission.objects.get_or_create(
+            content_type=content_type,
+            codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[(feature_key, action_key)],
+            defaults={"name": f"{feature_label}：{action_label}"},
+        )
+        expected_name = f"{feature_label}：{action_label}"
+        if permission.name != expected_name:
+            permission.name = expected_name
+            permission.save(update_fields=["name"])
+        permissions.append(permission)
+        if created:
+            created_action_permissions_by_feature.setdefault(feature_key, []).append(permission)
+
+    inherit_created_action_permissions(page_permissions_by_key, created_action_permissions_by_feature)
     _feature_permissions_ready = True
     return permissions
+
+
+def inherit_created_action_permissions(page_permissions_by_key: dict[str, Permission], created_action_permissions_by_feature: dict[str, list[Permission]]):
+    for feature_key, action_permissions in created_action_permissions_by_feature.items():
+        page_permission = page_permissions_by_key.get(feature_key)
+        if not page_permission or not action_permissions:
+            continue
+        for role in Group.objects.filter(permissions=page_permission).prefetch_related("permissions"):
+            role.permissions.add(*action_permissions)
 
 
 def user_feature_permission_codes(user) -> list[str]:
     if not user or not getattr(user, "is_authenticated", False):
         return []
     if getattr(user, "is_superuser", False):
-        return sorted(FEATURE_PERMISSION_CODES)
+        return sorted(UI_PERMISSION_CODES)
 
     ensure_feature_permissions()
     codes = user.get_all_permissions()
-    return sorted(code.split(".", 1)[1] for code in codes if code.split(".", 1)[-1] in FEATURE_PERMISSION_CODES)
+    return sorted(code.split(".", 1)[1] for code in codes if code.split(".", 1)[-1] in UI_PERMISSION_CODES)
 
 
 def get_client_ip(request: HttpRequest) -> str | None:

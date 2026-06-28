@@ -97,7 +97,8 @@ const {
   clearPasswordRecords,
   passwordHistory,
   formatRecordTime,
-  deletePassword
+  deletePassword,
+  canUsePageAction,
 } = useAppContext();
 </script>
 
@@ -110,15 +111,15 @@ const {
               <p>点击示例后会直接带入并计算。</p>
             </div>
             <div class="subnet-presets">
-              <button v-for="preset in subnetPresets" :key="preset" type="button" @click="setSubnetPreset(preset)">{{ preset }}</button>
+              <button v-for="preset in subnetPresets" :key="preset" type="button" :disabled="!canUsePageAction('subnet', 'calculate')" @click="setSubnetPreset(preset)">{{ preset }}</button>
             </div>
             <div class="subnet-control-grid">
-              <label><span>IP 地址 / CIDR</span><input v-model="subnetInput" placeholder="例如 192.168.1.0/24" @keyup.enter="calculateSubnet(false)" /></label>
+              <label><span>IP 地址 / CIDR</span><input v-model="subnetInput" :disabled="!canUsePageAction('subnet', 'calculate')" placeholder="例如 192.168.1.0/24" @keyup.enter="calculateSubnet(false)" /></label>
               <label><span>子网掩码</span><select v-model.number="subnetPrefix" @change="handlePrefixChange"><option v-for="item in prefixOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
             </div>
             <div class="subnet-actions">
-              <button class="primary" type="button" @click="calculateSubnet(false)">计算</button>
-              <button type="button" @click="clearSubnet">清空</button>
+              <button class="primary" type="button" :disabled="!canUsePageAction('subnet', 'calculate')" @click="calculateSubnet(false)">计算</button>
+              <button type="button" :disabled="!canUsePageAction('subnet', 'clear')" @click="clearSubnet">清空</button>
             </div>
           </article>
 
@@ -175,7 +176,7 @@ const {
           </div>
           <div class="subnet-split-line">
             <label><span>{{ subnetSplitMode === 'count' ? '划分子网数量' : '每个子网主机数' }}</span><select v-model.number="subnetTargetPrefix"><option v-for="item in subnetSplitChoices" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-            <button class="primary" type="button" :disabled="!subnetResult || !canSplitSubnet" @click="calculateSubnet(true)">划分</button>
+            <button class="primary" type="button" :disabled="!subnetResult || !canSplitSubnet || !canUsePageAction('subnet', 'split')" @click="calculateSubnet(true)">划分</button>
           </div>
           <div class="subnet-split-summary">
             <article><span>目标前缀</span><strong>/{{ subnetSplitSummary.prefix }}</strong></article>

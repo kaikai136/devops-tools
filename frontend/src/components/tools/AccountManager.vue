@@ -16,7 +16,7 @@ interface CredentialForm {
   remark: string;
 }
 
-const { activeTool } = useAppContext();
+const { activeTool, canUsePageAction } = useAppContext();
 
 const credentials = ref<HostCredential[]>([]);
 const search = ref('');
@@ -150,7 +150,7 @@ function emptyForm(): CredentialForm {
       <div class="account-toolbar">
         <input v-model="search" placeholder="输入账号名称/用户/备注搜索" />
         <div class="account-toolbar-actions">
-          <button class="primary" type="button" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</button>
+          <button class="primary" type="button" :disabled="!canUsePageAction('accounts', 'create')" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</button>
           <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadCredentials"><AppIcon name="refresh" :size="16" /></button>
         </div>
       </div>
@@ -184,8 +184,8 @@ function emptyForm(): CredentialForm {
           <span class="account-role" :class="{ staff: credential.privateKey }">{{ credential.privateKeyName || '未上传' }}</span>
           <span class="account-date">{{ credential.remark || '无备注' }}</span>
           <div class="account-actions">
-            <button type="button" @click="openEditDialog(credential)">编辑</button>
-            <button class="danger" type="button" @click="confirmDelete = credential">删除</button>
+            <button type="button" :disabled="!canUsePageAction('accounts', 'edit')" @click="openEditDialog(credential)">编辑</button>
+            <button class="danger" type="button" :disabled="!canUsePageAction('accounts', 'delete')" @click="confirmDelete = credential">删除</button>
           </div>
         </div>
         <div v-if="!filteredCredentials.length" class="empty-state account-empty">没有匹配的账号。</div>

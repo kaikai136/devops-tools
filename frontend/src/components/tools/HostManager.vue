@@ -99,6 +99,7 @@ const {
   deleteSelectedManagedHosts,
   deleteManagedHostsInGroup,
   deleteHostGroup,
+  canUsePageAction,
 } = useAppContext();
 
 const hostColumnSettingsOpen = ref(false);
@@ -256,7 +257,7 @@ function hostPlatformType(value: string | null | undefined) {
     <article class="panel host-groups-panel">
       <div class="host-group-head">
         <h2>分组列表</h2>
-        <button class="group-add-button" type="button" title="添加分组" aria-label="添加分组" @click.stop="openAddRootHostGroup()"><AppIcon name="plus" :size="16" /></button>
+        <button class="group-add-button" type="button" title="添加分组" aria-label="添加分组" :disabled="!canUsePageAction('hosts', 'group')" @click.stop="openAddRootHostGroup()"><AppIcon name="plus" :size="16" /></button>
       </div>
       <div class="host-group-list">
         <template v-for="row in hostGroupRows" :key="row.kind === 'root' ? 'group-root' : row.kind === 'group' ? `group-${row.group.key}` : `editor-${row.editor.mode}-${row.editor.after ?? 'end'}`">
@@ -363,15 +364,15 @@ function hostPlatformType(value: string | null | undefined) {
         :style="{ left: `${hostGroupMenu.x}px`, top: `${hostGroupMenu.y}px` }"
         @click.stop
       >
-        <button type="button" @click="openAddRootHostGroup(hostGroupMenu.group)"><span><AppIcon name="folderPlus" :size="15" /></span>新建分组</button>
-        <button type="button" @click="openAddHostGroup(hostGroupMenu.group.key)"><span><AppIcon name="circlePlus" :size="15" /></span>新建子分组</button>
-        <button type="button" @click="openRenameHostGroup(hostGroupMenu.group)"><span><AppIcon name="edit" :size="15" /></span>重命名</button>
+        <button type="button" :disabled="!canUsePageAction('hosts', 'group')" @click="openAddRootHostGroup(hostGroupMenu.group)"><span><AppIcon name="folderPlus" :size="15" /></span>新建分组</button>
+        <button type="button" :disabled="!canUsePageAction('hosts', 'group')" @click="openAddHostGroup(hostGroupMenu.group.key)"><span><AppIcon name="circlePlus" :size="15" /></span>新建子分组</button>
+        <button type="button" :disabled="!canUsePageAction('hosts', 'group')" @click="openRenameHostGroup(hostGroupMenu.group)"><span><AppIcon name="edit" :size="15" /></span>重命名</button>
         <hr />
-        <button type="button" @click="addManagedHost(hostGroupMenu.group.key)"><span><AppIcon name="server" :size="15" /></span>添加主机</button>
-        <button type="button" @click="openMoveHostDialog(hostGroupMenu.group)"><span><AppIcon name="upload" :size="15" /></span>移动主机</button>
-        <button class="danger" type="button" @click="deleteManagedHostsInGroup(hostGroupMenu.group)"><span><AppIcon name="trash" :size="15" /></span>删除主机</button>
+        <button type="button" :disabled="!canUsePageAction('hosts', 'create')" @click="addManagedHost(hostGroupMenu.group.key)"><span><AppIcon name="server" :size="15" /></span>添加主机</button>
+        <button type="button" :disabled="!canUsePageAction('hosts', 'move')" @click="openMoveHostDialog(hostGroupMenu.group)"><span><AppIcon name="upload" :size="15" /></span>移动主机</button>
+        <button class="danger" type="button" :disabled="!canUsePageAction('hosts', 'delete')" @click="deleteManagedHostsInGroup(hostGroupMenu.group)"><span><AppIcon name="trash" :size="15" /></span>删除主机</button>
         <hr />
-        <button class="danger" type="button" @click="deleteHostGroup(hostGroupMenu.group)"><span><AppIcon name="trash" :size="15" /></span>删除此分组</button>
+        <button class="danger" type="button" :disabled="!canUsePageAction('hosts', 'group')" @click="deleteHostGroup(hostGroupMenu.group)"><span><AppIcon name="trash" :size="15" /></span>删除此分组</button>
       </div>
     </article>
 
@@ -379,7 +380,7 @@ function hostPlatformType(value: string | null | undefined) {
       <div class="host-toolbar">
         <input v-model="hostSearch" placeholder="输入别名/IP检索" />
         <div class="host-toolbar-actions">
-          <button class="primary" type="button" @click="addManagedHost()"><AppIcon name="plus" :size="16" />新建</button>
+          <button class="primary" type="button" :disabled="!canUsePageAction('hosts', 'create')" @click="addManagedHost()"><AppIcon name="plus" :size="16" />新建</button>
           <div class="host-more-actions" @click.stop>
             <button
               class="more-action-trigger"
@@ -391,30 +392,30 @@ function hostPlatformType(value: string | null | undefined) {
               <AppIcon name="chevronDown" :size="14" />
             </button>
             <div v-if="hostMoreActionsOpen" class="host-more-menu">
-              <button type="button" :disabled="!selectedManagedHostCount" @click="runVerifySelectedHosts">
+              <button type="button" :disabled="!selectedManagedHostCount || !canUsePageAction('hosts', 'verify')" @click="runVerifySelectedHosts">
                 <AppIcon name="shield" :size="15" />
                 <span>验证所选</span>
               </button>
-              <button type="button" :class="{ active: hostStatusFilter === 'all' }" @click="setHostStatusFilter('all')">
+              <button type="button" :class="{ active: hostStatusFilter === 'all' }" :disabled="!canUsePageAction('hosts', 'filter')" @click="setHostStatusFilter('all')">
                 <AppIcon name="search" :size="15" />
                 <span>查询全部</span>
               </button>
-              <button type="button" :class="{ active: hostStatusFilter === 'unverified' }" @click="setHostStatusFilter('unverified')">
+              <button type="button" :class="{ active: hostStatusFilter === 'unverified' }" :disabled="!canUsePageAction('hosts', 'filter')" @click="setHostStatusFilter('unverified')">
                 <AppIcon name="circleHelp" :size="15" />
                 <span>查未验证</span>
               </button>
               <hr />
-              <button type="button" :disabled="!selectedManagedHostCount" @click="runMoveSelectedHosts">
+              <button type="button" :disabled="!selectedManagedHostCount || !canUsePageAction('hosts', 'move')" @click="runMoveSelectedHosts">
                 <AppIcon name="upload" :size="15" />
                 <span>更新所选</span>
               </button>
-              <button class="danger" type="button" :disabled="!selectedManagedHostCount" @click="runDeleteSelectedHosts">
+              <button class="danger" type="button" :disabled="!selectedManagedHostCount || !canUsePageAction('hosts', 'delete')" @click="runDeleteSelectedHosts">
                 <AppIcon name="trash" :size="15" />
                 <span>删除所选</span>
               </button>
             </div>
           </div>
-          <button class="icon-only" type="button" title="导出" aria-label="导出" @click="openHostTransferDialog('export')"><AppIcon name="download" :size="16" /></button>
+          <button class="icon-only" type="button" title="导出" aria-label="导出" :disabled="!canUsePageAction('hosts', 'export')" @click="openHostTransferDialog('export')"><AppIcon name="download" :size="16" /></button>
           <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadHostManagement"><AppIcon name="refresh" :size="16" /></button>
           <div class="host-column-settings" @click.stop>
             <button
@@ -509,7 +510,7 @@ function hostPlatformType(value: string | null | undefined) {
             />
           </label>
           <span v-if="isHostColumnVisible('group')" class="host-group-cell">{{ hostGroupName(host.group) }}</span>
-          <button v-if="isHostColumnVisible('name')" class="host-name-link" type="button" @click="openWebTerminal(host)">{{ host.name }}</button>
+          <button v-if="isHostColumnVisible('name')" class="host-name-link" type="button" :disabled="!canUsePageAction('hosts', 'terminal')" @click="openWebTerminal(host)">{{ host.name }}</button>
           <div v-if="isHostColumnVisible('ip')" class="host-ip-stack">
             <span v-if="host.publicIp"><i class="ip-tag public">公</i>{{ host.publicIp }}</span>
             <span>{{ host.privateIp }}</span>
@@ -539,11 +540,11 @@ function hostPlatformType(value: string | null | undefined) {
             </span>
           </div>
           <div v-if="isHostColumnVisible('actions')" class="host-actions host-sticky-cell host-actions-cell">
-            <button type="button" @click="editManagedHost(host)">编辑</button>
-            <button type="button" :disabled="verifyingHostIds.has(host.id)" @click="verifyManagedHost(host)">
+            <button type="button" :disabled="!canUsePageAction('hosts', 'edit')" @click="editManagedHost(host)">编辑</button>
+            <button type="button" :disabled="verifyingHostIds.has(host.id) || !canUsePageAction('hosts', 'verify')" @click="verifyManagedHost(host)">
               {{ verifyingHostIds.has(host.id) ? '验证中' : '验证' }}
             </button>
-            <button class="danger" type="button" @click="deleteManagedHost(host)">删除</button>
+            <button class="danger" type="button" :disabled="!canUsePageAction('hosts', 'delete')" @click="deleteManagedHost(host)">删除</button>
           </div>
         </div>
           <div v-if="!visibleManagedHosts.length" class="empty-state host-empty">没有匹配的主机。</div>

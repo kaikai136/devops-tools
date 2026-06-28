@@ -289,12 +289,20 @@ const permittedNavGroups = computed(() => {
     .filter((group) => group.items.length);
 });
 
+const currentPermissionCodes = computed(() => new Set(currentUser.value?.featurePermissionCodes ?? []));
 const permittedToolKeys = computed(() => new Set(permittedNavGroups.value.flatMap((group) => group.items.map((item) => item.key))));
 const permittedActiveNavGroup = computed(() => permittedNavGroups.value.find((group) => group.items.some((item) => item.key === activeTool.value)) ?? permittedNavGroups.value[0] ?? activeNavGroup.value);
 const permittedActiveNavItem = computed(
   () => permittedActiveNavGroup.value.items.find((item) => item.key === activeTool.value) ?? permittedActiveNavGroup.value.items[0] ?? activeNavItem.value,
 );
 const shouldShowWatermark = computed(() => watermarkAppliesToPage(watermarkConfig.value, activeTool.value));
+
+function canUsePageAction(pageKey: string, actionKey: string) {
+  const user = currentUser.value;
+  if (!user) return false;
+  if (user.is_superuser) return true;
+  return currentPermissionCodes.value.has(`action_${pageKey}_${actionKey}`);
+}
 
 function selectHost(ip: string) {
   selectedHost.value = ip;
@@ -368,6 +376,7 @@ const appState = {
   saveWatermarkSetting,
   resetWatermarkDraft,
   currentUser,
+  canUsePageAction,
   isAuthReady,
   isAuthenticated,
   loadCurrentUser,

@@ -7,7 +7,7 @@ import UserDeleteDialog from './user/UserDeleteDialog.vue';
 import UserResetPasswordDialog from './user/UserResetPasswordDialog.vue';
 import UserTable from './user/UserTable.vue';
 
-const { activeTool, setActiveTool } = useAppContext();
+const { activeTool, setActiveTool, canUsePageAction } = useAppContext();
 
 const {
   roles,
@@ -83,7 +83,7 @@ const {
       <div class="user-list-toolbar">
         <h2>账户列表</h2>
         <div class="user-toolbar-actions">
-          <button class="user-primary-button" type="button" @click="openCreateDialog"><AppIcon name="plus" :size="15" />新建</button>
+          <button class="user-primary-button" type="button" :disabled="!canUsePageAction('users', 'create')" @click="openCreateDialog"><AppIcon name="plus" :size="15" />新建</button>
           <div class="user-status-tabs" role="tablist" aria-label="账户状态">
             <button :class="{ active: statusFilter === 'all' }" type="button" @click="statusFilter = 'all'">全部</button>
             <button :class="{ active: statusFilter === 'active' }" type="button" @click="statusFilter = 'active'">正常</button>
@@ -124,6 +124,7 @@ const {
         :is-column-visible="isColumnVisible"
         :role-names="roleNames"
         :login-state-text="loginStateText"
+        :can-use-page-action="canUsePageAction"
         @toggle-status="toggleUserStatus"
         @edit="openEditDialog"
         @reset-password="openResetPassword"

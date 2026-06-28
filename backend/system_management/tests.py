@@ -8,6 +8,7 @@ from .services import (
     BUILTIN_ADMIN_FIRST_NAME,
     BUILTIN_ADMIN_USERNAME,
     FEATURE_PERMISSION_CODE_BY_KEY,
+    PAGE_ACTION_PERMISSION_CODE_BY_KEY,
     ensure_builtin_admin,
     ensure_feature_permissions,
     record_login_log,
@@ -143,7 +144,10 @@ class FeaturePermissionTests(TestCase):
         payload = response.json()
         codenames = {item["codename"] for item in payload}
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["hosts"], codenames)
+        self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")], codenames)
         self.assertTrue(all(item["isFeature"] for item in payload))
+        self.assertTrue(any(item["permissionType"] == "page" and item["featureKey"] == "hosts" for item in payload))
+        self.assertTrue(any(item["permissionType"] == "action" and item["featureKey"] == "hosts" and item["actionKey"] == "create" for item in payload))
 
     def test_role_can_store_feature_permissions(self):
         ensure_feature_permissions()
@@ -158,6 +162,19 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 201)
         role = Group.objects.get(name="主机操作员")
         self.assertTrue(role.permissions.filter(id=permission.id).exists())
+
+    def test_existing_page_permission_inherits_new_action_permissions(self):
+        ensure_feature_permissions()
+        page_permission = Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["hosts"])
+        action_permission = Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")])
+        role = Group.objects.create(name="Host viewer")
+        role.permissions.add(page_permission)
+        action_permission.delete()
+
+        ensure_feature_permissions()
+
+        action_permission = Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")])
+        self.assertTrue(role.permissions.filter(id=action_permission.id).exists())
 
 
 class SystemSettingsApiTests(TestCase):

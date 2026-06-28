@@ -14,6 +14,7 @@ const {
   portScanMessage,
   portResult,
   copyText,
+  canUsePageAction,
 } = useAppContext();
 </script>
 
@@ -36,7 +37,7 @@ const {
       </div>
       <label><span>端口</span><input v-model="portsInput" @keyup.enter="scanPorts" /></label>
       <div class="split-actions">
-        <button class="primary" type="button" :disabled="isScanningPorts" @click="scanPorts">开始扫描</button>
+        <button class="primary" type="button" :disabled="isScanningPorts || !canUsePageAction('ports', 'port_scan')" @click="scanPorts">开始扫描</button>
         <button type="button" :disabled="!isScanningPorts" @click="stopPortScan">停止</button>
       </div>
     </article>

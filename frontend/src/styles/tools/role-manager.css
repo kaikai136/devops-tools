@@ -373,8 +373,8 @@
 
 .role-wide-modal {
   width: min(1240px, calc(100vw - 28px));
-  max-height: none;
-  overflow: visible;
+  max-height: calc(100vh - 56px);
+  overflow: auto;
 }
 
 .role-feature-permissions {
@@ -400,18 +400,18 @@
 }
 
 .role-permission-tree {
-  overflow: visible;
+  overflow: auto;
   border-top: 1px solid #dcdfe6;
   border-left: 1px solid #dcdfe6;
 }
 
 .role-permission-row {
   display: grid;
-  grid-template-columns: 170px 230px minmax(520px, 1fr);
+  grid-template-columns: 170px 230px minmax(580px, 1fr);
   min-height: 52px;
   border-bottom: 1px solid #dcdfe6;
   color: #303133;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 800;
 }
 
@@ -437,7 +437,7 @@
   gap: 12px;
   min-width: 0;
   border-right: 1px solid #dcdfe6;
-  padding: 0 20px;
+  padding: 12px 20px;
 }
 
 .role-tree-node.module {
@@ -456,16 +456,22 @@
 }
 
 .role-tree-node.feature {
+  align-items: flex-start;
+  flex-wrap: wrap;
   grid-column: 3;
+  gap: 10px;
 }
 
-.role-tree-node input {
+.role-tree-node input,
+.role-action-node input {
+  flex: 0 0 auto;
   width: 18px;
   height: 18px;
   accent-color: #12b99f;
 }
 
-.role-tree-node input[data-partial="true"]:not(:checked) {
+.role-tree-node input[data-partial="true"]:not(:checked),
+.role-action-node input[data-partial="true"]:not(:checked) {
   box-shadow: inset 0 0 0 4px #fff, inset 0 0 0 10px #12b99f;
 }
 
@@ -474,6 +480,32 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.role-action-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+  max-width: 220px;
+  min-height: 28px;
+  color: #345275;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.role-action-node span,
+.role-action-empty {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-action-empty {
+  color: #909399;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .role-form-actions {

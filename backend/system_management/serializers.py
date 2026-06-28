@@ -21,7 +21,13 @@ WATERMARK_ALLOWED_PAGES = {
     "systemSettings",
     "webTerminal",
 }
-from .services import FEATURE_PERMISSION_CODE_BY_KEY, FEATURE_PERMISSION_CODES, is_builtin_admin_user
+from .services import (
+    FEATURE_PERMISSION_CODE_BY_KEY,
+    FEATURE_PERMISSION_CODES,
+    PAGE_ACTION_PERMISSION_CODES,
+    PAGE_ACTION_PERMISSION_META_BY_CODE,
+    is_builtin_admin_user,
+)
 
 
 class LoginLogSerializer(serializers.ModelSerializer):
@@ -136,20 +142,36 @@ class SystemUserSerializer(serializers.ModelSerializer):
 class PermissionSerializer(serializers.ModelSerializer):
     label = serializers.CharField(source="name", read_only=True)
     featureKey = serializers.SerializerMethodField()
+    actionKey = serializers.SerializerMethodField()
+    permissionType = serializers.SerializerMethodField()
     isFeature = serializers.SerializerMethodField()
 
     class Meta:
         model = Permission
-        fields = ["id", "codename", "label", "featureKey", "isFeature"]
+        fields = ["id", "codename", "label", "featureKey", "actionKey", "permissionType", "isFeature"]
 
     def get_featureKey(self, obj):
         for feature_key, codename in FEATURE_PERMISSION_CODE_BY_KEY.items():
             if obj.codename == codename:
                 return feature_key
+        action_meta = PAGE_ACTION_PERMISSION_META_BY_CODE.get(obj.codename)
+        if action_meta:
+            return action_meta["feature_key"]
         return ""
 
+    def get_actionKey(self, obj):
+        action_meta = PAGE_ACTION_PERMISSION_META_BY_CODE.get(obj.codename)
+        return action_meta["action_key"] if action_meta else ""
+
+    def get_permissionType(self, obj):
+        if obj.codename in FEATURE_PERMISSION_CODES:
+            return "page"
+        if obj.codename in PAGE_ACTION_PERMISSION_CODES:
+            return "action"
+        return "other"
+
     def get_isFeature(self, obj):
-        return obj.codename in FEATURE_PERMISSION_CODES
+        return obj.codename in FEATURE_PERMISSION_CODES or obj.codename in PAGE_ACTION_PERMISSION_CODES
 
 
 class RoleSerializer(serializers.ModelSerializer):

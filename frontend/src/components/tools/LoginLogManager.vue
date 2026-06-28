@@ -42,7 +42,7 @@ const columnOptions: readonly ColumnOption[] = [
   { key: 'message', label: '提示信息', width: 'minmax(360px, 2.3fr)' },
 ];
 
-const { activeTool } = useAppContext();
+const { activeTool, canUsePageAction } = useAppContext();
 
 const logs = ref<LoginLog[]>([]);
 const username = ref('');
@@ -178,16 +178,16 @@ function statusText(status: LoginLogStatus) {
         <h2>登录记录</h2>
         <div class="login-log-actions">
           <div class="login-log-tabs" role="tablist" aria-label="登录状态">
-            <button :class="{ active: statusFilter === 'all' }" type="button" @click="setStatusFilter('all')">全部</button>
-            <button :class="{ active: statusFilter === 'success' }" type="button" @click="setStatusFilter('success')">成功</button>
-            <button :class="{ active: statusFilter === 'failed' }" type="button" @click="setStatusFilter('failed')">失败</button>
+            <button :class="{ active: statusFilter === 'all' }" type="button" :disabled="!canUsePageAction('loginLogs', 'filter')" @click="setStatusFilter('all')">全部</button>
+            <button :class="{ active: statusFilter === 'success' }" type="button" :disabled="!canUsePageAction('loginLogs', 'filter')" @click="setStatusFilter('success')">成功</button>
+            <button :class="{ active: statusFilter === 'failed' }" type="button" :disabled="!canUsePageAction('loginLogs', 'filter')" @click="setStatusFilter('failed')">失败</button>
           </div>
           <span class="login-log-toolbar-divider"></span>
-          <button class="login-log-icon-button" type="button" title="刷新" aria-label="刷新" @click="loadLogs">
+          <button class="login-log-icon-button" type="button" title="刷新" aria-label="刷新" :disabled="!canUsePageAction('loginLogs', 'refresh')" @click="loadLogs">
             <AppIcon name="refresh" :size="18" />
           </button>
           <div class="login-log-column-settings" @click.stop>
-            <button class="login-log-icon-button" type="button" title="列设置" aria-label="列设置" @click="columnsOpen = !columnsOpen">
+            <button class="login-log-icon-button" type="button" title="列设置" aria-label="列设置" :disabled="!canUsePageAction('loginLogs', 'columns')" @click="columnsOpen = !columnsOpen">
               <AppIcon name="settings" :size="18" />
             </button>
             <div v-if="columnsOpen" class="login-log-column-menu">
