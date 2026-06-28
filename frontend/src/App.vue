@@ -5,6 +5,7 @@ import { appContextKey } from './appContext';
 import AccountManager from './components/tools/AccountManager.vue';
 import AppIcon from './components/common/AppIcon.vue';
 import AuthenticatorPanel from './components/tools/AuthenticatorPanel.vue';
+import CommandRuleManager from './components/tools/CommandRuleManager.vue';
 import LoginPage from './components/auth/LoginPage.vue';
 import HostManager from './components/tools/HostManager.vue';
 import IpScanner from './components/tools/IpScanner.vue';
@@ -283,6 +284,7 @@ async function confirmHostExport() {
       <SubnetCalculator v-if="activeTool === 'subnet'" />
       <AuthenticatorPanel v-if="activeTool === 'auth'" />
       <PasswordGenerator v-if="activeTool === 'password'" />
+      <CommandRuleManager v-if="activeTool === 'commandRules'" />
       <LoginLogManager v-if="activeTool === 'loginLogs'" />
       <UserManager v-if="activeTool === 'users'" />
       <RoleManager v-if="activeTool === 'roles'" />

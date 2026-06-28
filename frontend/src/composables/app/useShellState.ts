@@ -74,6 +74,7 @@ function navItemIcon(key: ToolKey): IconName {
     subnet: 'globe',
     auth: 'shield',
     password: 'key',
+    commandRules: 'scrollText',
     loginLogs: 'bell',
     users: 'user',
     roles: 'shield',

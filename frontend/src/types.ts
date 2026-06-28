@@ -6,6 +6,7 @@ export type ToolKey =
   | 'subnet'
   | 'auth'
   | 'password'
+  | 'commandRules'
   | 'loginLogs'
   | 'users'
   | 'roles'
@@ -192,4 +193,44 @@ export interface QrPreview {
   uri: string;
   issuer: string;
   account: string;
+}
+
+export type SecurityCommandMatchType = 'command' | 'regex';
+export type SecurityCommandAction = 'block' | 'warn';
+
+export interface SecurityCommandRule {
+  id: number;
+  name: string;
+  matchType: SecurityCommandMatchType;
+  content: string;
+  ignoreCase: boolean;
+  action: SecurityCommandAction;
+  enabled: boolean;
+  remark: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SecurityCommandRuleDraft {
+  name: string;
+  matchType: SecurityCommandMatchType;
+  content: string;
+  ignoreCase: boolean;
+  action: SecurityCommandAction;
+  enabled: boolean;
+  remark: string;
+}
+
+export interface SecurityCommandRecord {
+  id: number;
+  userName: string;
+  hostName: string;
+  hostIp: string;
+  sessionId: string;
+  ruleName: string;
+  command: string;
+  action: SecurityCommandAction;
+  blocked: boolean;
+  message: string;
+  createdAt: string;
 }

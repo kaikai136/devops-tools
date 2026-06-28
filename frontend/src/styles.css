@@ -7,6 +7,7 @@
 @import "./styles/tools/subnet-calculator.css";
 @import "./styles/tools/authenticator.css";
 @import "./styles/tools/password-generator.css";
+@import "./styles/tools/command-rule-manager.css";
 @import "./styles/tools/user-manager.css";
 @import "./styles/tools/login-log-manager.css";
 @import "./styles/tools/role-manager.css";
