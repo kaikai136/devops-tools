@@ -6,7 +6,6 @@ import { useAuthSession } from './app/useAuthSession';
 import { useFeedback } from './app/useFeedback';
 import { useShellState } from './app/useShellState';
 import { useAuthenticator } from './features/useAuthenticator';
-import { useCommandRules } from './features/useCommandRules';
 import { useHostManager, type HostTransferFormat } from './features/useHostManager';
 import { useIpScanner } from './features/useIpScanner';
 import { useMachineProbe } from './features/useMachineProbe';
@@ -236,27 +235,6 @@ const {
   handleImageImport,
 } = authenticator;
 
-const commandRulesManager = useCommandRules({ showToast, requestConfirm });
-const {
-  commandRules,
-  filteredCommandRules,
-  commandRecords,
-  commandRuleSearch,
-  commandRuleMessage,
-  commandRuleStats,
-  commandRuleDialog,
-  isCommandRuleLoading,
-  isCommandRecordLoading,
-  loadCommandRules,
-  loadCommandRecords,
-  loadCommandSecurity,
-  openCommandRuleDialog,
-  closeCommandRuleDialog,
-  saveCommandRuleDialog,
-  toggleCommandRule,
-  deleteCommandRule,
-} = commandRulesManager;
-
 async function loadLocalIp() {
   try {
     const data = await apiGet<{ ip: string }>('/api/local-ip/');
@@ -267,7 +245,7 @@ async function loadLocalIp() {
 }
 
 async function loadWorkspaceData() {
-  await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadCommandSecurity(), loadHostManagement(), calculateSubnet(false)]);
+  await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadHostManagement(), calculateSubnet(false)]);
 }
 
 const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, logout } = useAuthSession({
@@ -381,22 +359,6 @@ const appState = {
   navGroupIcon,
   authImportFile,
   passwordImportFile,
-  commandRules,
-  filteredCommandRules,
-  commandRecords,
-  commandRuleSearch,
-  commandRuleMessage,
-  commandRuleStats,
-  commandRuleDialog,
-  isCommandRuleLoading,
-  isCommandRecordLoading,
-  loadCommandRules,
-  loadCommandRecords,
-  openCommandRuleDialog,
-  closeCommandRuleDialog,
-  saveCommandRuleDialog,
-  toggleCommandRule,
-  deleteCommandRule,
   hostImportFile,
   hostImportAccept,
   hostTransferDialog,

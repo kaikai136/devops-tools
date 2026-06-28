@@ -9,7 +9,6 @@ from channels.generic.websocket import WebsocketConsumer
 from django.utils import timezone
 
 from host_management.models import ManagedHost
-from security_tools.services import match_security_command, record_security_command_match
 
 from .models import TerminalSession
 from .services import LiveTerminalConnection, TerminalConnectionError, open_live_terminal
@@ -46,12 +45,6 @@ CWD_HOOK_INSTALL_SCRIPT = (
 )
 CWD_HOOK_ECHO_OFF = "stty -echo 2>/dev/null\n"
 CWD_HOOK_ECHO_ON = "stty echo 2>/dev/null\n"
-CARRIAGE_RETURN_KEYS = {"\r", "\n"}
-BACKSPACE_KEYS = {"\x7f", "\b"}
-CTRL_C = "\x03"
-CTRL_U = "\x15"
-CTRL_W = "\x17"
-ANSI_SECURITY_WARNING = "\r\x1b[2K\x1b[31m{message}\x1b[0m\r\n"
 CWD_HOOK_ECHO_FRAGMENTS = tuple(
     fragment
     for fragment in [CWD_HOOK_ECHO_OFF.strip(), CWD_HOOK_ECHO_ON.strip(), CWD_HOOK_INSTALL_SCRIPT.strip(), *CWD_HOOK_SCRIPT.splitlines()]
@@ -121,7 +114,6 @@ class TerminalConsumer(WebsocketConsumer):
     pending_output: str
     current_cwd: str
     suppress_internal_echo_until: float
-    input_line_buffer: str
 
     def connect(self):
         self.stop_reader = threading.Event()
@@ -129,7 +121,6 @@ class TerminalConsumer(WebsocketConsumer):
         self.pending_output = ""
         self.current_cwd = ""
         self.suppress_internal_echo_until = 0.0
-        self.input_line_buffer = ""
         self.accept()
 
         host_id = self.scope["url_route"]["kwargs"]["host_id"]
@@ -165,7 +156,7 @@ class TerminalConsumer(WebsocketConsumer):
         message_type = message.get("type")
         try:
             if message_type == "input":
-                self._handle_terminal_input(str(message.get("data", "")))
+                self.connection.send_data(str(message.get("data", "")))
             elif message_type == "resize":
                 self.connection.resize(int(message.get("cols", 120)), int(message.get("rows", 36)))
             else:
@@ -175,76 +166,6 @@ class TerminalConsumer(WebsocketConsumer):
         except Exception as error:
             self._send_error(f"SSH 连接失败：{error}")
             self.close()
-
-    def _handle_terminal_input(self, data: str):
-        if self.connection is None:
-            return
-
-        filtered_data = self._filter_terminal_input(data)
-        if filtered_data:
-            self.connection.send_data(filtered_data)
-
-    def _filter_terminal_input(self, data: str) -> str:
-        if not data:
-            return ""
-
-        sendable_parts: list[str] = []
-        current_part: list[str] = []
-        for char in data:
-            if char in CARRIAGE_RETURN_KEYS:
-                if self._process_completed_input_line():
-                    current_part = []
-                else:
-                    current_part.append(char)
-                    sendable_parts.append("".join(current_part))
-                    current_part = []
-                self.input_line_buffer = ""
-                continue
-            if char in BACKSPACE_KEYS:
-                self.input_line_buffer = self.input_line_buffer[:-1]
-                current_part.append(char)
-                continue
-            if char == CTRL_C:
-                self.input_line_buffer = ""
-                current_part.append(char)
-                continue
-            if char == CTRL_U:
-                self.input_line_buffer = ""
-                current_part.append(char)
-                continue
-            if char == CTRL_W:
-                self.input_line_buffer = self.input_line_buffer.rstrip()
-                self.input_line_buffer = self.input_line_buffer.rsplit(" ", 1)[0] if " " in self.input_line_buffer else ""
-                current_part.append(char)
-                continue
-            if char.isprintable() or char == "\t":
-                self.input_line_buffer += char
-                current_part.append(char)
-                continue
-            current_part.append(char)
-        if current_part:
-            sendable_parts.append("".join(current_part))
-        return "".join(sendable_parts)
-
-    def _process_completed_input_line(self) -> bool:
-        command = self.input_line_buffer.strip()
-        if not command:
-            return False
-
-        match = match_security_command(command)
-        if match is None:
-            return False
-
-        record_security_command_match(match, user=self.scope.get("user"), host=self.session.host if self.session else None, session=self.session)
-        if match.blocked and self.connection is not None:
-            self.connection.send_data(CTRL_C)
-        self._write_security_warning(match.message)
-        return match.blocked
-
-    def _write_security_warning(self, message: str):
-        output = ANSI_SECURITY_WARNING.format(message=message)
-        self.transcript_chunks.append(output)
-        self.send(text_data=json.dumps({"type": "output", "data": output}, ensure_ascii=False))
 
     def disconnect(self, close_code):
         self.stop_reader.set()

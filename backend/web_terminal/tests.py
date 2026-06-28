@@ -3,7 +3,6 @@ from django.contrib.auth import get_user_model
 from unittest.mock import patch
 
 from host_management.models import HostGroup, ManagedHost
-from security_tools.models import SecurityCommandRecord, SecurityCommandRule
 
 from . import views
 from .consumers import (
@@ -505,61 +504,3 @@ class TerminalQuickCommandApiTests(TestCase):
         )
 
         self.assertEqual(missing_response.status_code, 400)
-
-
-class TerminalSecurityCommandInterceptionTests(TestCase):
-    def setUp(self):
-        self.user = get_user_model().objects.create_user(username="operator", password="pass")
-        self.group = HostGroup.objects.create(name="Default")
-        self.host = ManagedHost.objects.create(name="host-1", group=self.group, private_ip="192.168.1.10")
-
-    def create_consumer(self):
-        consumer = TerminalConsumer()
-        consumer.connection = FakeTerminalConnection()
-        consumer.session = None
-        consumer.scope = {"user": self.user}
-        consumer.transcript_chunks = []
-        consumer.input_line_buffer = ""
-        consumer.sent_messages = []
-        consumer.send = lambda text_data=None, bytes_data=None, close=False: consumer.sent_messages.append(text_data)
-        return consumer
-
-    def test_blocks_matched_command_and_records_it(self):
-        SecurityCommandRule.objects.create(name="danger rm", match_type="command", content="rm", action="block", enabled=True)
-        consumer = self.create_consumer()
-
-        consumer._handle_terminal_input("rm -rf /tmp\r")
-
-        self.assertEqual(consumer.connection.sent_data, ["\x03"])
-        self.assertEqual(SecurityCommandRecord.objects.count(), 1)
-        record = SecurityCommandRecord.objects.get()
-        self.assertTrue(record.blocked)
-        self.assertEqual(record.command, "rm -rf /tmp")
-        self.assertIn("安全告警", consumer.sent_messages[0])
-
-    def test_warns_matched_command_and_allows_it(self):
-        SecurityCommandRule.objects.create(name="warn reboot", match_type="command", content="reboot", action="warn", enabled=True)
-        consumer = self.create_consumer()
-
-        consumer._handle_terminal_input("reboot\r")
-
-        self.assertEqual(consumer.connection.sent_data, ["reboot\r"])
-        self.assertEqual(SecurityCommandRecord.objects.count(), 1)
-        self.assertFalse(SecurityCommandRecord.objects.get().blocked)
-
-    def test_plain_command_is_sent_without_record(self):
-        SecurityCommandRule.objects.create(name="danger rm", match_type="command", content="rm", action="block", enabled=True)
-        consumer = self.create_consumer()
-
-        consumer._handle_terminal_input("rmdir /tmp\r")
-
-        self.assertEqual(consumer.connection.sent_data, ["rmdir /tmp\r"])
-        self.assertEqual(SecurityCommandRecord.objects.count(), 0)
-
-
-class FakeTerminalConnection:
-    def __init__(self):
-        self.sent_data = []
-
-    def send_data(self, data):
-        self.sent_data.append(data)

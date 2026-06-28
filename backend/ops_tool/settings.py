@@ -22,7 +22,6 @@ INSTALLED_APPS = [
     "authenticators",
     "host_management",
     "web_terminal",
-    "security_tools",
     "operations",
     "system_management",
 ]

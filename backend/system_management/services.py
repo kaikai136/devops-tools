@@ -23,7 +23,6 @@ FEATURE_PERMISSION_DEFINITIONS = [
     ("host", "主机管理", "accounts", "账号管理"),
     ("security", "安全工具", "auth", "双因子认证"),
     ("security", "安全工具", "password", "密码生成器"),
-    ("security", "安全工具", "commandRules", "命令管理"),
     ("system", "系统管理", "loginLogs", "登录日志"),
     ("system", "系统管理", "users", "用户管理"),
     ("system", "系统管理", "roles", "角色管理"),
