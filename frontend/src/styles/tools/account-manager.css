@@ -5,6 +5,16 @@
   overflow: hidden;
 }
 
+.account-page.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  margin: 0;
+  padding: 24px;
+  background: #eef1f5;
+}
+
 .account-panel {
   min-height: 0;
   height: 100%;

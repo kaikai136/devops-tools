@@ -10,8 +10,9 @@
 .user-manager-page.fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 30;
-  padding: 0;
+  z-index: 60;
+  padding: 24px;
+  background: #eef1f5;
 }
 
 .user-breadcrumb {
@@ -195,29 +196,71 @@
 
 .user-column-settings {
   position: relative;
+  display: inline-flex;
 }
 
 .user-column-menu {
   position: absolute;
-  top: 38px;
+  z-index: 70;
+  top: calc(100% + 9px);
   right: 0;
-  z-index: 5;
-  display: grid;
-  gap: 8px;
-  min-width: 136px;
-  border: 1px solid #e5e7eb;
+  width: 176px;
+  border: 1px solid #e2e7ef;
   background: #fff;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.12);
-  padding: 10px;
+  box-shadow: 0 14px 32px rgba(31, 45, 71, 0.16);
 }
 
-.user-column-menu label {
+.user-column-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.user-column-all,
+.user-column-option {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #374151;
+  margin: 0;
+  color: #173252;
   font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
   white-space: nowrap;
+}
+
+.user-column-all input,
+.user-column-option input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #2364f5;
+}
+
+.user-column-option input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.user-column-options {
+  display: grid;
+  gap: 9px;
+  padding: 13px 14px 14px;
+}
+
+.user-column-reset {
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: #1359f2;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
 }
 
 .user-message {
@@ -824,9 +867,12 @@
 }
 
 @media (max-width: 920px) {
-  .user-manager-page,
-  .user-manager-page.fullscreen {
+  .user-manager-page {
     padding: 0;
+  }
+
+  .user-manager-page.fullscreen {
+    padding: 14px;
   }
 
   .user-filter-panel,

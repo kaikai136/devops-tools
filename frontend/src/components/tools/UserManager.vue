@@ -43,6 +43,8 @@ const {
   passwordHint,
   resetPasswordHint,
   primaryRoleId,
+  allColumnsVisible,
+  someColumnsVisible,
   dialogTitle,
   dialogSubmitText,
   loadUsers,
@@ -67,6 +69,8 @@ const {
   isColumnVisible,
   isOnlyVisibleColumn,
   updateColumnVisibility,
+  toggleAllColumns,
+  resetColumns,
 } = useUserManager({ setActiveTool });
 </script>
 
@@ -94,15 +98,29 @@ const {
           <div class="user-column-settings" @click.stop>
             <button class="user-icon-button" type="button" title="列设置" aria-label="列设置" @click="columnsOpen = !columnsOpen"><AppIcon name="settings" :size="18" /></button>
             <div v-if="columnsOpen" class="user-column-menu">
-              <label v-for="column in userColumnOptions" :key="column.key">
-                <input
-                  type="checkbox"
-                  :checked="isColumnVisible(column.key)"
-                  :disabled="isOnlyVisibleColumn(column.key)"
-                  @change="updateColumnVisibility(column.key, $event)"
-                />
-                <span>{{ column.label }}</span>
-              </label>
+              <div class="user-column-menu-head">
+                <label class="user-column-all">
+                  <input
+                    type="checkbox"
+                    :checked="allColumnsVisible"
+                    :indeterminate.prop="someColumnsVisible && !allColumnsVisible"
+                    @change="toggleAllColumns"
+                  />
+                  <span>列显示</span>
+                </label>
+                <button type="button" class="user-column-reset" @click="resetColumns">重置</button>
+              </div>
+              <div class="user-column-options">
+                <label v-for="column in userColumnOptions" :key="column.key" class="user-column-option">
+                  <input
+                    type="checkbox"
+                    :checked="isColumnVisible(column.key)"
+                    :disabled="isOnlyVisibleColumn(column.key)"
+                    @change="updateColumnVisibility(column.key, $event)"
+                  />
+                  <span>{{ column.label }}</span>
+                </label>
+              </div>
             </div>
           </div>
           <button class="user-icon-button" type="button" :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click="fullscreen = !fullscreen">

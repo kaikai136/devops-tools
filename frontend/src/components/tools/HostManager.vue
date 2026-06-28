@@ -104,6 +104,7 @@ const {
 
 const hostColumnSettingsOpen = ref(false);
 const hostMoreActionsOpen = ref(false);
+const fullscreen = ref(false);
 const hostPage = ref(1);
 const hostPageSize = ref(10);
 const {
@@ -222,6 +223,11 @@ function closeHostMoreActions() {
   hostMoreActionsOpen.value = false;
 }
 
+function toggleFullscreen() {
+  closeHostMenus();
+  fullscreen.value = !fullscreen.value;
+}
+
 function setHostStatusFilter(filter: 'all' | 'unverified') {
   hostStatusFilter.value = filter;
   closeHostMoreActions();
@@ -253,7 +259,7 @@ function hostPlatformType(value: string | null | undefined) {
 </script>
 
 <template>
-  <section v-if="activeTool === 'hosts'" class="host-manager-page" @click="closeHostMenus">
+  <section v-if="activeTool === 'hosts'" class="host-manager-page" :class="{ fullscreen }" @click="closeHostMenus">
     <article class="panel host-groups-panel">
       <div class="host-group-head">
         <h2>分组列表</h2>
@@ -454,6 +460,9 @@ function hostPlatformType(value: string | null | undefined) {
               </div>
             </div>
           </div>
+          <button class="icon-only" type="button" :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click.stop="toggleFullscreen">
+            <AppIcon :name="fullscreen ? 'minimize' : 'maximize'" :size="18" />
+          </button>
         </div>
       </div>
       <div class="host-table-scroll">

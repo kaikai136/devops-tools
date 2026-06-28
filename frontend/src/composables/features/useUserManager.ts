@@ -478,6 +478,8 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     fullscreen,
     columnVisibility: columnManager.visibility,
     visibleColumns: columnManager.visibleColumns,
+    allColumnsVisible: columnManager.allColumnsVisible,
+    someColumnsVisible: columnManager.someColumnsVisible,
     tableStyle,
     filteredUsers,
     pagedUsers,
@@ -521,6 +523,8 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     isColumnVisible: columnManager.isColumnVisible,
     isOnlyVisibleColumn: columnManager.isOnlyVisibleColumn,
     updateColumnVisibility: columnManager.updateColumnVisibility,
+    toggleAllColumns: columnManager.toggleAllColumns,
+    resetColumns: columnManager.resetColumns,
   };
 }
 

@@ -67,6 +67,9 @@ const visibleColumns = ref<Record<ColumnKey, boolean>>({
 let filterTimer: number | undefined;
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
+const visibleColumnCount = computed(() => Object.values(visibleColumns.value).filter(Boolean).length);
+const allColumnsVisible = computed(() => columnOptions.every((column) => visibleColumns.value[column.key]));
+const someColumnsVisible = computed(() => visibleColumnCount.value > 0);
 const tableStyle = computed(() => ({
   '--login-log-columns': columnOptions
     .filter((column) => visibleColumns.value[column.key])
@@ -142,9 +145,24 @@ function isColumnVisible(key: ColumnKey) {
 
 function toggleColumn(key: ColumnKey, event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
-  const enabledCount = Object.values(visibleColumns.value).filter(Boolean).length;
-  if (!checked && enabledCount <= 1) return;
+  if (!checked && visibleColumnCount.value <= 1) return;
   visibleColumns.value = { ...visibleColumns.value, [key]: checked };
+}
+
+function toggleAllColumns(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  if (!checked) return;
+  visibleColumns.value = columnOptions.reduce(
+    (columns, column) => ({ ...columns, [column.key]: true }),
+    {} as Record<ColumnKey, boolean>,
+  );
+}
+
+function resetColumns() {
+  visibleColumns.value = columnOptions.reduce(
+    (columns, column) => ({ ...columns, [column.key]: true }),
+    {} as Record<ColumnKey, boolean>,
+  );
 }
 
 function formatTime(value: string) {
@@ -191,15 +209,29 @@ function statusText(status: LoginLogStatus) {
               <AppIcon name="settings" :size="18" />
             </button>
             <div v-if="columnsOpen" class="login-log-column-menu">
-              <label v-for="column in columnOptions" :key="column.key">
-                <input
-                  type="checkbox"
-                  :checked="isColumnVisible(column.key)"
-                  :disabled="Object.values(visibleColumns).filter(Boolean).length <= 1 && isColumnVisible(column.key)"
-                  @change="toggleColumn(column.key, $event)"
-                />
-                <span>{{ column.label }}</span>
-              </label>
+              <div class="login-log-column-menu-head">
+                <label class="login-log-column-all">
+                  <input
+                    type="checkbox"
+                    :checked="allColumnsVisible"
+                    :indeterminate.prop="someColumnsVisible && !allColumnsVisible"
+                    @change="toggleAllColumns"
+                  />
+                  <span>列显示</span>
+                </label>
+                <button type="button" class="login-log-column-reset" @click="resetColumns">重置</button>
+              </div>
+              <div class="login-log-column-options">
+                <label v-for="column in columnOptions" :key="column.key" class="login-log-column-option">
+                  <input
+                    type="checkbox"
+                    :checked="isColumnVisible(column.key)"
+                    :disabled="visibleColumnCount <= 1 && isColumnVisible(column.key)"
+                    @change="toggleColumn(column.key, $event)"
+                  />
+                  <span>{{ column.label }}</span>
+                </label>
+              </div>
             </div>
           </div>
           <button class="login-log-icon-button" type="button" :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click="fullscreen = !fullscreen">

@@ -25,6 +25,7 @@ const message = ref('');
 const dialog = ref<{ mode: 'create' | 'edit'; credentialId: number | null } | null>(null);
 const confirmDelete = ref<HostCredential | null>(null);
 const form = ref<CredentialForm>(emptyForm());
+const fullscreen = ref(false);
 
 const filteredCredentials = computed(() => {
   const query = search.value.trim().toLowerCase();
@@ -145,13 +146,16 @@ function emptyForm(): CredentialForm {
 </script>
 
 <template>
-  <section v-if="activeTool === 'accounts'" class="account-page">
+  <section v-if="activeTool === 'accounts'" class="account-page" :class="{ fullscreen }">
     <article class="panel account-panel">
       <div class="account-toolbar">
         <input v-model="search" placeholder="输入账号名称/用户/备注搜索" />
         <div class="account-toolbar-actions">
           <button class="primary" type="button" :disabled="!canUsePageAction('accounts', 'create')" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</button>
           <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadCredentials"><AppIcon name="refresh" :size="16" /></button>
+          <button class="icon-only" type="button" :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click="fullscreen = !fullscreen">
+            <AppIcon :name="fullscreen ? 'minimize' : 'maximize'" :size="18" />
+          </button>
         </div>
       </div>
 
