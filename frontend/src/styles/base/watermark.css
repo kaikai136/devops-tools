@@ -1,0 +1,32 @@
+.watermark-overlay {
+  position: fixed;
+  inset: -12vh -12vw;
+  z-index: 70;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(160px, 1fr));
+  gap: 54px 42px;
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+  transform: rotate(-24deg);
+}
+
+.watermark-overlay-item {
+  min-width: 160px;
+  color: rgba(35, 57, 93, 0.12);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.watermark-overlay.watermark-terminal {
+  z-index: 75;
+}
+
+.watermark-overlay.watermark-terminal .watermark-overlay-item {
+  color: rgba(216, 232, 255, 0.16);
+  text-shadow: 0 0 12px rgba(216, 232, 255, 0.08);
+}

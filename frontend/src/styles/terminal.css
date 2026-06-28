@@ -1,3 +1,5 @@
+@import "./base/watermark.css";
+
 * {
   box-sizing: border-box;
 }

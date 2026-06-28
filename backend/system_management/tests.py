@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.test import RequestFactory, TestCase
 
-from .models import LoginLog
+from .models import LoginLog, SystemSetting
 from .services import (
     BUILTIN_ADMIN_EMAIL,
     BUILTIN_ADMIN_FIRST_NAME,
@@ -158,6 +158,78 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 201)
         role = Group.objects.get(name="主机操作员")
         self.assertTrue(role.permissions.filter(id=permission.id).exists())
+
+
+class SystemSettingsApiTests(TestCase):
+    def setUp(self):
+        self.operator = get_user_model().objects.create_user(username="operator", password="pass", is_staff=True)
+        self.user = get_user_model().objects.create_user(username="viewer", password="pass", is_staff=False)
+        self.client.force_login(self.operator)
+
+    def test_staff_can_create_update_and_read_watermark_setting(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={
+                "key": "watermark",
+                "label": "水印设置",
+                "description": "页面水印配置",
+                "value": {"enabled": True, "text": "CAPTAIN", "pages": ["ip", "webTerminal", "ip"]},
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["value"], {"enabled": True, "text": "CAPTAIN", "pages": ["ip", "webTerminal"]})
+
+        update_response = self.client.put(
+            "/api/system/settings/watermark/",
+            data={"value": {"enabled": False, "text": "", "pages": ["hosts"]}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertFalse(update_response.json()["value"]["enabled"])
+
+    def test_logged_in_user_can_read_watermark_but_cannot_write(self):
+        SystemSetting.objects.create(key="watermark", value={"enabled": True, "text": "CAPTAIN", "pages": ["ip"]})
+        self.client.force_login(self.user)
+
+        read_response = self.client.get("/api/system/settings/watermark/")
+        write_response = self.client.put(
+            "/api/system/settings/watermark/",
+            data={"value": {"enabled": False, "text": "", "pages": []}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(read_response.status_code, 200)
+        self.assertEqual(read_response.json()["value"]["text"], "CAPTAIN")
+        self.assertEqual(write_response.status_code, 403)
+
+    def test_anonymous_user_cannot_read_watermark(self):
+        SystemSetting.objects.create(key="watermark", value={"enabled": True, "text": "CAPTAIN", "pages": ["ip"]})
+        self.client.logout()
+
+        response = self.client.get("/api/system/settings/watermark/")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_watermark_validation_rejects_empty_text_when_enabled(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={"key": "watermark", "value": {"enabled": True, "text": "", "pages": ["ip"]}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_watermark_validation_rejects_unknown_page(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={"key": "watermark", "value": {"enabled": False, "text": "", "pages": ["unknown"]}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
 
 
 class SystemUserLoginFlowTests(TestCase):

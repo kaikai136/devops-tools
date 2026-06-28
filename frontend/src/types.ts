@@ -193,3 +193,18 @@ export interface QrPreview {
   issuer: string;
   account: string;
 }
+
+export interface SystemSetting {
+  id: number;
+  key: string;
+  label: string;
+  description: string;
+  value: unknown;
+  updatedAt: string;
+}
+
+export interface WatermarkConfig {
+  enabled: boolean;
+  text: string;
+  pages: string[];
+}

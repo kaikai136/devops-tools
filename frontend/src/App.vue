@@ -13,7 +13,9 @@ import MachineProbe from './components/tools/MachineProbe.vue';
 import PasswordGenerator from './components/tools/PasswordGenerator.vue';
 import RoleManager from './components/tools/RoleManager.vue';
 import SubnetCalculator from './components/tools/SubnetCalculator.vue';
+import SystemSettingsPanel from './components/tools/SystemSettingsPanel.vue';
 import UserManager from './components/tools/UserManager.vue';
+import WatermarkOverlay from './components/common/WatermarkOverlay.vue';
 import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
 
@@ -44,6 +46,8 @@ const {
   logout,
   scopedToastVisible,
   toastTone,
+  shouldShowWatermark,
+  watermarkConfig,
   setActiveTool,
   selectNavItem,
   toggleSidebar,
@@ -286,7 +290,10 @@ async function confirmHostExport() {
       <LoginLogManager v-if="activeTool === 'loginLogs'" />
       <UserManager v-if="activeTool === 'users'" />
       <RoleManager v-if="activeTool === 'roles'" />
+      <SystemSettingsPanel v-if="activeTool === 'systemSettings'" />
     </section>
+
+    <WatermarkOverlay v-if="shouldShowWatermark" :text="watermarkConfig.text" />
 
     <div v-if="hostTransferDialog" class="modal-backdrop" @click.self="closeHostTransferDialog">
       <article class="host-transfer-modal" :class="{ 'host-export-modal': hostTransferDialog === 'export' }">

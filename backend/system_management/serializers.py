@@ -5,6 +5,22 @@ from django.contrib.auth.models import Group, Permission
 from rest_framework import serializers
 
 from .models import LoginLog, SystemSetting
+
+WATERMARK_SETTING_KEY = "watermark"
+WATERMARK_ALLOWED_PAGES = {
+    "ip",
+    "ports",
+    "subnet",
+    "hosts",
+    "accounts",
+    "auth",
+    "password",
+    "loginLogs",
+    "users",
+    "roles",
+    "systemSettings",
+    "webTerminal",
+}
 from .services import FEATURE_PERMISSION_CODE_BY_KEY, FEATURE_PERMISSION_CODES, is_builtin_admin_user
 
 
@@ -168,3 +184,40 @@ class SystemSettingSerializer(serializers.ModelSerializer):
         if not key:
             raise serializers.ValidationError("请输入设置键名")
         return key
+
+    def validate(self, attrs):
+        key = attrs.get("key", getattr(self.instance, "key", ""))
+        value = attrs.get("value", getattr(self.instance, "value", {}))
+        if key == WATERMARK_SETTING_KEY:
+            attrs["value"] = validate_watermark_value(value)
+        return attrs
+
+
+def validate_watermark_value(value):
+    if not isinstance(value, dict):
+        raise serializers.ValidationError({"value": "水印配置格式无效"})
+
+    enabled = bool(value.get("enabled", False))
+    text = str(value.get("text", "")).strip()
+    raw_pages = value.get("pages", [])
+    if not isinstance(raw_pages, list):
+        raise serializers.ValidationError({"value": "水印应用页面格式无效"})
+
+    pages = []
+    invalid_pages = []
+    for page in raw_pages:
+        page_key = str(page).strip()
+        if not page_key:
+            continue
+        if page_key not in WATERMARK_ALLOWED_PAGES:
+            invalid_pages.append(page_key)
+            continue
+        if page_key not in pages:
+            pages.append(page_key)
+
+    if invalid_pages:
+        raise serializers.ValidationError({"value": f"水印应用页面无效：{invalid_pages[0]}"})
+    if enabled and not text:
+        raise serializers.ValidationError({"value": "开启水印时请输入水印文本"})
+
+    return {"enabled": enabled, "text": text, "pages": pages}

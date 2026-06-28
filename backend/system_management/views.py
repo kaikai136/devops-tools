@@ -6,11 +6,11 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from accounts.permissions import require_staff
+from accounts.permissions import require_login, require_staff
 from operations.responses import bad_request, bounded_int, not_found, serializer_bad_request
 
 from .models import LoginLog, SystemSetting
-from .serializers import LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
+from .serializers import WATERMARK_SETTING_KEY, LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
 from .services import FEATURE_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
 
 
@@ -171,9 +171,14 @@ def system_settings(request):
 
 @api_view(["GET", "PUT", "DELETE"])
 def system_setting_detail(request, setting_key: str):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    if request.method == "GET" and setting_key == WATERMARK_SETTING_KEY:
+        auth_error = require_login(request)
+        if auth_error:
+            return auth_error
+    else:
+        staff_error = require_staff(request)
+        if staff_error:
+            return staff_error
 
     try:
         setting = SystemSetting.objects.get(key=setting_key)

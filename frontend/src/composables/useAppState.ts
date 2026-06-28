@@ -11,6 +11,7 @@ import { useIpScanner } from './features/useIpScanner';
 import { useMachineProbe } from './features/useMachineProbe';
 import { usePasswordManager } from './features/usePasswordManager';
 import { useSubnetCalculator } from './features/useSubnetCalculator';
+import { useWatermarkSettings, watermarkAppliesToPage } from './features/useWatermarkSettings';
 export function useAppState() {
 const shellState = useShellState();
 const {
@@ -235,6 +236,18 @@ const {
   handleImageImport,
 } = authenticator;
 
+const watermarkSettings = useWatermarkSettings({ showToast });
+const {
+  watermarkConfig,
+  watermarkDraft,
+  watermarkLoading,
+  watermarkSaving,
+  watermarkMessage,
+  loadWatermarkSetting,
+  saveWatermarkSetting,
+  resetWatermarkDraft,
+} = watermarkSettings;
+
 async function loadLocalIp() {
   try {
     const data = await apiGet<{ ip: string }>('/api/local-ip/');
@@ -245,7 +258,7 @@ async function loadLocalIp() {
 }
 
 async function loadWorkspaceData() {
-  await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadHostManagement(), calculateSubnet(false)]);
+  await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadWatermarkSetting(), loadHostManagement(), calculateSubnet(false)]);
 }
 
 const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, logout } = useAuthSession({
@@ -281,6 +294,7 @@ const permittedActiveNavGroup = computed(() => permittedNavGroups.value.find((gr
 const permittedActiveNavItem = computed(
   () => permittedActiveNavGroup.value.items.find((item) => item.key === activeTool.value) ?? permittedActiveNavGroup.value.items[0] ?? activeNavItem.value,
 );
+const shouldShowWatermark = computed(() => watermarkAppliesToPage(watermarkConfig.value, activeTool.value));
 
 function selectHost(ip: string) {
   selectedHost.value = ip;
@@ -344,6 +358,15 @@ const appState = {
   activeNavItem: permittedActiveNavItem,
   scopedToastVisible,
   toastTone,
+  shouldShowWatermark,
+  watermarkConfig,
+  watermarkDraft,
+  watermarkLoading,
+  watermarkSaving,
+  watermarkMessage,
+  loadWatermarkSetting,
+  saveWatermarkSetting,
+  resetWatermarkDraft,
   currentUser,
   isAuthReady,
   isAuthenticated,
