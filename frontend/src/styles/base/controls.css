@@ -63,7 +63,7 @@ button {
   padding: 0 16px;
 }
 
-button:not(.icon-only):not(.modal-close):not(.qr-button):not(.sidebar-toggle):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-group-row):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab) {
+button:not(.icon-only):not(.modal-close):not(.qr-button):not(.sidebar-toggle):not(.workspace-menu-button):not(.workspace-icon-button):not(.workspace-avatar-button):not(.workspace-menu-action):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-group-row):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab) {
   display: inline-flex;
   align-items: center;
   justify-content: center;

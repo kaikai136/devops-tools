@@ -32,6 +32,7 @@ const {
   groupsOpen,
   sidebarCollapsed,
   hoveredNavGroup,
+  isWorkspaceDark,
   toast,
   localIp,
   selectedHost,
@@ -52,6 +53,7 @@ const {
   setActiveTool,
   selectNavItem,
   toggleSidebar,
+  toggleWorkspaceTheme,
   openNavFlyout,
   closeNavFlyout,
   navItemIcon,
@@ -86,6 +88,8 @@ const {
 } = appState;
 
 const selectedManagedHostCount = computed(() => visibleManagedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id)).length);
+const currentUserDisplayName = computed(() => currentUser.value?.first_name || currentUser.value?.username || '未命名用户');
+const currentUserAccount = computed(() => currentUser.value?.username || currentUser.value?.email || '当前账户');
 
 watch(hostTransferDialog, (mode) => {
   if (mode !== 'export') return;
@@ -126,7 +130,7 @@ async function confirmHostExport() {
     </div>
   </main>
   <LoginPage v-else-if="!isAuthenticated" :login="login" />
-  <main v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+  <main v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed, 'workspace-dark': isWorkspaceDark }">
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
         <img src="/captain-banner.png" alt="运维船长" />
@@ -232,12 +236,45 @@ async function confirmHostExport() {
         >
           <AppIcon name="menu" :size="18" />
         </button>
-        <div class="workspace-user">
-          <span class="workspace-user-avatar"><AppIcon name="user" :size="17" /></span>
-          <strong>{{ currentUser?.first_name || currentUser?.username }}</strong>
-          <button class="workspace-logout" type="button" title="退出登录" aria-label="退出登录" @click="logout">
-            <AppIcon name="logout" :size="16" />
+        <div class="workspace-actions">
+          <button
+            class="workspace-icon-button workspace-theme-toggle"
+            type="button"
+            :title="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'"
+            :aria-label="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'"
+            :aria-pressed="isWorkspaceDark"
+            @click="toggleWorkspaceTheme"
+          >
+            <AppIcon :name="isWorkspaceDark ? 'sun' : 'moon'" :size="18" />
           </button>
+          <div class="workspace-user-menu">
+            <button class="workspace-avatar-button" type="button" aria-haspopup="menu" aria-label="账户菜单">
+              <img src="/ops-captain-icon.png" alt="" />
+            </button>
+            <div class="workspace-user-dropdown" role="menu">
+              <div class="workspace-user-card">
+                <img src="/ops-captain-icon.png" alt="" />
+                <div>
+                  <strong>{{ currentUserDisplayName }}</strong>
+                  <span>{{ currentUserAccount }}</span>
+                </div>
+              </div>
+              <span class="workspace-menu-divider"></span>
+              <button class="workspace-menu-action" type="button" role="menuitem" disabled>
+                <AppIcon name="user" :size="16" />
+                <span>个人中心</span>
+              </button>
+              <button class="workspace-menu-action" type="button" role="menuitem" disabled>
+                <AppIcon name="lock" :size="16" />
+                <span>锁定屏幕</span>
+              </button>
+              <span class="workspace-menu-divider"></span>
+              <button class="workspace-menu-action workspace-menu-logout" type="button" role="menuitem" @click="logout">
+                <AppIcon name="logout" :size="16" />
+                <span>退出登录</span>
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
