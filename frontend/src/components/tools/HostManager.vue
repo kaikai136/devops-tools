@@ -123,7 +123,7 @@ const {
 });
 const hostTableStyle = computed<Record<string, string>>(() => {
   const columns = visibleHostTableColumns.value;
-  const minimumWidth = columns.reduce((total, column) => total + column.minWidth, 0) + columns.length * 12 + 238;
+  const minimumWidth = columns.reduce((total, column) => total + (column.minWidth ?? 0), 0) + columns.length * 12 + 238;
   const actionsVisible = columns.some((column) => column.key === 'actions');
   const templateColumns = columns.map((column) => {
     if (column.key === 'status') return 'var(--host-status-column-width)';
@@ -374,7 +374,7 @@ function hostPlatformType(value: string | null | undefined) {
         <button type="button" :disabled="!canUsePageAction('hosts', 'group')" @click="openAddHostGroup(hostGroupMenu.group.key)"><span><AppIcon name="circlePlus" :size="15" /></span>新建子分组</button>
         <button type="button" :disabled="!canUsePageAction('hosts', 'group')" @click="openRenameHostGroup(hostGroupMenu.group)"><span><AppIcon name="edit" :size="15" /></span>重命名</button>
         <hr />
-        <button type="button" :disabled="!canUsePageAction('hosts', 'create')" @click="addManagedHost(hostGroupMenu.group.key)"><span><AppIcon name="server" :size="15" /></span>添加主机</button>
+        <button type="button" :disabled="!canUsePageAction('hosts', 'create')" @click="addManagedHost(hostGroupMenu.group.key ?? undefined)"><span><AppIcon name="server" :size="15" /></span>添加主机</button>
         <button type="button" :disabled="!canUsePageAction('hosts', 'move')" @click="openMoveHostDialog(hostGroupMenu.group)"><span><AppIcon name="upload" :size="15" /></span>移动主机</button>
         <button class="danger" type="button" :disabled="!canUsePageAction('hosts', 'delete')" @click="deleteManagedHostsInGroup(hostGroupMenu.group)"><span><AppIcon name="trash" :size="15" /></span>删除主机</button>
         <hr />

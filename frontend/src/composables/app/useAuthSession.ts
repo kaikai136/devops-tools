@@ -23,7 +23,7 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
   async function login(payload: LoginPayload) {
     const data = await apiPost<{ user: AccountUser }>('/api/auth/login/', payload);
     currentUser.value = data.user;
-    await loadWorkspaceData();
+    void loadWorkspaceData();
   }
 
   async function logout() {

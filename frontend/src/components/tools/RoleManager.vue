@@ -412,7 +412,7 @@ function emptyRoleForm(): RoleForm {
 
         <label v-if="dialog.mode !== 'permissions'" class="role-form-row required">
           <span>角色名称：</span>
-          <input v-model="form.name" :readonly="dialog.mode === 'view' || dialog.mode === 'permissions'" placeholder="请输入角色名称" />
+          <input v-model="form.name" :readonly="dialog.mode === 'view'" placeholder="请输入角色名称" />
         </label>
 
         <label v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" class="role-form-row">

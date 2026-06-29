@@ -89,6 +89,7 @@ export interface LoginPayload {
   account: string;
   password: string;
   remember: boolean;
+  sliderToken: string;
 }
 
 export interface PortScanResult {

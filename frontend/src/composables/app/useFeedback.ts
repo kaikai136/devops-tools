@@ -35,7 +35,7 @@ export function useFeedback(activeTool: Ref<ToolKey>) {
     return 'info';
   });
 
-  function showToast(title: string, message: string) {
+  function showToast(title: string, message = '') {
     window.clearTimeout(toastTimer);
     window.clearTimeout(toastLeaveTimer);
     toast.value = { title, message, visible: true, leaving: false, scope: activeTool.value };

@@ -1,3 +1,6 @@
+import secrets
+import time
+
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -7,6 +10,17 @@ from accounts.permissions import require_login, require_staff
 from operations.responses import bad_request
 from system_management.models import LoginLog
 from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log, user_feature_permission_codes
+
+SLIDER_CHALLENGE_SESSION_KEY = "auth_slider_challenges"
+SLIDER_TOKEN_SESSION_KEY = "auth_slider_tokens"
+SLIDER_CHALLENGE_TTL_SECONDS = 120
+SLIDER_TOKEN_TTL_SECONDS = 60
+SLIDER_TRACK_WIDTH = 320
+SLIDER_TARGET_MIN_X = 54
+SLIDER_TARGET_MAX_X = 266
+SLIDER_TOLERANCE = 8
+SLIDER_MIN_ELAPSED_MS = 250
+SLIDER_MAX_CHALLENGES = 5
 
 
 def user_payload(user) -> dict:
@@ -24,15 +38,117 @@ def user_payload(user) -> dict:
     }
 
 
+def _now() -> float:
+    return time.time()
+
+
+def _session_dict(request, key: str) -> dict:
+    value = request.session.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _cleanup_slider_state(request, now: float | None = None) -> tuple[dict, dict]:
+    current_time = _now() if now is None else now
+    challenges = {
+        key: value
+        for key, value in _session_dict(request, SLIDER_CHALLENGE_SESSION_KEY).items()
+        if isinstance(value, dict) and float(value.get("expiresAt", 0)) > current_time
+    }
+    tokens = {
+        key: value
+        for key, value in _session_dict(request, SLIDER_TOKEN_SESSION_KEY).items()
+        if isinstance(value, dict) and float(value.get("expiresAt", 0)) > current_time
+    }
+    request.session[SLIDER_CHALLENGE_SESSION_KEY] = challenges
+    request.session[SLIDER_TOKEN_SESSION_KEY] = tokens
+    request.session.modified = True
+    return challenges, tokens
+
+
+def _consume_slider_token(request, slider_token: str) -> str | None:
+    if not slider_token:
+        return "请先完成滑块验证"
+
+    _, tokens = _cleanup_slider_state(request)
+    token_state = tokens.pop(slider_token, None)
+    request.session[SLIDER_TOKEN_SESSION_KEY] = tokens
+    request.session.modified = True
+    if not token_state:
+        return "滑块验证已失效，请重新验证"
+    return None
+
+
+@api_view(["GET"])
+def slider_challenge(request):
+    now = _now()
+    challenges, _ = _cleanup_slider_state(request, now)
+    challenge_id = secrets.token_urlsafe(18)
+    target_x = SLIDER_TARGET_MIN_X + secrets.randbelow(SLIDER_TARGET_MAX_X - SLIDER_TARGET_MIN_X + 1)
+    challenges[challenge_id] = {
+        "targetX": target_x,
+        "trackWidth": SLIDER_TRACK_WIDTH,
+        "tolerance": SLIDER_TOLERANCE,
+        "expiresAt": now + SLIDER_CHALLENGE_TTL_SECONDS,
+    }
+    if len(challenges) > SLIDER_MAX_CHALLENGES:
+        challenges = dict(sorted(challenges.items(), key=lambda item: float(item[1].get("expiresAt", 0)))[-SLIDER_MAX_CHALLENGES:])
+
+    request.session[SLIDER_CHALLENGE_SESSION_KEY] = challenges
+    request.session.modified = True
+    return Response(
+        {
+            "challengeId": challenge_id,
+            "targetX": target_x,
+            "trackWidth": SLIDER_TRACK_WIDTH,
+            "tolerance": SLIDER_TOLERANCE,
+            "expiresIn": SLIDER_CHALLENGE_TTL_SECONDS,
+        }
+    )
+
+
+@api_view(["POST"])
+def slider_verify(request):
+    challenge_id = str(request.data.get("challengeId", ""))
+    try:
+        offset_x = float(request.data.get("offsetX"))
+        elapsed_ms = int(request.data.get("elapsedMs", 0))
+    except (TypeError, ValueError):
+        return bad_request("滑块验证参数无效")
+
+    challenges, tokens = _cleanup_slider_state(request)
+    challenge = challenges.get(challenge_id)
+    if not challenge:
+        return bad_request("滑块验证已过期，请重试")
+    if elapsed_ms < SLIDER_MIN_ELAPSED_MS:
+        return bad_request("滑动过快，请重试")
+
+    target_x = float(challenge.get("targetX", 0))
+    tolerance = float(challenge.get("tolerance", SLIDER_TOLERANCE))
+    if abs(offset_x - target_x) > tolerance:
+        return bad_request("滑块位置不正确，请重试")
+
+    slider_token = secrets.token_urlsafe(24)
+    tokens[slider_token] = {"expiresAt": _now() + SLIDER_TOKEN_TTL_SECONDS}
+    challenges.pop(challenge_id, None)
+    request.session[SLIDER_CHALLENGE_SESSION_KEY] = challenges
+    request.session[SLIDER_TOKEN_SESSION_KEY] = tokens
+    request.session.modified = True
+    return Response({"verified": True, "sliderToken": slider_token})
+
+
 @api_view(["POST"])
 def auth_login(request):
     ensure_builtin_admin()
     username = str(request.data.get("account", request.data.get("username", ""))).strip()
     password = str(request.data.get("password", ""))
     remember = bool(request.data.get("remember", False))
+    slider_token = str(request.data.get("sliderToken", ""))
 
     if not username or not password:
         return bad_request("请输入账号和密码")
+    slider_error = _consume_slider_token(request, slider_token)
+    if slider_error:
+        return bad_request(slider_error)
 
     user = authenticate(request, username=username, password=password)
     if user is None:

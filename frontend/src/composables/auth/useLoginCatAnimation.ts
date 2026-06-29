@@ -18,12 +18,16 @@ export function useLoginCatAnimation(targets: LoginCatAnimationTargets) {
     const userInput = targets.getUsernameInput();
     const passInput = targets.getPasswordInput();
     if (!panel || !svg || !userInput || !passInput) return;
+    const activeSvg = svg;
+    const activeUserInput = userInput;
 
-    const pupilNodes = Array.from(svg.querySelectorAll<SVGGElement>('.cat-pupil'));
-    const headGroup = svg.querySelector<SVGGElement>('.cat-head-group');
-    const neckGroup = svg.querySelector<SVGGElement>('.cat-neck-group');
-    const whiskersGroup = svg.querySelector<SVGGElement>('.cat-whiskers-group');
+    const pupilNodes = Array.from(activeSvg.querySelectorAll<SVGGElement>('.cat-pupil'));
+    const headGroup = activeSvg.querySelector<SVGGElement>('.cat-head-group');
+    const neckGroup = activeSvg.querySelector<SVGGElement>('.cat-neck-group');
+    const whiskersGroup = activeSvg.querySelector<SVGGElement>('.cat-whiskers-group');
     if (!pupilNodes.length || !headGroup || !neckGroup) return;
+    const activeHeadGroup = headGroup;
+    const activeNeckGroup = neckGroup;
 
     const pupils = pupilNodes.map((node) => ({
       node,
@@ -71,10 +75,10 @@ export function useLoginCatAnimation(targets: LoginCatAnimationTargets) {
     }
 
     function clientToSvgPoint(clientX: number, clientY: number) {
-      const matrix = svg.getScreenCTM();
+      const matrix = activeSvg.getScreenCTM();
       if (!matrix) return null;
 
-      const point = svg.createSVGPoint();
+      const point = activeSvg.createSVGPoint();
       point.x = clientX;
       point.y = clientY;
       return point.matrixTransform(matrix.inverse());
@@ -115,7 +119,7 @@ export function useLoginCatAnimation(targets: LoginCatAnimationTargets) {
     }
 
     function updatePeekToUsername() {
-      const rect = userInput.getBoundingClientRect();
+      const rect = activeUserInput.getBoundingClientRect();
       pointEyesAt(rect.left + rect.width * 0.24, rect.top + rect.height * 0.5, maxMovePeek);
     }
 
@@ -153,8 +157,8 @@ export function useLoginCatAnimation(targets: LoginCatAnimationTargets) {
     }
 
     function applyTransforms() {
-      headGroup.setAttribute('transform', `translate(${pose.headX.toFixed(2)} ${pose.headY.toFixed(2)}) rotate(${pose.headRot.toFixed(2)} 210 188)`);
-      neckGroup.setAttribute(
+      activeHeadGroup.setAttribute('transform', `translate(${pose.headX.toFixed(2)} ${pose.headY.toFixed(2)}) rotate(${pose.headRot.toFixed(2)} 210 188)`);
+      activeNeckGroup.setAttribute(
         'transform',
         `translate(${pose.neckX.toFixed(2)} ${pose.neckY.toFixed(2)}) rotate(${pose.neckRot.toFixed(2)} 210 196) translate(210 196) scale(1 ${pose.neckScale.toFixed(3)}) translate(-210 -196)`
       );

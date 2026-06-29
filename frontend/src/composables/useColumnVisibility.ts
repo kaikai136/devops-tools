@@ -104,8 +104,9 @@ function loadColumnVisibility<TKey extends string>(
     const parsed = JSON.parse(raw) as Partial<Record<TKey, unknown>>;
     const next = createColumnVisibility(columns, true);
     for (const column of columns) {
-      if (typeof parsed[column.key] === 'boolean') {
-        next[column.key] = parsed[column.key];
+      const parsedValue = parsed[column.key];
+      if (typeof parsedValue === 'boolean') {
+        next[column.key] = parsedValue;
       }
     }
     if (options.fallbackKey && !Object.values(next).some(Boolean)) {

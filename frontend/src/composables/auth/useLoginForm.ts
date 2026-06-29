@@ -6,10 +6,12 @@ export function useLoginForm(login: (payload: LoginPayload) => Promise<void>) {
   const account = ref('');
   const password = ref('');
   const remember = ref(false);
+  const sliderToken = ref('');
+  const sliderResetKey = ref(0);
   const isSubmitting = ref(false);
   const errorMessage = ref('');
 
-  const canSubmit = computed(() => Boolean(account.value.trim() && password.value && !isSubmitting.value));
+  const canSubmit = computed(() => Boolean(account.value.trim() && password.value && sliderToken.value && !isSubmitting.value));
 
   async function submitLogin() {
     errorMessage.value = '';
@@ -17,10 +19,15 @@ export function useLoginForm(login: (payload: LoginPayload) => Promise<void>) {
       account: account.value.trim(),
       password: password.value,
       remember: remember.value,
+      sliderToken: sliderToken.value,
     };
 
     if (!payload.account || !payload.password) {
       errorMessage.value = '请输入账号和密码';
+      return;
+    }
+    if (!payload.sliderToken) {
+      errorMessage.value = '请先完成滑块验证';
       return;
     }
 
@@ -29,6 +36,8 @@ export function useLoginForm(login: (payload: LoginPayload) => Promise<void>) {
       await login(payload);
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '登录失败，请稍后重试';
+      sliderToken.value = '';
+      sliderResetKey.value += 1;
     } finally {
       isSubmitting.value = false;
     }
@@ -38,6 +47,8 @@ export function useLoginForm(login: (payload: LoginPayload) => Promise<void>) {
     account,
     password,
     remember,
+    sliderToken,
+    sliderResetKey,
     isSubmitting,
     errorMessage,
     canSubmit,

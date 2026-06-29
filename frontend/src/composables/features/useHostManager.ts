@@ -1100,8 +1100,10 @@ async function decryptHostBackup(backup: EncryptedHostBackup): Promise<HostManag
 async function deriveBackupKey(salt: Uint8Array, iterations: number) {
   const cryptoApi = getCryptoApi();
   const baseKey = await cryptoApi.subtle.importKey('raw', new TextEncoder().encode(hostBackupKeyMaterial), 'PBKDF2', false, ['deriveKey']);
+  const saltBuffer = new ArrayBuffer(salt.byteLength);
+  new Uint8Array(saltBuffer).set(salt);
   return cryptoApi.subtle.deriveKey(
-    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations },
+    { name: 'PBKDF2', hash: 'SHA-256', salt: saltBuffer, iterations },
     baseKey,
     { name: 'AES-GCM', length: 256 },
     false,

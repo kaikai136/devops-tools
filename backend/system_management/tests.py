@@ -254,6 +254,18 @@ class SystemUserLoginFlowTests(TestCase):
         self.operator = get_user_model().objects.create_user(username="operator", password="pass", is_staff=True)
         self.client.force_login(self.operator)
 
+    def complete_slider(self) -> str:
+        challenge_response = self.client.get("/api/auth/slider-challenge/")
+        self.assertEqual(challenge_response.status_code, 200)
+        challenge = challenge_response.json()
+        verify_response = self.client.post(
+            "/api/auth/slider-verify/",
+            data={"challengeId": challenge["challengeId"], "offsetX": challenge["targetX"], "elapsedMs": 400},
+            content_type="application/json",
+        )
+        self.assertEqual(verify_response.status_code, 200)
+        return verify_response.json()["sliderToken"]
+
     def test_created_system_user_can_login_with_initial_password(self):
         response = self.client.post(
             "/api/system/users/",
@@ -278,9 +290,10 @@ class SystemUserLoginFlowTests(TestCase):
         self.assertTrue(user.check_password("UserPass123"))
 
         self.client.logout()
+        slider_token = self.complete_slider()
         login_response = self.client.post(
             "/api/auth/login/",
-            data={"account": "new-user", "password": "UserPass123", "remember": False},
+            data={"account": "new-user", "password": "UserPass123", "remember": False, "sliderToken": slider_token},
             content_type="application/json",
         )
 
