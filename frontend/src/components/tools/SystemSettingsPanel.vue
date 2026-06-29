@@ -8,6 +8,7 @@ import AppIcon from '../common/AppIcon.vue';
 
 const {
   watermarkDraft,
+  watermarkText,
   watermarkLoading,
   watermarkSaving,
   watermarkMessage,
@@ -71,11 +72,6 @@ function toggleAllWatermarkPages() {
           <strong>{{ watermarkDraft.enabled ? '已开启' : '已关闭' }}</strong>
         </label>
 
-        <label class="watermark-text-row">
-          <span>水印文本</span>
-          <input v-model="watermarkDraft.text" type="text" :disabled="!canUsePageAction('systemSettings', 'save')" placeholder="请输入固定水印文本" />
-        </label>
-
         <section class="watermark-page-picker">
           <header>
             <div>
@@ -117,7 +113,7 @@ function toggleAllWatermarkPages() {
           <span>系统页面</span>
           <p>水印不会阻挡按钮、表格或终端输入。</p>
         </div>
-        <WatermarkOverlay v-if="watermarkDraft.enabled" :text="watermarkDraft.text" />
+        <WatermarkOverlay v-if="watermarkDraft.enabled" :text="watermarkText" />
       </div>
     </article>
   </section>

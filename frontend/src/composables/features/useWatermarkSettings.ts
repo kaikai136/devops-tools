@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { apiPost, apiPut } from '../../api';
 import { navGroups } from '../../navigation';
@@ -31,17 +31,29 @@ const allowedWatermarkPages = new Set(watermarkPageGroups.flatMap((group) => gro
 
 interface WatermarkFeedback {
   showToast?: (title: string, message?: string, tone?: 'success' | 'error' | 'info') => void;
+  getWatermarkText?: () => string | null | undefined;
 }
 
-export function normalizeWatermarkConfig(value: unknown): WatermarkConfig {
-  if (!value || typeof value !== 'object') return { ...defaultWatermarkConfig };
+function resolveWatermarkText(text?: string | null) {
+  return String(text ?? '').trim() || defaultWatermarkConfig.text;
+}
+
+function createDefaultWatermarkConfig(text?: string | null): WatermarkConfig {
+  return {
+    ...defaultWatermarkConfig,
+    text: resolveWatermarkText(text),
+  };
+}
+
+export function normalizeWatermarkConfig(value: unknown, text = defaultWatermarkConfig.text): WatermarkConfig {
+  if (!value || typeof value !== 'object') return createDefaultWatermarkConfig(text);
   const raw = value as Partial<WatermarkConfig>;
   const pages = Array.isArray(raw.pages)
     ? raw.pages.map((page) => String(page)).filter((page, index, list) => allowedWatermarkPages.has(page) && list.indexOf(page) === index)
     : [];
   return {
     enabled: Boolean(raw.enabled),
-    text: String(raw.text ?? '').trim() || defaultWatermarkConfig.text,
+    text: resolveWatermarkText(text),
     pages,
   };
 }
@@ -51,12 +63,18 @@ export function watermarkAppliesToPage(config: WatermarkConfig, page: ToolKey | 
 }
 
 export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
-  const watermarkConfig = ref<WatermarkConfig>({ ...defaultWatermarkConfig });
-  const watermarkDraft = ref<WatermarkConfig>({ ...defaultWatermarkConfig });
+  const watermarkText = computed(() => resolveWatermarkText(feedback.getWatermarkText?.()));
+  const watermarkConfig = ref<WatermarkConfig>(createDefaultWatermarkConfig(watermarkText.value));
+  const watermarkDraft = ref<WatermarkConfig>(createDefaultWatermarkConfig(watermarkText.value));
   const watermarkSettingExists = ref(false);
   const watermarkLoading = ref(false);
   const watermarkSaving = ref(false);
   const watermarkMessage = ref('');
+
+  watch(watermarkText, (text) => {
+    watermarkConfig.value.text = text;
+    watermarkDraft.value.text = text;
+  });
 
   async function loadWatermarkSetting() {
     watermarkLoading.value = true;
@@ -64,12 +82,12 @@ export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
     try {
       const setting = await fetchWatermarkSetting();
       watermarkSettingExists.value = true;
-      watermarkConfig.value = normalizeWatermarkConfig(setting.value);
+      watermarkConfig.value = normalizeWatermarkConfig(setting.value, watermarkText.value);
       watermarkDraft.value = { ...watermarkConfig.value, pages: [...watermarkConfig.value.pages] };
     } catch (error) {
       watermarkSettingExists.value = false;
-      watermarkConfig.value = { ...defaultWatermarkConfig };
-      watermarkDraft.value = { ...defaultWatermarkConfig };
+      watermarkConfig.value = createDefaultWatermarkConfig(watermarkText.value);
+      watermarkDraft.value = createDefaultWatermarkConfig(watermarkText.value);
       watermarkMessage.value = error instanceof WatermarkSettingNotFoundError ? '' : error instanceof Error ? error.message : '水印设置加载失败';
     } finally {
       watermarkLoading.value = false;
@@ -77,11 +95,8 @@ export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
   }
 
   async function saveWatermarkSetting() {
-    const payload = normalizeWatermarkConfig(watermarkDraft.value);
-    if (payload.enabled && !payload.text.trim()) {
-      watermarkMessage.value = '开启水印时请输入水印文本';
-      return;
-    }
+    watermarkDraft.value.text = watermarkText.value;
+    const payload = normalizeWatermarkConfig(watermarkDraft.value, watermarkText.value);
 
     watermarkSaving.value = true;
     watermarkMessage.value = '';
@@ -96,7 +111,7 @@ export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
         ? await apiPut<SystemSetting>(`/api/system/settings/${WATERMARK_SETTING_KEY}/`, body)
         : await apiPost<SystemSetting>('/api/system/settings/', body);
       watermarkSettingExists.value = true;
-      watermarkConfig.value = normalizeWatermarkConfig(setting.value);
+      watermarkConfig.value = normalizeWatermarkConfig(setting.value, watermarkText.value);
       watermarkDraft.value = { ...watermarkConfig.value, pages: [...watermarkConfig.value.pages] };
       feedback.showToast?.('水印设置已保存', '', 'success');
     } catch (error) {
@@ -114,6 +129,7 @@ export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
   return {
     watermarkConfig,
     watermarkDraft,
+    watermarkText,
     watermarkLoading,
     watermarkSaving,
     watermarkMessage,

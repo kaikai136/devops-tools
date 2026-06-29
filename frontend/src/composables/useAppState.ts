@@ -56,6 +56,7 @@ const hostTransferDialog = ref<'import' | 'export' | null>(null);
 const hostTransferFormat = ref<HostTransferFormat>('json');
 const imageInput = ref<HTMLInputElement | null>(null);
 const currentHostCreatorUsername = ref<string | null>(null);
+const currentWatermarkText = ref('CAPTAIN');
 const hostManager = useHostManager({ showToast, requestConfirm, currentUsername: () => currentHostCreatorUsername.value });
 const {
   hostSearch,
@@ -236,10 +237,11 @@ const {
   handleImageImport,
 } = authenticator;
 
-const watermarkSettings = useWatermarkSettings({ showToast });
+const watermarkSettings = useWatermarkSettings({ showToast, getWatermarkText: () => currentWatermarkText.value });
 const {
   watermarkConfig,
   watermarkDraft,
+  watermarkText,
   watermarkLoading,
   watermarkSaving,
   watermarkMessage,
@@ -258,6 +260,7 @@ async function loadLocalIp() {
 }
 
 async function loadWorkspaceData() {
+  currentWatermarkText.value = currentUser.value?.username ?? 'CAPTAIN';
   await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadWatermarkSetting(), loadHostManagement(), calculateSubnet(false)]);
 }
 
@@ -273,6 +276,7 @@ watch(
   currentUser,
   (user) => {
     currentHostCreatorUsername.value = user?.username ?? null;
+    currentWatermarkText.value = user?.username ?? 'CAPTAIN';
   },
   { immediate: true },
 );
@@ -369,6 +373,7 @@ const appState = {
   shouldShowWatermark,
   watermarkConfig,
   watermarkDraft,
+  watermarkText,
   watermarkLoading,
   watermarkSaving,
   watermarkMessage,
