@@ -123,6 +123,10 @@ class TerminalConsumer(WebsocketConsumer):
         self.suppress_internal_echo_until = 0.0
         self.accept()
 
+        if not self._is_authenticated():
+            self._close_for_unauthenticated()
+            return
+
         host_id = self.scope["url_route"]["kwargs"]["host_id"]
         try:
             host = ManagedHost.objects.get(id=host_id)
@@ -145,6 +149,9 @@ class TerminalConsumer(WebsocketConsumer):
 
     def receive(self, text_data=None, bytes_data=None):
         if not text_data or self.connection is None:
+            return
+        if not self._is_authenticated():
+            self._close_for_unauthenticated()
             return
 
         try:
@@ -196,8 +203,17 @@ class TerminalConsumer(WebsocketConsumer):
     def _read_ssh_output(self):
         assert self.connection is not None
 
+        next_auth_check = 0.0
         while not self.stop_reader.is_set():
             try:
+                now = time.monotonic()
+                if now >= next_auth_check:
+                    next_auth_check = now + 1.0
+                    if not self._is_authenticated():
+                        self._send_to_consumer({"type": "terminal.error", "message": "请先登录"})
+                        self._send_to_consumer({"type": "terminal.closed", "reason": "请先登录"})
+                        return
+
                 output = self.connection.read_raw()
                 if output:
                     if time.monotonic() < self.suppress_internal_echo_until:
@@ -236,6 +252,25 @@ class TerminalConsumer(WebsocketConsumer):
 
     def _send_error(self, message: str):
         self.send(text_data=json.dumps({"type": "error", "message": message}, ensure_ascii=False))
+
+    def _close_for_unauthenticated(self):
+        self._send_error("请先登录")
+        self.close()
+
+    def _is_authenticated(self) -> bool:
+        user = self.scope.get("user")
+        if not user or not user.is_authenticated:
+            return False
+
+        session = self.scope.get("session")
+        session_key = getattr(session, "session_key", None)
+        if not session_key:
+            return False
+
+        try:
+            return bool(session.exists(session_key))
+        except Exception:
+            return False
 
     def _send_initial_output(self):
         if self.connection is None:

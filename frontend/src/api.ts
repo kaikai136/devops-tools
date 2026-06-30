@@ -1,5 +1,12 @@
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
+export class ApiUnauthorizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ApiUnauthorizedError';
+  }
+}
+
 export async function apiGet<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, { credentials: 'include', ...options });
   return readResponse<T>(response);
@@ -45,6 +52,9 @@ async function readResponse<T>(response: Response): Promise<T> {
 
   if (!response.ok) {
     const error = typeof payload === 'object' && payload && 'error' in payload ? String(payload.error) : '请求失败，请确认后端服务已启动';
+    if (response.status === 401) {
+      throw new ApiUnauthorizedError(error);
+    }
     throw new Error(error);
   }
 

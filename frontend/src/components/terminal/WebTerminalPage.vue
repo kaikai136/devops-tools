@@ -5,7 +5,8 @@ import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
-import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
+import { ApiUnauthorizedError, apiDelete, apiGet, apiPost, apiPut } from '../../api';
+import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import AppIcon from '../common/AppIcon.vue';
 import type { IconName } from '../common/AppIcon.vue';
 
@@ -540,6 +541,7 @@ let sidebarResizeStartWidth = TERMINAL_SIDEBAR_DEFAULT_WIDTH;
 const terminalContainers = new Map<string, HTMLElement>();
 const pendingConnectTabIds: string[] = [];
 const connectingTabIds = new Set<string>();
+let terminalAuthRedirecting = false;
 
 const rows = computed(() => {
   const query = search.value.trim().toLowerCase();
@@ -979,6 +981,7 @@ async function loadTerminalQuickCommands() {
       terminalQuickCommandCategory.value = 'all';
     }
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令加载失败';
   } finally {
     isTerminalQuickCommandLoading.value = false;
@@ -1042,6 +1045,7 @@ async function saveTerminalQuickCommandDialog() {
     terminalQuickCommandCategory.value = saved.category;
     closeTerminalQuickCommandDialog();
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalQuickCommandDialog.value = {
       ...dialog,
       saving: false,
@@ -1056,6 +1060,7 @@ async function deleteTerminalQuickCommand(command: TerminalQuickCommand) {
     await apiDelete<{ deleted: boolean }>(`/api/web-terminal/quick-commands/${command.id}/`);
     terminalQuickCommands.value = terminalQuickCommands.value.filter((item) => item.id !== command.id);
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令删除失败';
   }
 }
@@ -1068,6 +1073,7 @@ async function toggleTerminalQuickCommand(command: TerminalQuickCommand) {
     });
     terminalQuickCommands.value = terminalQuickCommands.value.map((item) => (item.id === saved.id ? saved : item));
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令状态更新失败';
   }
 }
@@ -1095,6 +1101,7 @@ async function saveTerminalQuickCommandOrder(nextCommands: TerminalQuickCommand[
       ids: terminalQuickCommands.value.map((command) => command.id),
     });
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalQuickCommands.value = previousCommands;
     terminalQuickCommandError.value = error instanceof Error ? error.message : '快捷命令排序保存失败';
   }
@@ -1107,6 +1114,37 @@ function sortTerminalQuickCommands(commands: TerminalQuickCommand[]) {
       left.sortOrder - right.sortOrder ||
       left.id - right.id,
   );
+}
+
+function isTerminalAuthError(error: unknown) {
+  return error instanceof ApiUnauthorizedError;
+}
+
+function handleTerminalAuthExpired(error?: unknown) {
+  if (error && !isTerminalAuthError(error)) return false;
+  if (terminalAuthRedirecting) return true;
+  terminalAuthRedirecting = true;
+  stopTerminalMonitorPolling();
+  pendingConnectTabIds.splice(0, pendingConnectTabIds.length);
+  connectingTabIds.clear();
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.removeItem(TERMINAL_WORKSPACE_STORAGE_KEY);
+  }
+  for (const tab of tabs.value) {
+    tab.status = 'closed';
+    if (tab.socket && tab.socket.readyState !== WebSocket.CLOSED) {
+      tab.socket.close();
+    }
+    tab.socket = null;
+  }
+  window.location.replace('/');
+  return true;
+}
+
+function handleTerminalAuthStorageEvent(event: StorageEvent) {
+  if (event.key === AUTH_LOGOUT_EVENT_KEY) {
+    handleTerminalAuthExpired();
+  }
 }
 
 function sendQuickCommandToTerminal(command: TerminalQuickCommand, execute: boolean) {
@@ -1179,6 +1217,7 @@ async function saveTerminalFileRename() {
     terminalFileRename.value = null;
     await loadTerminalDirectory(terminalFilePath.value);
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalFileRename.value = {
       ...state,
       saving: false,
@@ -1234,6 +1273,7 @@ async function confirmTerminalFileDelete() {
     setTerminalFileSelection([], '');
     await loadTerminalDirectory(terminalFilePath.value);
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalFileDeleteDialog.value = {
       ...dialog,
       deleting: false,
@@ -1316,6 +1356,7 @@ async function saveTerminalFileCreateDialog() {
     const createdEntry = terminalFileEntries.value.find((entry) => entry.path === created.path || entry.name === created.name) ?? null;
     setTerminalFileSelection(createdEntry ? [createdEntry] : [], createdEntry?.path ?? '');
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalFileCreateDialog.value = {
       ...dialog,
       saving: false,
@@ -1418,6 +1459,7 @@ async function openTerminalFileProperties(entry: TerminalFileEntry) {
       },
     };
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalFilePropertiesDialog.value = {
       ...terminalFilePropertiesDialog.value,
       loading: false,
@@ -1471,6 +1513,7 @@ async function saveTerminalFileProperties() {
     closeTerminalFilePropertiesDialog();
     await loadTerminalDirectory(terminalFilePath.value);
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     terminalFilePropertiesDialog.value = {
       ...terminalFilePropertiesDialog.value,
       saving: false,
@@ -1498,6 +1541,7 @@ async function loadTerminalDirectory(path = terminalFilePath.value) {
     terminalFileListProtocol.value = response.protocol;
     syncTerminalFileSelectionAfterEntriesChange();
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     if (requestId !== terminalFileListRequestId) return;
     terminalFileListError.value = error instanceof Error ? error.message : '目录加载失败';
   } finally {
@@ -1752,6 +1796,7 @@ async function downloadTerminalFiles(entries = getTerminalFileActionEntries()) {
     }
   } catch (error) {
     if (isTerminalDownloadAbortError(error)) return;
+    if (handleTerminalAuthExpired(error)) return;
     terminalFileListError.value = error instanceof Error ? error.message : '下载失败';
   }
 }
@@ -1818,6 +1863,7 @@ async function downloadTerminalFileToDirectory(
     credentials: 'include',
     ...getTerminalTransferRequestOptions(record),
   });
+  if (response.status === 401) throw new ApiUnauthorizedError(await readTerminalDownloadError(response));
   if (!response.ok) throw new Error(await readTerminalDownloadError(response));
   throwIfTerminalTransferCanceled(record);
   const filename = getTerminalDownloadFilename(entry, getTerminalDownloadResponseFilename(response), usedNames);
@@ -2062,6 +2108,7 @@ async function uploadTerminalFiles(items: TerminalFileUploadItem[]) {
     }
   } catch (error) {
     if (isTerminalTransferCancelError(error)) return;
+    if (handleTerminalAuthExpired(error)) return;
     terminalFileListError.value = error instanceof Error ? error.message : '文件上传失败';
   } finally {
     isTerminalFileDragOver.value = false;
@@ -2432,6 +2479,7 @@ async function loadTerminalMonitor() {
     terminalMonitorData.value = response;
     terminalMonitorError.value = '';
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     if (requestId !== terminalMonitorRequestId) return;
     terminalMonitorError.value = error instanceof Error ? error.message : '资源监控读取失败';
   } finally {
@@ -2559,20 +2607,27 @@ onMounted(async () => {
   window.addEventListener('resize', syncTerminalSidebarWidth);
   window.addEventListener('resize', syncTerminalQuickCommandPanelHeight);
   window.addEventListener('resize', syncTerminalTabsScrollStateSoon);
+  window.addEventListener('storage', handleTerminalAuthStorageEvent);
   document.addEventListener('visibilitychange', syncTerminalMonitorPolling);
-  await loadTerminalQuickCommands();
-  await loadTree();
-  await restoreTerminalWorkspace();
-  const params = new URLSearchParams(window.location.search);
-  const hostId = Number(params.get('host'));
-  if (hostId) {
-    const restoredTab = tabs.value.find((tab) => tab.host.id === hostId);
-    if (restoredTab) {
-      await activateTab(restoredTab.id);
-    } else {
-      const host = findHostById(groups.value, hostId);
-      if (host) await openHostTab(host);
+  try {
+    await loadTerminalQuickCommands();
+    await loadTree();
+    if (terminalAuthRedirecting) return;
+    await restoreTerminalWorkspace();
+    const params = new URLSearchParams(window.location.search);
+    const hostId = Number(params.get('host'));
+    if (hostId) {
+      const restoredTab = tabs.value.find((tab) => tab.host.id === hostId);
+      if (restoredTab) {
+        await activateTab(restoredTab.id);
+      } else {
+        const host = findHostById(groups.value, hostId);
+        if (host) await openHostTab(host);
+      }
     }
+  } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
+    throw error;
   }
 });
 
@@ -2586,6 +2641,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', syncTerminalSidebarWidth);
   window.removeEventListener('resize', syncTerminalQuickCommandPanelHeight);
   window.removeEventListener('resize', syncTerminalTabsScrollStateSoon);
+  window.removeEventListener('storage', handleTerminalAuthStorageEvent);
   document.removeEventListener('visibilitychange', syncTerminalMonitorPolling);
   for (const tab of tabs.value) disposeTab(tab);
 });
@@ -2605,6 +2661,7 @@ async function loadTree() {
   try {
     groups.value = await apiGet<TerminalGroup[]>('/api/web-terminal/tree/');
   } catch (error) {
+    if (handleTerminalAuthExpired(error)) return;
     treeError.value = (error as Error).message;
   } finally {
     isLoadingTree.value = false;
@@ -2812,6 +2869,7 @@ function showTerminalReconnectHint(tab: TerminalTab, reason = '') {
 }
 
 function reconnectTerminalTab(tab: TerminalTab) {
+  if (terminalAuthRedirecting) return;
   if (tab.status !== 'closed' && tab.status !== 'error') return;
   tab.status = 'connecting';
   tab.sessionId = null;
@@ -2826,6 +2884,7 @@ function reconnectTerminalTab(tab: TerminalTab) {
 }
 
 function connectTab(tab: TerminalTab) {
+  if (terminalAuthRedirecting) return;
   tab.reconnectHintShown = false;
   const socket = new WebSocket(buildWebSocketUrl(tab.host.id));
   tab.socket = socket;
@@ -2845,6 +2904,7 @@ function connectTab(tab: TerminalTab) {
     if (tab.status === 'connected' || tab.status === 'connecting') {
       tab.status = 'closed';
       showTerminalReconnectHint(tab, '连接已关闭。');
+      void confirmTerminalSessionStillAuthenticated();
     }
   });
 }
@@ -2886,6 +2946,10 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   }
 
   if (message.type === 'error') {
+    if (message.message === '请先登录') {
+      handleTerminalAuthExpired(new ApiUnauthorizedError(message.message));
+      return;
+    }
     tab.status = 'error';
     finishConnectingTab(tab);
     showTerminalReconnectHint(tab, message.message ?? '终端连接失败');
@@ -2896,6 +2960,14 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
     tab.status = 'closed';
     finishConnectingTab(tab);
     showTerminalReconnectHint(tab, message.reason ?? '连接已关闭');
+  }
+}
+
+async function confirmTerminalSessionStillAuthenticated() {
+  try {
+    await apiGet<{ user: unknown }>('/api/auth/me/');
+  } catch (error) {
+    handleTerminalAuthExpired(error);
   }
 }
 

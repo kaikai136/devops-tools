@@ -3,6 +3,8 @@ import { computed, ref } from 'vue';
 import { apiGet, apiPost } from '../../api';
 import type { AccountUser, LoginPayload } from '../../types';
 
+export const AUTH_LOGOUT_EVENT_KEY = 'ops-tool.auth.logout-at';
+
 export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWorkspaceData: () => Promise<void>; clearSessionUi: () => void }) {
   const currentUser = ref<AccountUser | null>(null);
   const isAuthReady = ref(false);
@@ -32,6 +34,9 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
     } finally {
       currentUser.value = null;
       clearSessionUi();
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, String(Date.now()));
+      }
     }
   }
 

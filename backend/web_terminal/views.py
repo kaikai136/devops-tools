@@ -1,5 +1,6 @@
 from urllib.parse import quote
 from uuid import UUID
+from functools import wraps
 
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -40,16 +41,24 @@ def next_quick_command_sort_order(category: str) -> int:
     return int(latest or 0) + 10
 
 
+def terminal_login_required(view_func):
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        auth_error = require_login(request)
+        if auth_error:
+            return auth_error
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
+
 def quick_command_queryset():
     return TerminalQuickCommand.objects.all()
 
 
 @api_view(["GET", "POST"])
+@terminal_login_required
 def terminal_quick_commands(request):
-    auth_error = require_login(request)
-    if auth_error:
-        return auth_error
-
     if request.method == "GET":
         return Response(TerminalQuickCommandSerializer(quick_command_queryset(), many=True).data)
 
@@ -64,11 +73,8 @@ def terminal_quick_commands(request):
 
 
 @api_view(["PUT", "DELETE"])
+@terminal_login_required
 def terminal_quick_command_detail(request, command_id: int):
-    auth_error = require_login(request)
-    if auth_error:
-        return auth_error
-
     try:
         command = TerminalQuickCommand.objects.get(id=command_id)
     except TerminalQuickCommand.DoesNotExist:
@@ -86,11 +92,8 @@ def terminal_quick_command_detail(request, command_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_quick_commands_reorder(request):
-    auth_error = require_login(request)
-    if auth_error:
-        return auth_error
-
     ids = request.data.get("ids")
     if not isinstance(ids, list) or not ids:
         return bad_request("请提供快捷命令排序列表")
@@ -116,11 +119,13 @@ def terminal_quick_commands_reorder(request):
 
 
 @api_view(["GET"])
-def terminal_tree(_request):
+@terminal_login_required
+def terminal_tree(request):
     return Response(terminal_tree_payload())
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_sessions(request):
     host_id = request.data.get("host")
     try:
@@ -137,6 +142,7 @@ def terminal_sessions(request):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_commands(request, session_id: UUID):
     try:
         session = TerminalSession.objects.select_related("host").get(session_id=session_id)
@@ -150,6 +156,7 @@ def terminal_commands(request, session_id: UUID):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_list(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -163,6 +170,7 @@ def terminal_file_list(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_download_list(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -176,6 +184,7 @@ def terminal_file_download_list(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_monitor(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -189,6 +198,7 @@ def terminal_monitor(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_download(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -202,6 +212,7 @@ def terminal_file_download(request, host_id: int):
 
 
 @api_view(["GET"])
+@terminal_login_required
 def terminal_file_download_attachment(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -232,6 +243,7 @@ def terminal_file_download_attachment(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_upload(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -253,6 +265,7 @@ def terminal_file_upload(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_create_file(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -273,6 +286,7 @@ def terminal_file_create_file(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_create_directory(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -293,6 +307,7 @@ def terminal_file_create_directory(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_create_symlink(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -313,6 +328,7 @@ def terminal_file_create_symlink(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_rename(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -326,6 +342,7 @@ def terminal_file_rename(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_delete(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -339,6 +356,7 @@ def terminal_file_delete(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_properties(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -352,6 +370,7 @@ def terminal_file_properties(request, host_id: int):
 
 
 @api_view(["POST"])
+@terminal_login_required
 def terminal_file_properties_update(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)

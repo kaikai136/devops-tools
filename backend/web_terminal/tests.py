@@ -1,5 +1,5 @@
-from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.contrib.auth import get_user_model
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from unittest.mock import patch
 
 from host_management.models import HostGroup, ManagedHost
@@ -355,10 +355,17 @@ tmpfs tmpfs 1000 1 999 1% /run
 class TerminalMonitorViewTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
+        self.user = get_user_model().objects.create_user(username="monitor-operator", password="pass")
         self.group = HostGroup.objects.create(name="monitor-tests")
 
+    def authenticated_request(self, request):
+        request.user = self.user
+        return request
+
     def test_terminal_monitor_returns_not_found_for_missing_host(self):
-        request = self.factory.post("/api/web-terminal/hosts/999/monitor/", data={}, content_type="application/json")
+        request = self.authenticated_request(
+            self.factory.post("/api/web-terminal/hosts/999/monitor/", data={}, content_type="application/json")
+        )
 
         response = views.terminal_monitor(request, 999)
 
@@ -372,7 +379,9 @@ class TerminalMonitorViewTests(TestCase):
             private_ip="10.0.0.5",
             login_user="root",
         )
-        request = self.factory.post(f"/api/web-terminal/hosts/{host.id}/monitor/", data={}, content_type="application/json")
+        request = self.authenticated_request(
+            self.factory.post(f"/api/web-terminal/hosts/{host.id}/monitor/", data={}, content_type="application/json")
+        )
 
         with patch("web_terminal.views.get_remote_resource_monitor", side_effect=TerminalConnectionError("当前主机不支持资源监控")):
             response = views.terminal_monitor(request, host.id)
@@ -384,7 +393,12 @@ class TerminalMonitorViewTests(TestCase):
 class TerminalFileDownloadAttachmentTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
+        self.user = get_user_model().objects.create_user(username="download-operator", password="pass")
         self.group = HostGroup.objects.create(name="download-tests")
+
+    def authenticated_request(self, request):
+        request.user = self.user
+        return request
 
     def test_terminal_file_download_attachment_returns_raw_file(self):
         host = ManagedHost.objects.create(
@@ -393,7 +407,9 @@ class TerminalFileDownloadAttachmentTests(TestCase):
             private_ip="10.0.0.6",
             login_user="root",
         )
-        request = self.factory.get(f"/api/web-terminal/hosts/{host.id}/files/download/raw/?path=/tmp/config.toml&protocol=scp")
+        request = self.authenticated_request(
+            self.factory.get(f"/api/web-terminal/hosts/{host.id}/files/download/raw/?path=/tmp/config.toml&protocol=scp")
+        )
 
         with patch(
             "web_terminal.views.stream_remote_file_content",
@@ -405,6 +421,13 @@ class TerminalFileDownloadAttachmentTests(TestCase):
         self.assertEqual(response.content, b"port=22")
         self.assertIn("config.toml", response["Content-Disposition"])
         mocked_download.assert_called_once_with(host, "/tmp/config.toml", "scp")
+
+
+class TerminalAuthApiTests(TestCase):
+    def test_terminal_tree_requires_login(self):
+        response = self.client.get("/api/web-terminal/tree/")
+
+        self.assertEqual(response.status_code, 401)
 
 
 class TerminalQuickCommandApiTests(TestCase):
