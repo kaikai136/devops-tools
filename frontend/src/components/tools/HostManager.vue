@@ -193,6 +193,10 @@ function toggleHostSelected(hostId: number, event: Event) {
   selectedManagedHostIds.value = next;
 }
 
+function clearSelectedManagedHosts() {
+  selectedManagedHostIds.value = new Set();
+}
+
 function setHostPage(page: number) {
   hostPage.value = Math.min(Math.max(1, page), hostTotalPages.value);
 }
@@ -591,6 +595,22 @@ function hostPlatformType(value: string | null | undefined) {
           <span>已验证 {{ managedHostStats.verified }}</span>
           <span>未验证 {{ managedHostStats.unverified }}</span>
           <span v-if="isLoadingHosts">加载中</span>
+        </div>
+      </div>
+
+      <div v-if="selectedManagedHostCount" class="host-bulk-action-bar" @click.stop>
+        <div class="host-bulk-action-info">
+          <span class="host-bulk-action-icon"><AppIcon name="info" :size="16" /></span>
+          <div class="host-bulk-action-copy">
+            <strong>批量操作</strong>
+            <span class="host-bulk-action-count">已选择 {{ selectedManagedHostCount }} 个主机</span>
+          </div>
+        </div>
+        <div class="host-bulk-action-buttons">
+          <button class="host-bulk-button host-bulk-button-cancel" type="button" @click="clearSelectedManagedHosts">取消选中</button>
+          <button class="host-bulk-button host-bulk-button-verify" type="button" :disabled="!canUsePageAction('hosts', 'verify')" @click="runVerifySelectedHosts">验证所选</button>
+          <button class="host-bulk-button host-bulk-button-update" type="button" :disabled="!canUsePageAction('hosts', 'move')" @click="runMoveSelectedHosts">更新所选</button>
+          <button class="host-bulk-button host-bulk-button-delete" type="button" :disabled="!canUsePageAction('hosts', 'delete')" @click="runDeleteSelectedHosts">删除所选</button>
         </div>
       </div>
     </article>

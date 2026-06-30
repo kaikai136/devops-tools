@@ -270,6 +270,131 @@
   color: #ff3f55;
 }
 
+.host-bulk-action-bar {
+  position: absolute;
+  z-index: 50;
+  left: 50%;
+  bottom: 24px;
+  display: grid;
+  width: 436px;
+  max-width: calc(100% - 48px);
+  min-height: 84px;
+  align-content: center;
+  gap: 8px;
+  padding: 16px 22px 16px 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 35, 62, 0.12);
+  transform: translateX(-50%);
+}
+
+.host-bulk-action-info,
+.host-bulk-action-buttons {
+  display: flex;
+  align-items: center;
+}
+
+.host-bulk-action-info {
+  gap: 8px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.host-bulk-action-info strong {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.host-bulk-action-copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.host-bulk-action-count {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.host-bulk-action-icon {
+  display: inline-grid;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 50%;
+  background: #1677ff;
+  color: #fff;
+}
+
+.host-bulk-action-buttons {
+  flex-wrap: wrap;
+  padding-left: 36px;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.host-bulk-action-bar .host-bulk-button {
+  min-height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background-image: none;
+  padding: 0 13px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 24px;
+  white-space: nowrap;
+  box-shadow: none;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+.host-bulk-action-bar .host-bulk-button-cancel {
+  background: #5f6977;
+}
+
+.host-bulk-action-bar .host-bulk-button-verify {
+  background: #0078f0;
+}
+
+.host-bulk-action-bar .host-bulk-button-update {
+  background: #008bd6;
+}
+
+.host-bulk-action-bar .host-bulk-button-delete {
+  background: #ff3f35;
+}
+
+.host-bulk-action-bar .host-bulk-button:disabled {
+  cursor: not-allowed;
+  color: #fff;
+  opacity: 1;
+  box-shadow: none;
+}
+
+.host-bulk-action-bar .host-bulk-button-cancel:disabled {
+  background: #7a8491;
+}
+
+.host-bulk-action-bar .host-bulk-button-verify:disabled {
+  background: #2f91ee;
+}
+
+.host-bulk-action-bar .host-bulk-button-update:disabled {
+  background: #2a9fd8;
+}
+
+.host-bulk-action-bar .host-bulk-button-delete:disabled {
+  background: #ff6a61;
+}
+
 .host-empty {
   grid-column: 1 / -1;
   margin-top: 18px;
@@ -353,4 +478,40 @@
   background: #f2f7ff;
   padding: 5px 10px;
   white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .host-bulk-action-bar {
+    width: 436px;
+    max-width: calc(100% - 28px);
+    padding: 16px 18px;
+  }
+
+  .host-bulk-action-info {
+    justify-content: flex-start;
+  }
+
+  .host-bulk-action-copy {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .host-bulk-action-buttons {
+    display: flex;
+  }
+}
+
+@media (max-width: 680px) {
+  .host-bulk-action-bar .host-bulk-button {
+    padding: 0 8px;
+  }
+
+  .host-bulk-action-bar {
+    bottom: 42px;
+  }
+
+  .host-bulk-action-buttons {
+    padding-left: 0;
+    justify-content: center;
+  }
 }
