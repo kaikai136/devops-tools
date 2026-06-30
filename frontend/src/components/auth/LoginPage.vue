@@ -2,13 +2,15 @@
 import { computed, ref, watch, type CSSProperties } from 'vue';
 
 import { useLoginForm } from '../../composables/auth/useLoginForm';
-import type { LoginPayload } from '../../types';
+import type { LoginPayload, LoginResult } from '../../types';
 import AppIcon from '../common/AppIcon.vue';
 import LoginFormCard from './login/LoginFormCard.vue';
 import LoginVisualPanel from './login/LoginVisualPanel.vue';
 
 const props = defineProps<{
-  login: (payload: LoginPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<LoginResult>;
+  verifyTwoFactorLogin: (code: string) => Promise<unknown>;
+  verifyTwoFactorSetupLogin: (code: string) => Promise<unknown>;
 }>();
 
 type LoginLayoutKey = 'dual' | 'glass' | 'slide' | 'center' | 'immersive' | 'classic';
@@ -48,10 +50,18 @@ const {
   sliderToken,
   sliderResetKey,
   isSubmitting,
+  isVerifyingTwoFactor,
   errorMessage,
+  twoFactorCode,
+  twoFactorChallenge,
+  twoFactorSetupChallenge,
   canSubmit,
+  canSubmitTwoFactor,
   submitLogin,
-} = useLoginForm(props.login);
+  submitTwoFactor,
+  submitTwoFactorSetup,
+  cancelTwoFactor,
+} = useLoginForm(props.login, props.verifyTwoFactorLogin, props.verifyTwoFactorSetupLogin);
 
 const appearance = ref<LoginAppearance>(readStoredAppearance());
 const activePanel = ref<LoginPanelKey>(null);
@@ -182,11 +192,19 @@ watch(
           v-model:password="password"
           v-model:remember="remember"
           v-model:slider-token="sliderToken"
+          v-model:two-factor-code="twoFactorCode"
           :slider-reset-key="sliderResetKey"
           :is-submitting="isSubmitting"
+          :is-verifying-two-factor="isVerifyingTwoFactor"
           :error-message="errorMessage"
+          :two-factor-challenge="twoFactorChallenge"
+          :two-factor-setup-challenge="twoFactorSetupChallenge"
           :can-submit="canSubmit"
+          :can-submit-two-factor="canSubmitTwoFactor"
           @submit="submitLogin"
+          @submit-two-factor="submitTwoFactor"
+          @submit-two-factor-setup="submitTwoFactorSetup"
+          @cancel-two-factor="cancelTwoFactor"
         />
       </div>
     </section>

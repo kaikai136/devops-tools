@@ -268,7 +268,7 @@ async function loadWorkspaceData() {
   await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadWatermarkSetting(), loadHostManagement(), calculateSubnet(false)]);
 }
 
-const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, logout } = useAuthSession({
+const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, verifyTwoFactorLogin, verifyTwoFactorSetupLogin, updateCurrentUser, refreshCurrentUser, logout } = useAuthSession({
   loadWorkspaceData,
   clearSessionUi: () => {
     clearFeedback();
@@ -292,7 +292,7 @@ const permittedNavGroups = computed(() => {
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => permissionCodes.has(`access_${item.key}`)),
+      items: group.items.filter((item) => item.key === 'profile' || permissionCodes.has(`access_${item.key}`)),
     }))
     .filter((group) => group.items.length);
 });
@@ -411,6 +411,10 @@ const appState = {
   isAuthenticated,
   loadCurrentUser,
   login,
+  verifyTwoFactorLogin,
+  verifyTwoFactorSetupLogin,
+  updateCurrentUser,
+  refreshCurrentUser,
   logout,
   setActiveTool,
   selectNavItem,

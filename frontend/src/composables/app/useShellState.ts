@@ -95,6 +95,7 @@ function navItemIcon(key: ToolKey): IconName {
     loginLogs: 'bell',
     users: 'user',
     roles: 'shield',
+    profile: 'user',
     systemSettings: 'settings',
   };
   return icons[key];

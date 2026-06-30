@@ -14,11 +14,15 @@ defineProps<{
   isColumnVisible: (key: UserColumnKey) => boolean;
   roleNames: (user: SystemUser) => string;
   loginStateText: (user: SystemUser) => string;
+  twoFactorStatusClass: (user: SystemUser) => string;
   canUsePageAction: (pageKey: string, actionKey: string) => boolean;
 }>();
 
 const emit = defineEmits<{
   toggleStatus: [user: SystemUser];
+  enableTwoFactor: [user: SystemUser];
+  disableTwoFactor: [user: SystemUser];
+  resetTwoFactor: [user: SystemUser];
   edit: [user: SystemUser];
   resetPassword: [user: SystemUser];
   delete: [user: SystemUser];
@@ -31,6 +35,18 @@ const pageSizeOptions = [10, 20, 50];
 function updatePageSize(event: Event) {
   emit('updatePageSize', Number((event.target as HTMLSelectElement).value));
 }
+
+function toggleTwoFactor(user: SystemUser) {
+  if (user.twoFactorStatus === 'disabled' || !user.twoFactorStatus) {
+    emit('enableTwoFactor', user);
+    return;
+  }
+  emit('disableTwoFactor', user);
+}
+
+function twoFactorSwitchText(user: SystemUser) {
+  return user.twoFactorStatus === 'enabled' ? '开启' : '关闭';
+}
 </script>
 
 <template>
@@ -41,6 +57,7 @@ function updatePageSize(event: Event) {
       <span v-if="isColumnVisible('roles')">角色</span>
       <span v-if="isColumnVisible('status')">状态</span>
       <span v-if="isColumnVisible('lastLogin')">最近登录</span>
+      <span v-if="isColumnVisible('twoFactor')">2FA</span>
       <span v-if="isColumnVisible('actions')">操作</span>
     </div>
     <div v-for="user in users" :key="user.id" class="user-table-row">
@@ -54,6 +71,36 @@ function updatePageSize(event: Event) {
         <i></i>{{ loginStateText(user) === '可登录' ? '正常' : loginStateText(user) }}
       </span>
       <span v-if="isColumnVisible('lastLogin')" class="user-date-cell">{{ formatDateTime(user.lastLogin) }}</span>
+      <div v-if="isColumnVisible('twoFactor')" class="user-2fa-cell">
+        <span v-if="user.twoFactorStatus === 'required'" class="user-2fa-pending">待验证</span>
+        <button
+          v-else
+          class="user-2fa-switch"
+          :class="twoFactorStatusClass(user)"
+          type="button"
+          :title="user.twoFactorStatus === 'enabled' ? '点击关闭 2FA' : '点击开启 2FA'"
+          :disabled="
+            user.isBuiltinAdmin ||
+            (user.twoFactorStatus === 'enabled'
+              ? !canUsePageAction('users', '2fa_disable')
+              : !canUsePageAction('users', '2fa_enable'))
+          "
+          @click="toggleTwoFactor(user)"
+        >
+          <span>{{ twoFactorSwitchText(user) }}</span>
+          <i></i>
+        </button>
+        <button
+          class="user-2fa-reset"
+          type="button"
+          title="重置绑定"
+          aria-label="重置 2FA 绑定"
+          :disabled="user.isBuiltinAdmin || !canUsePageAction('users', '2fa_reset')"
+          @click="$emit('resetTwoFactor', user)"
+        >
+          重置
+        </button>
+      </div>
       <div v-if="isColumnVisible('actions')" class="user-row-actions">
         <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'toggle_status')" @click="$emit('toggleStatus', user)">{{ user.isActive ? '禁用' : '启用' }}</button>
         <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'edit')" @click="$emit('edit', user)">编辑</button>

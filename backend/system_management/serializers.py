@@ -19,6 +19,7 @@ WATERMARK_ALLOWED_PAGES = {
     "loginLogs",
     "users",
     "roles",
+    "profile",
     "systemSettings",
     "webTerminal",
 }
@@ -54,6 +55,10 @@ class SystemUserSerializer(serializers.ModelSerializer):
     isSuperuser = serializers.BooleanField(source="is_superuser", read_only=True)
     isBuiltinAdmin = serializers.SerializerMethodField()
     canLogin = serializers.SerializerMethodField()
+    twoFactorEnabled = serializers.SerializerMethodField()
+    twoFactorRequired = serializers.SerializerMethodField()
+    twoFactorResetRequired = serializers.SerializerMethodField()
+    twoFactorStatus = serializers.SerializerMethodField()
     lastLogin = serializers.DateTimeField(source="last_login", read_only=True)
     dateJoined = serializers.DateTimeField(source="date_joined", read_only=True)
     roleIds = serializers.PrimaryKeyRelatedField(source="groups", queryset=Group.objects.all(), many=True, required=False)
@@ -71,6 +76,10 @@ class SystemUserSerializer(serializers.ModelSerializer):
             "isSuperuser",
             "isBuiltinAdmin",
             "canLogin",
+            "twoFactorEnabled",
+            "twoFactorRequired",
+            "twoFactorResetRequired",
+            "twoFactorStatus",
             "lastLogin",
             "dateJoined",
             "roleIds",
@@ -108,6 +117,28 @@ class SystemUserSerializer(serializers.ModelSerializer):
 
     def get_canLogin(self, obj):
         return bool(obj.is_active and obj.has_usable_password())
+
+    def get_twoFactorEnabled(self, obj):
+        profile = self._profile(obj)
+        return bool(profile and profile.totp_enabled)
+
+    def get_twoFactorRequired(self, obj):
+        profile = self._profile(obj)
+        return bool(profile and profile.totp_required)
+
+    def get_twoFactorResetRequired(self, obj):
+        profile = self._profile(obj)
+        return bool(profile and profile.totp_reset_required)
+
+    def get_twoFactorStatus(self, obj):
+        profile = self._profile(obj)
+        return profile.two_factor_status if profile else "disabled"
+
+    def _profile(self, obj):
+        try:
+            return obj.profile
+        except obj._meta.model.profile.RelatedObjectDoesNotExist:
+            return None
 
     def validate(self, attrs):
         if self.instance is None and not str(attrs.get("password", "")).strip():

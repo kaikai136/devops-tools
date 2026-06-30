@@ -1,6 +1,9 @@
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+import pyotp
 
+from .models import UserProfile
 from .views import SLIDER_CHALLENGE_SESSION_KEY
 
 
@@ -107,3 +110,224 @@ class SliderChallengeTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["user"]["username"], "operator")
+
+
+class ProfileApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="operator",
+            password="UserPass123",
+            email="operator@example.com",
+            first_name="Operator",
+        )
+        self.client.force_login(self.user)
+
+    def test_profile_returns_current_user_metadata(self):
+        response = self.client.get("/api/profile/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["user"]["username"], "operator")
+        self.assertEqual(payload["user"]["displayName"], "Operator")
+        self.assertFalse(payload["profile"]["twoFactorEnabled"])
+
+    def test_profile_update_rejects_duplicate_username(self):
+        get_user_model().objects.create_user(username="taken", password="UserPass123")
+
+        response = self.client.put(
+            "/api/profile/",
+            data={"username": "taken", "first_name": "New Name", "email": "new@example.com"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("用户名已存在", response.json()["error"])
+
+    def test_profile_update_changes_current_user(self):
+        response = self.client.put(
+            "/api/profile/",
+            data={"username": "renamed", "first_name": "New Name", "email": "new@example.com"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "renamed")
+        self.assertEqual(response.json()["user"]["displayName"], "New Name")
+
+    def test_avatar_upload_rejects_large_file(self):
+        avatar = SimpleUploadedFile("avatar.png", b"x" * (2 * 1024 * 1024 + 1), content_type="image/png")
+
+        response = self.client.post("/api/profile/avatar/", data={"avatar": avatar})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("2MB", response.json()["error"])
+
+    def test_avatar_upload_accepts_supported_image_type(self):
+        avatar = SimpleUploadedFile("avatar.png", b"fake-image", content_type="image/png")
+
+        response = self.client.post("/api/profile/avatar/", data={"avatar": avatar})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["user"]["avatarUrl"])
+
+    def test_password_change_requires_current_password(self):
+        response = self.client.post(
+            "/api/profile/password/",
+            data={"currentPassword": "wrong", "newPassword": "NewPass123", "confirmPassword": "NewPass123"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("当前密码", response.json()["error"])
+
+    def test_password_change_updates_password_and_keeps_session(self):
+        response = self.client.post(
+            "/api/profile/password/",
+            data={"currentPassword": "UserPass123", "newPassword": "NewPass123", "confirmPassword": "NewPass123"},
+            content_type="application/json",
+        )
+        me_response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("NewPass123"))
+        self.assertEqual(me_response.status_code, 200)
+
+
+class TwoFactorLoginTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="operator", password="UserPass123")
+
+    def complete_slider(self) -> str:
+        challenge_response = self.client.get("/api/auth/slider-challenge/")
+        self.assertEqual(challenge_response.status_code, 200)
+        challenge = challenge_response.json()
+        verify_response = self.client.post(
+            "/api/auth/slider-verify/",
+            data={"challengeId": challenge["challengeId"], "offsetX": challenge["targetX"], "elapsedMs": 400},
+            content_type="application/json",
+        )
+        self.assertEqual(verify_response.status_code, 200)
+        return verify_response.json()["sliderToken"]
+
+    def enable_two_factor(self):
+        profile = UserProfile.objects.create(user=self.user, totp_secret=pyotp.random_base32(), totp_enabled=True)
+        return profile
+
+    def test_two_factor_setup_and_confirm_enable_login_protection(self):
+        self.client.force_login(self.user)
+
+        setup_response = self.client.post("/api/profile/2fa/setup/", data={}, content_type="application/json")
+        self.assertEqual(setup_response.status_code, 200)
+        secret = setup_response.json()["secret"]
+        code = pyotp.TOTP(secret).now()
+        confirm_response = self.client.post("/api/profile/2fa/confirm/", data={"code": code}, content_type="application/json")
+
+        self.assertEqual(confirm_response.status_code, 200)
+        self.assertTrue(confirm_response.json()["user"]["twoFactorEnabled"])
+
+    def test_login_requires_two_factor_when_enabled(self):
+        self.enable_two_factor()
+        token = self.complete_slider()
+
+        response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": True, "sliderToken": token},
+            content_type="application/json",
+        )
+        me_response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["twoFactorRequired"])
+        self.assertEqual(me_response.status_code, 401)
+
+    def test_two_factor_login_completes_session(self):
+        profile = self.enable_two_factor()
+        token = self.complete_slider()
+        login_response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": token},
+            content_type="application/json",
+        )
+        self.assertTrue(login_response.json()["twoFactorRequired"])
+
+        verify_response = self.client.post(
+            "/api/auth/login/2fa/",
+            data={"code": pyotp.TOTP(profile.totp_secret).now()},
+            content_type="application/json",
+        )
+
+        self.assertEqual(verify_response.status_code, 200)
+        self.assertEqual(verify_response.json()["user"]["username"], "operator")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+
+    def test_required_two_factor_login_returns_setup_payload(self):
+        UserProfile.objects.create(user=self.user, totp_required=True)
+        token = self.complete_slider()
+
+        response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": token},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["twoFactorSetupRequired"])
+        self.assertTrue(payload["secret"])
+        self.assertTrue(payload["qrDataUrl"].startswith("data:image/png;base64,"))
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+    def test_two_factor_setup_login_completes_session(self):
+        profile = UserProfile.objects.create(user=self.user, totp_required=True)
+        token = self.complete_slider()
+        login_response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": token},
+            content_type="application/json",
+        )
+        secret = login_response.json()["secret"]
+
+        verify_response = self.client.post(
+            "/api/auth/login/2fa/setup/",
+            data={"code": pyotp.TOTP(secret).now()},
+            content_type="application/json",
+        )
+
+        self.assertEqual(verify_response.status_code, 200)
+        profile.refresh_from_db()
+        self.assertTrue(profile.totp_enabled)
+        self.assertFalse(profile.totp_required)
+        self.assertEqual(profile.totp_secret, secret)
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+
+    def test_legacy_reset_flag_is_treated_as_setup_required(self):
+        old_secret = pyotp.random_base32()
+        profile = UserProfile.objects.create(user=self.user, totp_secret=old_secret, totp_enabled=False, totp_reset_required=True)
+        token = self.complete_slider()
+        login_response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": token},
+            content_type="application/json",
+        )
+
+        self.assertTrue(login_response.json()["twoFactorSetupRequired"])
+        self.assertNotEqual(login_response.json()["secret"], old_secret)
+        profile.refresh_from_db()
+        self.assertFalse(profile.totp_enabled)
+        self.assertEqual(profile.two_factor_status, "required")
+
+    def test_two_factor_disable_requires_password_and_code(self):
+        profile = self.enable_two_factor()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            "/api/profile/2fa/disable/",
+            data={"password": "UserPass123", "code": pyotp.TOTP(profile.totp_secret).now()},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        profile.refresh_from_db()
+        self.assertFalse(profile.totp_enabled)

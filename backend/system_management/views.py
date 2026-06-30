@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from accounts.models import UserProfile
 from accounts.permissions import require_login, require_staff
 from operations.responses import bad_request, bounded_int, not_found, serializer_bad_request
 
@@ -122,6 +123,105 @@ def system_user_detail(request, user_id: int):
     if is_builtin_admin_user(saved_user):
         saved_user = ensure_builtin_admin()
     return Response(SystemUserSerializer(saved_user).data)
+
+
+def _get_manageable_2fa_user(request, user_id: int):
+    User = get_user_model()
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return None, not_found("用户不存在")
+    if user.id == request.user.id:
+        return None, bad_request("不能在用户列表中操作当前登录用户的 2FA")
+    if is_builtin_admin_user(user):
+        return None, bad_request("内置管理员不允许在用户列表中操作 2FA")
+    return user, None
+
+
+@api_view(["POST"])
+def system_user_2fa_enable(request, user_id: int):
+    staff_error = require_staff(request)
+    if staff_error:
+        return staff_error
+
+    user, error = _get_manageable_2fa_user(request, user_id)
+    if error:
+        return error
+
+    profile, _created = UserProfile.objects.get_or_create(user=user)
+    profile.totp_pending_secret = ""
+    profile.totp_reset_required = False
+    if profile.totp_secret:
+        profile.totp_enabled = True
+        profile.totp_required = False
+        update_fields = ["totp_pending_secret", "totp_enabled", "totp_required", "totp_reset_required", "updated_at"]
+    else:
+        profile.totp_enabled = False
+        profile.totp_required = True
+        profile.totp_confirmed_at = None
+        update_fields = ["totp_pending_secret", "totp_enabled", "totp_required", "totp_reset_required", "totp_confirmed_at", "updated_at"]
+    profile.save(
+        update_fields=update_fields
+    )
+    return Response(SystemUserSerializer(user).data)
+
+
+@api_view(["POST"])
+def system_user_2fa_disable(request, user_id: int):
+    staff_error = require_staff(request)
+    if staff_error:
+        return staff_error
+
+    user, error = _get_manageable_2fa_user(request, user_id)
+    if error:
+        return error
+
+    profile, _created = UserProfile.objects.get_or_create(user=user)
+    profile.totp_pending_secret = ""
+    profile.totp_enabled = False
+    profile.totp_required = False
+    profile.totp_reset_required = False
+    profile.save(
+        update_fields=[
+            "totp_pending_secret",
+            "totp_enabled",
+            "totp_required",
+            "totp_reset_required",
+            "updated_at",
+        ]
+    )
+    return Response(SystemUserSerializer(user).data)
+
+
+@api_view(["POST"])
+def system_user_2fa_reset(request, user_id: int):
+    staff_error = require_staff(request)
+    if staff_error:
+        return staff_error
+
+    user, error = _get_manageable_2fa_user(request, user_id)
+    if error:
+        return error
+
+    profile, _created = UserProfile.objects.get_or_create(user=user)
+    profile.totp_secret = ""
+    profile.totp_pending_secret = ""
+    profile.totp_enabled = False
+    profile.totp_required = True
+    profile.totp_reset_required = False
+    profile.totp_confirmed_at = None
+    profile.save(
+        update_fields=[
+            "totp_secret",
+            "totp_pending_secret",
+            "totp_enabled",
+            "totp_required",
+            "totp_reset_required",
+            "totp_confirmed_at",
+            "updated_at",
+        ]
+    )
+    return Response(SystemUserSerializer(user).data)
 
 
 @api_view(["GET", "POST"])

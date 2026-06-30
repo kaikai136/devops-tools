@@ -10,6 +10,7 @@ export type ToolKey =
   | 'loginLogs'
   | 'users'
   | 'roles'
+  | 'profile'
   | 'systemSettings';
 
 export interface HostResult {
@@ -78,6 +79,12 @@ export interface AccountUser {
   username: string;
   email: string;
   first_name: string;
+  displayName?: string;
+  avatarUrl?: string;
+  twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean;
+  twoFactorResetRequired?: boolean;
+  twoFactorStatus?: TwoFactorStatus;
   is_active: boolean;
   is_staff: boolean;
   is_superuser: boolean;
@@ -91,6 +98,45 @@ export interface LoginPayload {
   password: string;
   remember: boolean;
   sliderToken: string;
+}
+
+export interface LoginTwoFactorChallenge {
+  twoFactorRequired: true;
+  challengeId: string;
+  account: string;
+  displayName: string;
+  expiresIn: number;
+}
+
+export type TwoFactorStatus = 'disabled' | 'required' | 'enabled';
+
+export interface LoginTwoFactorSetupChallenge extends TwoFactorSetupPayload {
+  twoFactorSetupRequired: true;
+  challengeId: string;
+  account: string;
+  displayName: string;
+  expiresIn: number;
+}
+
+export type LoginResult = { user: AccountUser } | LoginTwoFactorChallenge | LoginTwoFactorSetupChallenge;
+
+export interface ProfilePayload {
+  user: AccountUser;
+  profile: {
+    avatarUrl: string;
+    twoFactorEnabled: boolean;
+    twoFactorRequired: boolean;
+    twoFactorResetRequired: boolean;
+    twoFactorStatus: TwoFactorStatus;
+    twoFactorConfirmedAt: string | null;
+    updatedAt: string | null;
+  };
+}
+
+export interface TwoFactorSetupPayload {
+  secret: string;
+  provisioningUri: string;
+  qrDataUrl: string;
 }
 
 export interface PortScanResult {

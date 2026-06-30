@@ -15,6 +15,10 @@ export interface SystemUser {
   isSuperuser: boolean;
   isBuiltinAdmin?: boolean;
   canLogin?: boolean;
+  twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean;
+  twoFactorResetRequired?: boolean;
+  twoFactorStatus?: 'disabled' | 'required' | 'enabled';
   lastLogin: string | null;
   dateJoined: string | null;
   roleIds: number[];
@@ -39,7 +43,7 @@ export interface UserForm {
 }
 
 export type UserStatusFilter = 'all' | 'active' | 'disabled';
-export type UserColumnKey = 'username' | 'name' | 'roles' | 'status' | 'lastLogin' | 'actions';
+export type UserColumnKey = 'username' | 'name' | 'roles' | 'status' | 'lastLogin' | 'twoFactor' | 'actions';
 export type UserColumnOption = TableColumnOption<UserColumnKey>;
 export type UserDialogState = { mode: 'create' | 'edit'; userId: number | null };
 export type MessageTone = 'error' | 'success';
@@ -51,6 +55,7 @@ export const userColumnOptions: readonly UserColumnOption[] = [
   { key: 'roles', label: '角色', width: 'minmax(120px, 1fr)' },
   { key: 'status', label: '状态', width: 'minmax(120px, 1fr)' },
   { key: 'lastLogin', label: '最近登录', width: 'minmax(210px, 1.8fr)' },
+  { key: 'twoFactor', label: '2FA', width: 'minmax(170px, 1fr)' },
   { key: 'actions', label: '操作', width: 'minmax(300px, 2fr)' },
 ];
 
@@ -69,6 +74,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   const pageSize = ref(10);
   const dialog = ref<UserDialogState | null>(null);
   const resetPasswordUser = ref<SystemUser | null>(null);
+  const resetTwoFactorTarget = ref<SystemUser | null>(null);
   const deleteTarget = ref<SystemUser | null>(null);
   const form = ref<UserForm>(emptyUserForm());
   const formErrors = ref<UserFormErrors>({});
@@ -300,6 +306,62 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     }
   }
 
+  async function enableUserTwoFactor(user: SystemUser) {
+    if (user.isBuiltinAdmin) {
+      setError('内置管理员不允许在用户列表中操作 2FA');
+      return;
+    }
+    clearMessage();
+    try {
+      const saved = await apiPost<SystemUser>(`/api/system/users/${user.id}/2fa/enable/`, {});
+      replaceUser(saved);
+      syncUserManagerCache();
+      setSuccess(`已要求 ${saved.username} 下次登录绑定 2FA。`);
+    } catch (error) {
+      setError(errorMessage(error));
+    }
+  }
+
+  async function disableUserTwoFactor(user: SystemUser) {
+    if (user.isBuiltinAdmin) {
+      setError('内置管理员不允许在用户列表中操作 2FA');
+      return;
+    }
+    clearMessage();
+    try {
+      const saved = await apiPost<SystemUser>(`/api/system/users/${user.id}/2fa/disable/`, {});
+      replaceUser(saved);
+      syncUserManagerCache();
+      setSuccess(`${saved.username} 的 2FA 已关闭，下次登录无需验证码。`);
+    } catch (error) {
+      setError(errorMessage(error));
+    }
+  }
+
+  function openResetTwoFactor(user: SystemUser) {
+    clearMessage();
+    if (user.isBuiltinAdmin) {
+      setError('内置管理员不允许在用户列表中操作 2FA');
+      return;
+    }
+    resetTwoFactorTarget.value = user;
+  }
+
+  async function resetUserTwoFactor() {
+    if (!resetTwoFactorTarget.value) return;
+    clearMessage();
+    try {
+      const user = resetTwoFactorTarget.value;
+      const saved = await apiPost<SystemUser>(`/api/system/users/${user.id}/2fa/reset/`, {});
+      replaceUser(saved);
+      syncUserManagerCache();
+      resetTwoFactorTarget.value = null;
+      setSuccess(`${saved.username} 的 2FA 已重置，下次登录需要重新绑定。`);
+    } catch (error) {
+      setError(errorMessage(error));
+    }
+  }
+
   function openDeleteUser(user: SystemUser) {
     clearMessage();
     if (user.isBuiltinAdmin) {
@@ -343,6 +405,10 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     return user.isActive ? '可登录' : '已禁用';
   }
 
+  function twoFactorStatusClass(user: SystemUser) {
+    return user.twoFactorStatus ?? 'disabled';
+  }
+
   function openRoleManager() {
     dialog.value = null;
     setActiveTool('roles');
@@ -369,6 +435,10 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
 
   function closeResetPasswordDialog() {
     resetPasswordUser.value = null;
+  }
+
+  function closeResetTwoFactorDialog() {
+    resetTwoFactorTarget.value = null;
   }
 
   function closeDeleteDialog() {
@@ -468,6 +538,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     pageSize,
     dialog,
     resetPasswordUser,
+    resetTwoFactorTarget,
     deleteTarget,
     form,
     formErrors: visibleFormErrors,
@@ -509,13 +580,19 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     toggleUserStatus,
     openResetPassword,
     saveResetPassword,
+    enableUserTwoFactor,
+    disableUserTwoFactor,
+    openResetTwoFactor,
+    resetUserTwoFactor,
     openDeleteUser,
     deleteUser,
     closeAccountDialog,
     closeResetPasswordDialog,
+    closeResetTwoFactorDialog,
     closeDeleteDialog,
     roleNames,
     loginStateText,
+    twoFactorStatusClass,
     openRoleManager,
     openMfaHelp,
     setPage,

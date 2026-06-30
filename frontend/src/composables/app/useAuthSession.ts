@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 
 import { apiGet, apiPost } from '../../api';
-import type { AccountUser, LoginPayload } from '../../types';
+import type { AccountUser, LoginPayload, LoginResult } from '../../types';
 
 export const AUTH_LOGOUT_EVENT_KEY = 'ops-tool.auth.logout-at';
 
@@ -22,10 +22,39 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
     }
   }
 
-  async function login(payload: LoginPayload) {
-    const data = await apiPost<{ user: AccountUser }>('/api/auth/login/', payload);
-    currentUser.value = data.user;
+  async function applyAuthenticatedUser(user: AccountUser) {
+    currentUser.value = user;
     void loadWorkspaceData();
+  }
+
+  async function login(payload: LoginPayload): Promise<LoginResult> {
+    const data = await apiPost<LoginResult>('/api/auth/login/', payload);
+    if ('user' in data) {
+      await applyAuthenticatedUser(data.user);
+    }
+    return data;
+  }
+
+  async function verifyTwoFactorLogin(code: string): Promise<AccountUser> {
+    const data = await apiPost<{ user: AccountUser }>('/api/auth/login/2fa/', { code });
+    await applyAuthenticatedUser(data.user);
+    return data.user;
+  }
+
+  async function verifyTwoFactorSetupLogin(code: string): Promise<AccountUser> {
+    const data = await apiPost<{ user: AccountUser }>('/api/auth/login/2fa/setup/', { code });
+    await applyAuthenticatedUser(data.user);
+    return data.user;
+  }
+
+  function updateCurrentUser(user: AccountUser) {
+    currentUser.value = user;
+  }
+
+  async function refreshCurrentUser() {
+    const data = await apiGet<{ user: AccountUser }>('/api/auth/me/');
+    currentUser.value = data.user;
+    return data.user;
   }
 
   async function logout() {
@@ -46,6 +75,10 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
     isAuthenticated,
     loadCurrentUser,
     login,
+    verifyTwoFactorLogin,
+    verifyTwoFactorSetupLogin,
+    updateCurrentUser,
+    refreshCurrentUser,
     logout,
   };
 }

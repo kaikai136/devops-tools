@@ -12,6 +12,7 @@ import IpScanner from './components/tools/IpScanner.vue';
 import LoginLogManager from './components/tools/LoginLogManager.vue';
 import MachineProbe from './components/tools/MachineProbe.vue';
 import PasswordGenerator from './components/tools/PasswordGenerator.vue';
+import ProfileCenter from './components/tools/ProfileCenter.vue';
 import RoleManager from './components/tools/RoleManager.vue';
 import SubnetCalculator from './components/tools/SubnetCalculator.vue';
 import SystemSettingsPanel from './components/tools/SystemSettingsPanel.vue';
@@ -49,6 +50,8 @@ const {
   isAuthReady,
   isAuthenticated,
   login,
+  verifyTwoFactorLogin,
+  verifyTwoFactorSetupLogin,
   logout,
   scopedToastVisible,
   toastTone,
@@ -93,8 +96,9 @@ const {
 } = appState;
 
 const selectedManagedHostCount = computed(() => visibleManagedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id)).length);
-const currentUserDisplayName = computed(() => currentUser.value?.first_name || currentUser.value?.username || '未命名用户');
+const currentUserDisplayName = computed(() => currentUser.value?.displayName || currentUser.value?.first_name || currentUser.value?.username || '未命名用户');
 const currentUserAccount = computed(() => currentUser.value?.username || currentUser.value?.email || '当前账户');
+const currentUserAvatar = computed(() => currentUser.value?.avatarUrl || '/ops-captain-icon.png');
 
 watch(hostTransferDialog, (mode) => {
   if (mode !== 'export') return;
@@ -145,7 +149,12 @@ async function refreshDashboard() {
       <strong>正在检查登录状态</strong>
     </div>
   </main>
-  <LoginPage v-else-if="!isAuthenticated" :login="login" />
+  <LoginPage
+    v-else-if="!isAuthenticated"
+    :login="login"
+    :verify-two-factor-login="verifyTwoFactorLogin"
+    :verify-two-factor-setup-login="verifyTwoFactorSetupLogin"
+  />
   <main v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed, 'workspace-dark': isWorkspaceDark }">
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
@@ -306,7 +315,7 @@ async function refreshDashboard() {
               <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
               <button class="header-action terminal-action" type="button" :disabled="!canUsePageAction('hosts', 'terminal')" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
             </template>
-            <template v-else-if="activeTool === 'dashboard' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
+            <template v-else-if="activeTool === 'dashboard' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
             </template>
@@ -342,18 +351,18 @@ async function refreshDashboard() {
           </button>
           <div class="workspace-user-menu">
             <button class="workspace-avatar-button" type="button" aria-haspopup="menu" aria-label="账户菜单">
-              <img src="/ops-captain-icon.png" alt="" />
+              <img :src="currentUserAvatar" alt="" />
             </button>
             <div class="workspace-user-dropdown" role="menu">
               <div class="workspace-user-card">
-                <img src="/ops-captain-icon.png" alt="" />
+                <img :src="currentUserAvatar" alt="" />
                 <div>
                   <strong>{{ currentUserDisplayName }}</strong>
                   <span>{{ currentUserAccount }}</span>
                 </div>
               </div>
               <span class="workspace-menu-divider"></span>
-              <button class="workspace-menu-action" type="button" role="menuitem" disabled>
+              <button class="workspace-menu-action" type="button" role="menuitem" @click="setActiveTool('profile')">
                 <AppIcon name="user" :size="16" />
                 <span>个人中心</span>
               </button>
@@ -382,6 +391,7 @@ async function refreshDashboard() {
       <LoginLogManager v-if="activeTool === 'loginLogs'" />
       <UserManager v-if="activeTool === 'users'" />
       <RoleManager v-if="activeTool === 'roles'" />
+      <ProfileCenter v-if="activeTool === 'profile'" />
       <SystemSettingsPanel v-if="activeTool === 'systemSettings'" />
     </section>
 

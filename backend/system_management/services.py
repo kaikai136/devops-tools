@@ -27,6 +27,7 @@ FEATURE_PERMISSION_DEFINITIONS = [
     ("system", "系统管理", "loginLogs", "登录日志"),
     ("system", "系统管理", "users", "用户管理"),
     ("system", "系统管理", "roles", "角色管理"),
+    ("system", "系统管理", "profile", "个人中心"),
     ("system", "系统管理", "systemSettings", "系统设置"),
 ]
 
@@ -72,6 +73,9 @@ PAGE_ACTION_PERMISSION_DEFINITIONS = [
     ("users", "edit", "编辑用户"),
     ("users", "toggle_status", "启用禁用"),
     ("users", "reset_password", "重置密码"),
+    ("users", "2fa_enable", "开启 2FA"),
+    ("users", "2fa_disable", "关闭 2FA"),
+    ("users", "2fa_reset", "重置 2FA"),
     ("users", "delete", "删除用户"),
     ("roles", "create", "新增角色"),
     ("roles", "edit", "编辑角色"),

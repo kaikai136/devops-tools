@@ -3,7 +3,9 @@ from django.contrib.auth.models import Group, Permission
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
 from unittest.mock import Mock, patch
+import pyotp
 
+from accounts.models import UserProfile
 from host_management.models import HostCredential, HostGroup, ManagedHost
 from .models import LoginLog, SystemSetting
 from .dashboard import parse_cip_output
@@ -90,6 +92,18 @@ class BuiltinAdminTests(TestCase):
         self.operator = get_user_model().objects.create_user(username="operator", password="pass", is_staff=True)
         self.client.force_login(self.operator)
 
+    def complete_slider(self) -> str:
+        challenge_response = self.client.get("/api/auth/slider-challenge/")
+        self.assertEqual(challenge_response.status_code, 200)
+        challenge = challenge_response.json()
+        verify_response = self.client.post(
+            "/api/auth/slider-verify/",
+            data={"challengeId": challenge["challengeId"], "offsetX": challenge["targetX"], "elapsedMs": 400},
+            content_type="application/json",
+        )
+        self.assertEqual(verify_response.status_code, 200)
+        return verify_response.json()["sliderToken"]
+
     def test_system_user_list_creates_builtin_admin(self):
         response = self.client.get("/api/system/users/")
 
@@ -134,6 +148,128 @@ class BuiltinAdminTests(TestCase):
         self.assertTrue(admin.is_active)
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
+
+    def test_system_user_list_returns_two_factor_status(self):
+        UserProfile.objects.create(user=self.operator, totp_enabled=True, totp_secret=pyotp.random_base32())
+
+        response = self.client.get("/api/system/users/")
+
+        self.assertEqual(response.status_code, 200)
+        operator = next(item for item in response.json() if item["username"] == "operator")
+        self.assertTrue(operator["twoFactorEnabled"])
+        self.assertEqual(operator["twoFactorStatus"], "enabled")
+
+    def test_staff_can_require_user_two_factor_setup(self):
+        target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+
+        response = self.client.post(f"/api/system/users/{target.id}/2fa/enable/", data={}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        profile = UserProfile.objects.get(user=target)
+        self.assertTrue(profile.totp_required)
+        self.assertEqual(response.json()["twoFactorStatus"], "required")
+
+    def test_staff_can_enable_existing_user_two_factor_without_rebinding(self):
+        target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        secret = pyotp.random_base32()
+        profile = UserProfile.objects.create(user=target, totp_enabled=False, totp_secret=secret)
+
+        response = self.client.post(f"/api/system/users/{target.id}/2fa/enable/", data={}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        profile.refresh_from_db()
+        self.assertTrue(profile.totp_enabled)
+        self.assertFalse(profile.totp_required)
+        self.assertEqual(profile.totp_secret, secret)
+        self.assertEqual(response.json()["twoFactorStatus"], "enabled")
+
+    def test_staff_can_disable_user_two_factor(self):
+        target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        secret = pyotp.random_base32()
+        profile = UserProfile.objects.create(user=target, totp_enabled=True, totp_secret=secret)
+
+        response = self.client.post(f"/api/system/users/{target.id}/2fa/disable/", data={}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        profile.refresh_from_db()
+        self.assertFalse(profile.totp_enabled)
+        self.assertEqual(profile.totp_secret, secret)
+        self.assertFalse(profile.totp_required)
+        self.assertFalse(profile.totp_reset_required)
+        self.assertEqual(response.json()["twoFactorStatus"], "disabled")
+
+    def test_staff_disable_user_two_factor_allows_plain_login(self):
+        target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        UserProfile.objects.create(user=target, totp_enabled=True, totp_secret=pyotp.random_base32())
+        disable_response = self.client.post(f"/api/system/users/{target.id}/2fa/disable/", data={}, content_type="application/json")
+        self.assertEqual(disable_response.status_code, 200)
+
+        self.client.logout()
+        slider_token = self.complete_slider()
+        login_response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "viewer", "password": "UserPass123", "remember": False, "sliderToken": slider_token},
+            content_type="application/json",
+        )
+
+        self.assertEqual(login_response.status_code, 200)
+        self.assertEqual(login_response.json()["user"]["username"], "viewer")
+
+    def test_staff_can_reset_user_two_factor_for_rebinding(self):
+        target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        old_secret = pyotp.random_base32()
+        profile = UserProfile.objects.create(user=target, totp_enabled=True, totp_secret=old_secret)
+
+        response = self.client.post(f"/api/system/users/{target.id}/2fa/reset/", data={}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 200)
+        profile.refresh_from_db()
+        self.assertFalse(profile.totp_enabled)
+        self.assertTrue(profile.totp_required)
+        self.assertEqual(profile.totp_secret, "")
+        self.assertEqual(profile.totp_pending_secret, "")
+        self.assertFalse(profile.totp_reset_required)
+        self.assertIsNone(profile.totp_confirmed_at)
+        self.assertEqual(response.json()["twoFactorStatus"], "required")
+
+    def test_staff_reset_user_two_factor_requires_setup_on_next_login(self):
+        target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        old_secret = pyotp.random_base32()
+        UserProfile.objects.create(user=target, totp_enabled=True, totp_secret=old_secret)
+        reset_response = self.client.post(f"/api/system/users/{target.id}/2fa/reset/", data={}, content_type="application/json")
+        self.assertEqual(reset_response.status_code, 200)
+
+        self.client.logout()
+        slider_token = self.complete_slider()
+        login_response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "viewer", "password": "UserPass123", "remember": False, "sliderToken": slider_token},
+            content_type="application/json",
+        )
+
+        self.assertEqual(login_response.status_code, 200)
+        self.assertTrue(login_response.json()["twoFactorSetupRequired"])
+        self.assertNotEqual(login_response.json()["secret"], old_secret)
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
+
+    def test_user_two_factor_actions_reject_builtin_admin_and_self(self):
+        admin = ensure_builtin_admin()
+
+        builtin_response = self.client.post(f"/api/system/users/{admin.id}/2fa/enable/", data={}, content_type="application/json")
+        self_disable_response = self.client.post(f"/api/system/users/{self.operator.id}/2fa/disable/", data={}, content_type="application/json")
+        self_reset_response = self.client.post(f"/api/system/users/{self.operator.id}/2fa/reset/", data={}, content_type="application/json")
+
+        self.assertEqual(builtin_response.status_code, 400)
+        self.assertEqual(self_disable_response.status_code, 400)
+        self.assertEqual(self_reset_response.status_code, 400)
+
+    def test_non_staff_cannot_manage_user_two_factor(self):
+        user = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        self.client.force_login(user)
+
+        response = self.client.post(f"/api/system/users/{self.operator.id}/2fa/enable/", data={}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 403)
 
 
 class FeaturePermissionTests(TestCase):

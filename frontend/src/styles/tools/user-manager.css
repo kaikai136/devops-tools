@@ -328,7 +328,8 @@
 .user-login-name,
 .user-real-name,
 .user-role-cell,
-.user-date-cell {
+.user-date-cell,
+.user-2fa-cell {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -371,6 +372,108 @@
 
 .user-status.disabled i {
   background: #9ca3af;
+}
+
+.user-2fa-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-2fa-switch {
+  position: relative;
+  display: inline-flex;
+  box-sizing: border-box;
+  flex: 0 0 62px;
+  align-items: center;
+  justify-content: flex-start;
+  width: 62px;
+  height: 20px;
+  min-width: 62px;
+  min-height: 20px;
+  appearance: none;
+  border: 1px solid #d5d9e0;
+  border-radius: 999px;
+  background: #f3f5f8;
+  color: #64748b;
+  padding: 0 7px 0 24px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.user-2fa-switch i {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.16);
+  transform: translateY(-50%);
+  transition: left 0.18s ease;
+}
+
+.user-2fa-switch.enabled,
+.user-2fa-switch.required {
+  justify-content: flex-start;
+  border-color: #11bfa2;
+  background: #19c7aa;
+  color: #fff;
+  padding: 0 23px 0 7px;
+}
+
+.user-2fa-switch.enabled i,
+.user-2fa-switch.required i {
+  left: 42px;
+}
+
+.user-2fa-switch.required {
+  border-color: #3b82f6;
+  background: #3b82f6;
+}
+
+.user-2fa-pending {
+  display: inline-flex;
+  box-sizing: border-box;
+  flex: 0 0 62px;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 20px;
+  min-width: 62px;
+  min-height: 20px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.user-2fa-reset {
+  border: 0;
+  background: transparent;
+  color: #1f55ff;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.user-2fa-reset:hover {
+  text-decoration: underline;
+}
+
+.user-2fa-cell button:disabled {
+  color: #a5adba;
+  cursor: not-allowed;
 }
 
 .user-row-actions {

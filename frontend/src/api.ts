@@ -46,7 +46,12 @@ async function readResponse<T>(response: Response): Promise<T> {
     try {
       payload = JSON.parse(text);
     } catch {
-      throw new Error(response.ok ? '后端返回了非 JSON 数据' : text);
+      if (response.ok) {
+        throw new Error('后端返回了非 JSON 数据');
+      }
+      const contentType = response.headers.get('content-type') ?? '';
+      const looksLikeHtml = contentType.includes('text/html') || /^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text);
+      throw new Error(looksLikeHtml ? '后端服务异常，请确认数据库迁移已完成并查看后端日志。' : text.slice(0, 240));
     }
   }
 

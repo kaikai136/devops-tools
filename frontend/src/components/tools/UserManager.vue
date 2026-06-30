@@ -5,6 +5,7 @@ import AppIcon from '../common/AppIcon.vue';
 import UserAccountDialog from './user/UserAccountDialog.vue';
 import UserDeleteDialog from './user/UserDeleteDialog.vue';
 import UserResetPasswordDialog from './user/UserResetPasswordDialog.vue';
+import UserResetTwoFactorDialog from './user/UserResetTwoFactorDialog.vue';
 import UserTable from './user/UserTable.vue';
 
 const { activeTool, setActiveTool, canUsePageAction } = useAppContext();
@@ -20,6 +21,7 @@ const {
   pageSize,
   dialog,
   resetPasswordUser,
+  resetTwoFactorTarget,
   deleteTarget,
   form,
   formErrors,
@@ -55,13 +57,19 @@ const {
   toggleUserStatus,
   openResetPassword,
   saveResetPassword,
+  enableUserTwoFactor,
+  disableUserTwoFactor,
+  openResetTwoFactor,
+  resetUserTwoFactor,
   openDeleteUser,
   deleteUser,
   closeAccountDialog,
   closeResetPasswordDialog,
+  closeResetTwoFactorDialog,
   closeDeleteDialog,
   roleNames,
   loginStateText,
+  twoFactorStatusClass,
   openRoleManager,
   openMfaHelp,
   setPage,
@@ -142,8 +150,12 @@ const {
         :is-column-visible="isColumnVisible"
         :role-names="roleNames"
         :login-state-text="loginStateText"
+        :two-factor-status-class="twoFactorStatusClass"
         :can-use-page-action="canUsePageAction"
         @toggle-status="toggleUserStatus"
+        @enable-two-factor="enableUserTwoFactor"
+        @disable-two-factor="disableUserTwoFactor"
+        @reset-two-factor="openResetTwoFactor"
         @edit="openEditDialog"
         @reset-password="openResetPassword"
         @delete="openDeleteUser"
@@ -185,6 +197,13 @@ const {
       :hint="resetPasswordHint"
       @submit="saveResetPassword"
       @close="closeResetPasswordDialog"
+    />
+
+    <UserResetTwoFactorDialog
+      v-if="resetTwoFactorTarget"
+      :user="resetTwoFactorTarget"
+      @close="closeResetTwoFactorDialog"
+      @confirm="resetUserTwoFactor"
     />
 
     <UserDeleteDialog
