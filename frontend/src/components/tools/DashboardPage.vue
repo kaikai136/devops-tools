@@ -18,6 +18,14 @@ const isLoading = ref(false);
 const message = ref('');
 
 const displayName = computed(() => currentUser.value?.first_name || currentUser.value?.username || '船长');
+const timeGreeting = computed(() => buildTimeGreeting(new Date().getHours()));
+const heroGreetingLine = computed(() => `${timeGreeting.value}，${displayName.value}`);
+const heroTypingLines = computed(() => [heroGreetingLine.value, '一路向前，莫问前程！！！']);
+const heroTypingAlt = computed(() => heroTypingLines.value.join(' / '));
+const heroTypingUrl = computed(() => {
+  const lines = heroTypingLines.value.map((line) => encodeURIComponent(line)).join(';');
+  return `https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=900&size=24&pause=1000&color=9B5CFF&background=FFFFFF00&vCenter=true&width=520&height=40&lines=${lines}`;
+});
 const generatedText = computed(() => (summary.value?.generatedAt ? formatTime(summary.value.generatedAt) : '--'));
 const osTopList = computed(() => withPercent(summary.value?.assetDistribution.os ?? []));
 const verificationList = computed(() => withPercent(summary.value?.assetDistribution.verification ?? []));
@@ -312,7 +320,7 @@ function buildGaugeOption(params: { value: number; detail: number; name: string;
     series: [
       {
         type: 'gauge',
-        radius: '88%',
+        radius: '84%',
         center: ['50%', '50%'],
         startAngle: 90,
         endAngle: -270,
@@ -322,13 +330,13 @@ function buildGaugeOption(params: { value: number; detail: number; name: string;
         progress: {
           show: true,
           roundCap: true,
-          width: 14,
+          width: 11,
           itemStyle: { color: params.color },
         },
         axisLine: {
           roundCap: true,
           lineStyle: {
-            width: 14,
+            width: 11,
             color: [[1, colors.track]],
           },
         },
@@ -339,15 +347,15 @@ function buildGaugeOption(params: { value: number; detail: number; name: string;
         title: {
           offsetCenter: [0, '22%'],
           color: colors.muted,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 900,
         },
         detail: {
           offsetCenter: [0, '-4%'],
           color: colors.text,
-          fontSize: 28,
+          fontSize: 24,
           fontWeight: 900,
-          lineHeight: 30,
+          lineHeight: 26,
           valueAnimation: true,
           formatter: () => formatNumber(params.detail),
         },
@@ -414,6 +422,14 @@ function clampPercent(value: number) {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
+function buildTimeGreeting(hour: number) {
+  if (hour >= 5 && hour < 9) return '早上好';
+  if (hour >= 9 && hour < 12) return '上午好';
+  if (hour >= 12 && hour < 14) return '中午好';
+  if (hour >= 14 && hour < 18) return '下午好';
+  return '晚上好';
+}
+
 function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(value);
 }
@@ -450,7 +466,11 @@ defineExpose({
     <header class="dashboard-hero">
       <div class="dashboard-hero-copy">
         <span>CAPTAIN OPS</span>
-        <h1>中午好，{{ displayName }}，记得好好吃饭，小憩一下 ~</h1>
+        <h1 class="dashboard-typing-title">
+          <a href="https://git.io/typing-svg" target="_blank" rel="noreferrer">
+            <img :src="heroTypingUrl" :alt="heroTypingAlt" />
+          </a>
+        </h1>
         <p>这里汇总系统账号、资产与网络出口状态，帮助你快速判断今天的运维态势。</p>
       </div>
     </header>
