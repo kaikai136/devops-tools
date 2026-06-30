@@ -317,6 +317,53 @@ class FeaturePermissionTests(TestCase):
         action_permission = Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")])
         self.assertTrue(role.permissions.filter(id=action_permission.id).exists())
 
+    def test_non_staff_user_permission_can_access_and_create_system_users(self):
+        ensure_feature_permissions()
+        user = get_user_model().objects.create_user(username="user-manager", password="pass", is_staff=False)
+        role = Group.objects.create(name="User manager")
+        role.permissions.add(
+            Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["users"]),
+            Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("users", "create")]),
+        )
+        user.groups.add(role)
+        self.client.force_login(user)
+
+        list_response = self.client.get("/api/system/users/")
+        create_response = self.client.post(
+            "/api/system/users/",
+            data={
+                "username": "created-by-role",
+                "firstName": "Role User",
+                "password": "UserPass123",
+                "isActive": True,
+                "roleIds": [],
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(create_response.status_code, 201)
+        self.assertTrue(get_user_model().objects.filter(username="created-by-role").exists())
+
+    def test_non_staff_user_page_permission_does_not_grant_user_write_actions(self):
+        ensure_feature_permissions()
+        user = get_user_model().objects.create_user(username="user-viewer", password="pass", is_staff=False)
+        role = Group.objects.create(name="User viewer")
+        role.permissions.add(Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["users"]))
+        user.groups.add(role)
+        self.client.force_login(user)
+
+        list_response = self.client.get("/api/system/users/")
+        create_response = self.client.post(
+            "/api/system/users/",
+            data={"username": "blocked-user", "password": "UserPass123", "roleIds": []},
+            content_type="application/json",
+        )
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(create_response.status_code, 403)
+        self.assertFalse(get_user_model().objects.filter(username="blocked-user").exists())
+
 
 class DashboardSummaryApiTests(TestCase):
     def setUp(self):

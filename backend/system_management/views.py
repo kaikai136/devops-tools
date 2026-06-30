@@ -7,26 +7,130 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from accounts.models import UserProfile
-from accounts.permissions import require_login, require_staff
+from accounts.permissions import has_feature_permission, require_feature_permission, require_login
 from operations.responses import bad_request, bounded_int, not_found, serializer_bad_request
 
 from .dashboard import build_dashboard_summary
 from .models import LoginLog, SystemSetting
 from .serializers import WATERMARK_SETTING_KEY, LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
-from .services import FEATURE_PERMISSION_CODE_BY_KEY, UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
+from .services import UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
+
+
+SYSTEM_PERMISSION_MESSAGES = {
+    "dashboard": "没有仪表盘访问权限",
+    "loginLogs": "没有登录日志权限",
+    "users": "没有用户管理权限",
+    "roles": "没有角色管理权限",
+    "systemSettings": "没有系统设置权限",
+}
 
 
 def require_dashboard_access(request):
-    auth_error = require_login(request)
-    if auth_error:
-        return auth_error
-    if request.user.is_superuser:
-        return None
-    ensure_feature_permissions()
-    permission_code = FEATURE_PERMISSION_CODE_BY_KEY["dashboard"]
-    if not request.user.has_perm(f"system_management.{permission_code}"):
-        return Response({"error": "没有仪表盘访问权限"}, status=status.HTTP_403_FORBIDDEN)
+    return require_system_permission(request, "dashboard")
+
+
+def require_system_permission(request, feature_key: str, action_key: str | None = None):
+    return require_feature_permission(
+        request,
+        feature_key,
+        action_key,
+        SYSTEM_PERMISSION_MESSAGES.get(feature_key, "没有操作权限"),
+    )
+
+
+def require_system_actions(request, feature_key: str, action_keys):
+    access_error = require_system_permission(request, feature_key)
+    if access_error:
+        return access_error
+
+    required_actions = {action_key for action_key in action_keys if action_key}
+    for action_key in required_actions:
+        if not has_feature_permission(request.user, feature_key, action_key):
+            return Response({"error": SYSTEM_PERMISSION_MESSAGES.get(feature_key, "没有操作权限")}, status=status.HTTP_403_FORBIDDEN)
     return None
+
+
+def _coerce_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _request_role_ids(data):
+    if "roleIds" not in data:
+        return None
+
+    raw_role_ids = data.get("roleIds", [])
+    if isinstance(raw_role_ids, str):
+        values = [raw_role_ids] if raw_role_ids.strip() else []
+    else:
+        values = list(raw_role_ids)
+
+    try:
+        return sorted(int(value) for value in values)
+    except (TypeError, ValueError):
+        return None
+
+
+def required_user_update_actions(request, user):
+    data = request.data
+    actions = set()
+    password = str(data.get("password", "")).strip()
+    if password:
+        actions.add("reset_password")
+
+    if "isActive" in data and _coerce_bool(data.get("isActive")) != user.is_active:
+        actions.add("toggle_status")
+
+    editable_fields = [
+        ("username", user.username),
+        ("email", user.email),
+        ("firstName", user.first_name),
+        ("isStaff", user.is_staff),
+    ]
+    for key, current_value in editable_fields:
+        if key not in data:
+            continue
+        next_value = _coerce_bool(data.get(key)) if isinstance(current_value, bool) else str(data.get(key, "")).strip()
+        if next_value != current_value:
+            actions.add("edit")
+
+    next_role_ids = _request_role_ids(data)
+    if next_role_ids is not None:
+        current_role_ids = sorted(user.groups.values_list("id", flat=True))
+        if next_role_ids != current_role_ids:
+            actions.add("edit")
+
+    if not actions:
+        actions.add("edit")
+    return actions
+
+
+def required_role_update_actions(request, role):
+    actions = set()
+    name = str(request.data.get("name", role.name)).strip()
+    if name != role.name:
+        actions.add("edit")
+
+    if "permissionIds" in request.data:
+        raw_permission_ids = request.data.get("permissionIds", [])
+        if isinstance(raw_permission_ids, str):
+            values = [raw_permission_ids] if raw_permission_ids.strip() else []
+        else:
+            values = list(raw_permission_ids)
+        try:
+            next_permission_ids = sorted(int(value) for value in values)
+        except (TypeError, ValueError):
+            next_permission_ids = []
+        current_permission_ids = sorted(role.permissions.values_list("id", flat=True))
+        if next_permission_ids != current_permission_ids:
+            actions.add("permissions")
+
+    if not actions:
+        actions.add("edit")
+    return actions
 
 
 @api_view(["GET"])
@@ -39,9 +143,9 @@ def dashboard_summary(request):
 
 @api_view(["GET"])
 def login_logs(request):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "loginLogs")
+    if access_error:
+        return access_error
 
     queryset = LoginLog.objects.select_related("user")
     status_filter = str(request.query_params.get("status", "")).strip()
@@ -76,9 +180,9 @@ def login_logs(request):
 
 @api_view(["GET", "POST"])
 def system_users(request):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "users", "create" if request.method == "POST" else None)
+    if access_error:
+        return access_error
 
     User = get_user_model()
     ensure_builtin_admin()
@@ -95,9 +199,9 @@ def system_users(request):
 
 @api_view(["GET", "PUT", "DELETE"])
 def system_user_detail(request, user_id: int):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "users")
+    if access_error:
+        return access_error
 
     User = get_user_model()
     try:
@@ -109,12 +213,19 @@ def system_user_detail(request, user_id: int):
         return Response(SystemUserSerializer(user).data)
 
     if request.method == "DELETE":
+        action_error = require_system_permission(request, "users", "delete")
+        if action_error:
+            return action_error
         if user.id == request.user.id:
             return bad_request("不能删除当前登录用户")
         if is_builtin_admin_user(user):
             return bad_request("内置管理员不允许删除")
         user.delete()
         return Response({"deleted": True})
+
+    action_error = require_system_actions(request, "users", required_user_update_actions(request, user))
+    if action_error:
+        return action_error
 
     serializer = SystemUserSerializer(user, data=request.data, partial=True)
     if not serializer.is_valid():
@@ -140,9 +251,9 @@ def _get_manageable_2fa_user(request, user_id: int):
 
 @api_view(["POST"])
 def system_user_2fa_enable(request, user_id: int):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "users", "2fa_enable")
+    if access_error:
+        return access_error
 
     user, error = _get_manageable_2fa_user(request, user_id)
     if error:
@@ -168,9 +279,9 @@ def system_user_2fa_enable(request, user_id: int):
 
 @api_view(["POST"])
 def system_user_2fa_disable(request, user_id: int):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "users", "2fa_disable")
+    if access_error:
+        return access_error
 
     user, error = _get_manageable_2fa_user(request, user_id)
     if error:
@@ -195,9 +306,9 @@ def system_user_2fa_disable(request, user_id: int):
 
 @api_view(["POST"])
 def system_user_2fa_reset(request, user_id: int):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "users", "2fa_reset")
+    if access_error:
+        return access_error
 
     user, error = _get_manageable_2fa_user(request, user_id)
     if error:
@@ -226,9 +337,9 @@ def system_user_2fa_reset(request, user_id: int):
 
 @api_view(["GET", "POST"])
 def roles(request):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "roles", "create" if request.method == "POST" else None)
+    if access_error:
+        return access_error
 
     if request.method == "GET":
         ensure_feature_permissions()
@@ -242,9 +353,9 @@ def roles(request):
 
 @api_view(["GET", "PUT", "DELETE"])
 def role_detail(request, role_id: int):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "roles")
+    if access_error:
+        return access_error
 
     try:
         role = Group.objects.get(id=role_id)
@@ -255,8 +366,15 @@ def role_detail(request, role_id: int):
         return Response(RoleSerializer(role).data)
 
     if request.method == "DELETE":
+        action_error = require_system_permission(request, "roles", "delete")
+        if action_error:
+            return action_error
         role.delete()
         return Response({"deleted": True})
+
+    action_error = require_system_actions(request, "roles", required_role_update_actions(request, role))
+    if action_error:
+        return action_error
 
     serializer = RoleSerializer(role, data=request.data, partial=True)
     if not serializer.is_valid():
@@ -266,9 +384,9 @@ def role_detail(request, role_id: int):
 
 @api_view(["GET"])
 def permissions(request):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "roles")
+    if access_error:
+        return access_error
 
     ensure_feature_permissions()
     queryset = Permission.objects.select_related("content_type").filter(codename__in=UI_PERMISSION_CODES).order_by("id")
@@ -277,9 +395,9 @@ def permissions(request):
 
 @api_view(["GET", "POST"])
 def system_settings(request):
-    staff_error = require_staff(request)
-    if staff_error:
-        return staff_error
+    access_error = require_system_permission(request, "systemSettings", "save" if request.method == "POST" else None)
+    if access_error:
+        return access_error
 
     if request.method == "GET":
         return Response(SystemSettingSerializer(SystemSetting.objects.all(), many=True).data)
@@ -297,9 +415,10 @@ def system_setting_detail(request, setting_key: str):
         if auth_error:
             return auth_error
     else:
-        staff_error = require_staff(request)
-        if staff_error:
-            return staff_error
+        action_key = "save" if request.method in {"PUT", "DELETE"} else None
+        access_error = require_system_permission(request, "systemSettings", action_key)
+        if access_error:
+            return access_error
 
     try:
         setting = SystemSetting.objects.get(key=setting_key)
