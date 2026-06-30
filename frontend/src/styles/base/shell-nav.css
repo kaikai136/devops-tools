@@ -20,7 +20,7 @@
   overflow-x: visible;
   border-right: 1px solid #d6e3f4;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  padding: 30px 12px;
+  padding: 0 12px 30px;
   transition: padding 0.22s ease, background 0.22s ease;
 }
 
@@ -31,7 +31,7 @@
 
 .sidebar.collapsed {
   z-index: 80;
-  padding: 14px 10px;
+  padding: 0 10px 14px;
   overflow: visible;
   border-right-color: #d6e3f4;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
@@ -47,20 +47,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 58px;
-  margin: 0 2px 14px;
+  height: var(--workspace-topbar-height, 58px);
+  margin: 0 -12px 14px;
   padding: 0 42px 0 12px;
-  border: 1px solid #dde8f7;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-  box-shadow: 0 10px 24px rgba(70, 101, 145, 0.08);
+  border: 0;
+  border-bottom: 1px solid #d6e3f4;
+  border-radius: 0;
+  background: #ffffff;
+  box-shadow: none;
   overflow: hidden;
 }
 
 .workspace-dark .sidebar-brand {
-  border-color: var(--workspace-border);
-  background: linear-gradient(180deg, #172033 0%, #111827 100%);
-  box-shadow: 0 10px 24px rgba(2, 8, 23, 0.24);
+  border-color: var(--workspace-border-soft);
+  background: var(--workspace-surface);
+  box-shadow: none;
 }
 
 .sidebar-brand img {
@@ -110,18 +111,18 @@
 }
 
 .sidebar.collapsed .sidebar-brand {
-  height: 46px;
-  margin: 0 0 12px;
+  height: var(--workspace-topbar-height, 58px);
+  margin: 0 -10px 12px;
   padding: 0;
-  border-color: #dde8f7;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
-  box-shadow: 0 10px 24px rgba(70, 101, 145, 0.08);
+  border-bottom: 1px solid #d6e3f4;
+  background: #ffffff;
+  box-shadow: none;
 }
 
 .workspace-dark .sidebar.collapsed .sidebar-brand {
-  border-color: var(--workspace-border);
-  background: linear-gradient(180deg, #172033 0%, #111827 100%);
-  box-shadow: 0 10px 24px rgba(2, 8, 23, 0.24);
+  border-color: var(--workspace-border-soft);
+  background: var(--workspace-surface);
+  box-shadow: none;
 }
 
 .sidebar.collapsed .sidebar-brand img {

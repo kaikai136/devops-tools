@@ -10,6 +10,7 @@
 }
 
 .app-shell {
+  --workspace-topbar-height: 58px;
   --workspace-bg: #edf3fb;
   --workspace-surface: #fff;
   --workspace-surface-muted: #f8fbff;
@@ -60,7 +61,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  min-height: 48px;
+  min-height: var(--workspace-topbar-height);
   padding: 0 18px 0 14px;
   border-bottom: 1px solid var(--workspace-border-soft);
   background: var(--workspace-surface);
