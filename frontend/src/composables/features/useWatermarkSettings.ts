@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue';
 
 import { apiPost, apiPut } from '../../api';
-import { navGroups } from '../../navigation';
+import { dashboardNavItem, navGroups } from '../../navigation';
 import type { SystemSetting, ToolKey, WatermarkConfig } from '../../types';
 
 export const WATERMARK_SETTING_KEY = 'watermark';
@@ -15,6 +15,11 @@ export const defaultWatermarkConfig: WatermarkConfig = {
 export const watermarkExtraPages = [{ key: 'webTerminal', label: 'Web 终端', group: '独立页面' }];
 
 export const watermarkPageGroups = [
+  {
+    key: 'dashboard',
+    label: '核心页面',
+    pages: [{ key: dashboardNavItem.key, label: dashboardNavItem.label }],
+  },
   ...navGroups.map((group) => ({
     key: group.key,
     label: group.label,

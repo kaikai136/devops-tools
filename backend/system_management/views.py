@@ -9,9 +9,31 @@ from rest_framework.response import Response
 from accounts.permissions import require_login, require_staff
 from operations.responses import bad_request, bounded_int, not_found, serializer_bad_request
 
+from .dashboard import build_dashboard_summary
 from .models import LoginLog, SystemSetting
 from .serializers import WATERMARK_SETTING_KEY, LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
-from .services import UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
+from .services import FEATURE_PERMISSION_CODE_BY_KEY, UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
+
+
+def require_dashboard_access(request):
+    auth_error = require_login(request)
+    if auth_error:
+        return auth_error
+    if request.user.is_superuser:
+        return None
+    ensure_feature_permissions()
+    permission_code = FEATURE_PERMISSION_CODE_BY_KEY["dashboard"]
+    if not request.user.has_perm(f"system_management.{permission_code}"):
+        return Response({"error": "没有仪表盘访问权限"}, status=status.HTTP_403_FORBIDDEN)
+    return None
+
+
+@api_view(["GET"])
+def dashboard_summary(request):
+    access_error = require_dashboard_access(request)
+    if access_error:
+        return access_error
+    return Response(build_dashboard_summary())
 
 
 @api_view(["GET"])

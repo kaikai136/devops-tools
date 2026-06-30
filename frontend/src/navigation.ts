@@ -14,6 +14,12 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+export const dashboardNavItem: NavItem = {
+  key: 'dashboard',
+  label: '仪表盘',
+  desc: '系统总览、资产统计与出口网络',
+};
+
 export const navGroups: NavGroup[] = [
   {
     key: 'network' as const,

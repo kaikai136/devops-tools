@@ -1,8 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.test import RequestFactory, TestCase
+from django.utils import timezone
+from unittest.mock import Mock, patch
 
+from host_management.models import HostCredential, HostGroup, ManagedHost
 from .models import LoginLog, SystemSetting
+from .dashboard import parse_cip_output
 from .services import (
     BUILTIN_ADMIN_EMAIL,
     BUILTIN_ADMIN_FIRST_NAME,
@@ -143,6 +147,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         codenames = {item["codename"] for item in payload}
+        self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["dashboard"], codenames)
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["hosts"], codenames)
         self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")], codenames)
         self.assertTrue(all(item["isFeature"] for item in payload))
@@ -175,6 +180,116 @@ class FeaturePermissionTests(TestCase):
 
         action_permission = Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")])
         self.assertTrue(role.permissions.filter(id=action_permission.id).exists())
+
+
+class DashboardSummaryApiTests(TestCase):
+    def setUp(self):
+        ensure_feature_permissions()
+        ManagedHost.objects.all().delete()
+        HostCredential.objects.all().delete()
+        HostGroup.objects.all().delete()
+        LoginLog.objects.all().delete()
+        self.dashboard_permission = Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["dashboard"])
+        self.user = get_user_model().objects.create_user(username="viewer", password="pass")
+        self.operator = get_user_model().objects.create_user(username="operator", password="pass", is_staff=True)
+        self.admin = get_user_model().objects.create_superuser(username="root", password="pass")
+
+    def test_dashboard_requires_login(self):
+        response = self.client.get("/api/dashboard/summary/")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_dashboard_requires_access_permission(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/api/dashboard/summary/")
+
+        self.assertEqual(response.status_code, 403)
+
+    @patch("system_management.dashboard.get_egress_network")
+    def test_dashboard_returns_summary_for_permitted_user(self, mock_egress):
+        mock_egress.return_value = {
+            "ip": "203.0.113.8",
+            "location": "中国 江苏 南京",
+            "isp": "电信",
+            "url": "http://www.cip.cc/203.0.113.8",
+            "raw": "",
+            "checkedAt": timezone.now().isoformat(),
+            "status": "ok",
+            "error": "",
+        }
+        role = Group.objects.create(name="dashboard-viewer")
+        role.permissions.add(self.dashboard_permission)
+        self.user.groups.add(role)
+        group = HostGroup.objects.create(name="生产", sort_order=1)
+        ManagedHost.objects.create(name="linux-01", group=group, private_ip="192.168.1.10", cpu=4, memory=8, os="ubuntu", verified=True)
+        ManagedHost.objects.create(name="win-01", group=group, private_ip="192.168.1.11", cpu=8, memory=16, os="windows", verify_status="failed")
+        HostCredential.objects.create(name="root-key", username="root")
+        LoginLog.objects.create(user=self.user, username="viewer", ip_address="10.0.0.8", status=LoginLog.STATUS_SUCCESS)
+        LoginLog.objects.create(username="viewer", ip_address="10.0.0.9", status=LoginLog.STATUS_FAILED)
+        self.client.force_login(self.user)
+
+        response = self.client.get("/api/dashboard/summary/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["users"]["total"], 4)
+        self.assertEqual(payload["assets"]["total"], 2)
+        self.assertEqual(payload["assets"]["verified"], 1)
+        self.assertEqual(payload["assets"]["failed"], 1)
+        self.assertEqual(payload["assets"]["cpuCores"], 12)
+        self.assertEqual(payload["assets"]["memoryGb"], 24)
+        self.assertEqual(payload["assets"]["credentials"], 1)
+        self.assertEqual(payload["egressNetwork"]["ip"], "203.0.113.8")
+        self.assertEqual(len(payload["loginTrend"]), 7)
+        self.assertTrue(any(item["label"] == "生产" and item["value"] == 2 for item in payload["groupRanking"]))
+
+    @patch("system_management.dashboard.get_egress_network")
+    def test_superuser_can_access_dashboard_without_role_permission(self, mock_egress):
+        mock_egress.return_value = {"ip": "", "location": "", "isp": "", "url": "", "raw": "", "checkedAt": "", "status": "error", "error": ""}
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/api/dashboard/summary/")
+
+        self.assertEqual(response.status_code, 200)
+
+    @patch("system_management.dashboard.subprocess.run")
+    @patch("system_management.dashboard.cache")
+    def test_egress_network_parses_cip_output(self, mock_cache, mock_run):
+        from .dashboard import get_egress_network
+
+        mock_cache.get.return_value = None
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout="IP\t: 222.94.156.34\n地址\t: 中国 江苏 南京\n运营商\t: 电信\n\nURL\t: http://www.cip.cc/222.94.156.34\n",
+            stderr="",
+        )
+
+        payload = get_egress_network()
+
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["ip"], "222.94.156.34")
+        self.assertEqual(payload["location"], "中国 江苏 南京")
+        self.assertEqual(payload["isp"], "电信")
+
+    @patch("system_management.dashboard.subprocess.run")
+    @patch("system_management.dashboard.cache")
+    def test_egress_network_handles_curl_failure(self, mock_cache, mock_run):
+        from .dashboard import get_egress_network
+
+        mock_cache.get.return_value = None
+        mock_run.return_value = Mock(returncode=28, stdout="", stderr="operation timed out")
+
+        payload = get_egress_network()
+
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("timed out", payload["error"])
+
+    def test_parse_cip_output_tolerates_missing_fields(self):
+        parsed = parse_cip_output("地址\t: 中国 江苏 南京\n")
+
+        self.assertEqual(parsed["ip"], "")
+        self.assertEqual(parsed["location"], "中国 江苏 南京")
 
 
 class SystemSettingsApiTests(TestCase):

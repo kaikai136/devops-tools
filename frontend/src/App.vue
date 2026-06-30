@@ -5,6 +5,7 @@ import { appContextKey } from './appContext';
 import AccountManager from './components/tools/AccountManager.vue';
 import AppIcon from './components/common/AppIcon.vue';
 import AuthenticatorPanel from './components/tools/AuthenticatorPanel.vue';
+import DashboardPage from './components/tools/DashboardPage.vue';
 import LoginPage from './components/auth/LoginPage.vue';
 import HostManager from './components/tools/HostManager.vue';
 import IpScanner from './components/tools/IpScanner.vue';
@@ -37,6 +38,7 @@ const {
   localIp,
   selectedHost,
   ipScanMessage,
+  dashboardNavItem,
   navGroups,
   activeNavGroup,
   activeNavItem,
@@ -148,6 +150,27 @@ async function confirmHostExport() {
       </div>
 
       <nav class="sidebar-nav">
+        <button
+          v-if="dashboardNavItem && !sidebarCollapsed"
+          class="nav-dashboard-button"
+          :class="{ active: activeTool === 'dashboard' }"
+          type="button"
+          @click="setActiveTool('dashboard')"
+        >
+          <span class="nav-icon"><AppIcon name="dashboard" :size="18" /></span>
+          <span>{{ dashboardNavItem.label }}</span>
+        </button>
+        <button
+          v-if="dashboardNavItem && sidebarCollapsed"
+          class="nav-dashboard-compact"
+          :class="{ active: activeTool === 'dashboard' }"
+          type="button"
+          :title="dashboardNavItem.label"
+          :aria-label="dashboardNavItem.label"
+          @click="setActiveTool('dashboard')"
+        >
+          <span class="nav-icon"><AppIcon name="dashboard" :size="18" /></span>
+        </button>
         <section v-for="group in navGroups" :key="group.key" class="nav-group">
           <button
             class="nav-group-button"
@@ -239,10 +262,16 @@ async function confirmHostExport() {
           </button>
           <div class="page-breadcrumb">
             <span>首页</span>
-            <em>/</em>
-            <span>{{ activeNavGroup.label }}</span>
-            <em>/</em>
-            <strong>{{ activeNavItem.label }}</strong>
+            <template v-if="activeTool === 'dashboard'">
+              <em>/</em>
+              <strong>仪表盘</strong>
+            </template>
+            <template v-else>
+              <em>/</em>
+              <span>{{ activeNavGroup.label }}</span>
+              <em>/</em>
+              <strong>{{ activeNavItem.label }}</strong>
+            </template>
           </div>
         </div>
         <div class="workspace-actions">
@@ -263,7 +292,7 @@ async function confirmHostExport() {
               <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
               <button class="header-action terminal-action" type="button" :disabled="!canUsePageAction('hosts', 'terminal')" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
             </template>
-            <template v-else-if="activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
+            <template v-else-if="activeTool === 'dashboard' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
             </template>
@@ -317,6 +346,7 @@ async function confirmHostExport() {
         </div>
       </header>
 
+      <DashboardPage v-if="activeTool === 'dashboard'" />
       <IpScanner v-if="activeTool === 'ip'" />
       <HostManager v-if="activeTool === 'hosts'" />
       <AccountManager v-if="activeTool === 'accounts'" />

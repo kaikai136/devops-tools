@@ -22,6 +22,7 @@ const {
   workspaceTheme,
   isWorkspaceDark,
   navGroups,
+  dashboardNavItem,
   activeNavGroup,
   activeNavItem,
   setActiveTool,
@@ -297,10 +298,27 @@ const permittedNavGroups = computed(() => {
 });
 
 const currentPermissionCodes = computed(() => new Set(currentUser.value?.featurePermissionCodes ?? []));
-const permittedToolKeys = computed(() => new Set(permittedNavGroups.value.flatMap((group) => group.items.map((item) => item.key))));
-const permittedActiveNavGroup = computed(() => permittedNavGroups.value.find((group) => group.items.some((item) => item.key === activeTool.value)) ?? permittedNavGroups.value[0] ?? activeNavGroup.value);
+const permittedDashboardItem = computed(() => {
+  const user = currentUser.value;
+  if (!user || user.is_superuser) return dashboardNavItem;
+  return currentPermissionCodes.value.has('access_dashboard') ? dashboardNavItem : null;
+});
+const permittedToolKeys = computed(() => {
+  const keys = permittedNavGroups.value.flatMap((group) => group.items.map((item) => item.key));
+  if (permittedDashboardItem.value) keys.unshift(permittedDashboardItem.value.key);
+  return new Set(keys);
+});
+const permittedActiveNavGroup = computed(() => {
+  if (activeTool.value === 'dashboard' && permittedDashboardItem.value) {
+    return { key: 'dashboard', label: '仪表盘', items: [permittedDashboardItem.value] };
+  }
+  return permittedNavGroups.value.find((group) => group.items.some((item) => item.key === activeTool.value)) ?? permittedNavGroups.value[0] ?? activeNavGroup.value;
+});
 const permittedActiveNavItem = computed(
-  () => permittedActiveNavGroup.value.items.find((item) => item.key === activeTool.value) ?? permittedActiveNavGroup.value.items[0] ?? activeNavItem.value,
+  () => {
+    if (activeTool.value === 'dashboard' && permittedDashboardItem.value) return permittedDashboardItem.value;
+    return permittedActiveNavGroup.value.items.find((item) => item.key === activeTool.value) ?? permittedActiveNavGroup.value.items[0] ?? activeNavItem.value;
+  },
 );
 const shouldShowWatermark = computed(() => watermarkAppliesToPage(watermarkConfig.value, activeTool.value));
 
@@ -370,6 +388,7 @@ const appState = {
   isWorkspaceDark,
   toast,
   localIp,
+  dashboardNavItem: permittedDashboardItem,
   navGroups: permittedNavGroups,
   activeNavGroup: permittedActiveNavGroup,
   activeNavItem: permittedActiveNavItem,
@@ -587,7 +606,7 @@ onMounted(async () => {
 
 watch([isAuthenticated, permittedToolKeys], ([authenticated, toolKeys]) => {
   if (!authenticated || toolKeys.has(activeTool.value)) return;
-  const firstTool = permittedNavGroups.value[0]?.items[0]?.key;
+  const firstTool = permittedDashboardItem.value?.key ?? permittedNavGroups.value[0]?.items[0]?.key;
   if (firstTool) activeTool.value = firstTool;
 });
 

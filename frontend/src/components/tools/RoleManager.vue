@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 
 import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import { useAppContext } from '../../appContext';
-import { navGroups } from '../../navigation';
+import { dashboardNavItem, navGroups } from '../../navigation';
 import { errorMessage } from '../../utils/errors';
 import AppIcon from '../common/AppIcon.vue';
 
@@ -28,6 +28,12 @@ type RoleDialogMode = 'create' | 'edit' | 'view' | 'permissions';
 interface RoleForm {
   name: string;
   permissionIds: number[];
+}
+
+interface PermissionGroup {
+  key: string;
+  label: string;
+  items: typeof navGroups[number]['items'];
 }
 
 const { activeTool, canUsePageAction } = useAppContext();
@@ -65,6 +71,10 @@ const actionPermissionsByFeatureKey = computed(() => {
   });
   return groups;
 });
+const permissionGroups = computed<PermissionGroup[]>(() => [
+  { key: 'dashboard', label: '核心页面', items: [dashboardNavItem] },
+  ...navGroups,
+]);
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredRoles.value.length / pageSize.value)));
 const pagedRoles = computed(() => {
   const start = (page.value - 1) * pageSize.value;
@@ -197,7 +207,7 @@ function toggleFeature(featureKey: string, event: Event) {
 }
 
 function groupFeatureKeys(groupKey: string) {
-  return navGroups.find((group) => group.key === groupKey)?.items.map((item) => item.key) ?? [];
+  return permissionGroups.value.find((group) => group.key === groupKey)?.items.map((item) => item.key) ?? [];
 }
 
 function featurePermissionIds(featureKey: string) {
@@ -438,7 +448,7 @@ function emptyRoleForm(): RoleForm {
               <span>功能</span>
             </div>
 
-            <template v-for="group in navGroups" :key="group.key">
+            <template v-for="group in permissionGroups" :key="group.key">
               <div
                 v-for="(item, itemIndex) in group.items"
                 :key="item.key"

@@ -1,4 +1,5 @@
 export type ToolKey =
+  | 'dashboard'
   | 'ip'
   | 'hosts'
   | 'accounts'
@@ -208,4 +209,79 @@ export interface WatermarkConfig {
   enabled: boolean;
   text: string;
   pages: string[];
+}
+
+export interface DashboardCard {
+  key: string;
+  label: string;
+  value: number;
+  changeLabel: string;
+  tone: string;
+}
+
+export interface DashboardSeriesPoint {
+  date: string;
+  success: number;
+  failed: number;
+}
+
+export interface DashboardDistributionItem {
+  label: string;
+  value: number;
+}
+
+export interface DashboardRecentLogin {
+  id: number;
+  username: string;
+  userDisplay: string;
+  ipAddress: string;
+  status: 'success' | 'failed';
+  message: string;
+  createdAt: string | null;
+}
+
+export interface DashboardEgressNetwork {
+  ip: string;
+  location: string;
+  isp: string;
+  url: string;
+  raw: string;
+  checkedAt: string;
+  status: 'ok' | 'error';
+  error: string;
+}
+
+export interface DashboardSummary {
+  cards: DashboardCard[];
+  users: {
+    total: number;
+    active: number;
+    disabled: number;
+    staff: number;
+    newThisMonth: number;
+    canLogin: number;
+  };
+  assets: {
+    total: number;
+    verified: number;
+    unverified: number;
+    failed: number;
+    newThisMonth: number;
+    groups: number;
+    credentials: number;
+    publicIpCount: number;
+    cpuCores: number;
+    memoryGb: number;
+    verificationRate: number;
+  };
+  loginTrend: DashboardSeriesPoint[];
+  assetDistribution: {
+    os: DashboardDistributionItem[];
+    platform: DashboardDistributionItem[];
+    verification: DashboardDistributionItem[];
+  };
+  recentLogins: DashboardRecentLogin[];
+  groupRanking: Array<{ id: number; label: string; value: number }>;
+  egressNetwork: DashboardEgressNetwork;
+  generatedAt: string;
 }

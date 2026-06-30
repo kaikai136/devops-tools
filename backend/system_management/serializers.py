@@ -8,6 +8,7 @@ from .models import LoginLog, SystemSetting
 
 WATERMARK_SETTING_KEY = "watermark"
 WATERMARK_ALLOWED_PAGES = {
+    "dashboard",
     "ip",
     "ports",
     "subnet",

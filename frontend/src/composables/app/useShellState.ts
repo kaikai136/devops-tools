@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 
 import type { IconName } from '../../components/common/AppIcon.vue';
-import { navGroups } from '../../navigation';
+import { dashboardNavItem, navGroups } from '../../navigation';
 import type { ToolKey } from '../../types';
 
 type WorkspaceTheme = 'light' | 'dark';
@@ -9,7 +9,7 @@ type WorkspaceTheme = 'light' | 'dark';
 const WORKSPACE_THEME_STORAGE_KEY = 'ops-tool.workspace-theme';
 
 export function useShellState() {
-  const activeTool = ref<ToolKey>('ip');
+  const activeTool = ref<ToolKey>('dashboard');
   const groupsOpen = ref({ network: true, host: true, security: true, system: true });
   const sidebarCollapsed = ref(false);
   const hoveredNavGroup = ref<string | null>(null);
@@ -67,6 +67,7 @@ export function useShellState() {
     workspaceTheme,
     isWorkspaceDark,
     navGroups,
+    dashboardNavItem,
     activeNavGroup,
     activeNavItem,
     setActiveTool,
@@ -83,6 +84,7 @@ export function useShellState() {
 
 function navItemIcon(key: ToolKey): IconName {
   const icons: Record<ToolKey, IconName> = {
+    dashboard: 'dashboard',
     ip: 'network',
     hosts: 'server',
     accounts: 'users',

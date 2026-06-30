@@ -21,7 +21,16 @@ class HostVerifyTests(TestCase):
             verified=False,
         )
 
-        with self.patch_probe({"machine_name": "prod-api-01", "cpu": 4, "memory": 8, "os": "ubuntu"}):
+        with self.patch_probe(
+            {
+                "machine_name": "prod-api-01",
+                "cpu": 4,
+                "memory": 8,
+                "os": "ubuntu",
+                "system_arch": "x86_64",
+                "system_type": "ubuntu",
+            }
+        ):
             updated, error = verify_host(host)
 
         self.assertIsNone(error)

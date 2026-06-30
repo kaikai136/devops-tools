@@ -16,6 +16,7 @@ BUILTIN_ADMIN_PASSWORD_ENV = "OPS_TOOL_ADMIN_PASSWORD"
 BUILTIN_ADMIN_DEFAULT_PASSWORD = "Admin@123456"
 
 FEATURE_PERMISSION_DEFINITIONS = [
+    ("dashboard", "仪表盘", "dashboard", "仪表盘"),
     ("network", "网络工具", "ip", "IP 探活"),
     ("network", "网络工具", "ports", "机器探测"),
     ("network", "网络工具", "subnet", "IPv4 子网划分"),
