@@ -79,12 +79,27 @@
   }
 
   .workspace-topbar {
+    flex-wrap: wrap;
+    gap: 8px 10px;
     min-height: 46px;
-    padding: 0 12px;
+    padding: 7px 12px;
+  }
+
+  .workspace-topbar-main {
+    flex: 1 1 min(100%, 280px);
+    gap: 8px;
+  }
+
+  .page-breadcrumb {
+    flex: 1 1 auto;
+    overflow: hidden;
+    gap: 6px;
   }
 
   .workspace-actions {
+    flex: 1 1 auto;
     gap: 6px;
+    justify-content: flex-end;
   }
 
   .workspace-user-dropdown {
@@ -110,15 +125,8 @@
     display: none;
   }
 
-  .page-header {
-    align-items: center;
-    flex-wrap: wrap;
-    min-height: 54px;
-    padding: 0 14px;
-  }
-
   .header-stats {
-    width: auto;
+    flex: 1 1 auto;
     justify-content: flex-end;
   }
 

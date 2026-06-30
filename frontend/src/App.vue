@@ -227,16 +227,55 @@ async function confirmHostExport() {
       </div>
 
       <header class="workspace-topbar">
-        <button
-          class="workspace-menu-button"
-          type="button"
-          :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
-          :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
-          @click="toggleSidebar"
-        >
-          <AppIcon name="menu" :size="18" />
-        </button>
+        <div class="workspace-topbar-main">
+          <button
+            class="workspace-menu-button"
+            type="button"
+            :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+            :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+            @click="toggleSidebar"
+          >
+            <AppIcon name="menu" :size="18" />
+          </button>
+          <div class="page-breadcrumb">
+            <span>首页</span>
+            <em>/</em>
+            <span>{{ activeNavGroup.label }}</span>
+            <em>/</em>
+            <strong>{{ activeNavItem.label }}</strong>
+          </div>
+        </div>
         <div class="workspace-actions">
+          <div class="header-stats">
+            <template v-if="activeTool === 'auth'">
+              <button class="header-action" type="button" :disabled="!canUsePageAction('auth', 'export')" @click="saveAuthEntries">导出</button>
+              <button class="header-action" type="button" :disabled="!canUsePageAction('auth', 'import')" @click="triggerAuthImportFile">导入</button>
+              <input ref="authImportFile" hidden type="file" accept="application/json,.json" @change="importAuthEntries" />
+            </template>
+            <template v-else-if="activeTool === 'password'">
+              <button class="header-action" type="button" :disabled="!canUsePageAction('password', 'export')" @click="exportPasswordRecords">导出</button>
+              <button class="header-action" type="button" :disabled="!canUsePageAction('password', 'import')" @click="triggerPasswordImportFile">导入</button>
+              <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
+            </template>
+            <template v-else-if="activeTool === 'hosts'">
+              <button class="header-action" type="button" :disabled="!canUsePageAction('hosts', 'export')" @click="backupHostManagement"><AppIcon name="download" :size="16" />备份</button>
+              <button class="header-action" type="button" :disabled="!canUsePageAction('hosts', 'import')" @click="triggerHostRestoreFile"><AppIcon name="upload" :size="16" />恢复</button>
+              <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
+              <button class="header-action terminal-action" type="button" :disabled="!canUsePageAction('hosts', 'terminal')" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
+            </template>
+            <template v-else-if="activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
+            <template v-else-if="activeTool === 'ip' && ipScanMessage">
+              <span class="inline-status">{{ ipScanMessage }}</span>
+            </template>
+            <template v-else>
+              <article><span>本机 IP</span><strong>{{ localIp }}</strong></article>
+              <article
+                class="selected-host-card"
+                title="双击使用选中 IP"
+                @dblclick="useSelectedIpForPing"
+              ><span>选中 IP</span><strong>{{ selectedHost }}</strong></article>
+            </template>
+          </div>
           <button
             class="workspace-icon-button workspace-theme-toggle"
             type="button"
@@ -275,46 +314,6 @@ async function confirmHostExport() {
               </button>
             </div>
           </div>
-        </div>
-      </header>
-
-      <header class="page-header">
-        <div class="page-breadcrumb">
-          <span>首页</span>
-          <em>/</em>
-          <span>{{ activeNavGroup.label }}</span>
-          <em>/</em>
-          <strong>{{ activeNavItem.label }}</strong>
-        </div>
-        <div class="header-stats">
-          <template v-if="activeTool === 'auth'">
-            <button class="header-action" type="button" :disabled="!canUsePageAction('auth', 'export')" @click="saveAuthEntries">导出</button>
-            <button class="header-action" type="button" :disabled="!canUsePageAction('auth', 'import')" @click="triggerAuthImportFile">导入</button>
-            <input ref="authImportFile" hidden type="file" accept="application/json,.json" @change="importAuthEntries" />
-          </template>
-          <template v-else-if="activeTool === 'password'">
-            <button class="header-action" type="button" :disabled="!canUsePageAction('password', 'export')" @click="exportPasswordRecords">导出</button>
-            <button class="header-action" type="button" :disabled="!canUsePageAction('password', 'import')" @click="triggerPasswordImportFile">导入</button>
-            <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
-          </template>
-          <template v-else-if="activeTool === 'hosts'">
-            <button class="header-action" type="button" :disabled="!canUsePageAction('hosts', 'export')" @click="backupHostManagement"><AppIcon name="download" :size="16" />备份</button>
-            <button class="header-action" type="button" :disabled="!canUsePageAction('hosts', 'import')" @click="triggerHostRestoreFile"><AppIcon name="upload" :size="16" />恢复</button>
-            <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
-            <button class="header-action terminal-action" type="button" :disabled="!canUsePageAction('hosts', 'terminal')" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
-          </template>
-          <template v-else-if="activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'systemSettings'"></template>
-          <template v-else-if="activeTool === 'ip' && ipScanMessage">
-            <span class="inline-status">{{ ipScanMessage }}</span>
-          </template>
-          <template v-else>
-            <article><span>本机 IP</span><strong>{{ localIp }}</strong></article>
-            <article
-              class="selected-host-card"
-              title="双击使用选中 IP"
-              @dblclick="useSelectedIpForPing"
-            ><span>选中 IP</span><strong>{{ selectedHost }}</strong></article>
-          </template>
         </div>
       </header>
 
