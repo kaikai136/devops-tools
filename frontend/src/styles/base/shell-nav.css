@@ -185,6 +185,7 @@
   padding: 0 12px;
   border-radius: 7px;
   color: #102945;
+  font-size: 16px;
   font-weight: 900;
   transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
@@ -245,6 +246,7 @@
   border-radius: 7px;
   background: #f1e7ff;
   color: #7332d8;
+  font-size: 16px;
   font-weight: 900;
   transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -329,6 +331,7 @@
   padding: 0 12px;
   border-radius: 7px;
   color: #102945;
+  font-size: 16px;
   font-weight: 800;
   transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
@@ -464,7 +467,7 @@
   margin: 0 0 8px;
   padding: 0 8px;
   color: #4d6588;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -479,6 +482,7 @@
   padding: 0 8px;
   border-radius: 7px;
   color: #102945;
+  font-size: 15px;
   font-weight: 800;
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease;

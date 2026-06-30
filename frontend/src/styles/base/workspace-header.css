@@ -117,6 +117,34 @@
   color: #facc15;
 }
 
+.workspace-dashboard-refresh {
+  color: #0f766e;
+}
+
+.workspace-dashboard-refresh:hover:not(:disabled) {
+  border-color: rgba(20, 184, 166, 0.42);
+  background: #ecfeff;
+}
+
+.workspace-dashboard-refresh:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.workspace-dashboard-refresh:disabled .app-icon {
+  animation: workspace-dashboard-spin 0.9s linear infinite;
+}
+
+.workspace-dark .workspace-dashboard-refresh {
+  color: #5eead4;
+}
+
+@keyframes workspace-dashboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .workspace-user-menu {
   position: relative;
   display: inline-flex;

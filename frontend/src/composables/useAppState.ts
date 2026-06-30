@@ -394,6 +394,7 @@ const appState = {
   activeNavItem: permittedActiveNavItem,
   scopedToastVisible,
   toastTone,
+  showToast,
   shouldShowWatermark,
   watermarkConfig,
   watermarkDraft,

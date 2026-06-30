@@ -27,6 +27,8 @@ const hostExportScope = ref<HostExportScope>('all');
 const selectedHostExportColumns = ref<Set<HostExportColumnKey>>(new Set(hostExportColumnOptions.map((column) => column.field)));
 const selectedHostExportColumnList = computed(() => [...selectedHostExportColumns.value]);
 const allHostExportColumnsSelected = computed(() => selectedHostExportColumns.value.size === hostExportColumnOptions.length);
+const dashboardPageRef = ref<InstanceType<typeof DashboardPage> | null>(null);
+const isDashboardRefreshing = ref(false);
 
 const {
   activeTool,
@@ -50,6 +52,7 @@ const {
   logout,
   scopedToastVisible,
   toastTone,
+  showToast,
   shouldShowWatermark,
   watermarkConfig,
   setActiveTool,
@@ -122,6 +125,17 @@ async function confirmHostExport() {
     columns: selectedHostExportColumnList.value,
   });
   if (exported) closeHostTransferDialog();
+}
+
+async function refreshDashboard() {
+  if (isDashboardRefreshing.value) return;
+  isDashboardRefreshing.value = true;
+  try {
+    await dashboardPageRef.value?.refresh();
+    showToast('刷新完成', '仪表盘数据已更新。');
+  } finally {
+    isDashboardRefreshing.value = false;
+  }
 }
 </script>
 <template>
@@ -315,6 +329,17 @@ async function confirmHostExport() {
           >
             <AppIcon :name="isWorkspaceDark ? 'sun' : 'moon'" :size="18" />
           </button>
+          <button
+            v-if="activeTool === 'dashboard'"
+            class="workspace-icon-button workspace-dashboard-refresh"
+            type="button"
+            :disabled="isDashboardRefreshing"
+            :title="isDashboardRefreshing ? '刷新中' : '刷新仪表盘'"
+            :aria-label="isDashboardRefreshing ? '刷新中' : '刷新仪表盘'"
+            @click="refreshDashboard"
+          >
+            <AppIcon name="refresh" :size="18" />
+          </button>
           <div class="workspace-user-menu">
             <button class="workspace-avatar-button" type="button" aria-haspopup="menu" aria-label="账户菜单">
               <img src="/ops-captain-icon.png" alt="" />
@@ -346,7 +371,7 @@ async function confirmHostExport() {
         </div>
       </header>
 
-      <DashboardPage v-if="activeTool === 'dashboard'" />
+      <DashboardPage v-if="activeTool === 'dashboard'" ref="dashboardPageRef" />
       <IpScanner v-if="activeTool === 'ip'" />
       <HostManager v-if="activeTool === 'hosts'" />
       <AccountManager v-if="activeTool === 'accounts'" />
