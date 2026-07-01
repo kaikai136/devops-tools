@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from accounts.permissions import require_feature_permission
 from operations.responses import bad_request
 
 from .models import AuthenticatorEntry
@@ -18,19 +19,25 @@ from .services import (
 
 @api_view(["GET", "POST", "DELETE"])
 def authenticators(request):
+    action_key = {"GET": None, "POST": "create", "DELETE": "clear"}[request.method]
+    auth_error = require_feature_permission(request, "auth", action_key, "没有双因子认证操作权限")
+    if auth_error:
+        return auth_error
+
     if request.method == "GET":
-        entries = AuthenticatorEntry.objects.all()
+        entries = AuthenticatorEntry.objects.filter(created_by=request.user)
         data = AuthenticatorEntrySerializer(entries, many=True).data
         for item, entry in zip(data, entries, strict=False):
             item["totp"] = generate_totp(entry)
         return Response(data)
 
     if request.method == "DELETE":
-        AuthenticatorEntry.objects.all().delete()
+        AuthenticatorEntry.objects.filter(created_by=request.user).delete()
         return Response({"deleted": True})
 
     try:
         entry = AuthenticatorEntry.objects.create(
+            created_by=request.user,
             issuer=request.data.get("issuer", "").strip(),
             account_name=request.data.get("account_name", "").strip(),
             secret=normalize_totp_secret(request.data.get("secret", "")),
@@ -47,8 +54,13 @@ def authenticators(request):
 
 @api_view(["PUT", "DELETE"])
 def authenticator_detail(request, entry_id: int):
+    action_key = "edit" if request.method == "PUT" else "delete"
+    auth_error = require_feature_permission(request, "auth", action_key, "没有双因子认证操作权限")
+    if auth_error:
+        return auth_error
+
     try:
-        entry = AuthenticatorEntry.objects.get(id=entry_id)
+        entry = AuthenticatorEntry.objects.get(id=entry_id, created_by=request.user)
     except AuthenticatorEntry.DoesNotExist:
         return Response({"error": "条目不存在"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -72,9 +84,13 @@ def authenticator_detail(request, entry_id: int):
 
 
 @api_view(["GET"])
-def authenticator_code(_request, entry_id: int):
+def authenticator_code(request, entry_id: int):
+    auth_error = require_feature_permission(request, "auth", None, "没有双因子认证操作权限")
+    if auth_error:
+        return auth_error
+
     try:
-        entry = AuthenticatorEntry.objects.get(id=entry_id)
+        entry = AuthenticatorEntry.objects.get(id=entry_id, created_by=request.user)
         return Response(generate_totp(entry))
     except AuthenticatorEntry.DoesNotExist:
         return Response({"error": "条目不存在"}, status=status.HTTP_404_NOT_FOUND)
@@ -83,9 +99,13 @@ def authenticator_code(_request, entry_id: int):
 
 
 @api_view(["GET"])
-def authenticator_qrcode(_request, entry_id: int):
+def authenticator_qrcode(request, entry_id: int):
+    auth_error = require_feature_permission(request, "auth", None, "没有双因子认证操作权限")
+    if auth_error:
+        return auth_error
+
     try:
-        entry = AuthenticatorEntry.objects.get(id=entry_id)
+        entry = AuthenticatorEntry.objects.get(id=entry_id, created_by=request.user)
         uri = build_totp_uri(entry)
         return Response({"uri": uri, "data_url": generate_qr_data_url(uri)})
     except AuthenticatorEntry.DoesNotExist:
