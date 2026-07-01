@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { apiGet } from '../../api';
 import { useAppContext } from '../../appContext';
@@ -16,9 +16,11 @@ const { currentUser, isWorkspaceDark } = useAppContext();
 const summary = ref<DashboardSummary | null>(null);
 const isLoading = ref(false);
 const message = ref('');
+const now = ref(new Date());
+let clockTimer: number | undefined;
 
 const displayName = computed(() => currentUser.value?.first_name || currentUser.value?.username || '船长');
-const timeGreeting = computed(() => buildTimeGreeting(new Date().getHours()));
+const timeGreeting = computed(() => buildTimeGreeting(now.value.getHours()));
 const heroGreetingLine = computed(() => `${timeGreeting.value}，${displayName.value}`);
 const heroTypingLines = computed(() => [heroGreetingLine.value, '一路向前，莫问前程！！！']);
 const heroTypingAlt = computed(() => heroTypingLines.value.join(' / '));
@@ -26,6 +28,9 @@ const heroTypingUrl = computed(() => {
   const lines = heroTypingLines.value.map((line) => encodeURIComponent(line)).join(';');
   return `https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=900&size=24&pause=1000&color=9B5CFF&background=FFFFFF00&vCenter=true&width=520&height=40&lines=${lines}`;
 });
+const heroClockDate = computed(() => formatHeroDate(now.value));
+const heroClockTime = computed(() => formatClockTime(now.value));
+const heroClockLabel = computed(() => `${heroClockDate.value} ${heroClockTime.value}`);
 const generatedText = computed(() => (summary.value?.generatedAt ? formatTime(summary.value.generatedAt) : '--'));
 const osTopList = computed(() => withPercent(summary.value?.assetDistribution.os ?? []));
 const verificationList = computed(() => withPercent(summary.value?.assetDistribution.verification ?? []));
@@ -283,7 +288,16 @@ const verificationBarOption = computed<DashboardChartOption>(() => {
   };
 });
 
-onMounted(loadSummary);
+onMounted(() => {
+  loadSummary();
+  clockTimer = window.setInterval(() => {
+    now.value = new Date();
+  }, 1000);
+});
+
+onUnmounted(() => {
+  if (clockTimer !== undefined) window.clearInterval(clockTimer);
+});
 
 async function loadSummary() {
   if (isLoading.value) return;
@@ -434,12 +448,24 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(value);
 }
 
+function padTimeUnit(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function formatHeroDate(value: Date) {
+  const weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
+  return `${value.getFullYear()}年${padTimeUnit(value.getMonth() + 1)}月${padTimeUnit(value.getDate())}日 星期${weekdayLabels[value.getDay()]}`;
+}
+
+function formatClockTime(value: Date) {
+  return `${padTimeUnit(value.getHours())}:${padTimeUnit(value.getMinutes())}:${padTimeUnit(value.getSeconds())}`;
+}
+
 function formatTime(value: string | null) {
   if (!value) return '--';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.replace('T', ' ').slice(0, 19);
-  const pad = (number: number) => String(number).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())} ${padTimeUnit(date.getHours())}:${padTimeUnit(date.getMinutes())}`;
 }
 
 function statusText(status: string) {
@@ -473,6 +499,10 @@ defineExpose({
         </h1>
         <p>这里汇总系统账号、资产与网络出口状态，帮助你快速判断今天的运维态势。</p>
       </div>
+      <time class="dashboard-hero-clock" :datetime="now.toISOString()" :aria-label="heroClockLabel">
+        <span>{{ heroClockDate }}</span>
+        <strong>{{ heroClockTime }}</strong>
+      </time>
     </header>
 
     <p v-if="message" class="dashboard-message">{{ message }}</p>
