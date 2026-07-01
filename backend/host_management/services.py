@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from django.contrib.auth import get_user_model
 from django.db.models import Max, Min
 
 from .models import HostGroup, ManagedHost
@@ -75,6 +76,13 @@ def resolve_group_parent(parent_id) -> HostGroup | None:
         return HostGroup.objects.get(id=int(parent_id))
     except (TypeError, ValueError, HostGroup.DoesNotExist):
         raise ValueError("父级分组不存在")
+
+
+def resolve_creator(value):
+    username = str(value or "").strip()
+    if not username or username == "system":
+        return None
+    return get_user_model().objects.filter(username=username).first()
 
 
 def reorder_group(group: HostGroup, parent: HostGroup | None, position: str, target_id) -> None:

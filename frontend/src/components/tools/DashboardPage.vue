@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
 
 import { apiGet } from '../../api';
 import { useAppContext } from '../../appContext';
 import type { DashboardDistributionItem, DashboardSummary } from '../../types';
 import { errorMessage } from '../../utils/errors';
 import AppIcon from '../common/AppIcon.vue';
-import DashboardChart from './dashboard/DashboardChart.vue';
+
+const DashboardChart = defineAsyncComponent(() => import('./dashboard/DashboardChart.vue'));
 
 type DashboardChartOption = Record<string, unknown>;
 type DistributionWithPercent = DashboardDistributionItem & { percent: number };

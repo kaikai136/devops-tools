@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 
-import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
+import * as hostApi from '../../services/hostManagement';
+import type { HostManagementExport } from '../../services/hostManagement';
 import type { HostCredential, HostGroup, ManagedHost } from '../../types';
 import { readFileText } from '../../utils/files';
 import { compareHosts, findGroup, flattenGroups, flattenVisibleGroups, type FlatHostGroup, type HostSortKey, type SortDirection } from './hostGroups';
@@ -105,27 +106,6 @@ interface ManagedHostForm {
 interface HostMoveForm {
   hostId: number | null;
   targetGroup: number | null;
-}
-
-interface HostVerifyResponse {
-  host: ManagedHost;
-  verified: boolean;
-  error: string | null;
-}
-
-interface HostManagementExport {
-  version: number;
-  groups: ExportRow[];
-  hosts: ExportRow[];
-  credentials: ExportRow[];
-}
-
-interface HostManagementImportResponse {
-  imported: {
-    groups: number;
-    hosts: number;
-    credentials: number;
-  };
 }
 
 interface EncryptedHostBackup {
@@ -256,9 +236,9 @@ export function useHostManager({
     isLoadingHosts.value = true;
     try {
       const [groups, hosts, credentials] = await Promise.all([
-        apiGet<HostGroup[]>('/api/host-management/groups/'),
-        apiGet<ManagedHost[]>('/api/host-management/hosts/'),
-        apiGet<HostCredential[]>('/api/host-management/accounts/'),
+        hostApi.listHostGroups(),
+        hostApi.listManagedHosts(),
+        hostApi.listHostCredentials(),
       ]);
       hostGroups.value = groups;
       managedHosts.value = hosts;
@@ -305,7 +285,7 @@ export function useHostManager({
 
   async function backupHostManagement() {
     try {
-      const payload = await apiGet<HostManagementExport>('/api/host-management/export/');
+      const payload = await hostApi.exportHostManagementBackup();
       const encryptedPayload = await encryptHostBackup(payload);
       const date = new Date().toISOString().slice(0, 10);
       downloadFile(JSON.stringify(encryptedPayload, null, 2), `host-management-backup-${date}.enc.json`, 'application/json;charset=utf-8');
@@ -355,7 +335,7 @@ export function useHostManager({
       if (!text) return;
       const parsed = format === 'excel' ? parseExcelWorkbook(text) : JSON.parse(text);
       const payload = isEncryptedHostBackup(parsed) ? await decryptHostBackup(parsed) : parsed;
-      const result = await apiPost<HostManagementImportResponse>('/api/host-management/import/', payload);
+      const result = await hostApi.importHostManagementBackup(payload);
       await loadHostManagement();
       showToast(
         '恢复成功',
@@ -450,7 +430,7 @@ export function useHostManager({
     const position = drop.position === 'inside' ? 'first' : drop.position;
 
     try {
-      const result = await apiPut<{ groups: HostGroup[] }>(`/api/host-management/groups/${draggedId}/`, {
+      const result = await hostApi.updateHostGroup(draggedId, {
         name: dragged.label,
         parent,
         target,
@@ -568,8 +548,8 @@ export function useHostManager({
     try {
       const result =
         edit.mode === 'rename' && edit.groupId
-          ? await apiPut<{ groups: HostGroup[] }>(`/api/host-management/groups/${edit.groupId}/`, { name })
-          : await apiPost<{ group: HostGroup; groups: HostGroup[] }>('/api/host-management/groups/', {
+          ? await hostApi.updateHostGroup(edit.groupId, { name })
+          : await hostApi.createHostGroup({
               name,
               parent: edit.parent,
               sort_after: edit.mode === 'create-root' ? edit.after : null,
@@ -596,7 +576,7 @@ export function useHostManager({
     }
 
     try {
-      const result = await apiPost<{ group: HostGroup; groups: HostGroup[] }>('/api/host-management/groups/', {
+      const result = await hostApi.createHostGroup({
         name,
         parent: null,
         sort_after: rootHostGroupSortAfter.value,
@@ -620,7 +600,7 @@ export function useHostManager({
 
     setHostVerifying(host.id, true);
     try {
-      const result = await apiPost<HostVerifyResponse>(`/api/host-management/hosts/${host.id}/verify/`, {});
+      const result = await hostApi.verifyManagedHost(host.id);
       replaceHost(result.host);
       if (result.verified) {
         showToast('验证完成', `${result.host.name} 已获取机器配置。`);
@@ -732,8 +712,8 @@ export function useHostManager({
     }
     const saved =
       mode === 'edit' && hostDialog.value?.hostId
-        ? await apiPut<ManagedHost>(`/api/host-management/hosts/${hostDialog.value.hostId}/`, payload)
-        : await apiPost<ManagedHost>('/api/host-management/hosts/', payload);
+        ? await hostApi.updateManagedHost(hostDialog.value.hostId, payload)
+        : await hostApi.createManagedHost(payload);
 
     replaceHost(saved);
     selectedHostGroup.value = saved.group;
@@ -800,7 +780,7 @@ export function useHostManager({
         showToast('更新失败', '请选择主机和目标分组。');
         return;
       }
-      const updatedHosts = await Promise.all(hosts.map((host) => apiPut<ManagedHost>(`/api/host-management/hosts/${host.id}/`, { group: targetGroup })));
+      const updatedHosts = await Promise.all(hosts.map((host) => hostApi.updateManagedHost(host.id, { group: targetGroup })));
       updatedHosts.forEach(replaceHost);
       selectedHostGroup.value = targetGroup;
       hostMoveDialogOpen.value = false;
@@ -815,7 +795,7 @@ export function useHostManager({
       showToast('移动失败', '请选择主机和目标分组。');
       return;
     }
-    const updated = await apiPut<ManagedHost>(`/api/host-management/hosts/${host.id}/`, { group: hostMoveForm.value.targetGroup });
+    const updated = await hostApi.updateManagedHost(host.id, { group: hostMoveForm.value.targetGroup });
     replaceHost(updated);
     selectedHostGroup.value = updated.group;
     hostMoveDialogOpen.value = false;
@@ -837,7 +817,7 @@ export function useHostManager({
       return;
     }
     requestConfirm('删除所选主机', `确定删除所选 ${hosts.length} 台主机吗？`, '确定删除', async () => {
-      await Promise.all(hosts.map((host) => apiDelete(`/api/host-management/hosts/${host.id}/`)));
+      await Promise.all(hosts.map((host) => hostApi.deleteManagedHost(host.id)));
       const deletedIds = new Set(hosts.map((host) => host.id));
       managedHosts.value = managedHosts.value.filter((host) => !deletedIds.has(host.id));
       selectedManagedHostIds.value = new Set();
@@ -856,7 +836,7 @@ export function useHostManager({
       return;
     }
     requestConfirm('删除主机', `确定删除「${group.label}」下的 ${hosts.length} 台主机吗？`, '确定删除', async () => {
-      await Promise.all(hosts.map((host) => apiDelete(`/api/host-management/hosts/${host.id}/`)));
+      await Promise.all(hosts.map((host) => hostApi.deleteManagedHost(host.id)));
       managedHosts.value = managedHosts.value.filter((host) => !hosts.some((item) => item.id === host.id));
       await refreshGroupsOnly();
       showToast('操作成功', '分组下的主机已删除。');
@@ -875,7 +855,7 @@ export function useHostManager({
       return;
     }
     requestConfirm('删除分组', `确定删除分组「${group.label}」吗？`, '确定删除', async () => {
-      const result = await apiDelete<{ groups: HostGroup[] }>(`/api/host-management/groups/${group.key}/`);
+      const result = await hostApi.deleteHostGroup(group.key);
       hostGroups.value = result.groups;
       selectedHostGroup.value = null;
       showToast('操作成功', '分组已删除。');
@@ -883,13 +863,13 @@ export function useHostManager({
   }
 
   async function deleteHostById(hostId: number) {
-    await apiDelete(`/api/host-management/hosts/${hostId}/`);
+    await hostApi.deleteManagedHost(hostId);
     managedHosts.value = managedHosts.value.filter((item) => item.id !== hostId);
     await refreshGroupsOnly();
   }
 
   async function refreshGroupsOnly() {
-    hostGroups.value = await apiGet<HostGroup[]>('/api/host-management/groups/');
+    hostGroups.value = await hostApi.listHostGroups();
     pruneCollapsedHostGroups(hostGroups.value);
   }
 

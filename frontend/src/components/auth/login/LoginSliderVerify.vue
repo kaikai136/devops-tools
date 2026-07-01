@@ -1,16 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
-import { apiGet, apiPost } from '../../../api';
+import { getSliderChallenge, verifySliderChallenge, type SliderChallenge } from '../../../services/auth';
 import AppIcon from '../../common/AppIcon.vue';
-
-interface SliderChallenge {
-  challengeId: string;
-  targetX: number;
-  trackWidth: number;
-  tolerance: number;
-  expiresIn: number;
-}
 
 const HANDLE_SIZE = 40;
 
@@ -73,7 +65,7 @@ async function loadChallenge(nextMessage = '按住滑块拖动') {
   resetVisual(nextMessage);
   isLoading.value = true;
   try {
-    challenge.value = await apiGet<SliderChallenge>('/api/auth/slider-challenge/');
+    challenge.value = await getSliderChallenge();
   } catch (error) {
     challenge.value = null;
     message.value = error instanceof Error ? error.message : '滑块验证加载失败';
@@ -113,7 +105,7 @@ async function verifyDrag() {
   const elapsedMs = Math.round(performance.now() - dragStartedAt.value);
   isVerifying.value = true;
   try {
-    const result = await apiPost<{ verified: boolean; sliderToken: string }>('/api/auth/slider-verify/', {
+    const result = await verifySliderChallenge({
       challengeId: challenge.value.challengeId,
       offsetX,
       elapsedMs,

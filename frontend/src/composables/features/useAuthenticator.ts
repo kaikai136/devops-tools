@@ -1,7 +1,7 @@
 import jsQR from 'jsqr';
 import { ref, type Ref } from 'vue';
 
-import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
+import { createAuthEntry, deleteAuthEntry, getAuthEntryQrCode, listAuthEntries, updateAuthEntry } from '../../services/authenticators';
 import type { AuthEntry, QrPreview } from '../../types';
 import { buildOtpAuthUri, formatBackupTimestamp, formatTotpAlgorithm, normalizeTotpAlgorithm } from '../../utils/auth';
 import { readJsonFile } from '../../utils/files';
@@ -28,15 +28,15 @@ export function useAuthenticator({
   const qrPreview = ref<QrPreview | null>(null);
 
   async function loadAuthEntries() {
-    authEntries.value = await apiGet<AuthEntry[]>('/api/authenticators/');
+    authEntries.value = await listAuthEntries();
   }
 
   async function saveAuthEntry() {
     try {
       if (editingAuthId.value) {
-        await apiPut<AuthEntry>(`/api/authenticators/${editingAuthId.value}/`, authForm.value);
+        await updateAuthEntry(editingAuthId.value, authForm.value);
       } else {
-        await apiPost<AuthEntry>('/api/authenticators/', authForm.value);
+        await createAuthEntry(authForm.value);
       }
       resetAuthForm();
       await loadAuthEntries();
@@ -117,7 +117,7 @@ export function useAuthenticator({
           if (item.otpauthUri && String(item.otpauthUri).startsWith('otpauth://')) {
             parsedUri = new URL(String(item.otpauthUri));
           }
-          await apiPost<AuthEntry>('/api/authenticators/', {
+          await createAuthEntry({
             issuer: item.issuer || parsedUri?.searchParams.get('issuer') || '',
             account_name: item.accountName || item.account_name || item.account || decodeURIComponent(parsedUri?.pathname.replace(/^\//, '').split(':')[1] || ''),
             secret: item.secret || parsedUri?.searchParams.get('secret') || '',
@@ -152,7 +152,7 @@ export function useAuthenticator({
 
   function deleteAuth(entry: AuthEntry) {
     requestConfirm('删除验证码', `确定删除 ${entry.issuer || '未命名服务'} 的双因子条目吗？`, '确定删除', async () => {
-      await apiDelete(`/api/authenticators/${entry.id}/`);
+      await deleteAuthEntry(entry.id);
       authEntries.value = authEntries.value.filter((item) => item.id !== entry.id);
       showToast('操作成功', '验证码条目已删除。');
     });
@@ -160,7 +160,7 @@ export function useAuthenticator({
 
   function clearAuthEntries() {
     requestConfirm('清空验证码', `确定清空全部 ${authEntries.value.length} 条双因子条目吗？`, '确定清空', async () => {
-      await Promise.all(authEntries.value.map((entry) => apiDelete(`/api/authenticators/${entry.id}/`)));
+      await Promise.all(authEntries.value.map((entry) => deleteAuthEntry(entry.id)));
       authEntries.value = [];
       showToast('操作成功', '验证码列表已清空。');
     });
@@ -172,7 +172,7 @@ export function useAuthenticator({
   }
 
   async function showQr(entry: AuthEntry) {
-    const result = await apiGet<{ uri: string; data_url: string }>(`/api/authenticators/${entry.id}/qrcode/`);
+    const result = await getAuthEntryQrCode(entry.id);
     qrPreview.value = {
       dataUrl: result.data_url,
       uri: result.uri,

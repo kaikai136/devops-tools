@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue';
 
-import { apiPost, apiPut } from '../../api';
 import { dashboardNavItem, navGroups } from '../../navigation';
+import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from '../../services/system';
 import type { SystemSetting, ToolKey, WatermarkConfig } from '../../types';
 
 export const WATERMARK_SETTING_KEY = 'watermark';
@@ -86,14 +86,14 @@ export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
     watermarkMessage.value = '';
     try {
       const setting = await fetchWatermarkSetting();
-      watermarkSettingExists.value = true;
-      watermarkConfig.value = normalizeWatermarkConfig(setting.value, watermarkText.value);
+      watermarkSettingExists.value = Boolean(setting);
+      watermarkConfig.value = normalizeWatermarkConfig(setting?.value, watermarkText.value);
       watermarkDraft.value = { ...watermarkConfig.value, pages: [...watermarkConfig.value.pages] };
     } catch (error) {
       watermarkSettingExists.value = false;
       watermarkConfig.value = createDefaultWatermarkConfig(watermarkText.value);
       watermarkDraft.value = createDefaultWatermarkConfig(watermarkText.value);
-      watermarkMessage.value = error instanceof WatermarkSettingNotFoundError ? '' : error instanceof Error ? error.message : '水印设置加载失败';
+      watermarkMessage.value = error instanceof Error ? error.message : '水印设置加载失败';
     } finally {
       watermarkLoading.value = false;
     }
@@ -113,8 +113,8 @@ export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
         value: payload,
       };
       const setting = watermarkSettingExists.value
-        ? await apiPut<SystemSetting>(`/api/system/settings/${WATERMARK_SETTING_KEY}/`, body)
-        : await apiPost<SystemSetting>('/api/system/settings/', body);
+        ? await updateSystemSetting(WATERMARK_SETTING_KEY, body)
+        : await createSystemSetting(body);
       watermarkSettingExists.value = true;
       watermarkConfig.value = normalizeWatermarkConfig(setting.value, watermarkText.value);
       watermarkDraft.value = { ...watermarkConfig.value, pages: [...watermarkConfig.value.pages] };
@@ -144,16 +144,6 @@ export function useWatermarkSettings(feedback: WatermarkFeedback = {}) {
   };
 }
 
-class WatermarkSettingNotFoundError extends Error {}
-
-async function fetchWatermarkSetting(): Promise<SystemSetting> {
-  const response = await fetch(`/api/system/settings/${WATERMARK_SETTING_KEY}/`, { credentials: 'include' });
-  const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
-  if (response.status === 404) throw new WatermarkSettingNotFoundError();
-  if (!response.ok) {
-    const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '水印设置加载失败';
-    throw new Error(message);
-  }
-  return payload as SystemSetting;
+async function fetchWatermarkSetting(): Promise<SystemSetting | null> {
+  return getSystemSettingOrNull(WATERMARK_SETTING_KEY);
 }

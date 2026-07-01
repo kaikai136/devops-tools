@@ -21,6 +21,15 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         terminal: resolve(__dirname, 'terminal.html'),
       },
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/');
+          if (!normalizedId.includes('node_modules')) return undefined;
+          if (normalizedId.includes('/zrender/')) return 'zrender';
+          if (normalizedId.includes('/echarts/')) return 'echarts';
+          return undefined;
+        },
+      },
     },
   },
 });

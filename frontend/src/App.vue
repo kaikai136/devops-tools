@@ -1,27 +1,32 @@
 <script setup lang="ts">
-import { computed, provide, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, provide, ref, watch } from 'vue';
 
 import { appContextKey } from './appContext';
-import AccountManager from './components/tools/AccountManager.vue';
 import AppIcon from './components/common/AppIcon.vue';
-import AuthenticatorPanel from './components/tools/AuthenticatorPanel.vue';
-import DashboardPage from './components/tools/DashboardPage.vue';
-import LoginPage from './components/auth/LoginPage.vue';
-import HostManager from './components/tools/HostManager.vue';
-import IpScanner from './components/tools/IpScanner.vue';
-import LoginLogManager from './components/tools/LoginLogManager.vue';
-import MachineProbe from './components/tools/MachineProbe.vue';
-import PasswordGenerator from './components/tools/PasswordGenerator.vue';
-import ProfileCenter from './components/tools/ProfileCenter.vue';
-import RoleManager from './components/tools/RoleManager.vue';
-import SubnetCalculator from './components/tools/SubnetCalculator.vue';
-import SystemSettingsPanel from './components/tools/SystemSettingsPanel.vue';
-import UserManager from './components/tools/UserManager.vue';
 import WatermarkOverlay from './components/common/WatermarkOverlay.vue';
 import LockScreenOverlay from './components/common/LockScreenOverlay.vue';
 import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
 import { errorMessage } from './utils/errors';
+
+type DashboardPageExpose = {
+  refresh?: () => Promise<void> | void;
+};
+
+const AccountManager = defineAsyncComponent(() => import('./components/tools/AccountManager.vue'));
+const AuthenticatorPanel = defineAsyncComponent(() => import('./components/tools/AuthenticatorPanel.vue'));
+const DashboardPage = defineAsyncComponent(() => import('./components/tools/DashboardPage.vue'));
+const HostManager = defineAsyncComponent(() => import('./components/tools/HostManager.vue'));
+const IpScanner = defineAsyncComponent(() => import('./components/tools/IpScanner.vue'));
+const LoginLogManager = defineAsyncComponent(() => import('./components/tools/LoginLogManager.vue'));
+const LoginPage = defineAsyncComponent(() => import('./components/auth/LoginPage.vue'));
+const MachineProbe = defineAsyncComponent(() => import('./components/tools/MachineProbe.vue'));
+const PasswordGenerator = defineAsyncComponent(() => import('./components/tools/PasswordGenerator.vue'));
+const ProfileCenter = defineAsyncComponent(() => import('./components/tools/ProfileCenter.vue'));
+const RoleManager = defineAsyncComponent(() => import('./components/tools/RoleManager.vue'));
+const SubnetCalculator = defineAsyncComponent(() => import('./components/tools/SubnetCalculator.vue'));
+const SystemSettingsPanel = defineAsyncComponent(() => import('./components/tools/SystemSettingsPanel.vue'));
+const UserManager = defineAsyncComponent(() => import('./components/tools/UserManager.vue'));
 
 const appState = useAppState();
 provide(appContextKey, appState);
@@ -30,7 +35,7 @@ const hostExportScope = ref<HostExportScope>('all');
 const selectedHostExportColumns = ref<Set<HostExportColumnKey>>(new Set(hostExportColumnOptions.map((column) => column.field)));
 const selectedHostExportColumnList = computed(() => [...selectedHostExportColumns.value]);
 const allHostExportColumnsSelected = computed(() => selectedHostExportColumns.value.size === hostExportColumnOptions.length);
-const dashboardPageRef = ref<InstanceType<typeof DashboardPage> | null>(null);
+const dashboardPageRef = ref<DashboardPageExpose | null>(null);
 const isDashboardRefreshing = ref(false);
 
 const {

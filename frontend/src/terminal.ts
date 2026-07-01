@@ -3,8 +3,8 @@ import { createApp } from 'vue';
 import WatermarkOverlay from './components/common/WatermarkOverlay.vue';
 import WebTerminalPage from './components/terminal/WebTerminalPage.vue';
 import { normalizeWatermarkConfig, watermarkAppliesToPage, WATERMARK_SETTING_KEY } from './composables/features/useWatermarkSettings';
-import { apiGet } from './api';
-import type { AccountUser, SystemSetting } from './types';
+import { getCurrentUser } from './services/auth';
+import { getSystemSetting } from './services/system';
 import './styles/terminal.css';
 
 createApp(WebTerminalPage).mount('#terminal-app');
@@ -14,8 +14,8 @@ void mountTerminalWatermark();
 async function mountTerminalWatermark() {
   try {
     const [setting, session] = await Promise.all([
-      apiGet<SystemSetting>(`/api/system/settings/${WATERMARK_SETTING_KEY}/`),
-      apiGet<{ user: AccountUser }>('/api/auth/me/'),
+      getSystemSetting(WATERMARK_SETTING_KEY),
+      getCurrentUser(),
     ]);
     const config = normalizeWatermarkConfig(setting.value, session.user.username);
     if (!watermarkAppliesToPage(config, 'webTerminal')) return;

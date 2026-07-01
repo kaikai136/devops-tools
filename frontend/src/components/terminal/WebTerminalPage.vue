@@ -7,6 +7,7 @@ import '@xterm/xterm/css/xterm.css';
 
 import { ApiUnauthorizedError, apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
+import { getCurrentUser } from '../../services/auth';
 import AppIcon from '../common/AppIcon.vue';
 import type { IconName } from '../common/AppIcon.vue';
 
@@ -2965,7 +2966,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
 
 async function confirmTerminalSessionStillAuthenticated() {
   try {
-    await apiGet<{ user: unknown }>('/api/auth/me/');
+    await getCurrentUser();
   } catch (error) {
     handleTerminalAuthExpired(error);
   }

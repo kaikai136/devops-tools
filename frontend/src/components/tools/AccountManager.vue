@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import { useAppContext } from '../../appContext';
+import { createHostCredential, deleteHostCredential, listHostCredentials, updateHostCredential } from '../../services/hostManagement';
 import type { HostCredential } from '../../types';
 import AppIcon from '../common/AppIcon.vue';
 
@@ -46,7 +46,7 @@ async function loadCredentials() {
   isLoading.value = true;
   message.value = '';
   try {
-    credentials.value = await apiGet<HostCredential[]>('/api/host-management/accounts/');
+    credentials.value = await listHostCredentials();
   } catch (error) {
     message.value = (error as Error).message;
   } finally {
@@ -92,8 +92,8 @@ async function saveCredential() {
   try {
     const saved =
       dialog.value?.mode === 'edit' && dialog.value.credentialId
-        ? await apiPut<HostCredential>(`/api/host-management/accounts/${dialog.value.credentialId}/`, payload)
-        : await apiPost<HostCredential>('/api/host-management/accounts/', payload);
+        ? await updateHostCredential(dialog.value.credentialId, payload)
+        : await createHostCredential(payload);
     replaceCredential(saved);
     dialog.value = null;
   } catch (error) {
@@ -115,7 +115,7 @@ async function deleteCredential() {
   message.value = '';
   try {
     const targetId = confirmDelete.value.id;
-    await apiDelete(`/api/host-management/accounts/${targetId}/`);
+    await deleteHostCredential(targetId);
     credentials.value = credentials.value.filter((item) => item.id !== targetId);
     confirmDelete.value = null;
   } catch (error) {

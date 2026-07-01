@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-import { apiGet, apiPost } from '../../api';
+import * as authApi from '../../services/auth';
 import type { AccountUser, LoginPayload, LoginResult } from '../../types';
 
 export const AUTH_LOGOUT_EVENT_KEY = 'ops-tool.auth.logout-at';
@@ -14,7 +14,7 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
 
   async function loadCurrentUser() {
     try {
-      const data = await apiGet<{ user: AccountUser; locked?: boolean }>('/api/auth/me/');
+      const data = await authApi.getCurrentUser();
       currentUser.value = data.user;
       isLocked.value = Boolean(data.locked);
       if (!isLocked.value) {
@@ -38,7 +38,7 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
   }
 
   async function login(payload: LoginPayload): Promise<LoginResult> {
-    const data = await apiPost<LoginResult>('/api/auth/login/', payload);
+    const data = await authApi.login(payload);
     if ('user' in data) {
       await applyAuthenticatedUser(data.user);
     }
@@ -46,13 +46,13 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
   }
 
   async function verifyTwoFactorLogin(code: string): Promise<AccountUser> {
-    const data = await apiPost<{ user: AccountUser }>('/api/auth/login/2fa/', { code });
+    const data = await authApi.verifyTwoFactorLogin(code);
     await applyAuthenticatedUser(data.user);
     return data.user;
   }
 
   async function verifyTwoFactorSetupLogin(code: string): Promise<AccountUser> {
-    const data = await apiPost<{ user: AccountUser }>('/api/auth/login/2fa/setup/', { code });
+    const data = await authApi.verifyTwoFactorSetupLogin(code);
     await applyAuthenticatedUser(data.user);
     return data.user;
   }
@@ -62,19 +62,19 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
   }
 
   async function refreshCurrentUser() {
-    const data = await apiGet<{ user: AccountUser; locked?: boolean }>('/api/auth/me/');
+    const data = await authApi.getCurrentUser();
     currentUser.value = data.user;
     isLocked.value = Boolean(data.locked);
     return data.user;
   }
 
   async function lockSession() {
-    await apiPost<{ locked: boolean }>('/api/auth/lock/', {});
+    await authApi.lockSession();
     isLocked.value = true;
   }
 
   async function unlockSession(password: string) {
-    const data = await apiPost<{ locked: boolean; user: AccountUser }>('/api/auth/unlock/', { password });
+    const data = await authApi.unlockSession(password);
     currentUser.value = data.user;
     isLocked.value = Boolean(data.locked);
     await loadUnlockedWorkspace();
@@ -88,7 +88,7 @@ export function useAuthSession({ loadWorkspaceData, clearSessionUi }: { loadWork
 
   async function logout() {
     try {
-      await apiPost<{ ok: boolean }>('/api/auth/logout/', {});
+      await authApi.logout();
     } finally {
       currentUser.value = null;
       isLocked.value = false;
