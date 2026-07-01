@@ -34,14 +34,13 @@ const heroClockLabel = computed(() => `${heroClockDate.value} ${heroClockTime.va
 const generatedText = computed(() => (summary.value?.generatedAt ? formatTime(summary.value.generatedAt) : '--'));
 const osTopList = computed(() => withPercent(summary.value?.assetDistribution.os ?? []));
 const verificationList = computed(() => withPercent(summary.value?.assetDistribution.verification ?? []));
-const platformList = computed(() => withPercent(summary.value?.assetDistribution.platform ?? []));
 const userActiveRate = computed(() => {
   const users = summary.value?.users;
   return users?.total ? toPercent(users.active, users.total) : 0;
 });
 const availableUsers = computed(() => summary.value?.users.canLogin ?? summary.value?.users.active ?? 0);
 const assetVerificationRate = computed(() => clampPercent(summary.value?.assets.verificationRate ?? 0));
-const platformTotal = computed(() => sumDistribution(summary.value?.assetDistribution.platform ?? []));
+const osTypeTotal = computed(() => sumDistribution(summary.value?.assetDistribution.os ?? []));
 const groupRankingList = computed(() => {
   const groups = summary.value?.groupRanking ?? [];
   const max = Math.max(1, ...groups.map((group) => group.value));
@@ -158,9 +157,9 @@ const loginTrendOption = computed<DashboardChartOption>(() => {
     graphic: hasData ? [] : emptyGraphic('暂无访问量数据'),
   };
 });
-const platformPieOption = computed<DashboardChartOption>(() => {
+const osTypePieOption = computed<DashboardChartOption>(() => {
   const colors = chartColors.value;
-  const data = platformList.value.map((item, index) => ({
+  const data = osTopList.value.map((item, index) => ({
     name: item.label,
     value: item.value,
     itemStyle: { color: chartPalette.value[index % chartPalette.value.length] },
@@ -186,7 +185,7 @@ const platformPieOption = computed<DashboardChartOption>(() => {
       itemHeight: 10,
       textStyle: { color: colors.muted, fontWeight: 800 },
       formatter: (name: string) => {
-        const item = platformList.value.find((entry) => entry.label === name);
+        const item = osTopList.value.find((entry) => entry.label === name);
         return item ? `${name} ${item.percent}%` : name;
       },
     },
@@ -197,7 +196,7 @@ const platformPieOption = computed<DashboardChartOption>(() => {
             left: 'center',
             top: '35%',
             style: {
-              text: `${formatNumber(platformTotal.value)}\n平台资产`,
+              text: `${formatNumber(osTypeTotal.value)}\n系统类型`,
               fill: colors.text,
               fontSize: 18,
               fontWeight: 900,
@@ -206,10 +205,10 @@ const platformPieOption = computed<DashboardChartOption>(() => {
             },
           },
         ]
-      : emptyGraphic('暂无资产类型数据'),
+      : emptyGraphic('暂无系统类型数据'),
     series: [
       {
-        name: '资产类型',
+        name: '系统类型',
         type: 'pie',
         radius: ['56%', '76%'],
         center: ['50%', '42%'],
@@ -584,11 +583,11 @@ defineExpose({
           <header>
             <div>
               <h2>资产类型占比</h2>
-              <span>按系统平台统计</span>
+              <span>按系统类型统计</span>
             </div>
             <AppIcon name="hardDrive" :size="20" />
           </header>
-          <DashboardChart class="dashboard-pie-chart" :option="platformPieOption" aria-label="资产类型占比" />
+          <DashboardChart class="dashboard-pie-chart" :option="osTypePieOption" aria-label="系统类型占比" />
           <div class="dashboard-distribution-list compact">
             <div v-for="item in osTopList" :key="item.label">
               <span>{{ item.label }}</span>
