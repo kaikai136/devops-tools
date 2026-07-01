@@ -8,6 +8,8 @@ urlpatterns = [
     path("auth/login/", views.auth_login),
     path("auth/login/2fa/", views.auth_login_2fa),
     path("auth/login/2fa/setup/", views.auth_login_2fa_setup),
+    path("auth/lock/", views.auth_lock),
+    path("auth/unlock/", views.auth_unlock),
     path("auth/logout/", views.auth_logout),
     path("auth/me/", views.auth_me),
     path("profile/", views.profile),

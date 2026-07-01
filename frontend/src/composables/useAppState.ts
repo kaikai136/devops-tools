@@ -268,7 +268,22 @@ async function loadWorkspaceData() {
   await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadWatermarkSetting(), loadHostManagement(), calculateSubnet(false)]);
 }
 
-const { currentUser, isAuthReady, isAuthenticated, loadCurrentUser, login, verifyTwoFactorLogin, verifyTwoFactorSetupLogin, updateCurrentUser, refreshCurrentUser, logout } = useAuthSession({
+const {
+  currentUser,
+  isLocked,
+  hasWorkspaceDataLoaded,
+  isAuthReady,
+  isAuthenticated,
+  loadCurrentUser,
+  login,
+  verifyTwoFactorLogin,
+  verifyTwoFactorSetupLogin,
+  updateCurrentUser,
+  refreshCurrentUser,
+  lockSession,
+  unlockSession,
+  logout,
+} = useAuthSession({
   loadWorkspaceData,
   clearSessionUi: () => {
     clearFeedback();
@@ -417,6 +432,8 @@ const appState = {
   saveWatermarkSetting,
   resetWatermarkDraft,
   currentUser,
+  isLocked,
+  hasWorkspaceDataLoaded,
   canAccessPage,
   canUsePageAction,
   canUseAnyPageAction,
@@ -428,6 +445,8 @@ const appState = {
   verifyTwoFactorSetupLogin,
   updateCurrentUser,
   refreshCurrentUser,
+  lockSession,
+  unlockSession,
   logout,
   setActiveTool,
   selectNavItem,
@@ -618,7 +637,7 @@ onMounted(async () => {
   cleanupPointerTrail = setupPointerTrail();
   await loadCurrentUser();
   authTimer = window.setInterval(() => {
-    if (isAuthenticated.value && activeTool.value === 'auth') loadAuthEntries();
+    if (isAuthenticated.value && !isLocked.value && activeTool.value === 'auth') loadAuthEntries();
   }, 1000);
 });
 

@@ -1,5 +1,6 @@
 @import "./styles/base.css";
 @import "./styles/base/watermark.css";
+@import "./styles/lock-screen.css";
 @import "./styles/auth-login.css";
 @import "./styles/tools/dashboard.css";
 @import "./styles/tools/ip-scanner.css";

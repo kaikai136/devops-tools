@@ -1,0 +1,238 @@
+.lock-screen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #152033;
+}
+
+.lock-screen-waterfall {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lock-screen-waterfall i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: block;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.82)),
+    radial-gradient(circle at 50% 24%, rgba(32, 191, 154, 0.15), transparent 34%);
+  box-shadow: 0 20px 80px rgba(15, 23, 42, 0.08);
+  transform: translateY(-105%);
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0.98;
+}
+
+.lock-screen-overlay.covering .lock-screen-waterfall i {
+  transform: translateY(0);
+}
+
+.lock-screen-overlay.exiting .lock-screen-waterfall i {
+  transform: translateY(-105%);
+  opacity: 0;
+}
+
+.lock-screen-blur {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(14px) saturate(1.08);
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.lock-screen-overlay.content-visible .lock-screen-blur {
+  opacity: 1;
+}
+
+.lock-screen-panel {
+  position: relative;
+  z-index: 1;
+  width: min(360px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  opacity: 0;
+  transform: translateY(14px) scale(0.98);
+  transition: opacity 280ms ease, transform 280ms ease;
+}
+
+.lock-screen-overlay.content-visible .lock-screen-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.lock-screen-overlay.shaking .lock-screen-panel {
+  animation: lock-panel-shake 320ms ease;
+}
+
+.lock-screen-avatar {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 5px solid rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+}
+
+.lock-screen-panel h2 {
+  margin: 6px 0 0;
+  color: #111827;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.lock-screen-panel p {
+  margin: -8px 0 8px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lock-screen-slider {
+  --unlock-progress: 0%;
+  position: relative;
+  width: 296px;
+  height: 58px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+  user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+
+.lock-screen-slider.dragging {
+  cursor: grabbing;
+}
+
+.lock-screen-slider-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--unlock-progress);
+  min-width: 58px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(32, 191, 154, 0.34), rgba(32, 191, 154, 0.1));
+  transition: width 160ms ease;
+}
+
+.lock-screen-slider.dragging .lock-screen-slider-fill {
+  transition: none;
+}
+
+.lock-screen-slider-handle {
+  position: absolute;
+  top: 5px;
+  left: clamp(5px, calc(var(--unlock-progress) - 24px), calc(100% - 53px));
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #0f9f84;
+  background: rgba(224, 252, 244, 0.96);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  pointer-events: none;
+  transition: left 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.lock-screen-slider.dragging .lock-screen-slider-handle {
+  transition: none;
+}
+
+.lock-screen-slider.complete .lock-screen-slider-handle {
+  background: #20bf9a;
+  color: #fff;
+  transform: scale(1.04);
+}
+
+.lock-screen-slider strong {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-left: 42px;
+  color: #20a98d;
+  font-size: 14px;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+.lock-screen-panel input {
+  width: 260px;
+  height: 34px;
+  border: 1px solid rgba(148, 163, 184, 0.48);
+  border-radius: 4px;
+  padding: 0 10px;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.88);
+  outline: none;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+}
+
+.lock-screen-panel input:focus {
+  border-color: rgba(32, 191, 154, 0.82);
+  box-shadow: 0 0 0 3px rgba(32, 191, 154, 0.16);
+}
+
+.lock-screen-message {
+  min-height: 18px;
+  color: #dc2626;
+  font-size: 13px;
+}
+
+.lock-screen-hidden-submit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.lock-screen-logout {
+  border: 0;
+  background: transparent;
+  color: #0f9f84;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lock-screen-logout:hover {
+  color: #0f766e;
+}
+
+@keyframes lock-panel-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  24% {
+    transform: translateX(-8px);
+  }
+  48% {
+    transform: translateX(7px);
+  }
+  72% {
+    transform: translateX(-4px);
+  }
+}
+
+@media (max-width: 640px) {
+  .lock-screen-slider {
+    width: min(296px, calc(100vw - 56px));
+  }
+
+  .lock-screen-panel input {
+    width: min(260px, calc(100vw - 72px));
+  }
+}

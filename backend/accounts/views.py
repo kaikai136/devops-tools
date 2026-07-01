@@ -19,6 +19,7 @@ from rest_framework.response import Response
 
 from accounts.models import UserProfile
 from accounts.permissions import require_feature_permission, require_login, require_staff
+from accounts.session_lock import is_session_locked, lock_session, unlock_session
 from operations.responses import bad_request
 from system_management.models import LoginLog
 from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log, user_feature_permission_codes
@@ -355,6 +356,7 @@ def auth_login(request):
         )
 
     login(request, user)
+    unlock_session(request)
     request.session.set_expiry(60 * 60 * 24 * 14 if remember else 0)
     record_login_log(request, username, LoginLog.STATUS_SUCCESS, "登录成功", user)
     return Response({"user": user_payload(user)})
@@ -405,6 +407,7 @@ def auth_login_2fa_setup(request):
         ]
     )
     login(request, user)
+    unlock_session(request)
     request.session.set_expiry(60 * 60 * 24 * 14 if bool(pending.get("remember")) else 0)
     record_login_log(request, user.username, LoginLog.STATUS_SUCCESS, "登录成功", user)
     return Response({"user": user_payload(user)})
@@ -432,6 +435,7 @@ def auth_login_2fa(request):
         return Response({"error": "验证码错误，请重新登录后再试"}, status=status.HTTP_400_BAD_REQUEST)
 
     login(request, user)
+    unlock_session(request)
     request.session.set_expiry(60 * 60 * 24 * 14 if bool(pending.get("remember")) else 0)
     record_login_log(request, user.username, LoginLog.STATUS_SUCCESS, "登录成功", user)
     return Response({"user": user_payload(user)})
@@ -448,7 +452,30 @@ def auth_me(request):
     auth_error = require_login(request)
     if auth_error:
         return auth_error
-    return Response({"user": user_payload(request.user)})
+    return Response({"user": user_payload(request.user), "locked": is_session_locked(request)})
+
+
+@api_view(["POST"])
+def auth_lock(request):
+    auth_error = require_login(request)
+    if auth_error:
+        return auth_error
+    lock_session(request)
+    return Response({"locked": True})
+
+
+@api_view(["POST"])
+def auth_unlock(request):
+    auth_error = require_login(request)
+    if auth_error:
+        return auth_error
+    if not request.user.is_active:
+        return Response({"error": DISABLED_LOGIN_ERROR}, status=status.HTTP_403_FORBIDDEN)
+    password = str(request.data.get("password", ""))
+    if not password or not request.user.check_password(password):
+        return bad_request("锁屏密码不正确")
+    unlock_session(request)
+    return Response({"locked": False, "user": user_payload(request.user)})
 
 
 @api_view(["GET", "PUT"])

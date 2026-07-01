@@ -295,6 +295,67 @@ class ProfileApiTests(TestCase):
         self.assertFalse(admin.check_password("Admin@123456"))
 
 
+class SessionLockTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="operator", password="UserPass123")
+
+    def test_lock_and_unlock_require_login(self):
+        lock_response = self.client.post("/api/auth/lock/", data={}, content_type="application/json")
+        unlock_response = self.client.post("/api/auth/unlock/", data={"password": "UserPass123"}, content_type="application/json")
+
+        self.assertEqual(lock_response.status_code, 401)
+        self.assertEqual(unlock_response.status_code, 401)
+
+    def test_lock_marks_auth_me_as_locked(self):
+        self.client.force_login(self.user)
+
+        lock_response = self.client.post("/api/auth/lock/", data={}, content_type="application/json")
+        me_response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(lock_response.status_code, 200)
+        self.assertTrue(me_response.json()["locked"])
+
+    def test_locked_session_blocks_business_api(self):
+        self.client.force_login(self.user)
+        self.client.post("/api/auth/lock/", data={}, content_type="application/json")
+
+        response = self.client.get("/api/health/")
+
+        self.assertEqual(response.status_code, 423)
+        self.assertIn("锁定", response.json()["error"])
+
+    def test_wrong_unlock_password_keeps_session_locked(self):
+        self.client.force_login(self.user)
+        self.client.post("/api/auth/lock/", data={}, content_type="application/json")
+
+        unlock_response = self.client.post("/api/auth/unlock/", data={"password": "wrong"}, content_type="application/json")
+        me_response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(unlock_response.status_code, 400)
+        self.assertTrue(me_response.json()["locked"])
+
+    def test_correct_unlock_password_restores_business_api(self):
+        self.client.force_login(self.user)
+        self.client.post("/api/auth/lock/", data={}, content_type="application/json")
+
+        unlock_response = self.client.post("/api/auth/unlock/", data={"password": "UserPass123"}, content_type="application/json")
+        health_response = self.client.get("/api/health/")
+
+        self.assertEqual(unlock_response.status_code, 200)
+        self.assertFalse(unlock_response.json()["locked"])
+        self.assertEqual(health_response.status_code, 200)
+
+    def test_locked_session_can_logout(self):
+        self.client.force_login(self.user)
+        self.client.post("/api/auth/lock/", data={}, content_type="application/json")
+
+        logout_response = self.client.post("/api/auth/logout/", data={}, content_type="application/json")
+        me_response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(logout_response.status_code, 200)
+        self.assertEqual(me_response.status_code, 401)
+
+
 class TwoFactorLoginTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="operator", password="UserPass123")

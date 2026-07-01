@@ -18,8 +18,10 @@ import SubnetCalculator from './components/tools/SubnetCalculator.vue';
 import SystemSettingsPanel from './components/tools/SystemSettingsPanel.vue';
 import UserManager from './components/tools/UserManager.vue';
 import WatermarkOverlay from './components/common/WatermarkOverlay.vue';
+import LockScreenOverlay from './components/common/LockScreenOverlay.vue';
 import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
+import { errorMessage } from './utils/errors';
 
 const appState = useAppState();
 provide(appContextKey, appState);
@@ -46,6 +48,8 @@ const {
   activeNavGroup,
   activeNavItem,
   currentUser,
+  isLocked,
+  hasWorkspaceDataLoaded,
   canAccessPage,
   canUsePageAction,
   isAuthReady,
@@ -54,6 +58,8 @@ const {
   verifyTwoFactorLogin,
   verifyTwoFactorSetupLogin,
   logout,
+  lockSession,
+  unlockSession,
   scopedToastVisible,
   toastTone,
   showToast,
@@ -140,6 +146,14 @@ async function refreshDashboard() {
     showToast('刷新完成', '仪表盘数据已更新。');
   } finally {
     isDashboardRefreshing.value = false;
+  }
+}
+
+async function lockCurrentSession() {
+  try {
+    await lockSession();
+  } catch (error) {
+    showToast('锁屏失败', errorMessage(error));
   }
 }
 </script>
@@ -367,7 +381,7 @@ async function refreshDashboard() {
                 <AppIcon name="user" :size="16" />
                 <span>个人中心</span>
               </button>
-              <button class="workspace-menu-action" type="button" role="menuitem" disabled>
+              <button class="workspace-menu-action" type="button" role="menuitem" @click="lockCurrentSession">
                 <AppIcon name="lock" :size="16" />
                 <span>锁定屏幕</span>
               </button>
@@ -381,22 +395,33 @@ async function refreshDashboard() {
         </div>
       </header>
 
-      <DashboardPage v-if="activeTool === 'dashboard'" ref="dashboardPageRef" />
-      <IpScanner v-if="activeTool === 'ip'" />
-      <HostManager v-if="activeTool === 'hosts'" />
-      <AccountManager v-if="activeTool === 'accounts'" />
-      <MachineProbe v-if="activeTool === 'ports'" />
-      <SubnetCalculator v-if="activeTool === 'subnet'" />
-      <AuthenticatorPanel v-if="activeTool === 'auth'" />
-      <PasswordGenerator v-if="activeTool === 'password'" />
-      <LoginLogManager v-if="activeTool === 'loginLogs'" />
-      <UserManager v-if="activeTool === 'users'" />
-      <RoleManager v-if="activeTool === 'roles'" />
-      <ProfileCenter v-if="activeTool === 'profile'" />
-      <SystemSettingsPanel v-if="activeTool === 'systemSettings'" />
+      <template v-if="!isLocked || hasWorkspaceDataLoaded">
+        <DashboardPage v-if="activeTool === 'dashboard'" ref="dashboardPageRef" />
+        <IpScanner v-if="activeTool === 'ip'" />
+        <HostManager v-if="activeTool === 'hosts'" />
+        <AccountManager v-if="activeTool === 'accounts'" />
+        <MachineProbe v-if="activeTool === 'ports'" />
+        <SubnetCalculator v-if="activeTool === 'subnet'" />
+        <AuthenticatorPanel v-if="activeTool === 'auth'" />
+        <PasswordGenerator v-if="activeTool === 'password'" />
+        <LoginLogManager v-if="activeTool === 'loginLogs'" />
+        <UserManager v-if="activeTool === 'users'" />
+        <RoleManager v-if="activeTool === 'roles'" />
+        <ProfileCenter v-if="activeTool === 'profile'" />
+        <SystemSettingsPanel v-if="activeTool === 'systemSettings'" />
+      </template>
     </section>
 
     <WatermarkOverlay v-if="shouldShowWatermark" :text="watermarkConfig.text" />
+    <LockScreenOverlay
+      v-if="currentUser"
+      :locked="isLocked"
+      :avatar-url="currentUserAvatar"
+      :display-name="currentUserDisplayName"
+      :account="currentUserAccount"
+      :unlock-session="unlockSession"
+      :logout="logout"
+    />
 
     <div v-if="hostTransferDialog" class="modal-backdrop" @click.self="closeHostTransferDialog">
       <article class="host-transfer-modal" :class="{ 'host-export-modal': hostTransferDialog === 'export' }">
