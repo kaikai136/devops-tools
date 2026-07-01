@@ -5,7 +5,7 @@ from django.test import TestCase
 import pyotp
 
 from .models import UserProfile
-from .views import SLIDER_CHALLENGE_SESSION_KEY
+from .views import DISABLED_LOGIN_ERROR, SLIDER_CHALLENGE_SESSION_KEY
 from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_builtin_admin, ensure_feature_permissions
 
 
@@ -122,6 +122,20 @@ class SliderChallengeTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["user"]["username"], "operator")
+
+    def test_disabled_user_login_returns_unlock_contact_message(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        token = self.complete_slider()
+
+        response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": token},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"], DISABLED_LOGIN_ERROR)
 
 
 class ProfileApiTests(TestCase):

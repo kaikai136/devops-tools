@@ -40,6 +40,7 @@ TWO_FACTOR_ISSUER = "运维船长"
 AVATAR_ALLOWED_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 AVATAR_MAX_BYTES = 2 * 1024 * 1024
 PROFILE_PERMISSION_MESSAGE = "没有个人中心操作权限"
+DISABLED_LOGIN_ERROR = "用户已被禁用，请联系管理员解封"
 
 
 def require_profile_permission(request, action_key: str | None = None):
@@ -117,6 +118,15 @@ def _consume_slider_token(request, slider_token: str) -> str | None:
     if not token_state:
         return "滑块验证已失效，请重新验证"
     return None
+
+
+def _get_user_with_matching_password(username: str, password: str):
+    User = get_user_model()
+    try:
+        user = User._default_manager.get_by_natural_key(username)
+    except User.DoesNotExist:
+        return None
+    return user if user.check_password(password) else None
 
 
 def _set_pending_2fa_login(request, user, remember: bool) -> None:
@@ -302,13 +312,18 @@ def auth_login(request):
     if slider_error:
         return bad_request(slider_error)
 
+    matched_user = _get_user_with_matching_password(username, password)
+    if matched_user is not None and not matched_user.is_active:
+        record_login_log(request, username, LoginLog.STATUS_FAILED, "账号已停用", matched_user)
+        return Response({"error": DISABLED_LOGIN_ERROR}, status=status.HTTP_403_FORBIDDEN)
+
     user = authenticate(request, username=username, password=password)
     if user is None:
         record_login_log(request, username, LoginLog.STATUS_FAILED, "账号或密码错误")
         return Response({"error": "账号或密码错误"}, status=status.HTTP_400_BAD_REQUEST)
     if not user.is_active:
         record_login_log(request, username, LoginLog.STATUS_FAILED, "账号已停用", user)
-        return Response({"error": "账号已被停用"}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"error": DISABLED_LOGIN_ERROR}, status=status.HTTP_403_FORBIDDEN)
 
     profile = get_user_profile(user)
     if profile.totp_required or profile.totp_reset_required:
@@ -361,7 +376,7 @@ def auth_login_2fa_setup(request):
     if not user.is_active:
         _pop_pending_2fa_setup(request)
         record_login_log(request, pending.get("username", user.username), LoginLog.STATUS_FAILED, "账号已停用", user)
-        return Response({"error": "账号已被停用"}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"error": DISABLED_LOGIN_ERROR}, status=status.HTTP_403_FORBIDDEN)
 
     secret = str(pending.get("secret", ""))
     profile = get_user_profile(user)
@@ -409,7 +424,7 @@ def auth_login_2fa(request):
 
     if not user.is_active:
         record_login_log(request, pending.get("username", user.username), LoginLog.STATUS_FAILED, "账号已停用", user)
-        return Response({"error": "账号已被停用"}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"error": DISABLED_LOGIN_ERROR}, status=status.HTTP_403_FORBIDDEN)
 
     profile = get_user_profile(user)
     if not profile.totp_enabled or not _verify_totp(profile.totp_secret, str(request.data.get("code", ""))):
