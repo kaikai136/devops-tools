@@ -36,7 +36,7 @@ interface PermissionGroup {
   items: typeof navGroups[number]['items'];
 }
 
-const { activeTool, canUsePageAction } = useAppContext();
+const { activeTool, canUsePageAction, canUseAnyPageAction } = useAppContext();
 
 const roles = ref<SystemRole[]>([]);
 const permissions = ref<SystemPermission[]>([]);
@@ -357,6 +357,7 @@ function emptyRoleForm(): RoleForm {
 
 <template>
   <section v-if="activeTool === 'roles'" class="role-manager-page" @click="columnsOpen = false">
+    <template v-if="canUseAnyPageAction('roles', ['create', 'edit', 'permissions', 'delete'])">
     <article class="role-filter-panel">
       <label>
         <span>角色名称：</span>
@@ -368,7 +369,7 @@ function emptyRoleForm(): RoleForm {
 
     <article class="role-list-panel">
       <div class="role-list-toolbar">
-        <button class="role-add-button" type="button" :disabled="!canUsePageAction('roles', 'create')" @click="openCreateDialog"><AppIcon name="circlePlus" :size="15" />新增</button>
+        <button v-if="canUsePageAction('roles', 'create')" class="role-add-button" type="button" @click="openCreateDialog"><AppIcon name="circlePlus" :size="15" />新增</button>
         <div class="role-toolbar-actions">
           <button class="role-icon-button" type="button" title="刷新" aria-label="刷新" @click="loadRoles"><AppIcon name="refresh" :size="18" /></button>
           <button class="role-icon-button" type="button" title="列设置" aria-label="列设置" @click.stop="columnsOpen = !columnsOpen"><AppIcon name="settings" :size="18" /></button>
@@ -394,12 +395,13 @@ function emptyRoleForm(): RoleForm {
           <span>{{ roleCode(role) }}</span>
           <span><em class="role-status">启用</em></span>
           <span>
-            <button class="role-permission-button" type="button" :title="permissionText(role)" :disabled="!canUsePageAction('roles', 'permissions')" @click="openPermissionDialog(role)">管理</button>
+            <button v-if="canUsePageAction('roles', 'permissions')" class="role-permission-button" type="button" :title="permissionText(role)" @click="openPermissionDialog(role)">管理</button>
+            <em v-else class="role-action-placeholder">-</em>
           </span>
           <div class="role-row-actions">
             <button class="view" type="button" @click="openViewDialog(role)"><AppIcon name="eye" :size="13" />查看</button>
-            <button class="edit" type="button" :disabled="!canUsePageAction('roles', 'edit')" @click="openEditDialog(role)"><AppIcon name="edit" :size="13" />编辑</button>
-            <button class="delete" type="button" :disabled="!canUsePageAction('roles', 'delete')" @click="deleteTarget = role"><AppIcon name="trash" :size="13" />删除</button>
+            <button v-if="canUsePageAction('roles', 'edit')" class="edit" type="button" @click="openEditDialog(role)"><AppIcon name="edit" :size="13" />编辑</button>
+            <button v-if="canUsePageAction('roles', 'delete')" class="delete" type="button" @click="deleteTarget = role"><AppIcon name="trash" :size="13" />删除</button>
           </div>
         </div>
 
@@ -414,6 +416,8 @@ function emptyRoleForm(): RoleForm {
         <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)"><AppIcon name="chevronRight" :size="16" /></button>
       </div>
     </article>
+    </template>
+    <div v-else class="permission-empty">暂无可用功能</div>
 
     <div v-if="dialog" class="modal-backdrop role-modal-backdrop" @click.self="closeDialog">
       <form class="role-modal" :class="{ 'role-wide-modal': dialog.mode === 'permissions' || dialog.mode === 'view' }" @submit.prevent="saveRole">

@@ -99,11 +99,13 @@ const {
   formatRecordTime,
   deletePassword,
   canUsePageAction,
+  canUseAnyPageAction,
 } = useAppContext();
 </script>
 
 <template>
       <section v-if="activeTool === 'password'" class="password-page">
+        <template v-if="canUseAnyPageAction('password', ['generate', 'copy', 'delete', 'clear', 'import', 'export'])">
         <article class="panel password-generator-panel">
           <div class="password-panel-head">
             <div>
@@ -128,7 +130,7 @@ const {
           <div class="password-info-box">
             <div class="password-info-head">
               <h3>密码信息</h3>
-              <button type="button" :disabled="!passwordResult || !canUsePageAction('password', 'copy')" @click="copyText(passwordResult, '已复制生成结果。')">复制</button>
+              <button v-if="canUsePageAction('password', 'copy')" type="button" :disabled="!passwordResult" @click="copyText(passwordResult, '已复制生成结果。')">复制</button>
             </div>
             <div class="password-field-grid">
               <label><span>项目名称</span><textarea v-model="passwordProject" placeholder="未填写项目名称"></textarea></label>
@@ -136,8 +138,8 @@ const {
             </div>
           </div>
           <div class="password-actions">
-            <button class="primary" type="button" :disabled="!canUsePageAction('password', 'generate')" @click="generatePassword">生成密码</button>
-            <button type="button" :disabled="!passwordHistory.length || !canUsePageAction('password', 'clear')" @click="clearPasswordRecords">清空记录</button>
+            <button v-if="canUsePageAction('password', 'generate')" class="primary" type="button" @click="generatePassword">生成密码</button>
+            <button v-if="canUsePageAction('password', 'clear')" type="button" :disabled="!passwordHistory.length" @click="clearPasswordRecords">清空记录</button>
           </div>
         </article>
 
@@ -159,12 +161,14 @@ const {
                 <span>{{ formatRecordTime(record.created_at) }}</span>
               </div>
               <div class="password-record-actions">
-                <button type="button" :disabled="!canUsePageAction('password', 'copy')" @click="copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)">复制</button>
-                <button class="danger" type="button" :disabled="!canUsePageAction('password', 'delete')" @click="deletePassword(record)">删除</button>
+                <button v-if="canUsePageAction('password', 'copy')" type="button" @click="copyText(record.password, `已复制 ${record.project_name || '未填写项目名称'} 的密码。`)">复制</button>
+                <button v-if="canUsePageAction('password', 'delete')" class="danger" type="button" @click="deletePassword(record)">删除</button>
               </div>
             </article>
             <div v-if="!passwordHistory.length" class="empty-state">还没有生成记录。</div>
           </div>
         </article>
+        </template>
+        <div v-else class="permission-empty">暂无可用功能</div>
       </section>
 </template>

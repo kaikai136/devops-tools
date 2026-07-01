@@ -329,6 +329,10 @@ function canUsePageAction(pageKey: string, actionKey: string) {
   return currentPermissionCodes.value.has(`action_${pageKey}_${actionKey}`);
 }
 
+function canUseAnyPageAction(pageKey: string, actionKeys: string[]) {
+  return actionKeys.some((actionKey) => canUsePageAction(pageKey, actionKey));
+}
+
 function canAccessPage(pageKey: string) {
   const user = currentUser.value;
   if (!user) return false;
@@ -415,6 +419,7 @@ const appState = {
   currentUser,
   canAccessPage,
   canUsePageAction,
+  canUseAnyPageAction,
   isAuthReady,
   isAuthenticated,
   loadCurrentUser,

@@ -110,6 +110,11 @@
   font-weight: 800;
 }
 
+.host-name-text {
+  color: #173252;
+  font-weight: 800;
+}
+
 .host-group-cell,
 .host-machine-cell,
 .host-system-cell,
@@ -268,6 +273,11 @@
 
 .host-actions .danger {
   color: #ff3f55;
+}
+
+.host-action-placeholder {
+  color: #8b95a1;
+  font-weight: 900;
 }
 
 .host-bulk-action-bar {

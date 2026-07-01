@@ -108,3 +108,20 @@ button:disabled {
   display: block;
   flex: 0 0 auto;
 }
+
+.permission-empty {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  border: 1px dashed #cbdcf1;
+  border-radius: 8px;
+  background: rgba(245, 249, 255, 0.72);
+  color: #6b7f99;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.permission-placeholder {
+  color: #8b95a1;
+  font-weight: 900;
+}

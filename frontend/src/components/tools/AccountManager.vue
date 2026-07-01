@@ -16,7 +16,7 @@ interface CredentialForm {
   remark: string;
 }
 
-const { activeTool, canUsePageAction } = useAppContext();
+const { activeTool, canUsePageAction, canUseAnyPageAction } = useAppContext();
 
 const credentials = ref<HostCredential[]>([]);
 const search = ref('');
@@ -147,11 +147,12 @@ function emptyForm(): CredentialForm {
 
 <template>
   <section v-if="activeTool === 'accounts'" class="account-page" :class="{ fullscreen }">
+    <template v-if="canUseAnyPageAction('accounts', ['create', 'edit', 'delete'])">
     <article class="panel account-panel">
       <div class="account-toolbar">
         <input v-model="search" placeholder="输入账号名称/用户/备注搜索" />
         <div class="account-toolbar-actions">
-          <button class="primary" type="button" :disabled="!canUsePageAction('accounts', 'create')" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</button>
+          <button v-if="canUsePageAction('accounts', 'create')" class="primary" type="button" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</button>
           <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="loadCredentials"><AppIcon name="refresh" :size="16" /></button>
           <button class="icon-only" type="button" :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click="fullscreen = !fullscreen">
             <AppIcon :name="fullscreen ? 'minimize' : 'maximize'" :size="18" />
@@ -188,13 +189,16 @@ function emptyForm(): CredentialForm {
           <span class="account-role" :class="{ staff: credential.privateKey }">{{ credential.privateKeyName || '未上传' }}</span>
           <span class="account-date">{{ credential.remark || '无备注' }}</span>
           <div class="account-actions">
-            <button type="button" :disabled="!canUsePageAction('accounts', 'edit')" @click="openEditDialog(credential)">编辑</button>
-            <button class="danger" type="button" :disabled="!canUsePageAction('accounts', 'delete')" @click="confirmDelete = credential">删除</button>
+            <button v-if="canUsePageAction('accounts', 'edit')" type="button" @click="openEditDialog(credential)">编辑</button>
+            <button v-if="canUsePageAction('accounts', 'delete')" class="danger" type="button" @click="confirmDelete = credential">删除</button>
+            <span v-if="!canUseAnyPageAction('accounts', ['edit', 'delete'])" class="permission-placeholder">-</span>
           </div>
         </div>
         <div v-if="!filteredCredentials.length" class="empty-state account-empty">没有匹配的账号。</div>
       </div>
     </article>
+    </template>
+    <div v-else class="permission-empty">暂无可用功能</div>
 
     <div v-if="dialog" class="modal-backdrop" @click.self="dialog = null">
       <form class="account-form-modal account-horizontal-modal" @submit.prevent="saveCredential">

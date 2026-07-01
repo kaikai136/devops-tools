@@ -221,6 +221,12 @@
   line-height: 1.2;
 }
 
+.role-action-placeholder {
+  color: #8b95a1;
+  font-style: normal;
+  font-weight: 900;
+}
+
 .role-permission-button {
   min-width: 48px;
   height: 25px;

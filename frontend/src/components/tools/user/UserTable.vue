@@ -47,6 +47,24 @@ function toggleTwoFactor(user: SystemUser) {
 function twoFactorSwitchText(user: SystemUser) {
   return user.twoFactorStatus === 'enabled' ? '开启' : '关闭';
 }
+
+function canToggleTwoFactor(user: SystemUser) {
+  return user.twoFactorStatus === 'enabled' ? canUsePageAction('users', '2fa_disable') : canUsePageAction('users', '2fa_enable');
+}
+
+function hasTwoFactorActions(user: SystemUser) {
+  if (user.twoFactorStatus === 'required') return false;
+  return canToggleTwoFactor(user) || canUsePageAction('users', '2fa_reset');
+}
+
+function hasRowActions() {
+  return (
+    canUsePageAction('users', 'toggle_status') ||
+    canUsePageAction('users', 'edit') ||
+    canUsePageAction('users', 'reset_password') ||
+    canUsePageAction('users', 'delete')
+  );
+}
 </script>
 
 <template>
@@ -73,39 +91,39 @@ function twoFactorSwitchText(user: SystemUser) {
       <span v-if="isColumnVisible('lastLogin')" class="user-date-cell">{{ formatDateTime(user.lastLogin) }}</span>
       <div v-if="isColumnVisible('twoFactor')" class="user-2fa-cell">
         <span v-if="user.twoFactorStatus === 'required'" class="user-2fa-pending">待验证</span>
-        <button
-          v-else
-          class="user-2fa-switch"
-          :class="twoFactorStatusClass(user)"
-          type="button"
-          :title="user.twoFactorStatus === 'enabled' ? '点击关闭 2FA' : '点击开启 2FA'"
-          :disabled="
-            user.isBuiltinAdmin ||
-            (user.twoFactorStatus === 'enabled'
-              ? !canUsePageAction('users', '2fa_disable')
-              : !canUsePageAction('users', '2fa_enable'))
-          "
-          @click="toggleTwoFactor(user)"
-        >
-          <span>{{ twoFactorSwitchText(user) }}</span>
-          <i></i>
-        </button>
-        <button
-          class="user-2fa-reset"
-          type="button"
-          title="重置绑定"
-          aria-label="重置 2FA 绑定"
-          :disabled="user.isBuiltinAdmin || !canUsePageAction('users', '2fa_reset')"
-          @click="$emit('resetTwoFactor', user)"
-        >
-          重置
-        </button>
+        <template v-else-if="hasTwoFactorActions(user)">
+          <button
+            v-if="canToggleTwoFactor(user)"
+            class="user-2fa-switch"
+            :class="twoFactorStatusClass(user)"
+            type="button"
+            :title="user.twoFactorStatus === 'enabled' ? '点击关闭 2FA' : '点击开启 2FA'"
+            :disabled="user.isBuiltinAdmin"
+            @click="toggleTwoFactor(user)"
+          >
+            <span>{{ twoFactorSwitchText(user) }}</span>
+            <i></i>
+          </button>
+          <button
+            v-if="canUsePageAction('users', '2fa_reset')"
+            class="user-2fa-reset"
+            type="button"
+            title="重置绑定"
+            aria-label="重置 2FA 绑定"
+            :disabled="user.isBuiltinAdmin"
+            @click="$emit('resetTwoFactor', user)"
+          >
+            重置
+          </button>
+        </template>
+        <span v-else class="permission-placeholder">-</span>
       </div>
       <div v-if="isColumnVisible('actions')" class="user-row-actions">
-        <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'toggle_status')" @click="$emit('toggleStatus', user)">{{ user.isActive ? '禁用' : '启用' }}</button>
-        <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'edit')" @click="$emit('edit', user)">编辑</button>
-        <button type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'reset_password')" @click="$emit('resetPassword', user)">重置密码</button>
-        <button class="danger" type="button" :disabled="user.isBuiltinAdmin || !canUsePageAction('users', 'delete')" @click="$emit('delete', user)">删除</button>
+        <button v-if="canUsePageAction('users', 'toggle_status')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('toggleStatus', user)">{{ user.isActive ? '禁用' : '启用' }}</button>
+        <button v-if="canUsePageAction('users', 'edit')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('edit', user)">编辑</button>
+        <button v-if="canUsePageAction('users', 'reset_password')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('resetPassword', user)">重置密码</button>
+        <button v-if="canUsePageAction('users', 'delete')" class="danger" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('delete', user)">删除</button>
+        <span v-if="!hasRowActions()" class="permission-placeholder">-</span>
       </div>
     </div>
     <div v-if="!users.length" class="user-empty">{{ isLoading ? '加载中...' : '暂无匹配账户' }}</div>

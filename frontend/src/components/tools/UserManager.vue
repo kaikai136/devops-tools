@@ -8,7 +8,7 @@ import UserResetPasswordDialog from './user/UserResetPasswordDialog.vue';
 import UserResetTwoFactorDialog from './user/UserResetTwoFactorDialog.vue';
 import UserTable from './user/UserTable.vue';
 
-const { activeTool, setActiveTool, canUsePageAction } = useAppContext();
+const { activeTool, setActiveTool, canUsePageAction, canUseAnyPageAction } = useAppContext();
 
 const {
   roles,
@@ -84,6 +84,7 @@ const {
 
 <template>
   <section v-if="activeTool === 'users'" class="user-manager-page" :class="{ fullscreen }" @click="columnsOpen = false">
+    <template v-if="canUseAnyPageAction('users', ['create', 'edit', 'toggle_status', 'reset_password', '2fa_enable', '2fa_disable', '2fa_reset', 'delete'])">
     <article class="user-filter-panel">
       <label>
         <span>账户名称：</span>
@@ -95,7 +96,7 @@ const {
       <div class="user-list-toolbar">
         <h2>账户列表</h2>
         <div class="user-toolbar-actions">
-          <button class="user-primary-button" type="button" :disabled="!canUsePageAction('users', 'create')" @click="openCreateDialog"><AppIcon name="plus" :size="15" />新建</button>
+          <button v-if="canUsePageAction('users', 'create')" class="user-primary-button" type="button" @click="openCreateDialog"><AppIcon name="plus" :size="15" />新建</button>
           <div class="user-status-tabs" role="tablist" aria-label="账户状态">
             <button :class="{ active: statusFilter === 'all' }" type="button" @click="statusFilter = 'all'">全部</button>
             <button :class="{ active: statusFilter === 'active' }" type="button" @click="statusFilter = 'active'">正常</button>
@@ -163,6 +164,8 @@ const {
         @update-page-size="setPageSize"
       />
     </article>
+    </template>
+    <div v-else class="permission-empty">暂无可用功能</div>
 
     <UserAccountDialog
       v-if="dialog"

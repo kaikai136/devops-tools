@@ -16,6 +16,7 @@ const {
   saveWatermarkSetting,
   resetWatermarkDraft,
   canUsePageAction,
+  canUseAnyPageAction,
 } = useAppContext();
 
 const selectedPages = computed(() => new Set(watermarkDraft.value.pages));
@@ -40,6 +41,7 @@ function toggleAllWatermarkPages() {
 
 <template>
   <section class="system-settings-page">
+    <template v-if="canUseAnyPageAction('systemSettings', ['save', 'reset', 'refresh'])">
     <article class="system-settings-main">
       <header class="system-settings-title">
         <div>
@@ -47,9 +49,9 @@ function toggleAllWatermarkPages() {
           <p>开启后，会在指定页面显示固定文本水印。</p>
         </div>
         <div class="system-settings-actions">
-          <button type="button" :disabled="watermarkLoading || !canUsePageAction('systemSettings', 'refresh')" @click="loadWatermarkSetting"><AppIcon name="refresh" :size="15" />刷新</button>
-          <button type="button" :disabled="watermarkSaving || !canUsePageAction('systemSettings', 'reset')" @click="resetWatermarkDraft">还原</button>
-          <button class="primary" type="button" :disabled="watermarkSaving || !canUsePageAction('systemSettings', 'save')" @click="saveWatermarkSetting">
+          <button v-if="canUsePageAction('systemSettings', 'refresh')" type="button" :disabled="watermarkLoading" @click="loadWatermarkSetting"><AppIcon name="refresh" :size="15" />刷新</button>
+          <button v-if="canUsePageAction('systemSettings', 'reset')" type="button" :disabled="watermarkSaving" @click="resetWatermarkDraft">还原</button>
+          <button v-if="canUsePageAction('systemSettings', 'save')" class="primary" type="button" :disabled="watermarkSaving" @click="saveWatermarkSetting">
             {{ watermarkSaving ? '保存中...' : '保存' }}
           </button>
         </div>
@@ -61,14 +63,15 @@ function toggleAllWatermarkPages() {
         <label class="watermark-switch-row">
           <span>水印功能</span>
           <button
+            v-if="canUsePageAction('systemSettings', 'save')"
             type="button"
             :class="['watermark-switch', { active: watermarkDraft.enabled }]"
             :aria-pressed="watermarkDraft.enabled"
-            :disabled="!canUsePageAction('systemSettings', 'save')"
             @click="watermarkDraft.enabled = !watermarkDraft.enabled"
           >
             <i></i>
           </button>
+          <span v-else class="watermark-readonly-switch" :class="{ active: watermarkDraft.enabled }">{{ watermarkDraft.enabled ? '开' : '关' }}</span>
           <strong>{{ watermarkDraft.enabled ? '已开启' : '已关闭' }}</strong>
         </label>
 
@@ -78,24 +81,36 @@ function toggleAllWatermarkPages() {
               <strong>应用页面</strong>
               <span>已选择 {{ watermarkDraft.pages.length }} 个页面</span>
             </div>
-            <button type="button" :disabled="!canUsePageAction('systemSettings', 'save')" @click="toggleAllWatermarkPages">
+            <button v-if="canUsePageAction('systemSettings', 'save')" type="button" @click="toggleAllWatermarkPages">
               {{ watermarkDraft.pages.length === allPageKeys.length ? '清空选择' : '全选页面' }}
             </button>
           </header>
           <div class="watermark-page-groups">
             <article v-for="group in watermarkPageGroups" :key="group.key" class="watermark-page-group">
               <h3>{{ group.label }}</h3>
-              <button
-                v-for="page in group.pages"
-                :key="page.key"
-                type="button"
-                :class="{ active: selectedPages.has(page.key) }"
-                :disabled="!canUsePageAction('systemSettings', 'save')"
-                @click="toggleWatermarkPage(page.key)"
-              >
-                <AppIcon :name="selectedPages.has(page.key) ? 'check' : 'circleHelp'" :size="15" />
-                {{ page.label }}
-              </button>
+              <template v-if="canUsePageAction('systemSettings', 'save')">
+                <button
+                  v-for="page in group.pages"
+                  :key="page.key"
+                  type="button"
+                  :class="{ active: selectedPages.has(page.key) }"
+                  @click="toggleWatermarkPage(page.key)"
+                >
+                  <AppIcon :name="selectedPages.has(page.key) ? 'check' : 'circleHelp'" :size="15" />
+                  {{ page.label }}
+                </button>
+              </template>
+              <template v-else>
+                <span
+                  v-for="page in group.pages"
+                  :key="page.key"
+                  class="watermark-readonly-page"
+                  :class="{ active: selectedPages.has(page.key) }"
+                >
+                  <AppIcon :name="selectedPages.has(page.key) ? 'check' : 'circleHelp'" :size="15" />
+                  {{ page.label }}
+                </span>
+              </template>
             </article>
           </div>
         </section>
@@ -116,5 +131,7 @@ function toggleAllWatermarkPages() {
         <WatermarkOverlay v-if="watermarkDraft.enabled" :text="watermarkText" />
       </div>
     </article>
+    </template>
+    <div v-else class="permission-empty">暂无可用功能</div>
   </section>
 </template>

@@ -99,27 +99,29 @@ const {
   formatRecordTime,
   deletePassword,
   canUsePageAction,
+  canUseAnyPageAction,
 } = useAppContext();
 </script>
 
 <template>
       <section v-if="activeTool === 'subnet'" class="subnet-workbench">
+        <template v-if="canUseAnyPageAction('subnet', ['calculate', 'split', 'clear'])">
         <div class="subnet-top-grid">
           <article class="panel subnet-config-panel">
             <div class="subnet-panel-head">
               <h2>子网计算器</h2>
               <p>点击示例后会直接带入并计算。</p>
             </div>
-            <div class="subnet-presets">
-              <button v-for="preset in subnetPresets" :key="preset" type="button" :disabled="!canUsePageAction('subnet', 'calculate')" @click="setSubnetPreset(preset)">{{ preset }}</button>
+            <div v-if="canUsePageAction('subnet', 'calculate')" class="subnet-presets">
+              <button v-for="preset in subnetPresets" :key="preset" type="button" @click="setSubnetPreset(preset)">{{ preset }}</button>
             </div>
             <div class="subnet-control-grid">
-              <label><span>IP 地址 / CIDR</span><input v-model="subnetInput" :disabled="!canUsePageAction('subnet', 'calculate')" placeholder="例如 192.168.1.0/24" @keyup.enter="calculateSubnet(false)" /></label>
+              <label v-if="canUsePageAction('subnet', 'calculate')"><span>IP 地址 / CIDR</span><input v-model="subnetInput" placeholder="例如 192.168.1.0/24" @keyup.enter="calculateSubnet(false)" /></label>
               <label><span>子网掩码</span><select v-model.number="subnetPrefix" @change="handlePrefixChange"><option v-for="item in prefixOptions" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
             </div>
             <div class="subnet-actions">
-              <button class="primary" type="button" :disabled="!canUsePageAction('subnet', 'calculate')" @click="calculateSubnet(false)">计算</button>
-              <button type="button" :disabled="!canUsePageAction('subnet', 'clear')" @click="clearSubnet">清空</button>
+              <button v-if="canUsePageAction('subnet', 'calculate')" class="primary" type="button" @click="calculateSubnet(false)">计算</button>
+              <button v-if="canUsePageAction('subnet', 'clear')" type="button" @click="clearSubnet">清空</button>
             </div>
           </article>
 
@@ -174,9 +176,9 @@ const {
             <button :class="{ active: subnetSplitMode === 'count' }" type="button" @click="subnetSplitMode = 'count'">按子网数量</button>
             <button :class="{ active: subnetSplitMode === 'hosts' }" type="button" @click="subnetSplitMode = 'hosts'">按主机数量</button>
           </div>
-          <div class="subnet-split-line">
+          <div v-if="canUsePageAction('subnet', 'split')" class="subnet-split-line">
             <label><span>{{ subnetSplitMode === 'count' ? '划分子网数量' : '每个子网主机数' }}</span><select v-model.number="subnetTargetPrefix"><option v-for="item in subnetSplitChoices" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-            <button class="primary" type="button" :disabled="!subnetResult || !canSplitSubnet || !canUsePageAction('subnet', 'split')" @click="calculateSubnet(true)">划分</button>
+            <button class="primary" type="button" :disabled="!subnetResult || !canSplitSubnet" @click="calculateSubnet(true)">划分</button>
           </div>
           <div class="subnet-split-summary">
             <article><span>目标前缀</span><strong>/{{ subnetSplitSummary.prefix }}</strong></article>
@@ -198,5 +200,7 @@ const {
           <p v-if="subnetResult?.subnets?.length" class="subnet-generated">已生成 {{ subnetResult.subnets.length }} 个子网。</p>
           <div v-else class="empty-state">还没有子网划分结果。</div>
         </article>
+        </template>
+        <div v-else class="permission-empty">暂无可用功能</div>
       </section>
 </template>

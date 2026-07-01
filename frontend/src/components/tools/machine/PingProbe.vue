@@ -40,9 +40,9 @@ const {
               <label><span>间隔 (ms)</span><input v-model.number="pingInterval" min="100" max="10000" step="100" type="number" @keyup.enter="runPing" /></label>
             </div>
             <div class="ping-actions">
-              <button class="primary" type="button" :disabled="isPinging || !canUsePageAction('ports', 'ping')" @click="runPing">{{ isPinging ? 'Ping 中' : '开始 Ping' }}</button>
+              <button v-if="canUsePageAction('ports', 'ping')" class="primary" type="button" :disabled="isPinging" @click="runPing">{{ isPinging ? 'Ping 中' : '开始 Ping' }}</button>
               <button type="button" :disabled="!isPinging" @click="stopPing">停止</button>
-              <button type="button" :disabled="!pingDetails.length || !canUsePageAction('ports', 'export_ping')" @click="exportPingResults">导出</button>
+              <button v-if="canUsePageAction('ports', 'export_ping')" type="button" :disabled="!pingDetails.length" @click="exportPingResults">导出</button>
             </div>
           </article>
 

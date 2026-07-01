@@ -42,7 +42,7 @@ const columnOptions: readonly ColumnOption[] = [
   { key: 'message', label: '提示信息', width: 'minmax(360px, 2.3fr)' },
 ];
 
-const { activeTool, canUsePageAction } = useAppContext();
+const { activeTool, canUsePageAction, canUseAnyPageAction } = useAppContext();
 
 const logs = ref<LoginLog[]>([]);
 const username = ref('');
@@ -180,7 +180,8 @@ function statusText(status: LoginLogStatus) {
 
 <template>
   <section v-if="activeTool === 'loginLogs'" class="login-log-page" :class="{ fullscreen }" @click="columnsOpen = false">
-    <article class="login-log-filter-panel">
+    <template v-if="canUseAnyPageAction('loginLogs', ['refresh', 'filter', 'columns'])">
+    <article v-if="canUsePageAction('loginLogs', 'filter')" class="login-log-filter-panel">
       <label>
         <span>账户名称：</span>
         <input v-model="username" placeholder="请输入" />
@@ -195,17 +196,17 @@ function statusText(status: LoginLogStatus) {
       <div class="login-log-toolbar">
         <h2>登录记录</h2>
         <div class="login-log-actions">
-          <div class="login-log-tabs" role="tablist" aria-label="登录状态">
-            <button :class="{ active: statusFilter === 'all' }" type="button" :disabled="!canUsePageAction('loginLogs', 'filter')" @click="setStatusFilter('all')">全部</button>
-            <button :class="{ active: statusFilter === 'success' }" type="button" :disabled="!canUsePageAction('loginLogs', 'filter')" @click="setStatusFilter('success')">成功</button>
-            <button :class="{ active: statusFilter === 'failed' }" type="button" :disabled="!canUsePageAction('loginLogs', 'filter')" @click="setStatusFilter('failed')">失败</button>
+          <div v-if="canUsePageAction('loginLogs', 'filter')" class="login-log-tabs" role="tablist" aria-label="登录状态">
+            <button :class="{ active: statusFilter === 'all' }" type="button" @click="setStatusFilter('all')">全部</button>
+            <button :class="{ active: statusFilter === 'success' }" type="button" @click="setStatusFilter('success')">成功</button>
+            <button :class="{ active: statusFilter === 'failed' }" type="button" @click="setStatusFilter('failed')">失败</button>
           </div>
-          <span class="login-log-toolbar-divider"></span>
-          <button class="login-log-icon-button" type="button" title="刷新" aria-label="刷新" :disabled="!canUsePageAction('loginLogs', 'refresh')" @click="loadLogs">
+          <span v-if="canUseAnyPageAction('loginLogs', ['filter', 'refresh', 'columns'])" class="login-log-toolbar-divider"></span>
+          <button v-if="canUsePageAction('loginLogs', 'refresh')" class="login-log-icon-button" type="button" title="刷新" aria-label="刷新" @click="loadLogs">
             <AppIcon name="refresh" :size="18" />
           </button>
-          <div class="login-log-column-settings" @click.stop>
-            <button class="login-log-icon-button" type="button" title="列设置" aria-label="列设置" :disabled="!canUsePageAction('loginLogs', 'columns')" @click="columnsOpen = !columnsOpen">
+          <div v-if="canUsePageAction('loginLogs', 'columns')" class="login-log-column-settings" @click.stop>
+            <button class="login-log-icon-button" type="button" title="列设置" aria-label="列设置" @click="columnsOpen = !columnsOpen">
               <AppIcon name="settings" :size="18" />
             </button>
             <div v-if="columnsOpen" class="login-log-column-menu">
@@ -283,5 +284,7 @@ function statusText(status: LoginLogStatus) {
         </select>
       </div>
     </article>
+    </template>
+    <div v-else class="permission-empty">暂无可用功能</div>
   </section>
 </template>

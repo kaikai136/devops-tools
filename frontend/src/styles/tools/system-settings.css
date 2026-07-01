@@ -133,6 +133,22 @@
   transform: translateX(22px);
 }
 
+.watermark-readonly-switch {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 24px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.watermark-readonly-switch.active {
+  background: #12b99f;
+}
+
 .watermark-switch-row strong {
   color: #607086;
   font-size: 13px;
@@ -203,6 +219,26 @@
 }
 
 .watermark-page-group button.active {
+  border-color: #0b5cff;
+  background: #eaf1ff;
+  color: #0b5cff;
+}
+
+.watermark-readonly-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+  background: #fff;
+  color: #8b95a1;
+  padding: 0 9px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.watermark-readonly-page.active {
   border-color: #0b5cff;
   background: #eaf1ff;
   color: #0b5cff;
