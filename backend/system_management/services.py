@@ -81,6 +81,11 @@ PAGE_ACTION_PERMISSION_DEFINITIONS = [
     ("roles", "edit", "编辑角色"),
     ("roles", "permissions", "权限管理"),
     ("roles", "delete", "删除角色"),
+    ("profile", "edit", "保存资料"),
+    ("profile", "avatar", "上传头像"),
+    ("profile", "password", "修改密码"),
+    ("profile", "2fa_enable", "启用 2FA"),
+    ("profile", "2fa_disable", "关闭 2FA"),
     ("systemSettings", "save", "保存设置"),
     ("systemSettings", "reset", "还原设置"),
     ("systemSettings", "refresh", "刷新设置"),
@@ -125,6 +130,10 @@ def ensure_builtin_admin():
             "is_superuser": True,
         },
     )
+    if created:
+        admin_password = os.environ.get(BUILTIN_ADMIN_PASSWORD_ENV, "").strip() or BUILTIN_ADMIN_DEFAULT_PASSWORD
+        user.set_password(admin_password)
+        user.save(update_fields=["password"])
 
     update_fields: list[str] = []
     fixed_fields = {
@@ -138,11 +147,6 @@ def ensure_builtin_admin():
         if getattr(user, field) != value:
             setattr(user, field, value)
             update_fields.append(field)
-
-    admin_password = os.environ.get(BUILTIN_ADMIN_PASSWORD_ENV, "").strip() or BUILTIN_ADMIN_DEFAULT_PASSWORD
-    if not user.check_password(admin_password):
-        user.set_password(admin_password)
-        update_fields.append("password")
 
     if update_fields:
         user.save(update_fields=list(dict.fromkeys(update_fields)))

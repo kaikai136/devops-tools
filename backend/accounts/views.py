@@ -18,7 +18,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
 from accounts.models import UserProfile
-from accounts.permissions import require_login, require_staff
+from accounts.permissions import require_feature_permission, require_login, require_staff
 from operations.responses import bad_request
 from system_management.models import LoginLog
 from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log, user_feature_permission_codes
@@ -39,6 +39,11 @@ TWO_FACTOR_PENDING_TTL_SECONDS = 300
 TWO_FACTOR_ISSUER = "运维船长"
 AVATAR_ALLOWED_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 AVATAR_MAX_BYTES = 2 * 1024 * 1024
+PROFILE_PERMISSION_MESSAGE = "没有个人中心操作权限"
+
+
+def require_profile_permission(request, action_key: str | None = None):
+    return require_feature_permission(request, "profile", action_key, PROFILE_PERMISSION_MESSAGE)
 
 
 def user_payload(user) -> dict:
@@ -433,7 +438,7 @@ def auth_me(request):
 
 @api_view(["GET", "PUT"])
 def profile(request):
-    auth_error = require_login(request)
+    auth_error = require_profile_permission(request, "edit" if request.method == "PUT" else None)
     if auth_error:
         return auth_error
 
@@ -464,7 +469,7 @@ def profile(request):
 @api_view(["POST"])
 @parser_classes([MultiPartParser])
 def profile_avatar(request):
-    auth_error = require_login(request)
+    auth_error = require_profile_permission(request, "avatar")
     if auth_error:
         return auth_error
 
@@ -489,7 +494,7 @@ def profile_avatar(request):
 
 @api_view(["POST"])
 def profile_password(request):
-    auth_error = require_login(request)
+    auth_error = require_profile_permission(request, "password")
     if auth_error:
         return auth_error
 
@@ -512,7 +517,7 @@ def profile_password(request):
 
 @api_view(["POST"])
 def profile_2fa_setup(request):
-    auth_error = require_login(request)
+    auth_error = require_profile_permission(request, "2fa_enable")
     if auth_error:
         return auth_error
 
@@ -532,7 +537,7 @@ def profile_2fa_setup(request):
 
 @api_view(["POST"])
 def profile_2fa_confirm(request):
-    auth_error = require_login(request)
+    auth_error = require_profile_permission(request, "2fa_enable")
     if auth_error:
         return auth_error
 
@@ -553,7 +558,7 @@ def profile_2fa_confirm(request):
 
 @api_view(["POST"])
 def profile_2fa_disable(request):
-    auth_error = require_login(request)
+    auth_error = require_profile_permission(request, "2fa_disable")
     if auth_error:
         return auth_error
 

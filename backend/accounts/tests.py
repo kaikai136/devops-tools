@@ -1,10 +1,22 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 import pyotp
 
 from .models import UserProfile
 from .views import SLIDER_CHALLENGE_SESSION_KEY
+from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_builtin_admin, ensure_feature_permissions
+
+
+def grant_profile_permissions(user, *actions):
+    ensure_feature_permissions()
+    role = Group.objects.create(name=f"profile-permissions-{user.id}-{Group.objects.count()}")
+    permissions = [Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["profile"])]
+    permissions.extend(Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("profile", action)]) for action in actions)
+    role.permissions.add(*permissions)
+    user.groups.add(role)
+    return role
 
 
 class SliderChallengeTests(TestCase):
@@ -120,6 +132,7 @@ class ProfileApiTests(TestCase):
             email="operator@example.com",
             first_name="Operator",
         )
+        grant_profile_permissions(self.user, "edit", "avatar", "password", "2fa_enable", "2fa_disable")
         self.client.force_login(self.user)
 
     def test_profile_returns_current_user_metadata(self):
@@ -130,6 +143,63 @@ class ProfileApiTests(TestCase):
         self.assertEqual(payload["user"]["username"], "operator")
         self.assertEqual(payload["user"]["displayName"], "Operator")
         self.assertFalse(payload["profile"]["twoFactorEnabled"])
+
+    def test_profile_requires_page_permission(self):
+        viewer = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        self.client.force_login(viewer)
+
+        response = self.client.get("/api/profile/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_profile_update_requires_edit_action(self):
+        limited = get_user_model().objects.create_user(username="limited", password="UserPass123", first_name="Limited")
+        grant_profile_permissions(limited)
+        self.client.force_login(limited)
+
+        response = self.client.put(
+            "/api/profile/",
+            data={"username": "limited-renamed", "first_name": "Renamed", "email": "renamed@example.com"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        limited.refresh_from_db()
+        self.assertEqual(limited.username, "limited")
+
+    def test_avatar_upload_requires_avatar_action(self):
+        limited = get_user_model().objects.create_user(username="avatar-limited", password="UserPass123")
+        grant_profile_permissions(limited)
+        self.client.force_login(limited)
+        avatar = SimpleUploadedFile("avatar.png", b"fake-image", content_type="image/png")
+
+        response = self.client.post("/api/profile/avatar/", data={"avatar": avatar})
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_password_change_requires_password_action(self):
+        limited = get_user_model().objects.create_user(username="password-limited", password="UserPass123")
+        grant_profile_permissions(limited)
+        self.client.force_login(limited)
+
+        response = self.client.post(
+            "/api/profile/password/",
+            data={"currentPassword": "UserPass123", "newPassword": "NewPass123", "confirmPassword": "NewPass123"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        limited.refresh_from_db()
+        self.assertTrue(limited.check_password("UserPass123"))
+
+    def test_two_factor_setup_requires_enable_action(self):
+        limited = get_user_model().objects.create_user(username="two-factor-limited", password="UserPass123")
+        grant_profile_permissions(limited)
+        self.client.force_login(limited)
+
+        response = self.client.post("/api/profile/2fa/setup/", data={}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_profile_update_rejects_duplicate_username(self):
         get_user_model().objects.create_user(username="taken", password="UserPass123")
@@ -194,10 +264,27 @@ class ProfileApiTests(TestCase):
         self.assertTrue(self.user.check_password("NewPass123"))
         self.assertEqual(me_response.status_code, 200)
 
+    def test_builtin_admin_can_change_own_password_from_profile(self):
+        admin = ensure_builtin_admin()
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            "/api/profile/password/",
+            data={"currentPassword": "Admin@123456", "newPassword": "ChangedPass123", "confirmPassword": "ChangedPass123"},
+            content_type="application/json",
+        )
+        ensure_builtin_admin()
+
+        self.assertEqual(response.status_code, 200)
+        admin.refresh_from_db()
+        self.assertTrue(admin.check_password("ChangedPass123"))
+        self.assertFalse(admin.check_password("Admin@123456"))
+
 
 class TwoFactorLoginTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="operator", password="UserPass123")
+        grant_profile_permissions(self.user, "2fa_enable", "2fa_disable")
 
     def complete_slider(self) -> str:
         challenge_response = self.client.get("/api/auth/slider-challenge/")

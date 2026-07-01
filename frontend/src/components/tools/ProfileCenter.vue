@@ -11,7 +11,7 @@ import AppIcon from '../common/AppIcon.vue';
 
 const DEFAULT_AVATAR = '/ops-captain-icon.png';
 
-const { activeTool, currentUser, updateCurrentUser, showToast, logout, copyText } = useAppContext();
+const { activeTool, currentUser, updateCurrentUser, showToast, logout, copyText, canUsePageAction } = useAppContext();
 
 const isLoading = ref(false);
 const isSavingProfile = ref(false);
@@ -46,6 +46,11 @@ const roleTags = computed(() => {
 const passwordMismatch = computed(() => passwordsMismatch(passwordForm.value.newPassword, passwordForm.value.confirmPassword));
 const canSubmitPassword = computed(() => Boolean(passwordForm.value.currentPassword && passwordStrength.isStrong.value && passwordForm.value.confirmPassword && !passwordMismatch.value));
 const twoFactorEnabled = computed(() => Boolean(currentUser.value?.twoFactorEnabled));
+const canEditProfile = computed(() => canUsePageAction('profile', 'edit'));
+const canUploadAvatar = computed(() => canUsePageAction('profile', 'avatar'));
+const canChangePassword = computed(() => canUsePageAction('profile', 'password'));
+const canEnableTwoFactor = computed(() => canUsePageAction('profile', '2fa_enable'));
+const canDisableTwoFactor = computed(() => canUsePageAction('profile', '2fa_disable'));
 
 onMounted(loadProfile);
 
@@ -77,10 +82,12 @@ function syncUser(payload: ProfilePayload | { user: ProfilePayload['user'] }) {
 }
 
 function triggerAvatarUpload() {
+  if (!canUploadAvatar.value) return;
   avatarInput.value?.click();
 }
 
 async function uploadAvatar(event: Event) {
+  if (!canUploadAvatar.value) return;
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
@@ -102,6 +109,7 @@ async function uploadAvatar(event: Event) {
 }
 
 async function saveProfile() {
+  if (!canEditProfile.value) return;
   isSavingProfile.value = true;
   message.value = '';
   try {
@@ -117,7 +125,7 @@ async function saveProfile() {
 }
 
 async function changePassword() {
-  if (!canSubmitPassword.value) return;
+  if (!canSubmitPassword.value || !canChangePassword.value) return;
   isChangingPassword.value = true;
   message.value = '';
   try {
@@ -133,6 +141,7 @@ async function changePassword() {
 }
 
 async function prepareTwoFactor() {
+  if (!canEnableTwoFactor.value) return;
   isPreparingTwoFactor.value = true;
   message.value = '';
   try {
@@ -146,6 +155,7 @@ async function prepareTwoFactor() {
 }
 
 async function confirmTwoFactor() {
+  if (!canEnableTwoFactor.value) return;
   isConfirmingTwoFactor.value = true;
   message.value = '';
   try {
@@ -162,6 +172,7 @@ async function confirmTwoFactor() {
 }
 
 async function disableTwoFactor() {
+  if (!canDisableTwoFactor.value) return;
   isDisablingTwoFactor.value = true;
   message.value = '';
   try {
@@ -194,7 +205,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
     <aside class="profile-overview-card">
       <div class="profile-avatar-frame">
         <img :src="profileAvatar" alt="用户头像" />
-        <button type="button" :disabled="isUploadingAvatar" title="上传头像" aria-label="上传头像" @click="triggerAvatarUpload">
+        <button type="button" :disabled="isUploadingAvatar || !canUploadAvatar" title="上传头像" aria-label="上传头像" @click="triggerAvatarUpload">
           <AppIcon name="upload" :size="16" />
         </button>
         <input ref="avatarInput" hidden type="file" accept="image/png,image/jpeg,image/webp" @change="uploadAvatar" />
@@ -236,18 +247,18 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
         <form class="profile-form-grid" @submit.prevent="saveProfile">
           <label>
             <span>用户名</span>
-            <input v-model.trim="profileForm.username" autocomplete="username" />
+            <input v-model.trim="profileForm.username" autocomplete="username" :disabled="!canEditProfile" />
           </label>
           <label>
             <span>显示名</span>
-            <input v-model.trim="profileForm.first_name" placeholder="例如：运维船长" />
+            <input v-model.trim="profileForm.first_name" placeholder="例如：运维船长" :disabled="!canEditProfile" />
           </label>
           <label>
             <span>邮箱</span>
-            <input v-model.trim="profileForm.email" type="email" autocomplete="email" placeholder="name@example.com" />
+            <input v-model.trim="profileForm.email" type="email" autocomplete="email" placeholder="name@example.com" :disabled="!canEditProfile" />
           </label>
           <div class="profile-actions">
-            <button class="profile-primary-button" type="submit" :disabled="isSavingProfile">
+            <button class="profile-primary-button" type="submit" :disabled="isSavingProfile || !canEditProfile">
               {{ isSavingProfile ? '保存中...' : '保存资料' }}
             </button>
           </div>
@@ -265,15 +276,15 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
         <form class="profile-form-grid" @submit.prevent="changePassword">
           <label>
             <span>当前密码</span>
-            <input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" />
+            <input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" :disabled="!canChangePassword" />
           </label>
           <label>
             <span>新密码</span>
-            <input v-model="passwordForm.newPassword" type="password" autocomplete="new-password" />
+            <input v-model="passwordForm.newPassword" type="password" autocomplete="new-password" :disabled="!canChangePassword" />
           </label>
           <label>
             <span>确认新密码</span>
-            <input v-model="passwordForm.confirmPassword" type="password" autocomplete="new-password" />
+            <input v-model="passwordForm.confirmPassword" type="password" autocomplete="new-password" :disabled="!canChangePassword" />
           </label>
           <div class="profile-password-meter" :class="passwordStrength.className.value">
             <div>
@@ -284,7 +295,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
           </div>
           <p v-if="passwordMismatch" class="profile-inline-error">两次输入的新密码不一致。</p>
           <div class="profile-actions">
-            <button class="profile-primary-button" type="submit" :disabled="!canSubmitPassword || isChangingPassword">
+            <button class="profile-primary-button" type="submit" :disabled="!canSubmitPassword || isChangingPassword || !canChangePassword">
               {{ isChangingPassword ? '更新中...' : '更新密码' }}
             </button>
           </div>
@@ -301,7 +312,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
         </header>
 
         <div v-if="!twoFactorEnabled" class="profile-2fa-setup">
-          <button class="profile-primary-button" type="button" :disabled="isPreparingTwoFactor" @click="prepareTwoFactor">
+          <button class="profile-primary-button" type="button" :disabled="isPreparingTwoFactor || !canEnableTwoFactor" @click="prepareTwoFactor">
             <AppIcon name="qr" :size="16" />
             {{ isPreparingTwoFactor ? '生成中...' : '生成认证二维码' }}
           </button>
@@ -318,16 +329,16 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
 
           <form v-if="setupPayload" class="profile-2fa-form" @submit.prevent="confirmTwoFactor">
             <input v-model.trim="twoFactorCode" inputmode="numeric" maxlength="6" placeholder="输入 6 位验证码" />
-            <button class="profile-primary-button" type="submit" :disabled="twoFactorCode.length !== 6 || isConfirmingTwoFactor">
+            <button class="profile-primary-button" type="submit" :disabled="twoFactorCode.length !== 6 || isConfirmingTwoFactor || !canEnableTwoFactor">
               {{ isConfirmingTwoFactor ? '验证中...' : '启用 2FA' }}
             </button>
           </form>
         </div>
 
         <form v-else class="profile-2fa-form danger-zone" @submit.prevent="disableTwoFactor">
-          <input v-model="disablePassword" type="password" autocomplete="current-password" placeholder="当前密码" />
-          <input v-model.trim="disableCode" inputmode="numeric" maxlength="6" placeholder="6 位验证码" />
-          <button class="profile-danger-button" type="submit" :disabled="!disablePassword || disableCode.length !== 6 || isDisablingTwoFactor">
+          <input v-model="disablePassword" type="password" autocomplete="current-password" placeholder="当前密码" :disabled="!canDisableTwoFactor" />
+          <input v-model.trim="disableCode" inputmode="numeric" maxlength="6" placeholder="6 位验证码" :disabled="!canDisableTwoFactor" />
+          <button class="profile-danger-button" type="submit" :disabled="!disablePassword || disableCode.length !== 6 || isDisablingTwoFactor || !canDisableTwoFactor">
             {{ isDisablingTwoFactor ? '关闭中...' : '关闭 2FA' }}
           </button>
         </form>

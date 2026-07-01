@@ -114,7 +114,18 @@ class BuiltinAdminTests(TestCase):
         self.assertTrue(admin.is_active)
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
+        self.assertTrue(admin.check_password("Admin@123456"))
         self.assertTrue(any(item["username"] == BUILTIN_ADMIN_USERNAME and item["isBuiltinAdmin"] for item in response.json()))
+
+    def test_builtin_admin_password_is_not_reset_after_profile_change(self):
+        admin = ensure_builtin_admin()
+        admin.set_password("ChangedPass123")
+        admin.save(update_fields=["password"])
+
+        ensured = ensure_builtin_admin()
+
+        self.assertTrue(ensured.check_password("ChangedPass123"))
+        self.assertFalse(ensured.check_password("Admin@123456"))
 
     def test_builtin_admin_cannot_be_deleted(self):
         admin = ensure_builtin_admin()

@@ -287,12 +287,12 @@ watch(
 
 const permittedNavGroups = computed(() => {
   const user = currentUser.value;
-  if (!user || user.is_superuser) return navGroups;
+  if (!user || user.is_superuser || user.is_staff) return navGroups;
   const permissionCodes = new Set(user.featurePermissionCodes ?? []);
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => item.key === 'profile' || permissionCodes.has(`access_${item.key}`)),
+      items: group.items.filter((item) => permissionCodes.has(`access_${item.key}`)),
     }))
     .filter((group) => group.items.length);
 });
@@ -300,7 +300,7 @@ const permittedNavGroups = computed(() => {
 const currentPermissionCodes = computed(() => new Set(currentUser.value?.featurePermissionCodes ?? []));
 const permittedDashboardItem = computed(() => {
   const user = currentUser.value;
-  if (!user || user.is_superuser) return dashboardNavItem;
+  if (!user || user.is_superuser || user.is_staff) return dashboardNavItem;
   return currentPermissionCodes.value.has('access_dashboard') ? dashboardNavItem : null;
 });
 const permittedToolKeys = computed(() => {
@@ -325,8 +325,15 @@ const shouldShowWatermark = computed(() => watermarkAppliesToPage(watermarkConfi
 function canUsePageAction(pageKey: string, actionKey: string) {
   const user = currentUser.value;
   if (!user) return false;
-  if (user.is_superuser) return true;
+  if (user.is_superuser || user.is_staff) return true;
   return currentPermissionCodes.value.has(`action_${pageKey}_${actionKey}`);
+}
+
+function canAccessPage(pageKey: string) {
+  const user = currentUser.value;
+  if (!user) return false;
+  if (user.is_superuser || user.is_staff) return true;
+  return currentPermissionCodes.value.has(`access_${pageKey}`);
 }
 
 function selectHost(ip: string) {
@@ -406,6 +413,7 @@ const appState = {
   saveWatermarkSetting,
   resetWatermarkDraft,
   currentUser,
+  canAccessPage,
   canUsePageAction,
   isAuthReady,
   isAuthenticated,

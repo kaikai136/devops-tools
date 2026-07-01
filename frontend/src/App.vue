@@ -46,6 +46,7 @@ const {
   activeNavGroup,
   activeNavItem,
   currentUser,
+  canAccessPage,
   canUsePageAction,
   isAuthReady,
   isAuthenticated,
@@ -362,7 +363,7 @@ async function refreshDashboard() {
                 </div>
               </div>
               <span class="workspace-menu-divider"></span>
-              <button class="workspace-menu-action" type="button" role="menuitem" @click="setActiveTool('profile')">
+              <button class="workspace-menu-action" type="button" role="menuitem" :disabled="!canAccessPage('profile')" @click="setActiveTool('profile')">
                 <AppIcon name="user" :size="16" />
                 <span>个人中心</span>
               </button>
