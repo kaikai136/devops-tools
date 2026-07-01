@@ -29,18 +29,18 @@
 }
 
 .app-shell.workspace-dark {
-  --workspace-bg: #0f172a;
-  --workspace-surface: #111827;
-  --workspace-surface-muted: #162033;
-  --workspace-panel: rgba(17, 24, 39, 0.86);
-  --workspace-panel-solid: #111827;
-  --workspace-border: #26344f;
-  --workspace-border-soft: #25324a;
+  --workspace-bg: #0b1220;
+  --workspace-surface: #111a2c;
+  --workspace-surface-muted: #162239;
+  --workspace-panel: rgba(17, 26, 44, 0.9);
+  --workspace-panel-solid: #111a2c;
+  --workspace-border: #263653;
+  --workspace-border-soft: #22314c;
   --workspace-text: #e5edf8;
-  --workspace-text-soft: #d7e1ef;
-  --workspace-muted: #9aa8bc;
-  --workspace-subtle: #b7c5d8;
-  --workspace-hover: #1d2a42;
+  --workspace-text-soft: #d8e4f4;
+  --workspace-muted: #9aaac0;
+  --workspace-subtle: #b9c8dc;
+  --workspace-hover: #1b2a44;
   --workspace-icon: #d7e1ef;
   --workspace-shadow: rgba(2, 8, 23, 0.28);
   --workspace-popup-shadow: rgba(2, 8, 23, 0.44);

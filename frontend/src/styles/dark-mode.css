@@ -1,0 +1,321 @@
+.app-shell.workspace-dark {
+  --dark-page-bg:
+    radial-gradient(circle at 12% 0%, rgba(20, 184, 166, 0.08), transparent 28%),
+    radial-gradient(circle at 88% 8%, rgba(37, 99, 235, 0.1), transparent 30%),
+    linear-gradient(180deg, #0b1220 0%, #0d1524 54%, #08111f 100%);
+  --dark-panel-bg:
+    linear-gradient(180deg, rgba(18, 28, 47, 0.96), rgba(13, 21, 36, 0.94));
+  --dark-panel-soft:
+    linear-gradient(180deg, rgba(22, 34, 57, 0.94), rgba(15, 25, 43, 0.92));
+  --dark-field-bg: #0b1425;
+  --dark-field-border: #2b3d5c;
+  --dark-accent: #38bdf8;
+  --dark-accent-strong: #5eead4;
+  --dark-danger-bg: rgba(127, 29, 29, 0.22);
+  --dark-warning-bg: rgba(120, 81, 25, 0.22);
+  --dark-success-bg: rgba(20, 83, 75, 0.28);
+}
+
+.workspace-dark .workspace {
+  background: var(--dark-page-bg);
+}
+
+.workspace-dark :where(
+  .tool-stack,
+  .tool-grid,
+  .auth-layout,
+  .machine-probe-grid,
+  .account-page,
+  .host-manager-page,
+  .user-manager-page,
+  .login-log-page,
+  .role-manager-page,
+  .profile-center-page,
+  .password-page,
+  .system-settings-page,
+  .ip-page,
+  .ping-page,
+  .subnet-workbench
+) {
+  background: transparent;
+  color: var(--workspace-text);
+}
+
+.workspace-dark :where(.account-page.fullscreen, .host-manager-page.fullscreen, .user-manager-page.fullscreen, .login-log-page.fullscreen) {
+  background: var(--dark-page-bg);
+}
+
+.workspace-dark :where(
+  .panel,
+  .account-panel,
+  .auth-form-panel,
+  .auth-card,
+  .scan-card,
+  .host-groups-panel,
+  .host-table-panel,
+  .login-log-filter-panel,
+  .login-log-list-panel,
+  .password-generator-panel,
+  .password-record-panel,
+  .password-record-card,
+  .role-filter-panel,
+  .role-list-panel,
+  .subnet-config-panel,
+  .subnet-result-panel,
+  .subnet-list-panel,
+  .subnet-binary-panel,
+  .system-settings-main,
+  .table-panel,
+  .user-filter-panel,
+  .user-list-panel,
+  .watermark-preview-panel
+) {
+  border-color: var(--workspace-border);
+  background: var(--dark-panel-bg);
+  color: var(--workspace-text);
+  box-shadow: 0 18px 42px rgba(2, 8, 23, 0.26);
+}
+
+.workspace-dark :where(
+  .panel h2,
+  .panel h3,
+  .account-form-modal h2,
+  .account-confirm-modal h2,
+  .account-name strong,
+  .account-contact strong,
+  .auth-card h3,
+  .host-form-modal h2,
+  .login-log-toolbar h2,
+  .password-panel-head h2,
+  .profile-panel h2,
+  .role-list-toolbar h2,
+  .role-modal h2,
+  .system-settings-title h2,
+  .user-list-toolbar h2,
+  .watermark-page-group h3,
+  .watermark-preview-panel h2
+) {
+  color: var(--workspace-text);
+}
+
+.workspace-dark :where(
+  .account-date,
+  .account-contact span,
+  .account-key-upload em,
+  .account-name span,
+  .account-stats-line,
+  .auth-card p,
+  .password-panel-head p,
+  .profile-panel p,
+  .role-confirm-modal p,
+  .scan-card p,
+  .system-settings-title p,
+  .watermark-page-picker span,
+  .watermark-preview-content p,
+  .watermark-preview-content span,
+  .watermark-preview-panel header span
+) {
+  color: var(--workspace-muted);
+}
+
+.workspace-dark :where(input, select, textarea) {
+  border-color: var(--dark-field-border);
+  background: var(--dark-field-bg);
+  color: var(--workspace-text);
+}
+
+.workspace-dark :where(input, select, textarea):focus {
+  border-color: var(--dark-accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
+}
+
+.workspace-dark :where(input::placeholder, textarea::placeholder) {
+  color: #64748b;
+}
+
+.workspace-dark :where(button:not(.primary):not(.danger):not(.workspace-menu-button):not(.workspace-icon-button):not(.workspace-avatar-button):not(.workspace-menu-action):not(.sidebar-toggle):not(.nav-dashboard-button):not(.nav-dashboard-compact):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab)) {
+  border-color: var(--workspace-border);
+  background: var(--workspace-surface-muted);
+  color: var(--workspace-text-soft);
+}
+
+.workspace-dark :where(button:not(.primary):not(.danger):not(:disabled)):hover {
+  border-color: rgba(56, 189, 248, 0.48);
+  background: #1d2f4d;
+  color: #dbeafe;
+}
+
+.workspace-dark :where(.primary, .role-primary-button, .user-primary-button, .profile-primary-button) {
+  border-color: transparent;
+  background: linear-gradient(135deg, #2563eb, #14b8a6);
+  color: #fff;
+  box-shadow: 0 16px 28px rgba(20, 184, 166, 0.16);
+}
+
+.workspace-dark :where(
+  .account-table,
+  .host-table,
+  .login-log-table,
+  .role-permission-tree,
+  .role-table,
+  .subnet-table,
+  .user-table
+) {
+  border-color: var(--workspace-border);
+}
+
+.workspace-dark :where(
+  .account-table-row,
+  .host-table-row,
+  .login-log-table-row,
+  .role-permission-row,
+  .role-table-row,
+  .subnet-table-row,
+  .user-table-row
+) {
+  border-color: var(--workspace-border-soft);
+  color: var(--workspace-text-soft);
+}
+
+.workspace-dark :where(
+  .account-table-row.head,
+  .host-table-row.head,
+  .login-log-table-row.head,
+  .role-permission-row.head,
+  .role-table-row.head,
+  .subnet-table-head,
+  .user-table-row.head
+) {
+  border-color: var(--workspace-border);
+  background: #17233a;
+  color: #b9c8dc;
+}
+
+.workspace-dark :where(
+  .host-sticky-cell,
+  .host-actions-cell,
+  .host-status-cell,
+  .role-table-row > *,
+  .role-permission-row.head span,
+  .role-tree-node,
+  .user-table-row > span,
+  .user-table-row > strong,
+  .user-table-row > div
+) {
+  border-color: var(--workspace-border-soft);
+}
+
+.workspace-dark :where(
+  .role-column-menu,
+  .user-column-menu,
+  .host-column-menu,
+  .host-group-context-menu,
+  .host-form-modal,
+  .account-form-modal,
+  .account-confirm-modal,
+  .role-modal,
+  .user-form-modal
+) {
+  border-color: var(--workspace-border);
+  background: var(--workspace-panel-solid);
+  color: var(--workspace-text);
+  box-shadow: 0 24px 64px rgba(2, 8, 23, 0.48);
+}
+
+.workspace-dark :where(.user-form-modal h2, .user-modal-head, .host-form-modal h2) {
+  border-color: var(--workspace-border-soft);
+  color: var(--workspace-text);
+}
+
+.workspace-dark :where(.account-horizontal-field, .account-horizontal-field > span, .role-form-row, .role-form-row input, .user-form-row > span) {
+  color: var(--workspace-text-soft);
+}
+
+.workspace-dark :where(.role-form-row input[readonly], .user-form-modal select[multiple]) {
+  border-color: var(--workspace-border);
+  background: #0d1728;
+  color: var(--workspace-muted);
+}
+
+.workspace-dark :where(
+  .account-stats-line span,
+  .auth-type-tag,
+  .host-group-row,
+  .password-option-row,
+  .ping-chart-panel,
+  .ping-result-card,
+  .port-summary-card,
+  .subnet-summary-card,
+  .watermark-page-group,
+  .watermark-preview-box
+) {
+  border-color: var(--workspace-border);
+  background: var(--dark-panel-soft);
+  color: var(--workspace-text-soft);
+}
+
+.workspace-dark :where(.watermark-preview-box) {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(56, 189, 248, 0.12), transparent 32%),
+    linear-gradient(180deg, #101a2d 0%, #0d1627 100%);
+}
+
+.workspace-dark :where(.watermark-page-picker, .watermark-preview-panel header, .modal-actions, .user-modal-actions) {
+  border-color: var(--workspace-border-soft);
+}
+
+.workspace-dark :where(.watermark-page-group button.active, .watermark-readonly-page.active) {
+  border-color: rgba(56, 189, 248, 0.52);
+  background: rgba(37, 99, 235, 0.2);
+  color: #bfdbfe;
+}
+
+.workspace-dark :where(.watermark-preview-content strong) {
+  color: #60a5fa;
+}
+
+.workspace-dark :where(.permission-empty, .account-empty, .role-empty, .user-empty) {
+  border-color: var(--workspace-border);
+  background: rgba(15, 23, 42, 0.48);
+  color: var(--workspace-muted);
+}
+
+.workspace-dark :where(.account-role, .account-status, .role-status, .user-status, .login-log-status) {
+  border-color: rgba(56, 189, 248, 0.26);
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+}
+
+.workspace-dark :where(.account-status.active, .role-status.enabled, .user-status.enabled, .login-log-status.success) {
+  border-color: rgba(94, 234, 212, 0.28);
+  background: var(--dark-success-bg);
+  color: #99f6e4;
+}
+
+.workspace-dark :where(.login-log-status.failed, .account-status.disabled, .user-status.disabled) {
+  border-color: rgba(248, 113, 113, 0.32);
+  background: var(--dark-danger-bg);
+  color: #fecaca;
+}
+
+.workspace-dark :where(.account-role.superuser, .account-actions .danger, .role-row-actions .delete, .user-row-actions .danger) {
+  color: #fca5a5;
+}
+
+.workspace-dark :where(.account-role.staff, .account-actions button, .role-permission-button, .host-name-link) {
+  color: #93c5fd;
+}
+
+.workspace-dark :where(.host-table-row:hover, .login-log-table-row:hover, .user-table-row:not(.head):hover, .account-table-row:not(.head):hover) {
+  background: rgba(30, 42, 66, 0.72);
+}
+
+.workspace-dark :where(.host-bulk-action-bar, .profile-qr-setup, .qr-frame) {
+  border-color: var(--workspace-border);
+  background: var(--workspace-panel-solid);
+  color: var(--workspace-text);
+}
+
+.workspace-dark .watermark-overlay-item {
+  color: rgba(190, 205, 226, 0.11);
+}
