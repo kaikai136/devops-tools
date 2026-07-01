@@ -105,20 +105,15 @@
 }
 
 .dashboard-typing-title {
-  min-height: 42px;
-}
-
-.dashboard-typing-title a {
-  display: inline-flex;
-  max-width: min(100%, 520px);
-  text-decoration: none;
+  min-height: 64px;
 }
 
 .dashboard-typing-title img {
   display: block;
-  width: min(100%, 520px);
+  width: min(100%, 620px);
+  max-width: 100%;
   height: auto;
-  min-height: 42px;
+  min-height: 40px;
   object-fit: contain;
   object-position: left center;
 }
@@ -714,11 +709,11 @@
   }
 
   .dashboard-typing-title {
-    min-height: 36px;
+    min-height: 58px;
   }
 
   .dashboard-typing-title img {
-    min-height: 36px;
+    width: 100%;
   }
 
   .dashboard-card-grid,

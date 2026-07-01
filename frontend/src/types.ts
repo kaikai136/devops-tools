@@ -257,6 +257,70 @@ export interface WatermarkConfig {
   pages: string[];
 }
 
+export interface SiteIdentityConfig {
+  appName: string;
+  appShortName: string;
+  appSubtitle: string;
+  browserTitle: string;
+  logoText: string;
+  logoImageUrl: string;
+  iconUrl: string;
+  totpIssuer: string;
+}
+
+export interface DashboardHeroConfig {
+  badgeTemplate: string;
+  line1Template: string;
+  line2Template: string;
+  descriptionTemplate: string;
+  font: string;
+  fontSize: number;
+  fontWeight: number;
+  letterSpacing: string;
+  durationMs: number;
+  pauseMs: number;
+  color: string;
+  backgroundColor: string;
+  centered: boolean;
+  verticalCentered: boolean;
+  multiline: boolean;
+  repeat: boolean;
+  random: boolean;
+  width: number;
+  height: number;
+}
+
+export interface LayoutFooterConfig {
+  enabled: boolean;
+  textTemplate: string;
+  linkText: string;
+  linkUrl: string;
+  fontSize: number;
+  color: string;
+}
+
+export interface LoginContentConfig {
+  badgeTemplate: string;
+  title: string;
+  description: string;
+  copyrightTemplate: string;
+}
+
+export interface TemplateVariables {
+  appName: string;
+  appShortName: string;
+  appSubtitle: string;
+  username: string;
+  displayName: string;
+  greeting: string;
+  date: string;
+  time: string;
+  weekday: string;
+  year: string;
+  localIp: string;
+  generatedAt: string;
+}
+
 export interface DashboardCard {
   key: string;
   label: string;

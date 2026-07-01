@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue
 
 import { apiGet } from '../../api';
 import { useAppContext } from '../../appContext';
+import { buildReadmeTypingSvgUrl, buildTemplateVariables, renderTemplate } from '../../composables/features/useSiteSettings';
 import type { DashboardDistributionItem, DashboardSummary } from '../../types';
 import { errorMessage } from '../../utils/errors';
 import AppIcon from '../common/AppIcon.vue';
@@ -12,7 +13,7 @@ const DashboardChart = defineAsyncComponent(() => import('./dashboard/DashboardC
 type DashboardChartOption = Record<string, unknown>;
 type DistributionWithPercent = DashboardDistributionItem & { percent: number };
 
-const { currentUser, isWorkspaceDark } = useAppContext();
+const { currentUser, isWorkspaceDark, localIp, siteIdentity, dashboardHero } = useAppContext();
 
 const summary = ref<DashboardSummary | null>(null);
 const isLoading = ref(false);
@@ -20,19 +21,28 @@ const message = ref('');
 const now = ref(new Date());
 let clockTimer: number | undefined;
 
-const displayName = computed(() => currentUser.value?.first_name || currentUser.value?.username || '船长');
-const timeGreeting = computed(() => buildTimeGreeting(now.value.getHours()));
-const heroGreetingLine = computed(() => `${timeGreeting.value}，${displayName.value}`);
-const heroTypingLines = computed(() => [heroGreetingLine.value, '一路向前，莫问前程！！！']);
-const heroTypingAlt = computed(() => heroTypingLines.value.join(' / '));
-const heroTypingUrl = computed(() => {
-  const lines = heroTypingLines.value.map((line) => encodeURIComponent(line)).join(';');
-  return `https://readme-typing-svg.herokuapp.com?font=Fira+Code&weight=900&size=24&pause=1000&color=9B5CFF&background=FFFFFF00&vCenter=true&width=520&height=40&lines=${lines}`;
-});
 const heroClockDate = computed(() => formatHeroDate(now.value));
 const heroClockTime = computed(() => formatClockTime(now.value));
 const heroClockLabel = computed(() => `${heroClockDate.value} ${heroClockTime.value}`);
 const generatedText = computed(() => (summary.value?.generatedAt ? formatTime(summary.value.generatedAt) : '--'));
+const heroTemplateVariables = computed(() =>
+  buildTemplateVariables({
+    siteIdentity: siteIdentity.value,
+    user: currentUser.value,
+    localIp: localIp.value,
+    generatedAt: generatedText.value,
+    now: now.value,
+  }),
+);
+const heroBadge = computed(() => renderTemplate(dashboardHero.value.badgeTemplate, heroTemplateVariables.value));
+const heroTypingLines = computed(() =>
+  [dashboardHero.value.line1Template, dashboardHero.value.line2Template]
+    .map((template) => renderTemplate(template, heroTemplateVariables.value).trim())
+    .filter(Boolean),
+);
+const heroTypingAlt = computed(() => heroTypingLines.value.join(' / '));
+const heroTypingUrl = computed(() => buildReadmeTypingSvgUrl(dashboardHero.value, heroTypingLines.value));
+const heroDescription = computed(() => renderTemplate(dashboardHero.value.descriptionTemplate, heroTemplateVariables.value));
 const osTopList = computed(() => withPercent(summary.value?.assetDistribution.os ?? []));
 const verificationList = computed(() => withPercent(summary.value?.assetDistribution.verification ?? []));
 const userActiveRate = computed(() => {
@@ -436,14 +446,6 @@ function clampPercent(value: number) {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-function buildTimeGreeting(hour: number) {
-  if (hour >= 5 && hour < 9) return '早上好';
-  if (hour >= 9 && hour < 12) return '上午好';
-  if (hour >= 12 && hour < 14) return '中午好';
-  if (hour >= 14 && hour < 18) return '下午好';
-  return '晚上好';
-}
-
 function formatNumber(value: number) {
   return new Intl.NumberFormat('zh-CN').format(value);
 }
@@ -491,13 +493,11 @@ defineExpose({
   <section class="dashboard-page">
     <header class="dashboard-hero">
       <div class="dashboard-hero-copy">
-        <span>CAPTAIN OPS</span>
+        <span>{{ heroBadge }}</span>
         <h1 class="dashboard-typing-title">
-          <a href="https://git.io/typing-svg" target="_blank" rel="noreferrer">
-            <img :src="heroTypingUrl" :alt="heroTypingAlt" />
-          </a>
+          <img :src="heroTypingUrl" :alt="heroTypingAlt" />
         </h1>
-        <p>这里汇总系统账号、资产与网络出口状态，帮助你快速判断今天的运维态势。</p>
+        <p>{{ heroDescription }}</p>
       </div>
       <time class="dashboard-hero-clock" :datetime="now.toISOString()" :aria-label="heroClockLabel">
         <span>{{ heroClockDate }}</span>

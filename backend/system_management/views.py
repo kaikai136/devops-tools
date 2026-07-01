@@ -12,7 +12,7 @@ from operations.responses import bad_request, bounded_int, not_found, serializer
 
 from .dashboard import build_dashboard_summary
 from .models import LoginLog, SystemSetting
-from .serializers import WATERMARK_SETTING_KEY, LoginLogSerializer, PermissionSerializer, RoleOptionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
+from .serializers import DISPLAY_SETTING_KEYS, PUBLIC_DISPLAY_SETTING_KEYS, LoginLogSerializer, PermissionSerializer, RoleOptionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
 from .services import UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
 
 
@@ -419,7 +419,9 @@ def system_settings(request):
 
 @api_view(["GET", "PUT", "DELETE"])
 def system_setting_detail(request, setting_key: str):
-    if request.method == "GET" and setting_key == WATERMARK_SETTING_KEY:
+    if request.method == "GET" and setting_key in PUBLIC_DISPLAY_SETTING_KEYS:
+        pass
+    elif request.method == "GET" and setting_key in DISPLAY_SETTING_KEYS:
         auth_error = require_login(request)
         if auth_error:
             return auth_error

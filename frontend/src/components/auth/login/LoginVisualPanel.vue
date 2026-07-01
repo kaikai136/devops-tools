@@ -1,5 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
+import { useAppContext } from '../../../appContext';
 import AppIcon from '../../common/AppIcon.vue';
+
+const { siteIdentity, loginContent, renderSystemTemplate } = useAppContext();
+
+const loginTitle = computed(() => renderSystemTemplate(loginContent.value.title));
+const loginDescription = computed(() => renderSystemTemplate(loginContent.value.description));
+const loginCopyright = computed(() => renderSystemTemplate(loginContent.value.copyrightTemplate));
 </script>
 
 <template>
@@ -10,18 +19,18 @@ import AppIcon from '../../common/AppIcon.vue';
 
     <div class="login-brand-row">
       <div class="login-logo-wrap">
-        <img src="/ops-captain-icon.png" alt="运维船长" />
+        <img :src="siteIdentity.iconUrl" :alt="siteIdentity.appName" />
       </div>
       <div class="login-brand-text">
-        <strong>运维船长</strong>
-        <span>Management Platform</span>
+        <strong>{{ siteIdentity.appName }}</strong>
+        <span>{{ siteIdentity.appSubtitle }}</span>
       </div>
     </div>
 
     <div class="login-brand-content">
       <div class="login-brand">
-        <h1>欢迎登录<br />管理平台</h1>
-        <p>面向日常巡检、网络诊断和安全管理的内部工作台。</p>
+        <h1>{{ loginTitle }}</h1>
+        <p>{{ loginDescription }}</p>
       </div>
 
       <ul class="login-feature-tags" aria-label="平台能力">
@@ -46,6 +55,6 @@ import AppIcon from '../../common/AppIcon.vue';
       </div>
     </div>
 
-    <p class="login-copyright">© 2026 运维船长 Team</p>
+    <p class="login-copyright">{{ loginCopyright }}</p>
   </aside>
 </template>

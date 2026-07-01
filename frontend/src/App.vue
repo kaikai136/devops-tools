@@ -69,7 +69,10 @@ const {
   toastTone,
   showToast,
   shouldShowWatermark,
-  watermarkConfig,
+  siteIdentity,
+  layoutFooter,
+  renderSystemTemplate,
+  watermarkText,
   setActiveTool,
   selectNavItem,
   toggleSidebar,
@@ -110,7 +113,12 @@ const {
 const selectedManagedHostCount = computed(() => visibleManagedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id)).length);
 const currentUserDisplayName = computed(() => currentUser.value?.displayName || currentUser.value?.first_name || currentUser.value?.username || '未命名用户');
 const currentUserAccount = computed(() => currentUser.value?.username || currentUser.value?.email || '当前账户');
-const currentUserAvatar = computed(() => currentUser.value?.avatarUrl || '/ops-captain-icon.png');
+const currentUserAvatar = computed(() => currentUser.value?.avatarUrl || siteIdentity.value.iconUrl);
+const sidebarLogoUrl = computed(() => siteIdentity.value.logoImageUrl || siteIdentity.value.iconUrl);
+const footerText = computed(() => renderSystemTemplate(layoutFooter.value.textTemplate));
+const footerLinkText = computed(() => renderSystemTemplate(layoutFooter.value.linkText));
+const footerStyle = computed(() => ({ fontSize: `${layoutFooter.value.fontSize}px`, color: layoutFooter.value.color }));
+const isExternalFooterLink = computed(() => /^https?:\/\//i.test(layoutFooter.value.linkUrl));
 
 watch(hostTransferDialog, (mode) => {
   if (mode !== 'export') return;
@@ -178,7 +186,7 @@ async function lockCurrentSession() {
   <main v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed, 'workspace-dark': isWorkspaceDark }">
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
-        <img src="/captain-banner.png" alt="运维船长" />
+        <img :src="sidebarLogoUrl" :alt="siteIdentity.appName" />
         <button
           class="sidebar-toggle"
           type="button"
@@ -415,9 +423,20 @@ async function lockCurrentSession() {
         <ProfileCenter v-if="activeTool === 'profile'" />
         <SystemSettingsPanel v-if="activeTool === 'systemSettings'" />
       </template>
+      <footer v-if="layoutFooter.enabled" class="workspace-footer" :style="footerStyle">
+        <span>{{ footerText }}</span>
+        <a
+          v-if="layoutFooter.linkText && layoutFooter.linkUrl"
+          :href="layoutFooter.linkUrl"
+          :target="isExternalFooterLink ? '_blank' : undefined"
+          :rel="isExternalFooterLink ? 'noreferrer' : undefined"
+        >
+          {{ footerLinkText }}
+        </a>
+      </footer>
     </section>
 
-    <WatermarkOverlay v-if="shouldShowWatermark" :text="watermarkConfig.text" />
+    <WatermarkOverlay v-if="shouldShowWatermark" :text="watermarkText" />
     <LockScreenOverlay
       v-if="currentUser"
       :locked="isLocked"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
+import { useAppContext } from '../../../appContext';
 import type { LoginTwoFactorChallenge, LoginTwoFactorSetupChallenge } from '../../../types';
 import AppIcon from '../../common/AppIcon.vue';
 import LoginSliderVerify from './LoginSliderVerify.vue';
@@ -36,6 +37,7 @@ const emit = defineEmits<{
 const usernameInput = ref<HTMLInputElement | null>(null);
 const passwordInput = ref<HTMLInputElement | null>(null);
 const showPassword = ref(false);
+const { siteIdentity, loginContent, renderSystemTemplate } = useAppContext();
 
 const accountModel = computed({
   get: () => props.account,
@@ -57,6 +59,9 @@ const twoFactorCodeModel = computed({
   get: () => props.twoFactorCode,
   set: (value: string) => emit('update:twoFactorCode', value.replace(/\D/g, '').slice(0, 6)),
 });
+const formBadge = computed(() => renderSystemTemplate(loginContent.value.badgeTemplate));
+const formTitle = computed(() => renderSystemTemplate(loginContent.value.title));
+const formDescription = computed(() => renderSystemTemplate(loginContent.value.description));
 
 function getUsernameInputElement() {
   return usernameInput.value;
@@ -74,17 +79,17 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
     <div class="login-form-glass" aria-hidden="true"></div>
     <form v-if="!twoFactorChallenge && !twoFactorSetupChallenge" class="login-form" @submit.prevent="emit('submit')">
       <div class="login-form-brand">
-        <img src="/ops-captain-icon.png" alt="运维船长" />
-        <strong>运维船长</strong>
+        <img :src="siteIdentity.iconUrl" :alt="siteIdentity.appName" />
+        <strong>{{ siteIdentity.appName }}</strong>
       </div>
 
       <div class="login-method-pill">
         <span></span>
-        账号密码登录
+        {{ formBadge }}
       </div>
 
-      <h2>登 录</h2>
-      <p class="login-subtitle">请输入用户名 · 请输入密码</p>
+      <h2>{{ formTitle }}</h2>
+      <p class="login-subtitle">{{ formDescription }}</p>
 
       <label class="login-form-group" for="login-account">
         <div class="login-input-wrapper">
@@ -126,8 +131,8 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
     </form>
     <form v-else-if="twoFactorSetupChallenge" class="login-form login-2fa-form login-2fa-setup-form" @submit.prevent="emit('submitTwoFactorSetup')">
       <div class="login-form-brand">
-        <img src="/ops-captain-icon.png" alt="运维船长" />
-        <strong>运维船长</strong>
+        <img :src="siteIdentity.iconUrl" :alt="siteIdentity.appName" />
+        <strong>{{ siteIdentity.appName }}</strong>
       </div>
 
       <div class="login-method-pill">
@@ -169,8 +174,8 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
     </form>
     <form v-else-if="twoFactorChallenge" class="login-form login-2fa-form" @submit.prevent="emit('submitTwoFactor')">
       <div class="login-form-brand">
-        <img src="/ops-captain-icon.png" alt="运维船长" />
-        <strong>运维船长</strong>
+        <img :src="siteIdentity.iconUrl" :alt="siteIdentity.appName" />
+        <strong>{{ siteIdentity.appName }}</strong>
       </div>
 
       <div class="login-method-pill">

@@ -21,7 +21,7 @@ from accounts.models import UserProfile
 from accounts.permissions import require_feature_permission, require_login, require_staff
 from accounts.session_lock import is_session_locked, lock_session, unlock_session
 from operations.responses import bad_request
-from system_management.models import LoginLog
+from system_management.models import LoginLog, SystemSetting
 from system_management.services import ensure_builtin_admin, is_builtin_admin_user, record_login_log, user_feature_permission_codes
 
 SLIDER_CHALLENGE_SESSION_KEY = "auth_slider_challenges"
@@ -37,7 +37,8 @@ SLIDER_MAX_CHALLENGES = 5
 TWO_FACTOR_PENDING_SESSION_KEY = "auth_2fa_pending"
 TWO_FACTOR_SETUP_PENDING_SESSION_KEY = "auth_2fa_setup_pending"
 TWO_FACTOR_PENDING_TTL_SECONDS = 300
-TWO_FACTOR_ISSUER = "运维船长"
+DEFAULT_TWO_FACTOR_ISSUER = "运维船长"
+SITE_IDENTITY_SETTING_KEY = "site_identity"
 AVATAR_ALLOWED_CONTENT_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 AVATAR_MAX_BYTES = 2 * 1024 * 1024
 PROFILE_PERMISSION_MESSAGE = "没有个人中心操作权限"
@@ -79,6 +80,17 @@ def avatar_url(profile: UserProfile) -> str:
     if not profile.avatar:
         return ""
     return profile.avatar.url
+
+
+def two_factor_issuer() -> str:
+    try:
+        value = SystemSetting.objects.filter(key=SITE_IDENTITY_SETTING_KEY).values_list("value", flat=True).first()
+    except Exception:
+        return DEFAULT_TWO_FACTOR_ISSUER
+    if not isinstance(value, dict):
+        return DEFAULT_TWO_FACTOR_ISSUER
+    issuer = str(value.get("totpIssuer", "")).strip()
+    return issuer or DEFAULT_TWO_FACTOR_ISSUER
 
 
 def _now() -> float:
@@ -198,7 +210,7 @@ def _qr_data_url(uri: str) -> str:
 
 def _two_factor_setup_payload(user, secret: str) -> dict:
     account_name = user.email or user.username
-    uri = pyotp.TOTP(secret).provisioning_uri(name=account_name, issuer_name=TWO_FACTOR_ISSUER)
+    uri = pyotp.TOTP(secret).provisioning_uri(name=account_name, issuer_name=two_factor_issuer())
     return {"secret": secret, "provisioningUri": uri, "qrDataUrl": _qr_data_url(uri)}
 
 

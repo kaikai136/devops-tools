@@ -6,6 +6,7 @@ import pyotp
 
 from .models import UserProfile
 from .views import DISABLED_LOGIN_ERROR, SLIDER_CHALLENGE_SESSION_KEY
+from system_management.models import SystemSetting
 from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_builtin_admin, ensure_feature_permissions
 
 
@@ -388,6 +389,15 @@ class TwoFactorLoginTests(TestCase):
 
         self.assertEqual(confirm_response.status_code, 200)
         self.assertTrue(confirm_response.json()["user"]["twoFactorEnabled"])
+
+    def test_two_factor_setup_uses_configured_site_issuer(self):
+        SystemSetting.objects.create(key="site_identity", value={"totpIssuer": "Ops Hub"})
+        self.client.force_login(self.user)
+
+        setup_response = self.client.post("/api/profile/2fa/setup/", data={}, content_type="application/json")
+
+        self.assertEqual(setup_response.status_code, 200)
+        self.assertIn("issuer=Ops%20Hub", setup_response.json()["provisioningUri"])
 
     def test_login_requires_two_factor_when_enabled(self):
         self.enable_two_factor()

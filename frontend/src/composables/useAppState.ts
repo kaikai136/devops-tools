@@ -10,6 +10,7 @@ import { useHostManager, type HostTransferFormat } from './features/useHostManag
 import { useIpScanner } from './features/useIpScanner';
 import { useMachineProbe } from './features/useMachineProbe';
 import { usePasswordManager } from './features/usePasswordManager';
+import { buildTemplateVariables, renderTemplate, useSiteSettings } from './features/useSiteSettings';
 import { useSubnetCalculator } from './features/useSubnetCalculator';
 import { useWatermarkSettings, watermarkAppliesToPage } from './features/useWatermarkSettings';
 export function useAppState() {
@@ -52,6 +53,7 @@ const {
 
 const localIp = ref('198.18.0.1');
 const selectedHost = ref('192.168.1.1');
+const templateNow = ref(new Date());
 
 const authImportFile = ref<HTMLInputElement | null>(null);
 const passwordImportFile = ref<HTMLInputElement | null>(null);
@@ -60,7 +62,36 @@ const hostTransferDialog = ref<'import' | 'export' | null>(null);
 const hostTransferFormat = ref<HostTransferFormat>('json');
 const imageInput = ref<HTMLInputElement | null>(null);
 const currentHostCreatorUsername = ref<string | null>(null);
-const currentWatermarkText = ref('CAPTAIN');
+const siteSettings = useSiteSettings({ showToast });
+const {
+  siteIdentity,
+  dashboardHero,
+  layoutFooter,
+  loginContent,
+  siteIdentityDraft,
+  dashboardHeroDraft,
+  layoutFooterDraft,
+  loginContentDraft,
+  siteSettingsLoading,
+  siteSettingsSaving,
+  siteSettingsMessage,
+  loadPublicSiteSettings,
+  loadSiteIdentitySetting,
+  loadDashboardHeroSetting,
+  loadLayoutFooterSetting,
+  loadLoginContentSetting,
+  loadSiteSettings,
+  saveSiteIdentitySetting,
+  saveDashboardHeroSetting,
+  saveLayoutFooterSetting,
+  saveLoginContentSetting,
+  saveSiteSettings,
+  resetSiteIdentityDraft,
+  resetDashboardHeroDraft,
+  resetLayoutFooterDraft,
+  resetLoginContentDraft,
+  resetSiteSettingsDraft,
+} = siteSettings;
 const hostManager = useHostManager({ showToast, requestConfirm, currentUsername: () => currentHostCreatorUsername.value });
 const {
   hostSearch,
@@ -241,11 +272,12 @@ const {
   handleImageImport,
 } = authenticator;
 
-const watermarkSettings = useWatermarkSettings({ showToast, getWatermarkText: () => currentWatermarkText.value });
+const watermarkSettings = useWatermarkSettings({ showToast, renderWatermarkText: renderSystemTemplate });
 const {
   watermarkConfig,
   watermarkDraft,
   watermarkText,
+  watermarkPreviewText,
   watermarkLoading,
   watermarkSaving,
   watermarkMessage,
@@ -264,8 +296,7 @@ async function loadLocalIp() {
 }
 
 async function loadWorkspaceData() {
-  currentWatermarkText.value = currentUser.value?.username ?? 'CAPTAIN';
-  await Promise.allSettled([loadLocalIp(), loadAuthEntries(), loadPasswords(), loadWatermarkSetting(), loadHostManagement(), calculateSubnet(false)]);
+  await Promise.allSettled([loadLocalIp(), loadSiteSettings(), loadAuthEntries(), loadPasswords(), loadWatermarkSetting(), loadHostManagement(), calculateSubnet(false)]);
 }
 
 const {
@@ -295,7 +326,14 @@ watch(
   currentUser,
   (user) => {
     currentHostCreatorUsername.value = user?.username ?? null;
-    currentWatermarkText.value = user?.username ?? 'CAPTAIN';
+  },
+  { immediate: true },
+);
+
+watch(
+  () => siteIdentity.value.browserTitle,
+  (title) => {
+    document.title = title || siteIdentity.value.appName;
   },
   { immediate: true },
 );
@@ -360,6 +398,19 @@ function selectHost(ip: string) {
   machineProbe.setProbeHost(ip);
 }
 
+function renderSystemTemplate(template: string, generatedAt = '') {
+  return renderTemplate(
+    template,
+    buildTemplateVariables({
+      siteIdentity: siteIdentity.value,
+      user: currentUser.value,
+      localIp: localIp.value,
+      generatedAt,
+      now: templateNow.value,
+    }),
+  );
+}
+
 const hostImportAccept = computed(() => 'application/json,.json,.enc.json');
 
 function openHostTransferDialog(mode: 'import' | 'export') {
@@ -405,6 +456,7 @@ async function openPingFromHost(ip: string) {
 let cleanupClickWords: (() => void) | undefined;
 let cleanupPointerTrail: (() => void) | undefined;
 let authTimer: number | undefined;
+let templateTimer: number | undefined;
 
 const appState = {
   groupsOpen,
@@ -422,9 +474,38 @@ const appState = {
   toastTone,
   showToast,
   shouldShowWatermark,
+  siteIdentity,
+  dashboardHero,
+  layoutFooter,
+  loginContent,
+  siteIdentityDraft,
+  dashboardHeroDraft,
+  layoutFooterDraft,
+  loginContentDraft,
+  siteSettingsLoading,
+  siteSettingsSaving,
+  siteSettingsMessage,
+  loadPublicSiteSettings,
+  loadSiteIdentitySetting,
+  loadDashboardHeroSetting,
+  loadLayoutFooterSetting,
+  loadLoginContentSetting,
+  loadSiteSettings,
+  saveSiteIdentitySetting,
+  saveDashboardHeroSetting,
+  saveLayoutFooterSetting,
+  saveLoginContentSetting,
+  saveSiteSettings,
+  resetSiteIdentityDraft,
+  resetDashboardHeroDraft,
+  resetLayoutFooterDraft,
+  resetLoginContentDraft,
+  resetSiteSettingsDraft,
+  renderSystemTemplate,
   watermarkConfig,
   watermarkDraft,
   watermarkText,
+  watermarkPreviewText,
   watermarkLoading,
   watermarkSaving,
   watermarkMessage,
@@ -632,10 +713,13 @@ const appState = {
 };
 
 onMounted(async () => {
-  document.title = '运维船长';
+  await loadPublicSiteSettings();
   cleanupClickWords = setupClickWords();
   cleanupPointerTrail = setupPointerTrail();
   await loadCurrentUser();
+  templateTimer = window.setInterval(() => {
+    templateNow.value = new Date();
+  }, 1000);
   authTimer = window.setInterval(() => {
     if (isAuthenticated.value && !isLocked.value && activeTool.value === 'auth') loadAuthEntries();
   }, 1000);
@@ -651,6 +735,7 @@ onUnmounted(() => {
   cleanupClickWords?.();
   cleanupPointerTrail?.();
   window.clearInterval(authTimer);
+  window.clearInterval(templateTimer);
   cleanupShellState();
   cleanupFeedback();
 });

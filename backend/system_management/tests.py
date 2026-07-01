@@ -548,6 +548,59 @@ class SystemSettingsApiTests(TestCase):
         self.assertEqual(read_response.json()["value"]["text"], "CAPTAIN")
         self.assertEqual(write_response.status_code, 403)
 
+    def test_logged_in_user_can_read_display_settings_but_cannot_write(self):
+        SystemSetting.objects.create(key="site_identity", value={"appName": "Ops Hub", "totpIssuer": "Ops Hub"})
+        self.client.force_login(self.user)
+
+        read_response = self.client.get("/api/system/settings/site_identity/")
+        write_response = self.client.put(
+            "/api/system/settings/site_identity/",
+            data={"value": {"appName": "Blocked"}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(read_response.status_code, 200)
+        self.assertEqual(read_response.json()["value"]["appName"], "Ops Hub")
+        self.assertEqual(write_response.status_code, 403)
+
+    def test_site_identity_validation_normalizes_empty_fields(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={
+                "key": "site_identity",
+                "label": "品牌变量",
+                "value": {"appName": "", "logoImageUrl": "/brand.png", "iconUrl": "https://example.com/icon.png"},
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()["value"]
+        self.assertEqual(payload["appName"], "运维船长")
+        self.assertEqual(payload["logoImageUrl"], "/brand.png")
+        self.assertEqual(payload["iconUrl"], "https://example.com/icon.png")
+
+    def test_display_setting_validation_rejects_invalid_url_color_and_size(self):
+        invalid_url = self.client.post(
+            "/api/system/settings/",
+            data={"key": "site_identity", "value": {"logoImageUrl": "javascript:alert(1)"}},
+            content_type="application/json",
+        )
+        invalid_color = self.client.post(
+            "/api/system/settings/",
+            data={"key": "dashboard_hero", "value": {"color": "purple"}},
+            content_type="application/json",
+        )
+        invalid_size = self.client.post(
+            "/api/system/settings/",
+            data={"key": "dashboard_hero", "value": {"fontSize": 72}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(invalid_url.status_code, 400)
+        self.assertEqual(invalid_color.status_code, 400)
+        self.assertEqual(invalid_size.status_code, 400)
+
     def test_anonymous_user_cannot_read_watermark(self):
         SystemSetting.objects.create(key="watermark", value={"enabled": True, "text": "CAPTAIN", "pages": ["ip"]})
         self.client.logout()
@@ -556,14 +609,24 @@ class SystemSettingsApiTests(TestCase):
 
         self.assertEqual(response.status_code, 401)
 
-    def test_watermark_validation_rejects_empty_text_when_enabled(self):
+    def test_anonymous_user_can_read_public_display_settings(self):
+        SystemSetting.objects.create(key="login_content", value={"title": "Hello"})
+        self.client.logout()
+
+        response = self.client.get("/api/system/settings/login_content/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["value"]["title"], "Hello")
+
+    def test_watermark_validation_defaults_empty_text_when_enabled(self):
         response = self.client.post(
             "/api/system/settings/",
             data={"key": "watermark", "value": {"enabled": True, "text": "", "pages": ["ip"]}},
             content_type="application/json",
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["value"]["text"], "{username}")
 
     def test_watermark_validation_rejects_unknown_page(self):
         response = self.client.post(
