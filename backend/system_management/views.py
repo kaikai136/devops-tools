@@ -12,7 +12,7 @@ from operations.responses import bad_request, bounded_int, not_found, serializer
 
 from .dashboard import build_dashboard_summary
 from .models import LoginLog, SystemSetting
-from .serializers import WATERMARK_SETTING_KEY, LoginLogSerializer, PermissionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
+from .serializers import WATERMARK_SETTING_KEY, LoginLogSerializer, PermissionSerializer, RoleOptionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
 from .services import UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
 
 
@@ -187,7 +187,7 @@ def system_users(request):
     User = get_user_model()
     ensure_builtin_admin()
     if request.method == "GET":
-        users = User.objects.prefetch_related("groups").order_by("id")
+        users = User.objects.select_related("profile").prefetch_related("groups").order_by("id")
         return Response(SystemUserSerializer(users, many=True).data)
 
     serializer = SystemUserSerializer(data=request.data)
@@ -349,6 +349,15 @@ def roles(request):
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
     return Response(RoleSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+def role_options(request):
+    access_error = require_system_permission(request, "users")
+    if access_error:
+        return access_error
+
+    return Response(RoleOptionSerializer(Group.objects.order_by("id"), many=True).data)
 
 
 @api_view(["GET", "PUT", "DELETE"])

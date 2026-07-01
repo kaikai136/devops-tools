@@ -226,6 +226,12 @@ class RoleSerializer(serializers.ModelSerializer):
         return name
 
 
+class RoleOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Group
+        fields = ["id", "name"]
+
+
 class SystemSettingSerializer(serializers.ModelSerializer):
     updatedAt = serializers.DateTimeField(source="updated_at", read_only=True)
 

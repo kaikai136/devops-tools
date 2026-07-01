@@ -8,7 +8,7 @@ import UserResetPasswordDialog from './user/UserResetPasswordDialog.vue';
 import UserResetTwoFactorDialog from './user/UserResetTwoFactorDialog.vue';
 import UserTable from './user/UserTable.vue';
 
-const { activeTool, setActiveTool, canUsePageAction, canUseAnyPageAction } = useAppContext();
+const { activeTool, setActiveTool, canAccessPage, canUsePageAction } = useAppContext();
 
 const {
   roles,
@@ -84,7 +84,7 @@ const {
 
 <template>
   <section v-if="activeTool === 'users'" class="user-manager-page" :class="{ fullscreen }" @click="columnsOpen = false">
-    <template v-if="canUseAnyPageAction('users', ['create', 'edit', 'toggle_status', 'reset_password', '2fa_enable', '2fa_disable', '2fa_reset', 'delete'])">
+    <template v-if="canAccessPage('users')">
     <article class="user-filter-panel">
       <label>
         <span>账户名称：</span>
@@ -165,7 +165,7 @@ const {
       />
     </article>
     </template>
-    <div v-else class="permission-empty">暂无可用功能</div>
+    <div v-else class="permission-empty">暂无用户管理权限</div>
 
     <UserAccountDialog
       v-if="dialog"

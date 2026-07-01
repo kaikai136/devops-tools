@@ -27,8 +27,10 @@ export interface SystemUser {
 export interface SystemRole {
   id: number;
   name: string;
-  permissionIds: number[];
+  permissionIds?: number[];
 }
+
+type ListApiResponse<T> = T[] | { results?: T[]; data?: T[]; items?: T[] };
 
 export interface UserForm {
   username: string;
@@ -142,7 +144,9 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   const dialogTitle = computed(() => (dialog.value?.mode === 'edit' ? '编辑账户' : '新建账户'));
   const dialogSubmitText = computed(() => (dialog.value?.mode === 'edit' ? '保存' : '确定'));
 
-  onMounted(() => loadUsers());
+  let loadUsersRequestId = 0;
+
+  onMounted(() => loadUsers(true));
 
   watch([search, statusFilter, pageSize], () => {
     page.value = 1;
@@ -153,6 +157,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   });
 
   async function loadUsers(force = false) {
+    const requestId = ++loadUsersRequestId;
     const now = Date.now();
     if (!force && userManagerCache && now - userManagerCache.loadedAt < USER_MANAGER_CACHE_TTL_MS) {
       users.value = [...userManagerCache.users];
@@ -170,22 +175,23 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     clearMessage();
 
     const [userResult, roleResult] = await Promise.allSettled([
-      apiGet<SystemUser[]>('/api/system/users/'),
-      apiGet<SystemRole[]>('/api/system/roles/'),
+      apiGet<ListApiResponse<Record<string, unknown>>>('/api/system/users/'),
+      apiGet<ListApiResponse<Record<string, unknown>>>('/api/system/role-options/'),
     ]);
+    if (requestId !== loadUsersRequestId) return;
 
     if (userResult.status === 'fulfilled') {
-      users.value = userResult.value;
+      users.value = listFromResponse(userResult.value, '用户列表').map(normalizeSystemUser);
     } else {
-      users.value = [];
-      if (!userManagerCache) roles.value = [];
+      if (!users.value.length) users.value = userManagerCache ? [...userManagerCache.users] : [];
+      if (!roles.value.length && userManagerCache) roles.value = [...userManagerCache.roles];
       setError(errorMessage(userResult.reason));
       isLoading.value = false;
       return;
     }
 
     if (roleResult.status === 'fulfilled') {
-      roles.value = roleResult.value;
+      roles.value = listFromResponse(roleResult.value, '角色选项').map(normalizeSystemRole);
     } else {
       roles.value = userManagerCache ? [...userManagerCache.roles] : [];
       setError(`账户类别加载失败：${errorMessage(roleResult.reason)}`);
@@ -617,4 +623,76 @@ export function emptyUserForm(): UserForm {
     isStaff: false,
     roleIds: [],
   };
+}
+
+function listFromResponse<T>(payload: ListApiResponse<T>, label: string): T[] {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    if (Array.isArray(payload.results)) return payload.results;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload.items)) return payload.items;
+  }
+  throw new Error(`${label}返回格式异常`);
+}
+
+function normalizeSystemUser(raw: Record<string, unknown>): SystemUser {
+  return {
+    id: numberValue(raw.id),
+    username: stringValue(raw.username),
+    email: stringValue(raw.email),
+    firstName: stringValue(raw.firstName ?? raw.first_name ?? raw.displayName),
+    isActive: booleanValue(raw.isActive ?? raw.is_active, true),
+    isStaff: booleanValue(raw.isStaff ?? raw.is_staff),
+    isSuperuser: booleanValue(raw.isSuperuser ?? raw.is_superuser),
+    isBuiltinAdmin: booleanValue(raw.isBuiltinAdmin ?? raw.is_builtin_admin),
+    canLogin: optionalBooleanValue(raw.canLogin ?? raw.can_login),
+    twoFactorEnabled: optionalBooleanValue(raw.twoFactorEnabled ?? raw.two_factor_enabled),
+    twoFactorRequired: optionalBooleanValue(raw.twoFactorRequired ?? raw.two_factor_required),
+    twoFactorResetRequired: optionalBooleanValue(raw.twoFactorResetRequired ?? raw.two_factor_reset_required),
+    twoFactorStatus: twoFactorStatusValue(raw.twoFactorStatus ?? raw.two_factor_status),
+    lastLogin: nullableStringValue(raw.lastLogin ?? raw.last_login),
+    dateJoined: nullableStringValue(raw.dateJoined ?? raw.date_joined),
+    roleIds: numberArrayValue(raw.roleIds ?? raw.role_ids ?? raw.groups),
+  };
+}
+
+function normalizeSystemRole(raw: Record<string, unknown>): SystemRole {
+  return {
+    id: numberValue(raw.id),
+    name: stringValue(raw.name),
+    permissionIds: numberArrayValue(raw.permissionIds ?? raw.permission_ids),
+  };
+}
+
+function stringValue(value: unknown) {
+  return value == null ? '' : String(value);
+}
+
+function nullableStringValue(value: unknown) {
+  return value == null || value === '' ? null : String(value);
+}
+
+function numberValue(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function booleanValue(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
+  if (value == null) return fallback;
+  return Boolean(value);
+}
+
+function optionalBooleanValue(value: unknown) {
+  return value == null ? undefined : booleanValue(value);
+}
+
+function numberArrayValue(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map(numberValue).filter((item) => item > 0);
+}
+
+function twoFactorStatusValue(value: unknown): SystemUser['twoFactorStatus'] {
+  return value === 'enabled' || value === 'required' ? value : 'disabled';
 }

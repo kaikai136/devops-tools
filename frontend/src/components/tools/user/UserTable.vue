@@ -3,7 +3,7 @@ import { formatDateTime } from '../../../utils/datetime';
 import AppIcon from '../../common/AppIcon.vue';
 import type { SystemUser, UserColumnKey } from '../../../composables/features/useUserManager';
 
-defineProps<{
+const props = defineProps<{
   users: SystemUser[];
   filteredCount: number;
   isLoading: boolean;
@@ -49,20 +49,20 @@ function twoFactorSwitchText(user: SystemUser) {
 }
 
 function canToggleTwoFactor(user: SystemUser) {
-  return user.twoFactorStatus === 'enabled' ? canUsePageAction('users', '2fa_disable') : canUsePageAction('users', '2fa_enable');
+  return user.twoFactorStatus === 'enabled' ? props.canUsePageAction('users', '2fa_disable') : props.canUsePageAction('users', '2fa_enable');
 }
 
 function hasTwoFactorActions(user: SystemUser) {
   if (user.twoFactorStatus === 'required') return false;
-  return canToggleTwoFactor(user) || canUsePageAction('users', '2fa_reset');
+  return canToggleTwoFactor(user) || props.canUsePageAction('users', '2fa_reset');
 }
 
 function hasRowActions() {
   return (
-    canUsePageAction('users', 'toggle_status') ||
-    canUsePageAction('users', 'edit') ||
-    canUsePageAction('users', 'reset_password') ||
-    canUsePageAction('users', 'delete')
+    props.canUsePageAction('users', 'toggle_status') ||
+    props.canUsePageAction('users', 'edit') ||
+    props.canUsePageAction('users', 'reset_password') ||
+    props.canUsePageAction('users', 'delete')
   );
 }
 </script>

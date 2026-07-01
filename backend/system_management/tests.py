@@ -375,6 +375,23 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(create_response.status_code, 403)
         self.assertFalse(get_user_model().objects.filter(username="blocked-user").exists())
 
+    def test_user_page_permission_can_load_role_options_without_role_management(self):
+        ensure_feature_permissions()
+        user = get_user_model().objects.create_user(username="user-options-viewer", password="pass", is_staff=False)
+        viewer_role = Group.objects.create(name="User options viewer")
+        target_role = Group.objects.create(name="Assignable role")
+        viewer_role.permissions.add(Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["users"]))
+        user.groups.add(viewer_role)
+        self.client.force_login(user)
+
+        options_response = self.client.get("/api/system/role-options/")
+        roles_response = self.client.get("/api/system/roles/")
+
+        self.assertEqual(options_response.status_code, 200)
+        self.assertEqual(roles_response.status_code, 403)
+        self.assertIn({"id": target_role.id, "name": target_role.name}, options_response.json())
+        self.assertNotIn("permissionIds", options_response.json()[0])
+
 
 class DashboardSummaryApiTests(TestCase):
     def setUp(self):
