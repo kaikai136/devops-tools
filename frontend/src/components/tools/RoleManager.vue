@@ -53,6 +53,7 @@ interface PermissionGroup {
 }
 
 const { activeTool, canUsePageAction, canUseAnyPageAction } = useAppContext();
+const sessionAuditPermissionAlias = { featureKey: 'hosts', actionKey: 'session_audit' } as const;
 
 const roles = ref<SystemRole[]>([]);
 const permissions = ref<SystemPermission[]>([]);
@@ -268,13 +269,26 @@ async function deleteRole() {
 }
 
 function isFeatureChecked(featureKey: string) {
+  const virtualPermission = virtualPageActionPermission(featureKey);
+  if (virtualPermission) return form.value.permissionIds.includes(virtualPermission.id);
   const permission = permissionByFeatureKey.value.get(featureKey);
   return Boolean(permission && form.value.permissionIds.includes(permission.id));
 }
 
 function setFeatureChecked(featureKey: string, checked: boolean) {
+  const virtualPermission = virtualPageActionPermission(featureKey);
+  if (virtualPermission) {
+    const next = new Set(form.value.permissionIds);
+    if (checked) {
+      next.add(virtualPermission.id);
+    } else {
+      next.delete(virtualPermission.id);
+    }
+    form.value.permissionIds = [...next].sort((a, b) => a - b);
+    return;
+  }
   const permission = permissionByFeatureKey.value.get(featureKey);
-  const actionPermissions = actionPermissionsByFeatureKey.value.get(featureKey) ?? [];
+  const actionPermissions = visiblePageActionPermissions(featureKey);
   if (!permission && !actionPermissions.length) return;
   const next = new Set(form.value.permissionIds);
   if (checked) {
@@ -297,9 +311,11 @@ function groupFeatureKeys(groupKey: string) {
 
 function featurePermissionIds(featureKey: string) {
   const ids = [];
+  const virtualPermission = virtualPageActionPermission(featureKey);
+  if (virtualPermission) return [virtualPermission.id];
   const pagePermission = permissionByFeatureKey.value.get(featureKey);
   if (pagePermission) ids.push(pagePermission.id);
-  actionPermissionsByFeatureKey.value.get(featureKey)?.forEach((permission) => ids.push(permission.id));
+  visiblePageActionPermissions(featureKey).forEach((permission) => ids.push(permission.id));
   return ids;
 }
 
@@ -358,7 +374,26 @@ function toggleAction(featureKey: string, permissionId: number, event: Event) {
 }
 
 function pageActionPermissions(featureKey: string) {
-  return actionPermissionsByFeatureKey.value.get(featureKey) ?? [];
+  const virtualPermission = virtualPageActionPermission(featureKey);
+  if (virtualPermission) return [virtualPermission];
+  return visiblePageActionPermissions(featureKey);
+}
+
+function visiblePageActionPermissions(featureKey: string) {
+  const permissions = actionPermissionsByFeatureKey.value.get(featureKey) ?? [];
+  if (featureKey === sessionAuditPermissionAlias.featureKey) {
+    return permissions.filter((permission) => permission.actionKey !== sessionAuditPermissionAlias.actionKey);
+  }
+  return permissions;
+}
+
+function virtualPageActionPermission(featureKey: string) {
+  if (featureKey !== 'sessionAudits') return null;
+  return (
+    actionPermissionsByFeatureKey.value
+      .get(sessionAuditPermissionAlias.featureKey)
+      ?.find((permission) => permission.actionKey === sessionAuditPermissionAlias.actionKey) ?? null
+  );
 }
 
 function displayPermissionLabel(permission: SystemPermission) {

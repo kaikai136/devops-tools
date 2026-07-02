@@ -94,6 +94,7 @@ function navItemIcon(key: ToolKey): IconName {
     dashboard: 'dashboard',
     ip: 'network',
     hosts: 'server',
+    sessionAudits: 'scan',
     accounts: 'users',
     ports: 'gauge',
     subnet: 'globe',

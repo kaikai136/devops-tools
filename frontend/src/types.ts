@@ -2,6 +2,7 @@ export type ToolKey =
   | 'dashboard'
   | 'ip'
   | 'hosts'
+  | 'sessionAudits'
   | 'accounts'
   | 'ports'
   | 'subnet'

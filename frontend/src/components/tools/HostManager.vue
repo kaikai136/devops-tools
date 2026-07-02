@@ -141,6 +141,19 @@ const hostQuickCommandDialog = ref<HostQuickCommandDialogState>({
   saving: false,
   error: '',
 });
+const canUseHostList = computed(() =>
+  canUsePageAction('hosts', 'create') ||
+  canUsePageAction('hosts', 'edit') ||
+  canUsePageAction('hosts', 'delete') ||
+  canUsePageAction('hosts', 'verify') ||
+  canUsePageAction('hosts', 'move') ||
+  canUsePageAction('hosts', 'filter') ||
+  canUsePageAction('hosts', 'group') ||
+  canUsePageAction('hosts', 'import') ||
+  canUsePageAction('hosts', 'export') ||
+  canUsePageAction('hosts', 'terminal') ||
+  canUsePageAction('hosts', 'quick_commands')
+);
 const {
   visibility: hostColumnVisibility,
   visibleColumns: visibleHostTableColumns,
@@ -183,19 +196,7 @@ const visibleHostIds = computed(() => paginatedManagedHosts.value.map((host) => 
 const allVisibleHostsSelected = computed(() => visibleHostIds.value.length > 0 && visibleHostIds.value.every((id) => selectedManagedHostIds.value.has(id)));
 const someVisibleHostsSelected = computed(() => visibleHostIds.value.some((id) => selectedManagedHostIds.value.has(id)));
 const selectedManagedHostCount = computed(() => selectedManagedHostIds.value.size);
-const canUseHostAnyAction = computed(() =>
-  canUsePageAction('hosts', 'create') ||
-  canUsePageAction('hosts', 'edit') ||
-  canUsePageAction('hosts', 'delete') ||
-  canUsePageAction('hosts', 'verify') ||
-  canUsePageAction('hosts', 'move') ||
-  canUsePageAction('hosts', 'filter') ||
-  canUsePageAction('hosts', 'group') ||
-  canUsePageAction('hosts', 'import') ||
-  canUsePageAction('hosts', 'export') ||
-  canUsePageAction('hosts', 'terminal') ||
-  canUsePageAction('hosts', 'quick_commands')
-);
+const canUseHostAnyAction = computed(() => canUseHostList.value);
 const canUseHostMoreActions = computed(() =>
   canUsePageAction('hosts', 'verify') ||
   canUsePageAction('hosts', 'filter') ||
@@ -509,7 +510,7 @@ function hostPlatformType(value: string | null | undefined) {
 <template>
   <section v-if="activeTool === 'hosts'" class="host-manager-page" :class="{ fullscreen }" @click="closeHostMenus">
     <template v-if="canUseHostAnyAction">
-    <article class="panel host-groups-panel">
+    <article v-if="canUseHostList" class="panel host-groups-panel">
       <div class="host-group-head">
         <h2>分组列表</h2>
         <button v-if="canUsePageAction('hosts', 'group')" class="group-add-button" type="button" title="添加分组" aria-label="添加分组" @click.stop="openAddRootHostGroup()"><AppIcon name="plus" :size="16" /></button>
@@ -631,7 +632,7 @@ function hostPlatformType(value: string | null | undefined) {
       </div>
     </article>
 
-    <article class="panel host-table-panel">
+    <article v-if="canUseHostList" class="panel host-table-panel">
       <div class="host-toolbar">
         <input v-model="hostSearch" placeholder="输入别名/IP检索" />
         <div class="host-toolbar-actions">

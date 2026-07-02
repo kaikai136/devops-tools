@@ -18,6 +18,7 @@ const AuthenticatorPanel = defineAsyncComponent(() => import('./components/tools
 const DashboardPage = defineAsyncComponent(() => import('./components/tools/DashboardPage.vue'));
 const HostManager = defineAsyncComponent(() => import('./components/tools/HostManager.vue'));
 const IpScanner = defineAsyncComponent(() => import('./components/tools/IpScanner.vue'));
+const SessionAuditManager = defineAsyncComponent(() => import('./components/tools/SessionAuditManager.vue'));
 const LoginLogManager = defineAsyncComponent(() => import('./components/tools/LoginLogManager.vue'));
 const LoginPage = defineAsyncComponent(() => import('./components/auth/LoginPage.vue'));
 const MachineProbe = defineAsyncComponent(() => import('./components/tools/MachineProbe.vue'));
@@ -353,7 +354,7 @@ async function lockCurrentSession() {
                 <AppIcon name="terminal" :size="16" />
               </button>
             </template>
-            <template v-else-if="activeTool === 'dashboard' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>
+            <template v-else-if="activeTool === 'dashboard' || activeTool === 'sessionAudits' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
             </template>
@@ -423,6 +424,7 @@ async function lockCurrentSession() {
           <DashboardPage v-if="activeTool === 'dashboard'" ref="dashboardPageRef" />
           <IpScanner v-if="activeTool === 'ip'" />
           <HostManager v-if="activeTool === 'hosts'" />
+          <SessionAuditManager v-if="activeTool === 'sessionAudits'" />
           <AccountManager v-if="activeTool === 'accounts'" />
           <MachineProbe v-if="activeTool === 'ports'" />
           <SubnetCalculator v-if="activeTool === 'subnet'" />

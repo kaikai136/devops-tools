@@ -919,6 +919,7 @@ export function useHostManager({
     hostSortDirection,
     hostGroups,
     hostCredentials,
+    managedHosts,
     hostGroupRoot,
     flatHostGroups,
     visibleHostGroups,

@@ -101,6 +101,7 @@ const {
   hostSortDirection,
   hostGroups,
   hostCredentials,
+  managedHosts,
   hostGroupRoot,
   flatHostGroups,
   visibleHostGroups,
@@ -345,7 +346,7 @@ const permittedNavGroups = computed(() => {
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => permissionCodes.has(`access_${item.key}`)),
+      items: group.items.filter((item) => canAccessNavItem(item.key, permissionCodes)),
     }))
     .filter((group) => group.items.length);
 });
@@ -413,7 +414,17 @@ function canAccessPage(pageKey: string) {
   const user = currentUser.value;
   if (!user) return false;
   if (user.is_superuser || user.is_staff) return true;
+  if (pageKey === 'sessionAudits') {
+    return currentPermissionCodes.value.has('action_hosts_session_audit');
+  }
   return currentPermissionCodes.value.has(`access_${pageKey}`);
+}
+
+function canAccessNavItem(pageKey: string, permissionCodes: Set<string>) {
+  if (pageKey === 'sessionAudits') {
+    return permissionCodes.has('action_hosts_session_audit');
+  }
+  return permissionCodes.has(`access_${pageKey}`);
 }
 
 function selectHost(ip: string) {
@@ -594,6 +605,7 @@ const appState = {
   copyText,
   hostGroups,
   hostCredentials,
+  managedHosts,
   hostGroupRoot,
   flatHostGroups,
   visibleHostGroups,

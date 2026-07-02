@@ -13,7 +13,7 @@ from django.utils import timezone
 from host_management.models import HostGroup, ManagedHost
 from host_management.services import build_group_tree
 
-from .models import TerminalSession
+from .models import TerminalCommandAudit, TerminalSession
 
 
 class TerminalConnectionError(RuntimeError):
@@ -80,6 +80,17 @@ class LiveTerminalConnection:
 
 LIVE_TERMINALS: dict[str, LiveTerminalConnection] = {}
 
+ASCIICAST_VERSION = 3
+DEFAULT_TERMINAL_COLS = 120
+DEFAULT_TERMINAL_ROWS = 36
+HIGH_RISK_COMMAND_PATTERN = re.compile(
+    r"(^|\s)(rm\s+(-[^\s]*r[^\s]*f|-[^\s]*f[^\s]*r)|mkfs(\.|$)|dd\s+|shutdown\b|reboot\b|halt\b|poweroff\b|passwd\b|userdel\b|groupdel\b|visudo\b|iptables\b|firewall-cmd\b)",
+    re.IGNORECASE,
+)
+MEDIUM_RISK_COMMAND_PATTERN = re.compile(
+    r"(^|\s)(sudo\b|chmod\b|chown\b|systemctl\b|service\b|kubectl\s+(delete|apply|exec|scale|rollout)\b|docker\s+(rm|rmi|exec|compose)\b|apt(-get)?\s+(install|remove|purge)\b|yum\s+(install|remove|erase)\b|dnf\s+(install|remove|erase)\b)",
+    re.IGNORECASE,
+)
 SSH_CONNECT_ATTEMPTS = 3
 SSH_CONNECT_TIMEOUT = 15
 SSH_BANNER_TIMEOUT = 30
@@ -165,6 +176,112 @@ def session_payload(session: TerminalSession, greeting: str = "") -> dict:
     }
 
 
+def asciicast_header(cols: int = DEFAULT_TERMINAL_COLS, rows: int = DEFAULT_TERMINAL_ROWS) -> str:
+    return json_dumps(
+        {
+            "version": ASCIICAST_VERSION,
+            "term": {
+                "cols": int(cols or DEFAULT_TERMINAL_COLS),
+                "rows": int(rows or DEFAULT_TERMINAL_ROWS),
+                "type": "xterm-256color",
+            },
+        }
+    )
+
+
+def asciicast_event(previous_event_at, event_type: str, data, event_at=None) -> tuple[str, object]:
+    event_at = event_at or timezone.now()
+    interval = max(0.0, (event_at - previous_event_at).total_seconds()) if previous_event_at else 0.0
+    return json_dumps([round(interval, 6), event_type, data]), event_at
+
+
+def json_dumps(value) -> str:
+    import json
+
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def classify_command_risk(command: str) -> str:
+    normalized = re.sub(r"\s+", " ", command.strip())
+    if not normalized:
+        return TerminalCommandAudit.RISK_ACCEPT
+    if HIGH_RISK_COMMAND_PATTERN.search(normalized):
+        return TerminalCommandAudit.RISK_HIGH
+    if MEDIUM_RISK_COMMAND_PATTERN.search(normalized):
+        return TerminalCommandAudit.RISK_MEDIUM
+    return TerminalCommandAudit.RISK_ACCEPT
+
+
+def command_audit_payload(audit: TerminalCommandAudit) -> dict:
+    return {
+        "id": audit.id,
+        "username": audit.username,
+        "command": audit.command,
+        "output": audit.output,
+        "riskLevel": audit.risk_level,
+        "assetName": audit.asset_name,
+        "ipAddress": str(audit.ip_address) if audit.ip_address else "",
+        "sessionId": str(audit.session.session_id),
+        "hostId": audit.host_id,
+        "executedAt": audit.executed_at.isoformat() if audit.executed_at else None,
+    }
+
+
+def create_command_audit(session: TerminalSession, command: str, user=None, output: str = "", executed_at=None) -> TerminalCommandAudit:
+    executed_at = executed_at or timezone.now()
+    host = session.host
+    username = getattr(user, "username", "") if user and getattr(user, "is_authenticated", False) else ""
+    return TerminalCommandAudit.objects.create(
+        session=session,
+        host=host,
+        user=user if user and getattr(user, "is_authenticated", False) else None,
+        username=username or "anonymous",
+        command=command,
+        output=output,
+        risk_level=classify_command_risk(command),
+        asset_name=host.name,
+        ip_address=host.public_ip or host.private_ip or None,
+        executed_at=executed_at,
+    )
+
+
+def append_audit_output(audit: TerminalCommandAudit | None, output: str) -> None:
+    if not audit or not output:
+        return
+    audit.output = f"{audit.output}{output}"
+    audit.save(update_fields=["output", "updated_at"])
+
+
+def initialize_session_recording(session: TerminalSession, cols: int = DEFAULT_TERMINAL_COLS, rows: int = DEFAULT_TERMINAL_ROWS) -> None:
+    started_at = timezone.now()
+    session.recording_started_at = started_at
+    session.recording_last_event_at = started_at
+    session.recording_cols = max(1, min(int(cols or DEFAULT_TERMINAL_COLS), 300))
+    session.recording_rows = max(1, min(int(rows or DEFAULT_TERMINAL_ROWS), 120))
+    session.recording_has_input = True
+    session.recording = asciicast_header(session.recording_cols, session.recording_rows) + "\n"
+    session.save(update_fields=["recording_started_at", "recording_last_event_at", "recording_cols", "recording_rows", "recording_has_input", "recording"])
+
+
+def append_session_recording_event(session: TerminalSession, event_type: str, data) -> None:
+    if not session.recording_started_at:
+        initialize_session_recording(session)
+    event, event_at = asciicast_event(session.recording_last_event_at or session.recording_started_at, event_type, data)
+    session.recording += event + "\n"
+    session.recording_last_event_at = event_at
+
+
+def save_session_recording(session: TerminalSession, events: list[str], update_fields: list[str] | None = None) -> None:
+    if events:
+        session.recording += "".join(events)
+        fields = list(update_fields or [])
+        fields.append("recording")
+        fields.append("recording_last_event_at")
+        session.save(update_fields=list(dict.fromkeys(fields)))
+    elif update_fields:
+        session.save(update_fields=update_fields)
+
+
 def create_terminal_session(host: ManagedHost) -> tuple[TerminalSession, str]:
     connection = open_live_terminal(host)
     greeting = connection.read_available()
@@ -172,6 +289,10 @@ def create_terminal_session(host: ManagedHost) -> tuple[TerminalSession, str]:
         host=host,
         transcript=f"connect {host.name}\n{greeting}\n",
     )
+    initialize_session_recording(session)
+    if greeting:
+        append_session_recording_event(session, "o", greeting)
+        session.save(update_fields=["recording", "recording_last_event_at"])
     LIVE_TERMINALS[str(session.session_id)] = connection
     return session, greeting or greeting_for(host)
 
@@ -187,22 +308,31 @@ def greeting_for(host: ManagedHost) -> str:
     )
 
 
-def run_session_command(session: TerminalSession, command: str) -> dict:
+def run_session_command(session: TerminalSession, command: str, user=None) -> dict:
     command = command.strip()
     if not command:
         return {"command": command, "output": "", "exitCode": 0}
     if command.lower() in {"clear", "cls"}:
-        return {"command": command, "output": "__CLEAR__", "exitCode": 0}
+        audit = create_command_audit(session, command, user=user, output="")
+        append_session_recording_event(session, "i", command + "\r")
+        session.transcript += f"$ {command}\n"
+        session.last_command_at = timezone.now()
+        session.save(update_fields=["transcript", "last_command_at", "recording", "recording_last_event_at"])
+        return {"command": command, "output": "__CLEAR__", "exitCode": 0, "auditId": audit.id}
 
     output, exit_code = run_live_terminal_command(session, command)
+    audit = create_command_audit(session, command, user=user, output=output)
+    append_session_recording_event(session, "i", command + "\r")
+    append_session_recording_event(session, "o", output)
     session.transcript += f"$ {command}\n{output}\n"
     session.last_command_at = timezone.now()
-    update_fields = ["transcript", "last_command_at"]
+    update_fields = ["transcript", "last_command_at", "recording", "recording_last_event_at"]
     if command.lower() in {"exit", "logout"}:
         session.status = "closed"
         update_fields.append("status")
+        append_session_recording_event(session, "x", 0 if exit_code == 0 else 1)
     session.save(update_fields=update_fields)
-    return {"command": command, "output": output, "exitCode": exit_code}
+    return {"command": command, "output": output, "exitCode": exit_code, "auditId": audit.id}
 
 
 def run_live_terminal_command(session: TerminalSession, command: str) -> tuple[str, int | None]:

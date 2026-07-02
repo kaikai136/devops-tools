@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 
@@ -10,10 +11,22 @@ from django.utils import timezone
 
 from host_management.models import ManagedHost
 
-from .models import TerminalSession
-from .services import LiveTerminalConnection, TerminalConnectionError, open_live_terminal
+from .models import TerminalCommandAudit, TerminalSession
+from .services import (
+    DEFAULT_TERMINAL_COLS,
+    DEFAULT_TERMINAL_ROWS,
+    LiveTerminalConnection,
+    TerminalConnectionError,
+    append_audit_output,
+    asciicast_event,
+    create_command_audit,
+    initialize_session_recording,
+    open_live_terminal,
+    save_session_recording,
+)
 
 
+logger = logging.getLogger(__name__)
 CWD_MARKER_START = "\x1b]1337;CaptainCwd="
 CWD_MARKER_END = "\x07"
 CWD_HOOK_SCRIPT = (
@@ -50,6 +63,7 @@ CWD_HOOK_ECHO_FRAGMENTS = tuple(
     for fragment in [CWD_HOOK_ECHO_OFF.strip(), CWD_HOOK_ECHO_ON.strip(), CWD_HOOK_INSTALL_SCRIPT.strip(), *CWD_HOOK_SCRIPT.splitlines()]
     if fragment
 )
+AUDIT_OUTPUT_FLUSH_CHARS = 65536
 
 
 def strip_cwd_markers(output: str) -> tuple[str, list[str]]:
@@ -105,6 +119,35 @@ def strip_cwd_hook_install_echo(output: str) -> str:
     return "".join(visible_lines)
 
 
+def command_buffer_after_input(buffer: str, data: str) -> tuple[str, list[str]]:
+    commands: list[str] = []
+    in_escape = False
+    for char in data:
+        if in_escape:
+            if char.isalpha() or char in "~":
+                in_escape = False
+            continue
+        if char == "\x1b":
+            in_escape = True
+            continue
+        if char in "\r\n":
+            command = buffer.strip()
+            if command:
+                commands.append(command)
+            buffer = ""
+            continue
+        if char in ("\x03", "\x04"):
+            commands.append("^C" if char == "\x03" else "^D")
+            buffer = ""
+            continue
+        if char in ("\x7f", "\b"):
+            buffer = buffer[:-1]
+            continue
+        if char >= " ":
+            buffer += char
+    return buffer, commands
+
+
 class TerminalConsumer(WebsocketConsumer):
     connection: LiveTerminalConnection | None = None
     session: TerminalSession | None = None
@@ -114,6 +157,13 @@ class TerminalConsumer(WebsocketConsumer):
     pending_output: str
     current_cwd: str
     suppress_internal_echo_until: float
+    command_buffer: str
+    pending_command_audit: TerminalCommandAudit | None
+    pending_command_output_chunks: list[str]
+    pending_command_output_size: int
+    recording_events: list[str]
+    recording_last_event_at: object | None
+    recording_lock: threading.Lock
 
     def connect(self):
         self.stop_reader = threading.Event()
@@ -121,6 +171,13 @@ class TerminalConsumer(WebsocketConsumer):
         self.pending_output = ""
         self.current_cwd = ""
         self.suppress_internal_echo_until = 0.0
+        self.command_buffer = ""
+        self.pending_command_audit = None
+        self.pending_command_output_chunks = []
+        self.pending_command_output_size = 0
+        self.recording_events = []
+        self.recording_last_event_at = None
+        self.recording_lock = threading.Lock()
         self.accept()
 
         if not self._is_authenticated():
@@ -131,7 +188,6 @@ class TerminalConsumer(WebsocketConsumer):
         try:
             host = ManagedHost.objects.get(id=host_id)
             self.connection = open_live_terminal(host)
-            self.session = TerminalSession.objects.create(host=host, transcript=f"connect {host.name}\n")
         except ManagedHost.DoesNotExist:
             self._send_error("请选择要连接的主机")
             self.close()
@@ -141,10 +197,15 @@ class TerminalConsumer(WebsocketConsumer):
             self.close()
             return
 
+        self._create_audit_session(host)
         self._send_initial_output()
         self._install_cwd_hook()
-        self.send(text_data=json.dumps({"type": "ready", "sessionId": str(self.session.session_id)}, ensure_ascii=False))
-        self.reader_thread = threading.Thread(target=self._read_ssh_output, name=f"terminal-{self.session.session_id}", daemon=True)
+        ready_payload = {"type": "ready"}
+        if self.session is not None:
+            ready_payload["sessionId"] = str(self.session.session_id)
+        self.send(text_data=json.dumps(ready_payload, ensure_ascii=False))
+        thread_name = f"terminal-{self.session.session_id}" if self.session is not None else f"terminal-host-{host.id}"
+        self.reader_thread = threading.Thread(target=self._read_ssh_output, name=thread_name, daemon=True)
         self.reader_thread.start()
 
     def receive(self, text_data=None, bytes_data=None):
@@ -163,9 +224,14 @@ class TerminalConsumer(WebsocketConsumer):
         message_type = message.get("type")
         try:
             if message_type == "input":
-                self.connection.send_data(str(message.get("data", "")))
+                data = str(message.get("data", ""))
+                self._record_input(data)
+                self.connection.send_data(data)
             elif message_type == "resize":
-                self.connection.resize(int(message.get("cols", 120)), int(message.get("rows", 36)))
+                cols = int(message.get("cols", DEFAULT_TERMINAL_COLS))
+                rows = int(message.get("rows", DEFAULT_TERMINAL_ROWS))
+                self._record_resize(cols, rows)
+                self.connection.resize(cols, rows)
             else:
                 self._send_error("不支持的终端消息类型")
         except (TypeError, ValueError):
@@ -176,6 +242,7 @@ class TerminalConsumer(WebsocketConsumer):
 
     def disconnect(self, close_code):
         self.stop_reader.set()
+        self._record_exit(0 if close_code in (None, 1000) else 1)
         if self.connection is not None:
             try:
                 self.connection.close()
@@ -222,6 +289,7 @@ class TerminalConsumer(WebsocketConsumer):
                     cwd_paths, self.current_cwd = filter_changed_cwd_paths(cwd_paths, self.current_cwd)
                     if cleaned_output:
                         self.transcript_chunks.append(cleaned_output)
+                        self._record_output(cleaned_output)
                         self._send_to_consumer({"type": "terminal.output", "data": cleaned_output})
                     for path in cwd_paths:
                         self._send_to_consumer({"type": "terminal.cwd", "path": path})
@@ -230,6 +298,7 @@ class TerminalConsumer(WebsocketConsumer):
                 if self.connection.channel.closed or self.connection.channel.exit_status_ready():
                     if self.pending_output:
                         self.transcript_chunks.append(self.pending_output)
+                        self._record_output(self.pending_output)
                         self._send_to_consumer({"type": "terminal.output", "data": self.pending_output})
                         self.pending_output = ""
                     self._send_to_consumer({"type": "terminal.closed", "reason": "SSH 会话已关闭"})
@@ -256,6 +325,25 @@ class TerminalConsumer(WebsocketConsumer):
     def _close_for_unauthenticated(self):
         self._send_error("请先登录")
         self.close()
+
+    def _create_audit_session(self, host: ManagedHost):
+        try:
+            self.session = TerminalSession.objects.create(host=host, transcript=f"connect {host.name}\n")
+            initialize_session_recording(self.session, DEFAULT_TERMINAL_COLS, DEFAULT_TERMINAL_ROWS)
+            self.recording_last_event_at = self.session.recording_last_event_at
+        except Exception:
+            logger.exception("Terminal audit session initialization failed; continuing without audit recording.")
+            self.session = None
+            self.recording_last_event_at = None
+            self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "output",
+                        "data": "\r\n\x1b[33m[会话审计暂不可用，终端已切换为实时连接模式。请执行数据库迁移后恢复审计。]\x1b[0m\r\n",
+                    },
+                    ensure_ascii=False,
+                )
+            )
 
     def _is_authenticated(self) -> bool:
         user = self.scope.get("user")
@@ -285,6 +373,7 @@ class TerminalConsumer(WebsocketConsumer):
         cwd_paths, self.current_cwd = filter_changed_cwd_paths(cwd_paths, self.current_cwd)
         if cleaned_output:
             self.transcript_chunks.append(cleaned_output)
+            self._record_output(cleaned_output)
             self.send(text_data=json.dumps({"type": "output", "data": cleaned_output}, ensure_ascii=False))
         for path in cwd_paths:
             self.send(text_data=json.dumps({"type": "cwd", "path": path}, ensure_ascii=False))
@@ -318,15 +407,96 @@ class TerminalConsumer(WebsocketConsumer):
         except Exception:
             pass
 
+    def _record_input(self, data: str):
+        if not self.session or not data:
+            return
+        try:
+            self._append_recording_event("i", data)
+            self.command_buffer, commands = command_buffer_after_input(self.command_buffer, data)
+            for command in commands:
+                self._flush_pending_audit_output()
+                self.pending_command_audit = create_command_audit(self.session, command, user=self.scope.get("user"))
+        except Exception:
+            self._disable_audit_session("Terminal input audit failed")
+
+    def _record_output(self, output: str):
+        if not self.session or not output:
+            return
+        try:
+            self._append_recording_event("o", output)
+            if self.pending_command_audit:
+                self.pending_command_output_chunks.append(output)
+                self.pending_command_output_size += len(output)
+                if self.pending_command_output_size >= AUDIT_OUTPUT_FLUSH_CHARS:
+                    self._flush_pending_audit_output()
+        except Exception:
+            self._disable_audit_session("Terminal output audit failed")
+
+    def _record_resize(self, cols: int, rows: int):
+        if not self.session:
+            return
+        try:
+            cols = max(1, min(cols, 300))
+            rows = max(1, min(rows, 120))
+            self.session.recording_cols = cols
+            self.session.recording_rows = rows
+            self._append_recording_event("r", f"{cols}x{rows}")
+        except Exception:
+            self._disable_audit_session("Terminal resize audit failed")
+
+    def _record_exit(self, exit_code: int):
+        if not self.session:
+            return
+        try:
+            self._append_recording_event("x", int(exit_code))
+        except Exception:
+            self._disable_audit_session("Terminal exit audit failed")
+
+    def _append_recording_event(self, event_type: str, data):
+        if not self.session or not self.session.recording_started_at:
+            return
+        with self.recording_lock:
+            previous_event_at = self.recording_last_event_at or self.session.recording_last_event_at or self.session.recording_started_at
+            event, event_at = asciicast_event(previous_event_at, event_type, data)
+            self.recording_events.append(event + "\n")
+            self.recording_last_event_at = event_at
+            self.session.recording_last_event_at = event_at
+
+    def _flush_pending_audit_output(self):
+        if not self.pending_command_audit or not self.pending_command_output_chunks:
+            return
+        try:
+            append_audit_output(self.pending_command_audit, "".join(self.pending_command_output_chunks))
+        except Exception:
+            self._disable_audit_session("Terminal command output audit flush failed")
+            return
+        self.pending_command_output_chunks = []
+        self.pending_command_output_size = 0
+
+    def _disable_audit_session(self, message: str):
+        logger.exception("%s; continuing without audit recording.", message)
+        self.session = None
+        self.pending_command_audit = None
+        self.pending_command_output_chunks = []
+        self.pending_command_output_size = 0
+        self.recording_events = []
+        self.recording_last_event_at = None
+
     def _close_session(self):
         if self.session is None:
             return
 
+        self._flush_pending_audit_output()
+        if self.session is None:
+            return
         transcript = "".join(self.transcript_chunks)
-        update_fields = ["status", "last_command_at"]
+        update_fields = ["status", "last_command_at", "recording_cols", "recording_rows", "recording_last_event_at"]
         self.session.status = "closed"
         self.session.last_command_at = timezone.now()
         if transcript:
             self.session.transcript += transcript
             update_fields.append("transcript")
-        self.session.save(update_fields=update_fields)
+        with self.recording_lock:
+            events = list(self.recording_events)
+            self.recording_events.clear()
+        save_session_recording(self.session, events, update_fields=update_fields)

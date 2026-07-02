@@ -15,6 +15,7 @@ from .consumers import (
     CWD_MARKER_END,
     CWD_MARKER_START,
     TerminalConsumer,
+    command_buffer_after_input,
     filter_changed_cwd_paths,
     strip_cwd_markers,
     strip_cwd_hook_install_echo,
@@ -22,9 +23,11 @@ from .consumers import (
 )
 from .services import (
     TerminalConnectionError,
+    classify_command_risk,
     create_remote_directory,
     create_remote_file,
     create_remote_symlink,
+    initialize_session_recording,
     parse_monitor_disks,
     parse_monitor_memory,
     parse_monitor_network,
@@ -37,7 +40,7 @@ from .services import (
     parse_remote_stat_output,
     remote_file_properties_payload,
 )
-from .models import TerminalQuickCommand
+from .models import TerminalCommandAudit, TerminalQuickCommand, TerminalSession
 
 
 class RemoteFilePropertiesTests(SimpleTestCase):
@@ -430,6 +433,99 @@ class TerminalAuthApiTests(TestCase):
         response = self.client.get("/api/web-terminal/tree/")
 
         self.assertEqual(response.status_code, 401)
+
+
+class TerminalSessionAuditTests(TestCase):
+    def setUp(self):
+        ensure_feature_permissions()
+        self.user = get_user_model().objects.create_user(username="audit-operator", password="pass")
+        role = Group.objects.create(name="session-audit-operator")
+        role.permissions.add(
+            Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["hosts"]),
+            Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "session_audit")]),
+        )
+        self.user.groups.add(role)
+        self.client.force_login(self.user)
+        self.group = HostGroup.objects.create(name="audit-tests")
+        self.host = ManagedHost.objects.create(name="audit-host", group=self.group, private_ip="10.0.0.8", login_user="root")
+        self.session = TerminalSession.objects.create(host=self.host, transcript="")
+        initialize_session_recording(self.session)
+
+    def test_classify_command_risk(self):
+        self.assertEqual(classify_command_risk("rm -rf /tmp/data"), TerminalCommandAudit.RISK_HIGH)
+        self.assertEqual(classify_command_risk("sudo systemctl restart nginx"), TerminalCommandAudit.RISK_MEDIUM)
+        self.assertEqual(classify_command_risk("ls -la"), TerminalCommandAudit.RISK_ACCEPT)
+
+    def test_command_buffer_splits_submitted_commands(self):
+        buffer, commands = command_buffer_after_input("", "uptime\rwhoami")
+        self.assertEqual(buffer, "whoami")
+        self.assertEqual(commands, ["uptime"])
+
+        buffer, commands = command_buffer_after_input(buffer, "\x7fi\n")
+        self.assertEqual(buffer, "")
+        self.assertEqual(commands, ["whoami"])
+
+        buffer, commands = command_buffer_after_input("ls", "\x1b[A -la\r")
+        self.assertEqual(buffer, "")
+        self.assertEqual(commands, ["ls -la"])
+
+    def test_rest_command_creates_audit_and_recording(self):
+        with patch("web_terminal.services.run_live_terminal_command", return_value=("ok\n", 0)):
+            response = self.client.post(
+                f"/api/web-terminal/sessions/{self.session.session_id}/commands/",
+                data={"command": "whoami"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        audit = TerminalCommandAudit.objects.get(id=response.json()["auditId"])
+        self.assertEqual(audit.username, self.user.username)
+        self.assertEqual(audit.command, "whoami")
+        self.assertEqual(audit.output, "ok\n")
+        self.session.refresh_from_db()
+        self.assertIn('"version":3', self.session.recording)
+        self.assertIn('"i","whoami\\r"', self.session.recording)
+        self.assertIn('"o","ok\\n"', self.session.recording)
+
+    def test_session_audit_list_requires_permission(self):
+        viewer = get_user_model().objects.create_user(username="viewer", password="pass")
+        self.client.force_login(viewer)
+
+        response = self.client.get("/api/web-terminal/session-audits/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_session_audit_list_filters_and_paginates(self):
+        TerminalCommandAudit.objects.create(
+            session=self.session,
+            host=self.host,
+            user=self.user,
+            username=self.user.username,
+            command="rm -rf /tmp/cache",
+            output="",
+            risk_level=TerminalCommandAudit.RISK_HIGH,
+            asset_name=self.host.name,
+            ip_address=self.host.private_ip,
+            executed_at=self.session.created_at,
+        )
+
+        response = self.client.get("/api/web-terminal/session-audits/?search=cache&riskLevel=high&page=1&pageSize=10")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["results"][0]["command"], "rm -rf /tmp/cache")
+        self.assertEqual(payload["results"][0]["riskLevel"], "high")
+
+    def test_recording_endpoint_returns_asciicast(self):
+        self.session.recording += '[0.1,"o","hello"]\n'
+        self.session.save(update_fields=["recording"])
+
+        response = self.client.get(f"/api/web-terminal/sessions/{self.session.session_id}/recording.cast")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/x-asciicast", response["Content-Type"])
+        self.assertTrue(response.content.decode("utf-8").startswith('{"version":3'))
 
 
 class TerminalQuickCommandApiTests(TestCase):

@@ -52,6 +52,7 @@ PAGE_ACTION_PERMISSION_DEFINITIONS = [
     ("hosts", "export", "导出备份"),
     ("hosts", "terminal", "Web 终端"),
     ("hosts", "quick_commands", "快捷命令"),
+    ("hosts", "session_audit", "会话审计"),
     ("accounts", "create", "新增账号"),
     ("accounts", "edit", "编辑账号"),
     ("accounts", "delete", "删除账号"),

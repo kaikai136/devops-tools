@@ -6,6 +6,8 @@ urlpatterns = [
     path("web-terminal/tree/", views.terminal_tree),
     path("web-terminal/sessions/", views.terminal_sessions),
     path("web-terminal/sessions/<uuid:session_id>/commands/", views.terminal_commands),
+    path("web-terminal/sessions/<uuid:session_id>/recording.cast", views.terminal_session_recording),
+    path("web-terminal/session-audits/", views.session_audits),
     path("web-terminal/quick-commands/", views.terminal_quick_commands),
     path("web-terminal/quick-commands/reorder/", views.terminal_quick_commands_reorder),
     path("web-terminal/quick-commands/<int:command_id>/", views.terminal_quick_command_detail),

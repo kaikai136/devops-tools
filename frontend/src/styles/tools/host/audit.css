@@ -1,0 +1,316 @@
+.host-session-audit-page {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px;
+}
+
+.host-session-audit-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 24px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.host-session-audit-head,
+.host-session-audit-filter-actions,
+.host-session-audit-pagination,
+.host-session-recording-modal header {
+  display: flex;
+  align-items: center;
+}
+
+.host-session-audit-head {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.host-session-audit-head h2 {
+  margin: 0;
+  color: #0b2446;
+  font-size: 18px;
+}
+
+.host-session-audit-head span,
+.host-session-recording-modal header span {
+  display: block;
+  margin-top: 4px;
+  color: #6a7f9a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.host-session-audit-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(120px, 0.7fr) minmax(180px, 1fr) minmax(170px, 0.9fr) minmax(170px, 0.9fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.host-session-audit-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #526b8a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.host-session-audit-filters input,
+.host-session-audit-filters select {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid #d8e2ee;
+  border-radius: 0;
+  background: #fff;
+  color: #173252;
+  padding: 0 10px;
+  font: inherit;
+}
+
+.host-session-audit-filter-actions {
+  gap: 8px;
+}
+
+.host-session-audit-filter-actions button {
+  min-height: 36px;
+  border-radius: 0;
+}
+
+.host-session-audit-message {
+  margin: 0;
+  border: 1px solid #ffd4d4;
+  background: #fff5f5;
+  color: #d92d20;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.host-session-audit-table-wrap {
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid #edf1f6;
+}
+
+.host-session-audit-table {
+  min-width: 1220px;
+}
+
+.host-session-audit-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(240px, 1.4fr) minmax(92px, 0.55fr) minmax(150px, 0.9fr) minmax(138px, 0.8fr) minmax(112px, 0.65fr) minmax(160px, 0.9fr) 54px;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  border-bottom: 1px solid #edf1f6;
+  padding: 0 18px;
+}
+
+.host-session-audit-row.head {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  min-height: 50px;
+  background: #f8fafc;
+  color: #173252;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.host-session-audit-row > span,
+.host-session-audit-row code,
+.host-session-audit-row button {
+  min-width: 0;
+}
+
+.host-session-audit-row > span,
+.host-session-audit-row code {
+  overflow: hidden;
+  color: #173252;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-session-audit-row code {
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.host-session-risk {
+  justify-self: start;
+  border: 1px solid #b9e4c9;
+  background: #f1fff6;
+  color: #128244;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.host-session-risk.medium {
+  border-color: #ffd999;
+  background: #fff8ec;
+  color: #b56a00;
+}
+
+.host-session-risk.high {
+  border-color: #ffb3b8;
+  background: #fff2f3;
+  color: #d92d20;
+}
+
+.host-session-link,
+.host-session-expand {
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #0755d8;
+  font-weight: 900;
+}
+
+.host-session-expand {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  justify-self: center;
+}
+
+.host-session-audit-detail {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(420px, 1.2fr);
+  gap: 14px;
+  border-bottom: 1px solid #edf1f6;
+  background: #fbfdff;
+  padding: 16px 18px;
+}
+
+.host-session-audit-detail strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #173252;
+  font-size: 13px;
+}
+
+.host-session-audit-detail pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid #e3eaf3;
+  background: #ffffff;
+  color: #173252;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.host-session-audit-empty {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+  color: #6a7f9a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.host-session-audit-pagination {
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 44px;
+  padding-top: 12px;
+  border-top: 1px solid #edf1f6;
+  color: #526b8a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.host-session-recording-backdrop {
+  z-index: 100;
+}
+
+.host-session-recording-modal {
+  display: grid;
+  width: min(980px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  gap: 14px;
+  border: 1px solid #d8e5f4;
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+  box-shadow: 0 24px 60px rgba(36, 55, 84, 0.26);
+}
+
+.host-session-recording-modal header {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.host-session-recording-modal header strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #0b2446;
+  font-size: 16px;
+}
+
+.host-session-recording-modal header button {
+  display: inline-grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #173252;
+  padding: 0;
+}
+
+.host-session-recording-player {
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid #d8e2ee;
+  background: #121314;
+}
+
+.host-session-recording-player .asciinema-player {
+  max-width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .host-session-audit-filters {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .host-session-audit-filter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 760px) {
+  .host-session-audit-panel {
+    padding: 16px;
+  }
+
+  .host-session-audit-filters,
+  .host-session-audit-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .host-session-audit-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .host-session-recording-player {
+    min-height: 300px;
+  }
+}

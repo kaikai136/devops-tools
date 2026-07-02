@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import TerminalQuickCommand
+from .models import TerminalCommandAudit, TerminalQuickCommand
 
 
 class TerminalQuickCommandSerializer(serializers.ModelSerializer):
@@ -42,3 +42,30 @@ class TerminalQuickCommandSerializer(serializers.ModelSerializer):
 
     def validate_description(self, value):
         return str(value or "").strip()
+
+
+class TerminalCommandAuditSerializer(serializers.ModelSerializer):
+    riskLevel = serializers.CharField(source="risk_level")
+    assetName = serializers.CharField(source="asset_name")
+    ipAddress = serializers.SerializerMethodField()
+    sessionId = serializers.UUIDField(source="session.session_id")
+    hostId = serializers.IntegerField(source="host_id")
+    executedAt = serializers.DateTimeField(source="executed_at")
+
+    class Meta:
+        model = TerminalCommandAudit
+        fields = [
+            "id",
+            "username",
+            "command",
+            "output",
+            "riskLevel",
+            "assetName",
+            "ipAddress",
+            "sessionId",
+            "hostId",
+            "executedAt",
+        ]
+
+    def get_ipAddress(self, obj):
+        return str(obj.ip_address) if obj.ip_address else ""

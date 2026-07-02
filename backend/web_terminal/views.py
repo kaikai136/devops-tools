@@ -1,22 +1,28 @@
+from datetime import datetime, time
 from urllib.parse import quote
 from uuid import UUID
 from functools import wraps
 
+from django.core.paginator import EmptyPage, Paginator
 from rest_framework import status
 from rest_framework.decorators import api_view
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import CharField, Max, Q
+from django.db.models.functions import Cast
 from django.http import HttpResponse, StreamingHttpResponse
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework.response import Response
 
 from accounts.permissions import require_feature_permission, require_login
 from host_management.models import ManagedHost
 from operations.responses import bad_request, not_found, serializer_bad_request
 
-from .models import TerminalQuickCommand, TerminalSession
-from .serializers import TerminalQuickCommandSerializer
+from .models import TerminalCommandAudit, TerminalQuickCommand, TerminalSession
+from .serializers import TerminalCommandAuditSerializer, TerminalQuickCommandSerializer
 from .services import (
     TerminalConnectionError,
+    asciicast_header,
     create_remote_directory,
     create_remote_file,
     create_remote_symlink,
@@ -63,8 +69,42 @@ def quick_command_permission_required(view_func):
     return wrapped
 
 
+def session_audit_permission_required(view_func):
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        permission_error = require_feature_permission(request, "hosts", "session_audit", "没有会话审计权限")
+        if permission_error:
+            return permission_error
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
+
 def quick_command_queryset():
     return TerminalQuickCommand.objects.all()
+
+
+def parse_positive_int(value, default: int, minimum: int = 1, maximum: int = 100) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(parsed, maximum))
+
+
+def parse_audit_datetime(value: str, end_of_day: bool = False):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    parsed = parse_datetime(raw)
+    if parsed is None:
+        parsed_date = parse_date(raw)
+        if parsed_date is None:
+            return None
+        parsed = datetime.combine(parsed_date, time.max if end_of_day else time.min)
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed)
+    return parsed
 
 
 @api_view(["GET", "POST"])
@@ -163,7 +203,74 @@ def terminal_commands(request, session_id: UUID):
     command = str(request.data.get("command", "")).strip()
     if not command:
         return bad_request("请输入命令")
-    return Response(run_session_command(session, command))
+    return Response(run_session_command(session, command, user=request.user))
+
+
+@api_view(["GET"])
+@session_audit_permission_required
+def session_audits(request):
+    queryset = TerminalCommandAudit.objects.select_related("session", "host", "user")
+    search = str(request.query_params.get("search", "")).strip()
+    risk_level = str(request.query_params.get("riskLevel", "")).strip()
+    host = str(request.query_params.get("host", "")).strip()
+    date_from = parse_audit_datetime(str(request.query_params.get("dateFrom", "")).strip())
+    date_to = parse_audit_datetime(str(request.query_params.get("dateTo", "")).strip(), end_of_day=True)
+
+    if search:
+        queryset = queryset.annotate(
+            ip_address_text=Cast("ip_address", output_field=CharField()),
+            session_id_text=Cast("session__session_id", output_field=CharField()),
+        )
+        queryset = queryset.filter(
+            Q(username__icontains=search)
+            | Q(command__icontains=search)
+            | Q(output__icontains=search)
+            | Q(asset_name__icontains=search)
+            | Q(ip_address_text__icontains=search)
+            | Q(session_id_text__icontains=search)
+        )
+    if risk_level in {TerminalCommandAudit.RISK_ACCEPT, TerminalCommandAudit.RISK_MEDIUM, TerminalCommandAudit.RISK_HIGH}:
+        queryset = queryset.filter(risk_level=risk_level)
+    if host:
+        try:
+            queryset = queryset.filter(host_id=int(host))
+        except (TypeError, ValueError):
+            return bad_request("主机筛选条件无效")
+    if date_from:
+        queryset = queryset.filter(executed_at__gte=date_from)
+    if date_to:
+        queryset = queryset.filter(executed_at__lte=date_to)
+
+    page_size = parse_positive_int(request.query_params.get("pageSize"), default=20, maximum=100)
+    page_number = parse_positive_int(request.query_params.get("page"), default=1, maximum=1000000)
+    paginator = Paginator(queryset, page_size)
+    try:
+        page = paginator.page(page_number)
+    except EmptyPage:
+        page = paginator.page(paginator.num_pages or 1)
+
+    return Response(
+        {
+            "count": paginator.count,
+            "page": page.number,
+            "pageSize": page_size,
+            "results": TerminalCommandAuditSerializer(page.object_list, many=True).data,
+        }
+    )
+
+
+@api_view(["GET"])
+@session_audit_permission_required
+def terminal_session_recording(request, session_id: UUID):
+    try:
+        session = TerminalSession.objects.get(session_id=session_id)
+    except TerminalSession.DoesNotExist:
+        return not_found("终端会话不存在")
+
+    recording = session.recording or f"{asciicast_header(session.recording_cols, session.recording_rows)}\n"
+    response = HttpResponse(recording, content_type="application/x-asciicast; charset=utf-8")
+    response["Content-Disposition"] = f'inline; filename="{session.session_id}.cast"'
+    return response
 
 
 @api_view(["POST"])
