@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import type { IconName } from '../../components/common/AppIcon.vue';
 import { dashboardNavItem, navGroups } from '../../navigation';
@@ -7,9 +7,10 @@ import type { ToolKey } from '../../types';
 type WorkspaceTheme = 'light' | 'dark';
 
 const WORKSPACE_THEME_STORAGE_KEY = 'ops-tool.workspace-theme';
+const ACTIVE_TOOL_STORAGE_KEY = 'ops-tool.active-tool';
 
 export function useShellState() {
-  const activeTool = ref<ToolKey>('dashboard');
+  const activeTool = ref<ToolKey>(readActiveTool());
   const groupsOpen = ref({ network: true, host: true, security: true, system: true });
   const sidebarCollapsed = ref(false);
   const hoveredNavGroup = ref<string | null>(null);
@@ -26,6 +27,12 @@ export function useShellState() {
       sidebarCollapsed.value = true;
     }
   }
+
+  watch(activeTool, (key) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ACTIVE_TOOL_STORAGE_KEY, key);
+    }
+  });
 
   function selectNavItem(key: ToolKey) {
     setActiveTool(key);
@@ -109,4 +116,16 @@ function navGroupIcon(key: string): IconName {
 function readWorkspaceTheme(): WorkspaceTheme {
   if (typeof window === 'undefined') return 'light';
   return window.localStorage.getItem(WORKSPACE_THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+}
+
+function readActiveTool(): ToolKey {
+  if (typeof window === 'undefined') return 'dashboard';
+  const stored = window.localStorage.getItem(ACTIVE_TOOL_STORAGE_KEY);
+  return isToolKey(stored) ? stored : 'dashboard';
+}
+
+function isToolKey(value: string | null): value is ToolKey {
+  if (!value) return false;
+  if (value === dashboardNavItem.key) return true;
+  return navGroups.some((group) => group.items.some((item) => item.key === value));
 }

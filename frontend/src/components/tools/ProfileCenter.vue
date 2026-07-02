@@ -205,15 +205,15 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
     <aside class="profile-overview-card">
       <div class="profile-avatar-frame">
         <img :src="profileAvatar" alt="用户头像" />
-        <button v-if="canUploadAvatar" type="button" :disabled="isUploadingAvatar" title="上传头像" aria-label="上传头像" @click="triggerAvatarUpload">
-          <AppIcon name="upload" :size="16" />
-        </button>
-        <input ref="avatarInput" hidden type="file" accept="image/png,image/jpeg,image/webp" @change="uploadAvatar" />
       </div>
-      <strong>{{ displayName }}</strong>
-      <span>{{ accountLabel }}</span>
-      <div class="profile-role-tags">
-        <em v-for="tag in roleTags" :key="tag">{{ tag }}</em>
+      <div class="profile-identity">
+        <div class="profile-name-row">
+          <strong>{{ displayName }}</strong>
+          <div class="profile-role-tags">
+            <em v-for="tag in roleTags" :key="tag">{{ tag }}</em>
+          </div>
+        </div>
+        <span>{{ accountLabel }}</span>
       </div>
       <dl>
         <div>
@@ -236,7 +236,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
     </aside>
 
     <div v-if="canUseAnyPageAction('profile', ['edit', 'avatar', 'password', '2fa_enable', '2fa_disable'])" class="profile-settings-stack">
-      <section v-if="canEditProfile" class="profile-panel">
+      <section v-if="canEditProfile || canUploadAvatar" class="profile-panel">
         <header>
           <div>
             <h2>基本资料</h2>
@@ -244,25 +244,39 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
           </div>
           <AppIcon name="user" :size="20" />
         </header>
-        <form class="profile-form-grid" @submit.prevent="saveProfile">
-          <label>
-            <span>用户名</span>
-            <input v-model.trim="profileForm.username" autocomplete="username" />
-          </label>
-          <label>
-            <span>显示名</span>
-            <input v-model.trim="profileForm.first_name" placeholder="例如：运维船长" />
-          </label>
-          <label>
-            <span>邮箱</span>
-            <input v-model.trim="profileForm.email" type="email" autocomplete="email" placeholder="name@example.com" />
-          </label>
-          <div class="profile-actions">
-            <button class="profile-primary-button" type="submit" :disabled="isSavingProfile">
-              {{ isSavingProfile ? '保存中...' : '保存资料' }}
-            </button>
-          </div>
-        </form>
+        <div class="profile-basic-grid" :class="{ 'without-avatar': !canUploadAvatar }">
+          <section v-if="canUploadAvatar" class="profile-avatar-editor">
+            <img :src="profileAvatar" alt="用户头像" />
+            <div>
+              <strong>资料头像</strong>
+              <p>上传图片后会立即更新当前头像。</p>
+              <button class="profile-secondary-button" type="button" :disabled="isUploadingAvatar" @click="triggerAvatarUpload">
+                <AppIcon name="upload" :size="16" />
+                {{ isUploadingAvatar ? '上传中...' : '上传头像' }}
+              </button>
+              <input ref="avatarInput" hidden type="file" accept="image/png,image/jpeg,image/webp" @change="uploadAvatar" />
+            </div>
+          </section>
+          <form v-if="canEditProfile" class="profile-form-grid" @submit.prevent="saveProfile">
+            <label>
+              <span>用户名</span>
+              <input v-model.trim="profileForm.username" autocomplete="username" />
+            </label>
+            <label>
+              <span>显示名</span>
+              <input v-model.trim="profileForm.first_name" placeholder="例如：运维船长" />
+            </label>
+            <label>
+              <span>邮箱</span>
+              <input v-model.trim="profileForm.email" type="email" autocomplete="email" placeholder="name@example.com" />
+            </label>
+            <div class="profile-actions">
+              <button class="profile-primary-button" type="submit" :disabled="isSavingProfile">
+                {{ isSavingProfile ? '保存中...' : '保存资料' }}
+              </button>
+            </div>
+          </form>
+        </div>
       </section>
 
       <section v-if="canChangePassword" class="profile-panel">

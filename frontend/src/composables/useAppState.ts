@@ -306,9 +306,9 @@ const {
   isAuthReady,
   isAuthenticated,
   loadCurrentUser,
-  login,
-  verifyTwoFactorLogin,
-  verifyTwoFactorSetupLogin,
+  login: authLogin,
+  verifyTwoFactorLogin: authVerifyTwoFactorLogin,
+  verifyTwoFactorSetupLogin: authVerifyTwoFactorSetupLogin,
   updateCurrentUser,
   refreshCurrentUser,
   lockSession,
@@ -350,6 +350,24 @@ const permittedNavGroups = computed(() => {
     .filter((group) => group.items.length);
 });
 
+async function login(...args: Parameters<typeof authLogin>) {
+  const result = await authLogin(...args);
+  if ('user' in result) setActiveTool(defaultLoginTool());
+  return result;
+}
+
+async function verifyTwoFactorLogin(...args: Parameters<typeof authVerifyTwoFactorLogin>) {
+  const user = await authVerifyTwoFactorLogin(...args);
+  setActiveTool(defaultLoginTool());
+  return user;
+}
+
+async function verifyTwoFactorSetupLogin(...args: Parameters<typeof authVerifyTwoFactorSetupLogin>) {
+  const user = await authVerifyTwoFactorSetupLogin(...args);
+  setActiveTool(defaultLoginTool());
+  return user;
+}
+
 const currentPermissionCodes = computed(() => new Set(currentUser.value?.featurePermissionCodes ?? []));
 const permittedDashboardItem = computed(() => {
   const user = currentUser.value;
@@ -361,6 +379,11 @@ const permittedToolKeys = computed(() => {
   if (permittedDashboardItem.value) keys.unshift(permittedDashboardItem.value.key);
   return new Set(keys);
 });
+
+function defaultLoginTool() {
+  return permittedDashboardItem.value?.key ?? permittedNavGroups.value[0]?.items[0]?.key ?? 'dashboard';
+}
+
 const permittedActiveNavGroup = computed(() => {
   if (activeTool.value === 'dashboard' && permittedDashboardItem.value) {
     return { key: 'dashboard', label: '仪表盘', items: [permittedDashboardItem.value] };
