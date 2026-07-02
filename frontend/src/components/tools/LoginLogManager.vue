@@ -67,6 +67,13 @@ const visibleColumns = ref<Record<ColumnKey, boolean>>({
 let filterTimer: number | undefined;
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
+const pageStart = computed(() => (total.value ? (page.value - 1) * pageSize.value + 1 : 0));
+const pageEnd = computed(() => Math.min(page.value * pageSize.value, total.value));
+const pageNumbers = computed(() => {
+  const from = Math.max(1, page.value - 2);
+  const to = Math.min(totalPages.value, page.value + 2);
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+});
 const visibleColumnCount = computed(() => Object.values(visibleColumns.value).filter(Boolean).length);
 const allColumnsVisible = computed(() => columnOptions.every((column) => visibleColumns.value[column.key]));
 const someColumnsVisible = computed(() => visibleColumnCount.value > 0);
@@ -268,20 +275,33 @@ function statusText(status: LoginLogStatus) {
         </div>
       </div>
 
-      <div class="login-log-pagination">
-        <span>共 {{ total }} 条</span>
-        <button type="button" :disabled="page <= 1" aria-label="上一页" @click="setPage(page - 1)">
-          <AppIcon name="chevronRight" :size="16" />
-        </button>
-        <strong>{{ page }}</strong>
-        <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)">
-          <AppIcon name="chevronRight" :size="16" />
-        </button>
-        <select :value="pageSize" aria-label="每页条数" @change="setPageSize">
-          <option :value="10">10 条/页</option>
-          <option :value="20">20 条/页</option>
-          <option :value="50">50 条/页</option>
-        </select>
+      <div class="host-pagination" aria-label="登录记录分页">
+        <div class="host-pagination-summary">
+          <span>共 {{ total }} 条</span>
+          <span>{{ pageStart }}-{{ pageEnd }}</span>
+        </div>
+        <div class="host-pagination-controls">
+          <button class="prev" type="button" :disabled="page <= 1" aria-label="上一页" @click="setPage(page - 1)">
+            <AppIcon name="chevronRight" :size="14" />
+          </button>
+          <button
+            v-for="pageNumber in pageNumbers"
+            :key="pageNumber"
+            type="button"
+            :class="{ active: pageNumber === page }"
+            @click="setPage(pageNumber)"
+          >
+            {{ pageNumber }}
+          </button>
+          <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)">
+            <AppIcon name="chevronRight" :size="14" />
+          </button>
+          <select :value="pageSize" aria-label="每页条数" @change="setPageSize">
+            <option :value="10">10 条/页</option>
+            <option :value="20">20 条/页</option>
+            <option :value="50">50 条/页</option>
+          </select>
+        </div>
       </div>
     </article>
     </template>

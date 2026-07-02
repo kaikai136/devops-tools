@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+
 import { formatDateTime } from '../../../utils/datetime';
 import AppIcon from '../../common/AppIcon.vue';
 import type { SystemUser, UserColumnKey } from '../../../composables/features/useUserManager';
@@ -31,6 +33,13 @@ const emit = defineEmits<{
 }>();
 
 const pageSizeOptions = [10, 20, 50];
+const pageStart = computed(() => (props.filteredCount ? (props.page - 1) * props.pageSize + 1 : 0));
+const pageEnd = computed(() => Math.min(props.page * props.pageSize, props.filteredCount));
+const pageNumbers = computed(() => {
+  const from = Math.max(1, props.page - 2);
+  const to = Math.min(props.totalPages, props.page + 2);
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+});
 
 function updatePageSize(event: Event) {
   emit('updatePageSize', Number((event.target as HTMLSelectElement).value));
@@ -129,13 +138,30 @@ function hasRowActions() {
     <div v-if="!users.length" class="user-empty">{{ isLoading ? '加载中...' : '暂无匹配账户' }}</div>
   </div>
 
-  <div class="user-pagination">
-    <span>共 {{ filteredCount }} 条</span>
-    <button type="button" :disabled="page <= 1" @click="$emit('updatePage', page - 1)"><AppIcon name="chevronRight" :size="15" /></button>
-    <strong>{{ page }}</strong>
-    <button type="button" :disabled="page >= totalPages" @click="$emit('updatePage', page + 1)"><AppIcon name="chevronRight" :size="15" /></button>
-    <select :value="pageSize" @change="updatePageSize">
-      <option v-for="option in pageSizeOptions" :key="option" :value="option">{{ option }} 条/页</option>
-    </select>
+  <div class="host-pagination" aria-label="用户列表分页">
+    <div class="host-pagination-summary">
+      <span>共 {{ filteredCount }} 条</span>
+      <span>{{ pageStart }}-{{ pageEnd }}</span>
+    </div>
+    <div class="host-pagination-controls">
+      <button class="prev" type="button" :disabled="page <= 1" aria-label="上一页" @click="$emit('updatePage', page - 1)">
+        <AppIcon name="chevronRight" :size="14" />
+      </button>
+      <button
+        v-for="pageNumber in pageNumbers"
+        :key="pageNumber"
+        type="button"
+        :class="{ active: pageNumber === page }"
+        @click="$emit('updatePage', pageNumber)"
+      >
+        {{ pageNumber }}
+      </button>
+      <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="$emit('updatePage', page + 1)">
+        <AppIcon name="chevronRight" :size="14" />
+      </button>
+      <select :value="pageSize" aria-label="每页条数" @change="updatePageSize">
+        <option v-for="option in pageSizeOptions" :key="option" :value="option">{{ option }} 条/页</option>
+      </select>
+    </div>
   </div>
 </template>

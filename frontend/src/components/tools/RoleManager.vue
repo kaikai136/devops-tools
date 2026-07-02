@@ -60,6 +60,7 @@ const searchDraft = ref('');
 const search = ref('');
 const page = ref(1);
 const pageSize = ref(10);
+const pageSizeOptions = [10, 20, 50];
 const isLoading = ref(false);
 const message = ref('');
 const messageTone = ref<'error' | 'success'>('error');
@@ -100,6 +101,13 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filteredRoles.value.leng
 const pagedRoles = computed(() => {
   const start = (page.value - 1) * pageSize.value;
   return filteredRoles.value.slice(start, start + pageSize.value);
+});
+const pageStart = computed(() => (filteredRoles.value.length ? (page.value - 1) * pageSize.value + 1 : 0));
+const pageEnd = computed(() => Math.min(page.value * pageSize.value, filteredRoles.value.length));
+const pageNumbers = computed(() => {
+  const from = Math.max(1, page.value - 2);
+  const to = Math.min(totalPages.value, page.value + 2);
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
 });
 
 onMounted(loadRoles);
@@ -362,6 +370,10 @@ function setPage(nextPage: number) {
   page.value = Math.min(Math.max(1, nextPage), totalPages.value);
 }
 
+function setPageSize(event: Event) {
+  pageSize.value = Number((event.target as HTMLSelectElement).value);
+}
+
 function roleCode(role: SystemRole) {
   if (/管理员|admin/i.test(role.name)) return 'admin';
   if (/普通|用户|user/i.test(role.name)) return 'user';
@@ -505,11 +517,31 @@ function emptyRoleForm(): RoleForm {
         <div v-else-if="!pagedRoles.length" class="role-empty">暂无角色数据</div>
       </div>
 
-      <div class="role-pagination">
-        <span>共 {{ filteredRoles.length }} 条</span>
-        <button type="button" :disabled="page <= 1" aria-label="上一页" @click="setPage(page - 1)"><AppIcon name="chevronRight" :size="16" /></button>
-        <strong>{{ page }}</strong>
-        <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)"><AppIcon name="chevronRight" :size="16" /></button>
+      <div class="host-pagination" aria-label="角色列表分页">
+        <div class="host-pagination-summary">
+          <span>共 {{ filteredRoles.length }} 条</span>
+          <span>{{ pageStart }}-{{ pageEnd }}</span>
+        </div>
+        <div class="host-pagination-controls">
+          <button class="prev" type="button" :disabled="page <= 1" aria-label="上一页" @click="setPage(page - 1)">
+            <AppIcon name="chevronRight" :size="14" />
+          </button>
+          <button
+            v-for="pageNumber in pageNumbers"
+            :key="pageNumber"
+            type="button"
+            :class="{ active: pageNumber === page }"
+            @click="setPage(pageNumber)"
+          >
+            {{ pageNumber }}
+          </button>
+          <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)">
+            <AppIcon name="chevronRight" :size="14" />
+          </button>
+          <select :value="pageSize" aria-label="每页条数" @change="setPageSize">
+            <option v-for="option in pageSizeOptions" :key="option" :value="option">{{ option }} 条/页</option>
+          </select>
+        </div>
       </div>
     </article>
     </template>
