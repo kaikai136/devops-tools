@@ -93,6 +93,12 @@
   color: #fff;
 }
 
+.terminal-icon-action {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
 .secondary-blue {
   background: #2364f5;
 }

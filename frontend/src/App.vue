@@ -341,7 +341,16 @@ async function lockCurrentSession() {
               <button v-if="canUsePageAction('hosts', 'export')" class="header-action" type="button" @click="backupHostManagement"><AppIcon name="download" :size="16" />备份</button>
               <button v-if="canUsePageAction('hosts', 'import')" class="header-action" type="button" @click="triggerHostRestoreFile"><AppIcon name="upload" :size="16" />恢复</button>
               <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
-              <button v-if="canUsePageAction('hosts', 'terminal')" class="header-action terminal-action" type="button" @click="openWebTerminal()"><AppIcon name="terminal" :size="16" />Web 终端</button>
+              <button
+                v-if="canUsePageAction('hosts', 'terminal')"
+                class="header-action terminal-action terminal-icon-action"
+                type="button"
+                title="Web 终端"
+                aria-label="Web 终端"
+                @click="openWebTerminal()"
+              >
+                <AppIcon name="terminal" :size="16" />
+              </button>
             </template>
             <template v-else-if="activeTool === 'dashboard' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
