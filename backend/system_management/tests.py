@@ -362,6 +362,7 @@ class FeaturePermissionTests(TestCase):
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["hosts"], codenames)
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["operationLogs"], codenames)
         self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")], codenames)
+        self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "quick_commands")], codenames)
         self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("operationLogs", "refresh")], codenames)
         self.assertTrue(all(item["isFeature"] for item in payload))
         self.assertTrue(any(item["permissionType"] == "page" and item["featureKey"] == "hosts" for item in payload))

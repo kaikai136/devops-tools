@@ -9,7 +9,7 @@ from django.db.models import Max
 from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework.response import Response
 
-from accounts.permissions import require_login
+from accounts.permissions import require_feature_permission, require_login
 from host_management.models import ManagedHost
 from operations.responses import bad_request, not_found, serializer_bad_request
 
@@ -52,12 +52,23 @@ def terminal_login_required(view_func):
     return wrapped
 
 
+def quick_command_permission_required(view_func):
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        permission_error = require_feature_permission(request, "hosts", "quick_commands", "没有快捷命令权限")
+        if permission_error:
+            return permission_error
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
+
 def quick_command_queryset():
     return TerminalQuickCommand.objects.all()
 
 
 @api_view(["GET", "POST"])
-@terminal_login_required
+@quick_command_permission_required
 def terminal_quick_commands(request):
     if request.method == "GET":
         return Response(TerminalQuickCommandSerializer(quick_command_queryset(), many=True).data)
@@ -73,7 +84,7 @@ def terminal_quick_commands(request):
 
 
 @api_view(["PUT", "DELETE"])
-@terminal_login_required
+@quick_command_permission_required
 def terminal_quick_command_detail(request, command_id: int):
     try:
         command = TerminalQuickCommand.objects.get(id=command_id)
@@ -92,7 +103,7 @@ def terminal_quick_command_detail(request, command_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@quick_command_permission_required
 def terminal_quick_commands_reorder(request):
     ids = request.data.get("ids")
     if not isinstance(ids, list) or not ids:

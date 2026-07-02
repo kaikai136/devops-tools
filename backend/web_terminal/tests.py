@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from unittest.mock import patch
 
 from host_management.models import HostGroup, ManagedHost
+from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions
 
 from . import views
 from .consumers import (
@@ -432,7 +434,14 @@ class TerminalAuthApiTests(TestCase):
 
 class TerminalQuickCommandApiTests(TestCase):
     def setUp(self):
+        ensure_feature_permissions()
         self.user = get_user_model().objects.create_user(username="operator", password="pass")
+        role = Group.objects.create(name="quick-command-operator")
+        role.permissions.add(
+            Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["hosts"]),
+            Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "quick_commands")]),
+        )
+        self.user.groups.add(role)
         self.client.force_login(self.user)
         TerminalQuickCommand.objects.all().delete()
 
@@ -442,6 +451,14 @@ class TerminalQuickCommandApiTests(TestCase):
         response = self.client.get("/api/web-terminal/quick-commands/")
 
         self.assertEqual(response.status_code, 401)
+
+    def test_quick_command_list_requires_permission(self):
+        viewer = get_user_model().objects.create_user(username="viewer", password="pass")
+        self.client.force_login(viewer)
+
+        response = self.client.get("/api/web-terminal/quick-commands/")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_quick_command_list_orders_by_category_sort_and_id(self):
         third = TerminalQuickCommand.objects.create(category="Linux", name="third", command="whoami", sort_order=30)

@@ -3,8 +3,26 @@ import { computed, ref, watch } from 'vue';
 
 import { useAppContext } from '../../appContext';
 import { useColumnVisibility } from '../../composables/useColumnVisibility';
+import {
+  createQuickCommand,
+  deleteQuickCommand,
+  listQuickCommands,
+  reorderQuickCommands,
+  updateQuickCommand,
+  type QuickCommand,
+  type QuickCommandPayload,
+} from '../../services/quickCommands';
 import { formatDateTime } from '../../utils/datetime';
 import AppIcon from '../common/AppIcon.vue';
+
+interface HostQuickCommandDialogState {
+  visible: boolean;
+  mode: 'create' | 'edit';
+  commandId: number | null;
+  draft: QuickCommandPayload;
+  saving: boolean;
+  error: string;
+}
 
 const hostColumnOptions = [
   { key: 'group', label: '主机分组', width: 'minmax(100px, 0.8fr)', minWidth: 100 },
@@ -101,6 +119,7 @@ const {
   deleteHostGroup,
   canUsePageAction,
   canUseAnyPageAction,
+  showToast,
 } = useAppContext();
 
 const hostColumnSettingsOpen = ref(false);
@@ -108,6 +127,20 @@ const hostMoreActionsOpen = ref(false);
 const fullscreen = ref(false);
 const hostPage = ref(1);
 const hostPageSize = ref(10);
+const hostQuickCommandManagerOpen = ref(false);
+const hostQuickCommands = ref<QuickCommand[]>([]);
+const hostQuickCommandCategory = ref('all');
+const hostQuickCommandSearch = ref('');
+const isHostQuickCommandLoading = ref(false);
+const hostQuickCommandError = ref('');
+const hostQuickCommandDialog = ref<HostQuickCommandDialogState>({
+  visible: false,
+  mode: 'create',
+  commandId: null,
+  draft: createHostQuickCommandDraft(),
+  saving: false,
+  error: '',
+});
 const {
   visibility: hostColumnVisibility,
   visibleColumns: visibleHostTableColumns,
@@ -160,7 +193,8 @@ const canUseHostAnyAction = computed(() =>
   canUsePageAction('hosts', 'group') ||
   canUsePageAction('hosts', 'import') ||
   canUsePageAction('hosts', 'export') ||
-  canUsePageAction('hosts', 'terminal')
+  canUsePageAction('hosts', 'terminal') ||
+  canUsePageAction('hosts', 'quick_commands')
 );
 const canUseHostMoreActions = computed(() =>
   canUsePageAction('hosts', 'verify') ||
@@ -181,6 +215,21 @@ const hostPageNumbers = computed(() => {
   const from = Math.max(1, current - 2);
   const to = Math.min(total, current + 2);
   return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+});
+const hostQuickCommandCategories = computed(() => {
+  const categories = hostQuickCommands.value.map((command) => command.category).filter(Boolean);
+  return [...new Set(categories)].sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'));
+});
+const filteredHostQuickCommands = computed(() => {
+  const query = hostQuickCommandSearch.value.trim().toLowerCase();
+  return hostQuickCommands.value.filter((command) => {
+    const matchesCategory = hostQuickCommandCategory.value === 'all' || command.category === hostQuickCommandCategory.value;
+    if (!matchesCategory) return false;
+    if (!query) return true;
+    return [command.name, command.category, command.command, command.description]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
 });
 
 watch([visibleManagedHosts, hostPageSize], () => {
@@ -249,6 +298,177 @@ function toggleHostMoreActions() {
 
 function closeHostMoreActions() {
   hostMoreActionsOpen.value = false;
+}
+
+function createHostQuickCommandDraft(command?: QuickCommand | null): QuickCommandPayload {
+  return {
+    name: command?.name ?? '',
+    category: command?.category ?? hostQuickCommands.value[0]?.category ?? 'Linux',
+    command: command?.command ?? '',
+    description: command?.description ?? '',
+    enabled: command?.enabled ?? true,
+    sortOrder: command?.sortOrder ?? 0,
+  };
+}
+
+function sortHostQuickCommands(commands: QuickCommand[]) {
+  return [...commands].sort(
+    (left, right) =>
+      left.category.localeCompare(right.category, 'zh-Hans-CN') ||
+      left.sortOrder - right.sortOrder ||
+      left.id - right.id,
+  );
+}
+
+async function loadHostQuickCommands() {
+  isHostQuickCommandLoading.value = true;
+  hostQuickCommandError.value = '';
+  try {
+    hostQuickCommands.value = await listQuickCommands();
+    if (
+      hostQuickCommandCategory.value !== 'all' &&
+      !hostQuickCommands.value.some((command) => command.category === hostQuickCommandCategory.value)
+    ) {
+      hostQuickCommandCategory.value = 'all';
+    }
+  } catch (error) {
+    hostQuickCommandError.value = error instanceof Error ? error.message : '快捷命令加载失败';
+  } finally {
+    isHostQuickCommandLoading.value = false;
+  }
+}
+
+async function openHostQuickCommandManager() {
+  closeHostMenus();
+  hostQuickCommandManagerOpen.value = true;
+  if (!hostQuickCommands.value.length && !isHostQuickCommandLoading.value) {
+    await loadHostQuickCommands();
+  }
+}
+
+function closeHostQuickCommandManager() {
+  if (hostQuickCommandDialog.value.saving) return;
+  hostQuickCommandManagerOpen.value = false;
+  closeHostQuickCommandDialog();
+}
+
+function openHostQuickCommandDialog(command: QuickCommand | null = null) {
+  hostQuickCommandDialog.value = {
+    visible: true,
+    mode: command ? 'edit' : 'create',
+    commandId: command?.id ?? null,
+    draft: createHostQuickCommandDraft(command),
+    saving: false,
+    error: '',
+  };
+}
+
+function closeHostQuickCommandDialog() {
+  if (hostQuickCommandDialog.value.saving) return;
+  hostQuickCommandDialog.value = {
+    visible: false,
+    mode: 'create',
+    commandId: null,
+    draft: createHostQuickCommandDraft(),
+    saving: false,
+    error: '',
+  };
+}
+
+function hostQuickCommandPayload(draft: QuickCommandPayload): QuickCommandPayload {
+  return {
+    name: draft.name.trim(),
+    category: draft.category.trim(),
+    command: draft.command.trim(),
+    description: draft.description.trim(),
+    enabled: draft.enabled,
+    sortOrder: draft.sortOrder,
+  };
+}
+
+async function saveHostQuickCommandDialog() {
+  const dialog = hostQuickCommandDialog.value;
+  if (!dialog.visible || dialog.saving) return;
+  const payload = hostQuickCommandPayload(dialog.draft);
+  if (!payload.name || !payload.category || !payload.command) {
+    hostQuickCommandDialog.value = { ...dialog, error: '请填写名称、分类和命令内容' };
+    return;
+  }
+
+  hostQuickCommandDialog.value = { ...dialog, saving: true, error: '' };
+  try {
+    const saved =
+      dialog.mode === 'edit' && dialog.commandId
+        ? await updateQuickCommand(dialog.commandId, payload)
+        : await createQuickCommand(payload);
+    const nextCommands =
+      dialog.mode === 'edit'
+        ? hostQuickCommands.value.map((command) => (command.id === saved.id ? saved : command))
+        : [...hostQuickCommands.value, saved];
+    hostQuickCommands.value = sortHostQuickCommands(nextCommands);
+    hostQuickCommandCategory.value = saved.category;
+    closeHostQuickCommandDialog();
+    showToast('保存成功', `快捷命令「${saved.name}」已保存。`);
+  } catch (error) {
+    hostQuickCommandDialog.value = {
+      ...dialog,
+      saving: false,
+      error: error instanceof Error ? error.message : '快捷命令保存失败',
+    };
+  }
+}
+
+async function toggleHostQuickCommand(command: QuickCommand) {
+  try {
+    const saved = await updateQuickCommand(command.id, {
+      name: command.name,
+      category: command.category,
+      command: command.command,
+      description: command.description,
+      enabled: !command.enabled,
+      sortOrder: command.sortOrder,
+    });
+    hostQuickCommands.value = hostQuickCommands.value.map((item) => (item.id === saved.id ? saved : item));
+  } catch (error) {
+    hostQuickCommandError.value = error instanceof Error ? error.message : '快捷命令状态更新失败';
+  }
+}
+
+async function moveHostQuickCommand(command: QuickCommand, direction: -1 | 1) {
+  const visibleCommands = filteredHostQuickCommands.value;
+  const visibleIndex = visibleCommands.findIndex((item) => item.id === command.id);
+  const target = visibleCommands[visibleIndex + direction];
+  if (!target) return;
+
+  const nextCommands = [...hostQuickCommands.value];
+  const sourceIndex = nextCommands.findIndex((item) => item.id === command.id);
+  const targetIndex = nextCommands.findIndex((item) => item.id === target.id);
+  if (sourceIndex === -1 || targetIndex === -1) return;
+
+  [nextCommands[sourceIndex], nextCommands[targetIndex]] = [nextCommands[targetIndex], nextCommands[sourceIndex]];
+  await saveHostQuickCommandOrder(nextCommands);
+}
+
+async function saveHostQuickCommandOrder(nextCommands: QuickCommand[]) {
+  const previousCommands = hostQuickCommands.value;
+  hostQuickCommands.value = nextCommands.map((command, index) => ({ ...command, sortOrder: (index + 1) * 10 }));
+  try {
+    hostQuickCommands.value = await reorderQuickCommands(hostQuickCommands.value.map((command) => command.id));
+  } catch (error) {
+    hostQuickCommands.value = previousCommands;
+    hostQuickCommandError.value = error instanceof Error ? error.message : '快捷命令排序保存失败';
+  }
+}
+
+async function removeHostQuickCommand(command: QuickCommand) {
+  if (!window.confirm(`删除快捷命令「${command.name}」？`)) return;
+  try {
+    await deleteQuickCommand(command.id);
+    hostQuickCommands.value = hostQuickCommands.value.filter((item) => item.id !== command.id);
+    showToast('删除成功', `快捷命令「${command.name}」已删除。`);
+  } catch (error) {
+    hostQuickCommandError.value = error instanceof Error ? error.message : '快捷命令删除失败';
+  }
 }
 
 function toggleFullscreen() {
@@ -416,6 +636,10 @@ function hostPlatformType(value: string | null | undefined) {
         <input v-model="hostSearch" placeholder="输入别名/IP检索" />
         <div class="host-toolbar-actions">
           <button v-if="canUsePageAction('hosts', 'create')" class="primary" type="button" @click="addManagedHost()"><AppIcon name="plus" :size="16" />新建</button>
+          <button v-if="canUsePageAction('hosts', 'quick_commands')" class="host-quick-command-trigger" type="button" @click="openHostQuickCommandManager">
+            <AppIcon name="zap" :size="16" />
+            快捷命令
+          </button>
           <div v-if="canUseHostMoreActions" class="host-more-actions" @click.stop>
             <button
               class="more-action-trigger"
@@ -643,6 +867,155 @@ function hostPlatformType(value: string | null | undefined) {
     </article>
     </template>
     <div v-else class="permission-empty">暂无可用功能</div>
+
+    <div v-if="hostQuickCommandManagerOpen" class="modal-backdrop" @click.self="closeHostQuickCommandManager">
+      <article class="host-quick-command-modal" @click.stop>
+        <header class="host-quick-command-head">
+          <div>
+            <strong><AppIcon name="zap" :size="16" />快捷命令</strong>
+            <span>管理 Web 终端中可用的快捷命令模板</span>
+          </div>
+          <button type="button" title="关闭" aria-label="关闭" @click="closeHostQuickCommandManager">
+            <AppIcon name="x" :size="16" />
+          </button>
+        </header>
+        <div class="host-quick-command-layout">
+          <aside class="host-quick-command-categories">
+            <button
+              type="button"
+              :class="{ active: hostQuickCommandCategory === 'all' }"
+              @click="hostQuickCommandCategory = 'all'"
+            >
+              全部
+              <span>{{ hostQuickCommands.length }}</span>
+            </button>
+            <button
+              v-for="category in hostQuickCommandCategories"
+              :key="category"
+              type="button"
+              :class="{ active: hostQuickCommandCategory === category }"
+              @click="hostQuickCommandCategory = category"
+            >
+              {{ category }}
+              <span>{{ hostQuickCommands.filter((command) => command.category === category).length }}</span>
+            </button>
+          </aside>
+          <section class="host-quick-command-content">
+            <div class="host-quick-command-toolbar">
+              <label>
+                <AppIcon name="search" :size="14" />
+                <input v-model="hostQuickCommandSearch" type="search" placeholder="搜索名称、分类或命令" />
+              </label>
+              <span>{{ filteredHostQuickCommands.length }} 条</span>
+              <button type="button" title="刷新" aria-label="刷新" :disabled="isHostQuickCommandLoading" @click="loadHostQuickCommands">
+                <AppIcon name="refresh" :size="15" />
+              </button>
+              <button class="primary" type="button" @click="openHostQuickCommandDialog()">
+                <AppIcon name="plus" :size="15" />
+                新增
+              </button>
+            </div>
+            <p v-if="hostQuickCommandError" class="host-quick-command-error">{{ hostQuickCommandError }}</p>
+            <div class="host-quick-command-list">
+              <p v-if="isHostQuickCommandLoading" class="host-quick-command-empty">加载中...</p>
+              <p v-else-if="!filteredHostQuickCommands.length" class="host-quick-command-empty">暂无快捷命令</p>
+              <template v-else>
+                <article
+                  v-for="(command, index) in filteredHostQuickCommands"
+                  :key="command.id"
+                  class="host-quick-command-item"
+                  :class="{ disabled: !command.enabled }"
+                >
+                  <div class="host-quick-command-info">
+                    <div>
+                      <strong>{{ command.name }}</strong>
+                      <span>{{ command.category }}</span>
+                      <em>{{ command.enabled ? '启用' : '禁用' }}</em>
+                    </div>
+                    <code>{{ command.command }}</code>
+                    <p v-if="command.description">{{ command.description }}</p>
+                  </div>
+                  <div class="host-quick-command-actions">
+                    <button
+                      type="button"
+                      :title="command.enabled ? '禁用' : '启用'"
+                      :aria-label="command.enabled ? '禁用' : '启用'"
+                      @click="toggleHostQuickCommand(command)"
+                    >
+                      <AppIcon :name="command.enabled ? 'eye' : 'eyeOff'" :size="14" />
+                    </button>
+                    <button
+                      class="move-up"
+                      type="button"
+                      title="上移"
+                      aria-label="上移"
+                      :disabled="index === 0"
+                      @click="moveHostQuickCommand(command, -1)"
+                    >
+                      <AppIcon name="chevronDown" :size="14" />
+                    </button>
+                    <button
+                      type="button"
+                      title="下移"
+                      aria-label="下移"
+                      :disabled="index === filteredHostQuickCommands.length - 1"
+                      @click="moveHostQuickCommand(command, 1)"
+                    >
+                      <AppIcon name="chevronDown" :size="14" />
+                    </button>
+                    <button type="button" title="编辑" aria-label="编辑" @click="openHostQuickCommandDialog(command)">
+                      <AppIcon name="edit" :size="14" />
+                    </button>
+                    <button type="button" title="删除" aria-label="删除" @click="removeHostQuickCommand(command)">
+                      <AppIcon name="trash" :size="14" />
+                    </button>
+                  </div>
+                </article>
+              </template>
+            </div>
+          </section>
+        </div>
+      </article>
+    </div>
+
+    <div v-if="hostQuickCommandDialog.visible" class="modal-backdrop host-quick-command-dialog-backdrop" @click.self="closeHostQuickCommandDialog">
+      <form class="host-form-modal host-quick-command-form" @submit.prevent="saveHostQuickCommandDialog">
+        <button class="modal-close" type="button" :disabled="hostQuickCommandDialog.saving" @click="closeHostQuickCommandDialog">
+          <AppIcon name="x" :size="16" />
+        </button>
+        <h2>{{ hostQuickCommandDialog.mode === 'edit' ? '编辑快捷命令' : '新增快捷命令' }}</h2>
+        <p v-if="hostQuickCommandDialog.error" class="host-quick-command-error">{{ hostQuickCommandDialog.error }}</p>
+        <label>
+          <span>名称</span>
+          <input v-model="hostQuickCommandDialog.draft.name" autofocus :disabled="hostQuickCommandDialog.saving" />
+        </label>
+        <label>
+          <span>分类</span>
+          <input v-model="hostQuickCommandDialog.draft.category" list="host-quick-command-category-options" :disabled="hostQuickCommandDialog.saving" />
+          <datalist id="host-quick-command-category-options">
+            <option v-for="category in hostQuickCommandCategories" :key="category" :value="category"></option>
+          </datalist>
+        </label>
+        <label>
+          <span>命令</span>
+          <textarea v-model="hostQuickCommandDialog.draft.command" rows="4" :disabled="hostQuickCommandDialog.saving"></textarea>
+        </label>
+        <label>
+          <span>说明</span>
+          <input v-model="hostQuickCommandDialog.draft.description" :disabled="hostQuickCommandDialog.saving" />
+        </label>
+        <label class="host-quick-command-enabled">
+          <input v-model="hostQuickCommandDialog.draft.enabled" type="checkbox" :disabled="hostQuickCommandDialog.saving" />
+          <span>启用</span>
+        </label>
+        <div class="host-form-actions">
+          <button type="button" :disabled="hostQuickCommandDialog.saving" @click="closeHostQuickCommandDialog">取消</button>
+          <button class="primary" type="submit" :disabled="hostQuickCommandDialog.saving">
+            {{ hostQuickCommandDialog.saving ? '保存中...' : '保存' }}
+          </button>
+        </div>
+      </form>
+    </div>
 
     <div v-if="hostDialog" class="modal-backdrop" @click.self="hostDialog = null">
       <form class="host-form-modal host-edit-modal host-horizontal-modal" @submit.prevent="saveManagedHost">

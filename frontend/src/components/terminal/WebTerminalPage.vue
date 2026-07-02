@@ -10,6 +10,7 @@ import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
 import AppIcon from '../common/AppIcon.vue';
 import type { IconName } from '../common/AppIcon.vue';
+import type { AccountUser } from '../../types';
 
 interface TerminalHost {
   id: number;
@@ -516,6 +517,7 @@ const terminalQuickCommandDialog = ref<TerminalQuickCommandDialogState>({
   saving: false,
   error: '',
 });
+const terminalCurrentUser = ref<AccountUser | null>(null);
 let terminalQuickCommandResizeStartY = 0;
 let terminalQuickCommandResizeStartHeight = TERMINAL_QUICK_COMMAND_PANEL_DEFAULT_HEIGHT;
 
@@ -619,8 +621,16 @@ const filteredTerminalQuickCommands = computed(() => {
   });
 });
 const activeTerminalReady = computed(() => activeTab.value?.status === 'connected' && activeTab.value.socket?.readyState === WebSocket.OPEN);
+const canUseTerminalQuickCommands = computed(() => {
+  const user = terminalCurrentUser.value;
+  if (!user) return false;
+  if (user.is_superuser || user.is_staff) return true;
+  return (user.featurePermissionCodes ?? []).includes('action_hosts_quick_commands');
+});
+const shouldShowTerminalQuickCommandPanel = computed(() => canUseTerminalQuickCommands.value && terminalQuickCommands.value.length > 0);
 const terminalQuickCommandPanelStyle = computed<Record<string, string>>(() => ({
-  '--terminal-quick-command-height': `${terminalQuickCommandPanelHeight.value}px`,
+  '--terminal-quick-command-height':
+    !shouldShowTerminalQuickCommandPanel.value || isTerminalQuickCommandPanelCollapsed.value ? '0px' : `${terminalQuickCommandPanelHeight.value}px`,
 }));
 const terminalFileContextMenuItems = computed<TerminalFileContextMenuItem[]>(() => {
   const entry = terminalFileContextMenu.value.entry;
@@ -2581,7 +2591,12 @@ watch([activeTabId, terminalSidebarMode], () => {
     void loadTerminalDirectory('.');
     void nextTick(syncTerminalTransferPanelHeight);
   }
-  if (terminalSidebarMode.value === 'commands' && !terminalQuickCommands.value.length && !isTerminalQuickCommandLoading.value) {
+  if (
+    canUseTerminalQuickCommands.value &&
+    terminalSidebarMode.value === 'commands' &&
+    !terminalQuickCommands.value.length &&
+    !isTerminalQuickCommandLoading.value
+  ) {
     void loadTerminalQuickCommands();
   }
   syncTerminalMonitorPolling();
@@ -2600,7 +2615,8 @@ const workspaceStatus = computed(() => {
 });
 const terminalShellStyle = computed<Record<string, string>>(() => ({
   '--terminal-sidebar-width': `${isTerminalSidebarCollapsed.value ? 42 : sidebarWidth.value}px`,
-  '--terminal-quick-command-height': isTerminalQuickCommandPanelCollapsed.value ? '0px' : `${terminalQuickCommandPanelHeight.value}px`,
+  '--terminal-quick-command-height':
+    !shouldShowTerminalQuickCommandPanel.value || isTerminalQuickCommandPanelCollapsed.value ? '0px' : `${terminalQuickCommandPanelHeight.value}px`,
 }));
 onMounted(async () => {
   window.addEventListener('click', closeTerminalContextMenus);
@@ -2611,7 +2627,9 @@ onMounted(async () => {
   window.addEventListener('storage', handleTerminalAuthStorageEvent);
   document.addEventListener('visibilitychange', syncTerminalMonitorPolling);
   try {
-    await loadTerminalQuickCommands();
+    const current = await getCurrentUser();
+    terminalCurrentUser.value = current.user;
+    if (canUseTerminalQuickCommands.value) await loadTerminalQuickCommands();
     await loadTree();
     if (terminalAuthRedirecting) return;
     await restoreTerminalWorkspace();
@@ -2966,7 +2984,8 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
 
 async function confirmTerminalSessionStillAuthenticated() {
   try {
-    await getCurrentUser();
+    const current = await getCurrentUser();
+    terminalCurrentUser.value = current.user;
   } catch (error) {
     handleTerminalAuthExpired(error);
   }
@@ -3052,6 +3071,7 @@ function stopSidebarResize() {
 }
 
 function selectTerminalSidebarMode(mode: TerminalSidebarMode) {
+  if (mode === 'commands' && !shouldShowTerminalQuickCommandPanel.value) return;
   terminalSidebarMode.value = mode;
   if (mode === 'commands' && isTerminalQuickCommandPanelCollapsed.value) {
     toggleTerminalQuickCommandPanel();
@@ -3064,6 +3084,7 @@ function selectTerminalSidebarMode(mode: TerminalSidebarMode) {
 }
 
 function toggleTerminalQuickCommandFromRail() {
+  if (!shouldShowTerminalQuickCommandPanel.value) return;
   terminalSidebarMode.value = 'commands';
   toggleTerminalQuickCommandPanel();
   if (!isTerminalSidebarCollapsed.value) setTerminalSidebarCollapsed(true);
@@ -3399,6 +3420,7 @@ function readTerminalQuickCommandPanelCollapsed() {
           <AppIcon name="chevronsRight" :size="17" />
         </button>
         <button
+          v-if="shouldShowTerminalQuickCommandPanel"
           class="terminal-quick-toggle-button"
           type="button"
           title="双击打开/关闭快捷命令"
@@ -4076,7 +4098,10 @@ function readTerminalQuickCommandPanelCollapsed() {
 
     <section
       class="terminal-workspace"
-      :class="{ 'quick-panel-collapsed': isTerminalQuickCommandPanelCollapsed, 'quick-panel-resizing': isTerminalQuickCommandPanelResizing }"
+      :class="{
+        'quick-panel-collapsed': shouldShowTerminalQuickCommandPanel && isTerminalQuickCommandPanelCollapsed,
+        'quick-panel-resizing': shouldShowTerminalQuickCommandPanel && isTerminalQuickCommandPanelResizing,
+      }"
       :style="terminalQuickCommandPanelStyle"
     >
       <div class="terminal-hint">
@@ -4170,7 +4195,7 @@ function readTerminalQuickCommandPanelCollapsed() {
           :aria-hidden="tab.id !== activeTabId"
         ></div>
       </div>
-      <section class="terminal-quick-panel">
+      <section v-if="shouldShowTerminalQuickCommandPanel" class="terminal-quick-panel">
         <button
           class="terminal-quick-resizer"
           type="button"
