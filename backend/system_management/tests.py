@@ -7,7 +7,7 @@ import pyotp
 
 from accounts.models import UserProfile
 from host_management.models import HostCredential, HostGroup, ManagedHost
-from .models import LoginLog, SystemSetting
+from .models import LoginLog, OperationLog, SystemSetting
 from .dashboard import parse_cip_output
 from .services import (
     BUILTIN_ADMIN_EMAIL,
@@ -18,6 +18,7 @@ from .services import (
     ensure_builtin_admin,
     ensure_feature_permissions,
     record_login_log,
+    record_operation_log,
 )
 
 
@@ -36,6 +37,69 @@ class LoginLogTests(TestCase):
         self.assertEqual(str(log.ip_address), "127.0.0.1")
         self.assertEqual(log.user_agent, "unit-test")
         self.assertEqual(log.status, LoginLog.STATUS_SUCCESS)
+
+
+class OperationLogTests(TestCase):
+    def test_record_operation_log_saves_request_metadata(self):
+        user = ensure_builtin_admin()
+        request = RequestFactory().post("/api/system/users/")
+        request.user = user
+        request.META["REMOTE_ADDR"] = "127.0.0.1"
+        request.META["HTTP_USER_AGENT"] = "unit-test"
+
+        record_operation_log(request, "用户管理", "新建用户", "viewer", "用户ID: 12")
+
+        log = OperationLog.objects.get()
+        self.assertEqual(log.user, user)
+        self.assertEqual(log.username, BUILTIN_ADMIN_USERNAME)
+        self.assertEqual(log.module, "用户管理")
+        self.assertEqual(log.action, "新建用户")
+        self.assertEqual(log.target, "viewer")
+        self.assertEqual(log.detail, "用户ID: 12")
+        self.assertEqual(str(log.ip_address), "127.0.0.1")
+        self.assertEqual(log.user_agent, "unit-test")
+
+
+class OperationLogApiTests(TestCase):
+    def setUp(self):
+        self.operator = get_user_model().objects.create_user(username="operator", password="pass", is_staff=True)
+        self.client.force_login(self.operator)
+        OperationLog.objects.create(
+            user=self.operator,
+            username="operator",
+            module="用户管理",
+            action="新建用户",
+            target="viewer",
+            detail="用户ID: 12",
+            ip_address="1.1.1.1",
+            user_agent="unit-test",
+        )
+        OperationLog.objects.create(
+            user=self.operator,
+            username="operator",
+            module="角色管理",
+            action="调整权限用户",
+            target="运维角色",
+            detail="绑定用户数: 1",
+            ip_address="2.2.2.2",
+            user_agent="unit-test",
+        )
+
+    def test_operation_log_api_filters_and_paginates(self):
+        response = self.client.get(
+            "/api/system/operation-logs/",
+            {"module": "用户", "action": "新建", "keyword": "viewer", "ip": "1.1", "page": 1, "pageSize": 10},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["page"], 1)
+        self.assertEqual(data["pageSize"], 10)
+        self.assertEqual(data["results"][0]["username"], "operator")
+        self.assertEqual(data["results"][0]["module"], "用户管理")
+        self.assertEqual(data["results"][0]["action"], "新建用户")
+        self.assertEqual(data["results"][0]["ipAddress"], "1.1.1.1")
 
 
 class LoginLogApiTests(TestCase):
@@ -296,7 +360,9 @@ class FeaturePermissionTests(TestCase):
         codenames = {item["codename"] for item in payload}
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["dashboard"], codenames)
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["hosts"], codenames)
+        self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["operationLogs"], codenames)
         self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")], codenames)
+        self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("operationLogs", "refresh")], codenames)
         self.assertTrue(all(item["isFeature"] for item in payload))
         self.assertTrue(any(item["permissionType"] == "page" and item["featureKey"] == "hosts" for item in payload))
         self.assertTrue(any(item["permissionType"] == "action" and item["featureKey"] == "hosts" and item["actionKey"] == "create" for item in payload))
@@ -314,6 +380,129 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 201)
         role = Group.objects.get(name="主机操作员")
         self.assertTrue(role.permissions.filter(id=permission.id).exists())
+
+    def test_role_list_returns_bound_user_count(self):
+        role = Group.objects.create(name="绑定用户角色")
+        first_user = get_user_model().objects.create_user(username="role-user-a", password="pass")
+        second_user = get_user_model().objects.create_user(username="role-user-b", password="pass")
+        first_user.groups.add(role)
+        second_user.groups.add(role)
+
+        response = self.client.get("/api/system/roles/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        role_payload = next(item for item in payload if item["id"] == role.id)
+        self.assertEqual(role_payload["userCount"], 2)
+
+    def test_role_users_can_update_bound_users(self):
+        role = Group.objects.create(name="权限用户角色")
+        previous_role = Group.objects.create(name="旧角色")
+        first_user = get_user_model().objects.create_user(username="role-bound-a", password="pass")
+        second_user = get_user_model().objects.create_user(username="role-bound-b", password="pass")
+        first_user.groups.add(role)
+        second_user.groups.add(previous_role)
+
+        response = self.client.put(
+            f"/api/system/roles/{role.id}/users/",
+            data={"userIds": [second_user.id]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        role.refresh_from_db()
+        self.assertFalse(first_user.groups.filter(id=role.id).exists())
+        self.assertTrue(second_user.groups.filter(id=role.id).exists())
+        self.assertFalse(second_user.groups.filter(id=previous_role.id).exists())
+        self.assertEqual(list(second_user.groups.values_list("id", flat=True)), [role.id])
+        self.assertEqual(response.json()["role"]["userCount"], 1)
+
+    def test_role_users_reject_builtin_admin(self):
+        role = Group.objects.create(name="内置管理员保护角色")
+        admin = ensure_builtin_admin()
+
+        response = self.client.put(
+            f"/api/system/roles/{role.id}/users/",
+            data={"userIds": [admin.id]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(admin.groups.filter(id=role.id).exists())
+
+    def test_system_user_create_writes_operation_log(self):
+        response = self.client.post(
+            "/api/system/users/",
+            data={
+                "username": "logged-user",
+                "firstName": "Logged User",
+                "password": "UserPass123",
+                "isActive": True,
+                "roleIds": [],
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        log = OperationLog.objects.get(action="新建用户")
+        self.assertEqual(log.username, "operator")
+        self.assertEqual(log.module, "用户管理")
+        self.assertEqual(log.target, "logged-user")
+
+    def test_role_users_update_writes_operation_log(self):
+        role = Group.objects.create(name="日志角色")
+        user = get_user_model().objects.create_user(username="logged-role-user", password="pass")
+
+        response = self.client.put(
+            f"/api/system/roles/{role.id}/users/",
+            data={"userIds": [user.id]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        log = OperationLog.objects.get(action="调整权限用户")
+        self.assertEqual(log.module, "角色管理")
+        self.assertEqual(log.target, "日志角色")
+        self.assertIn("logged-role-user", log.detail)
+
+    def test_generic_write_request_writes_operation_log(self):
+        response = self.client.post(
+            "/api/host-management/groups/",
+            data={"name": "审计分组"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        log = OperationLog.objects.get(module="主机分组", action="新建")
+        self.assertEqual(log.username, "operator")
+        self.assertEqual(log.target, "审计分组")
+        self.assertIn("/api/host-management/groups/", log.detail)
+
+    def test_failed_write_request_does_not_write_operation_log(self):
+        response = self.client.post(
+            "/api/host-management/groups/",
+            data={"name": ""},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(OperationLog.objects.filter(module="主机分组").exists())
+
+    def test_manual_operation_log_is_not_duplicated_by_middleware(self):
+        response = self.client.post(
+            "/api/system/users/",
+            data={
+                "username": "single-log-user",
+                "firstName": "Single Log User",
+                "password": "UserPass123",
+                "isActive": True,
+                "roleIds": [],
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(OperationLog.objects.filter(module="用户管理", action="新建用户", target="single-log-user").count(), 1)
 
     def test_existing_page_permission_inherits_new_action_permissions(self):
         ensure_feature_permissions()

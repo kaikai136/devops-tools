@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from rest_framework import serializers
 
-from .models import LoginLog, SystemSetting
+from .models import LoginLog, OperationLog, SystemSetting
 
 SITE_IDENTITY_SETTING_KEY = "site_identity"
 DASHBOARD_HERO_SETTING_KEY = "dashboard_hero"
@@ -81,6 +81,7 @@ WATERMARK_ALLOWED_PAGES = {
     "auth",
     "password",
     "loginLogs",
+    "operationLogs",
     "users",
     "roles",
     "profile",
@@ -105,6 +106,22 @@ class LoginLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = LoginLog
         fields = ["id", "user", "userDisplay", "username", "ipAddress", "userAgent", "status", "message", "createdAt"]
+
+    def get_userDisplay(self, obj):
+        if not obj.user:
+            return ""
+        return obj.user.get_full_name() or obj.user.username
+
+
+class OperationLogSerializer(serializers.ModelSerializer):
+    userDisplay = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+    ipAddress = serializers.IPAddressField(source="ip_address", read_only=True)
+    userAgent = serializers.CharField(source="user_agent", read_only=True)
+
+    class Meta:
+        model = OperationLog
+        fields = ["id", "user", "userDisplay", "username", "module", "action", "target", "detail", "ipAddress", "userAgent", "createdAt"]
 
     def get_userDisplay(self, obj):
         if not obj.user:
@@ -272,10 +289,14 @@ class PermissionSerializer(serializers.ModelSerializer):
 
 class RoleSerializer(serializers.ModelSerializer):
     permissionIds = serializers.PrimaryKeyRelatedField(source="permissions", queryset=Permission.objects.all(), many=True, required=False)
+    userCount = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
-        fields = ["id", "name", "permissionIds"]
+        fields = ["id", "name", "permissionIds", "userCount"]
+
+    def get_userCount(self, obj):
+        return getattr(obj, "user_count", obj.user_set.count())
 
     def validate_name(self, value):
         name = value.strip()

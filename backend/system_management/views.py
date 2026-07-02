@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
-from django.db.models import CharField
+from django.db.models import CharField, Count, Q
 from django.db.models.functions import Cast
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -11,14 +11,15 @@ from accounts.permissions import has_feature_permission, require_feature_permiss
 from operations.responses import bad_request, bounded_int, not_found, serializer_bad_request
 
 from .dashboard import build_dashboard_summary
-from .models import LoginLog, SystemSetting
-from .serializers import DISPLAY_SETTING_KEYS, PUBLIC_DISPLAY_SETTING_KEYS, LoginLogSerializer, PermissionSerializer, RoleOptionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
-from .services import UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user
+from .models import LoginLog, OperationLog, SystemSetting
+from .serializers import DISPLAY_SETTING_KEYS, PUBLIC_DISPLAY_SETTING_KEYS, LoginLogSerializer, OperationLogSerializer, PermissionSerializer, RoleOptionSerializer, RoleSerializer, SystemSettingSerializer, SystemUserSerializer
+from .services import UI_PERMISSION_CODES, ensure_builtin_admin, ensure_feature_permissions, is_builtin_admin_user, record_operation_log
 
 
 SYSTEM_PERMISSION_MESSAGES = {
     "dashboard": "没有仪表盘访问权限",
     "loginLogs": "没有登录日志权限",
+    "operationLogs": "没有操作日志权限",
     "users": "没有用户管理权限",
     "roles": "没有角色管理权限",
     "systemSettings": "没有系统设置权限",
@@ -178,6 +179,56 @@ def login_logs(request):
     )
 
 
+@api_view(["GET"])
+def operation_logs(request):
+    access_error = require_system_permission(request, "operationLogs")
+    if access_error:
+        return access_error
+
+    queryset = OperationLog.objects.select_related("user")
+    username = str(request.query_params.get("username", "")).strip()
+    module = str(request.query_params.get("module", "")).strip()
+    action = str(request.query_params.get("action", "")).strip()
+    keyword = str(request.query_params.get("keyword", "")).strip()
+    ip_address = str(request.query_params.get("ip", request.query_params.get("ipAddress", ""))).strip()
+
+    if username:
+        queryset = queryset.filter(username__icontains=username)
+    if module:
+        queryset = queryset.filter(module__icontains=module)
+    if action:
+        queryset = queryset.filter(action__icontains=action)
+    if keyword:
+        queryset = queryset.filter(
+            Q(target__icontains=keyword)
+            | Q(detail__icontains=keyword)
+            | Q(module__icontains=keyword)
+            | Q(action__icontains=keyword)
+            | Q(username__icontains=keyword)
+        )
+    if ip_address:
+        queryset = queryset.annotate(ip_address_text=Cast("ip_address", CharField())).filter(ip_address_text__icontains=ip_address)
+
+    page = bounded_int(request.query_params.get("page", 1), default=1, minimum=1, maximum=100000)
+    page_size = bounded_int(
+        request.query_params.get("pageSize", request.query_params.get("limit", 10)),
+        default=10,
+        minimum=1,
+        maximum=100,
+    )
+    total = queryset.count()
+    start = (page - 1) * page_size
+    end = start + page_size
+    return Response(
+        {
+            "results": OperationLogSerializer(queryset[start:end], many=True).data,
+            "total": total,
+            "page": page,
+            "pageSize": page_size,
+        }
+    )
+
+
 @api_view(["GET", "POST"])
 def system_users(request):
     access_error = require_system_permission(request, "users", "create" if request.method == "POST" else None)
@@ -194,6 +245,7 @@ def system_users(request):
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
     user = serializer.save()
+    record_operation_log(request, "用户管理", "新建用户", user.username, f"用户ID: {user.id}")
     return Response(SystemUserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -220,7 +272,10 @@ def system_user_detail(request, user_id: int):
             return bad_request("不能删除当前登录用户")
         if is_builtin_admin_user(user):
             return bad_request("内置管理员不允许删除")
+        target = user.username
+        user_id = user.id
         user.delete()
+        record_operation_log(request, "用户管理", "删除用户", target, f"用户ID: {user_id}")
         return Response({"deleted": True})
 
     action_error = require_system_actions(request, "users", required_user_update_actions(request, user))
@@ -233,6 +288,7 @@ def system_user_detail(request, user_id: int):
     saved_user = serializer.save()
     if is_builtin_admin_user(saved_user):
         saved_user = ensure_builtin_admin()
+    record_operation_log(request, "用户管理", "编辑用户", saved_user.username, f"用户ID: {saved_user.id}")
     return Response(SystemUserSerializer(saved_user).data)
 
 
@@ -274,6 +330,7 @@ def system_user_2fa_enable(request, user_id: int):
     profile.save(
         update_fields=update_fields
     )
+    record_operation_log(request, "用户管理", "开启 2FA", user.username, f"用户ID: {user.id}")
     return Response(SystemUserSerializer(user).data)
 
 
@@ -301,6 +358,7 @@ def system_user_2fa_disable(request, user_id: int):
             "updated_at",
         ]
     )
+    record_operation_log(request, "用户管理", "关闭 2FA", user.username, f"用户ID: {user.id}")
     return Response(SystemUserSerializer(user).data)
 
 
@@ -332,6 +390,7 @@ def system_user_2fa_reset(request, user_id: int):
             "updated_at",
         ]
     )
+    record_operation_log(request, "用户管理", "重置 2FA", user.username, f"用户ID: {user.id}")
     return Response(SystemUserSerializer(user).data)
 
 
@@ -343,12 +402,15 @@ def roles(request):
 
     if request.method == "GET":
         ensure_feature_permissions()
-        return Response(RoleSerializer(Group.objects.prefetch_related("permissions").order_by("id"), many=True).data)
+        roles_queryset = Group.objects.annotate(user_count=Count("user")).prefetch_related("permissions").order_by("id")
+        return Response(RoleSerializer(roles_queryset, many=True).data)
 
     serializer = RoleSerializer(data=request.data)
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
-    return Response(RoleSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
+    role = serializer.save()
+    record_operation_log(request, "角色管理", "新增角色", role.name, f"角色ID: {role.id}")
+    return Response(RoleSerializer(role).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])
@@ -378,17 +440,79 @@ def role_detail(request, role_id: int):
         action_error = require_system_permission(request, "roles", "delete")
         if action_error:
             return action_error
+        target = role.name
+        role_id = role.id
         role.delete()
+        record_operation_log(request, "角色管理", "删除角色", target, f"角色ID: {role_id}")
         return Response({"deleted": True})
 
-    action_error = require_system_actions(request, "roles", required_role_update_actions(request, role))
+    role_actions = required_role_update_actions(request, role)
+    action_error = require_system_actions(request, "roles", role_actions)
     if action_error:
         return action_error
 
     serializer = RoleSerializer(role, data=request.data, partial=True)
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
-    return Response(RoleSerializer(serializer.save()).data)
+    saved_role = serializer.save()
+    action_label = "调整权限" if "permissions" in role_actions and len(role_actions) == 1 else "编辑角色"
+    record_operation_log(request, "角色管理", action_label, saved_role.name, f"角色ID: {saved_role.id}")
+    return Response(RoleSerializer(saved_role).data)
+
+
+@api_view(["GET", "PUT"])
+def role_users(request, role_id: int):
+    access_error = require_system_permission(request, "roles", "edit" if request.method == "PUT" else None)
+    if access_error:
+        return access_error
+
+    User = get_user_model()
+    try:
+        role = Group.objects.get(id=role_id)
+    except Group.DoesNotExist:
+        return not_found("角色不存在")
+
+    users = list(User.objects.select_related("profile").prefetch_related("groups").order_by("id"))
+    if request.method == "GET":
+        return Response({"role": RoleSerializer(role).data, "users": SystemUserSerializer(users, many=True).data})
+
+    raw_user_ids = request.data.get("userIds", [])
+    if isinstance(raw_user_ids, str):
+        values = [raw_user_ids] if raw_user_ids.strip() else []
+    else:
+        values = list(raw_user_ids)
+    try:
+        selected_ids = {int(value) for value in values}
+    except (TypeError, ValueError):
+        return bad_request("用户数据不正确")
+
+    users_by_id = {user.id: user for user in users}
+    unknown_ids = selected_ids - set(users_by_id)
+    if unknown_ids:
+        return bad_request("用户不存在")
+
+    builtin_ids = {user.id for user in users if is_builtin_admin_user(user)}
+    if selected_ids & builtin_ids:
+        return bad_request("内置管理员不允许调整角色")
+
+    for user in users:
+        if user.id in builtin_ids:
+            continue
+        if user.id in selected_ids:
+            user.groups.set([role])
+        elif user.groups.filter(id=role.id).exists():
+            user.groups.remove(role)
+
+    role = Group.objects.annotate(user_count=Count("user")).prefetch_related("permissions").get(id=role.id)
+    users = User.objects.select_related("profile").prefetch_related("groups").order_by("id")
+    selected_usernames = [users_by_id[user_id].username for user_id in sorted(selected_ids)]
+    detail = f"绑定用户数: {len(selected_usernames)}"
+    if selected_usernames:
+        detail = f"{detail}; 用户: {', '.join(selected_usernames[:20])}"
+        if len(selected_usernames) > 20:
+            detail = f"{detail} 等"
+    record_operation_log(request, "角色管理", "调整权限用户", role.name, detail)
+    return Response({"role": RoleSerializer(role).data, "users": SystemUserSerializer(users, many=True).data})
 
 
 @api_view(["GET"])
@@ -414,7 +538,9 @@ def system_settings(request):
     serializer = SystemSettingSerializer(data=request.data)
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
-    return Response(SystemSettingSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
+    setting = serializer.save()
+    record_operation_log(request, "系统设置", "新增设置", setting.key, setting.label or setting.description)
+    return Response(SystemSettingSerializer(setting).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET", "PUT", "DELETE"])
@@ -440,10 +566,15 @@ def system_setting_detail(request, setting_key: str):
         return Response(SystemSettingSerializer(setting).data)
 
     if request.method == "DELETE":
+        target = setting.key
+        detail = setting.label or setting.description
         setting.delete()
+        record_operation_log(request, "系统设置", "删除设置", target, detail)
         return Response({"deleted": True})
 
     serializer = SystemSettingSerializer(setting, data=request.data, partial=True)
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
-    return Response(SystemSettingSerializer(serializer.save()).data)
+    saved_setting = serializer.save()
+    record_operation_log(request, "系统设置", "保存设置", saved_setting.key, saved_setting.label or saved_setting.description)
+    return Response(SystemSettingSerializer(saved_setting).data)

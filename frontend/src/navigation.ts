@@ -51,6 +51,7 @@ export const navGroups: NavGroup[] = [
     label: '系统管理',
     items: [
       { key: 'loginLogs' as const, label: '登录日志', desc: '查看用户登录时间、来源与状态' },
+      { key: 'operationLogs' as const, label: '操作日志', desc: '查看系统用户操作记录信息' },
       { key: 'users' as const, label: '用户管理', desc: '维护系统用户与账号状态' },
       { key: 'roles' as const, label: '角色管理', desc: '配置角色权限与授权范围' },
       { key: 'profile' as const, label: '个人中心', desc: '头像资料、密码与登录保护' },

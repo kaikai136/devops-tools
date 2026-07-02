@@ -30,6 +30,30 @@ class LoginLog(models.Model):
         return f"{self.username} {self.status} {self.created_at:%Y-%m-%d %H:%M:%S}"
 
 
+class OperationLog(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="operation_logs", null=True, blank=True, on_delete=models.SET_NULL)
+    username = models.CharField(max_length=150)
+    module = models.CharField(max_length=80)
+    action = models.CharField(max_length=80)
+    target = models.CharField(max_length=255, blank=True)
+    detail = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["-created_at"]),
+            models.Index(fields=["username"]),
+            models.Index(fields=["module"]),
+            models.Index(fields=["action"]),
+        ]
+
+    def __str__(self):
+        return f"{self.username} {self.module} {self.action} {self.created_at:%Y-%m-%d %H:%M:%S}"
+
+
 class SystemSetting(models.Model):
     key = models.CharField(max_length=120, unique=True)
     value = models.JSONField(default=dict, blank=True)

@@ -8,6 +8,7 @@ export type ToolKey =
   | 'auth'
   | 'password'
   | 'loginLogs'
+  | 'operationLogs'
   | 'users'
   | 'roles'
   | 'profile'

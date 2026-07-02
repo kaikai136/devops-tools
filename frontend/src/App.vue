@@ -21,6 +21,7 @@ const IpScanner = defineAsyncComponent(() => import('./components/tools/IpScanne
 const LoginLogManager = defineAsyncComponent(() => import('./components/tools/LoginLogManager.vue'));
 const LoginPage = defineAsyncComponent(() => import('./components/auth/LoginPage.vue'));
 const MachineProbe = defineAsyncComponent(() => import('./components/tools/MachineProbe.vue'));
+const OperationLogManager = defineAsyncComponent(() => import('./components/tools/OperationLogManager.vue'));
 const PasswordGenerator = defineAsyncComponent(() => import('./components/tools/PasswordGenerator.vue'));
 const ProfileCenter = defineAsyncComponent(() => import('./components/tools/ProfileCenter.vue'));
 const RoleManager = defineAsyncComponent(() => import('./components/tools/RoleManager.vue'));
@@ -288,7 +289,7 @@ async function lockCurrentSession() {
 
     </aside>
 
-    <section class="workspace">
+    <section class="workspace" :class="{ 'has-workspace-footer': layoutFooter.enabled }">
       <div v-if="scopedToastVisible" class="top-toast" :class="[toastTone, { leaving: toast?.leaving }]">
         <span class="toast-icon" aria-hidden="true">
           <AppIcon :name="toastTone === 'success' ? 'circleCheck' : toastTone === 'info' ? 'circleHelp' : 'alert'" :size="18" />
@@ -352,7 +353,7 @@ async function lockCurrentSession() {
                 <AppIcon name="terminal" :size="16" />
               </button>
             </template>
-            <template v-else-if="activeTool === 'dashboard' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>
+            <template v-else-if="activeTool === 'dashboard' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
             </template>
@@ -417,21 +418,24 @@ async function lockCurrentSession() {
         </div>
       </header>
 
-      <template v-if="!isLocked || hasWorkspaceDataLoaded">
-        <DashboardPage v-if="activeTool === 'dashboard'" ref="dashboardPageRef" />
-        <IpScanner v-if="activeTool === 'ip'" />
-        <HostManager v-if="activeTool === 'hosts'" />
-        <AccountManager v-if="activeTool === 'accounts'" />
-        <MachineProbe v-if="activeTool === 'ports'" />
-        <SubnetCalculator v-if="activeTool === 'subnet'" />
-        <AuthenticatorPanel v-if="activeTool === 'auth'" />
-        <PasswordGenerator v-if="activeTool === 'password'" />
-        <LoginLogManager v-if="activeTool === 'loginLogs'" />
-        <UserManager v-if="activeTool === 'users'" />
-        <RoleManager v-if="activeTool === 'roles'" />
-        <ProfileCenter v-if="activeTool === 'profile'" />
-        <SystemSettingsPanel v-if="activeTool === 'systemSettings'" />
-      </template>
+      <section class="workspace-body">
+        <template v-if="!isLocked || hasWorkspaceDataLoaded">
+          <DashboardPage v-if="activeTool === 'dashboard'" ref="dashboardPageRef" />
+          <IpScanner v-if="activeTool === 'ip'" />
+          <HostManager v-if="activeTool === 'hosts'" />
+          <AccountManager v-if="activeTool === 'accounts'" />
+          <MachineProbe v-if="activeTool === 'ports'" />
+          <SubnetCalculator v-if="activeTool === 'subnet'" />
+          <AuthenticatorPanel v-if="activeTool === 'auth'" />
+          <PasswordGenerator v-if="activeTool === 'password'" />
+          <LoginLogManager v-if="activeTool === 'loginLogs'" />
+          <OperationLogManager v-if="activeTool === 'operationLogs'" />
+          <UserManager v-if="activeTool === 'users'" />
+          <RoleManager v-if="activeTool === 'roles'" />
+          <ProfileCenter v-if="activeTool === 'profile'" />
+          <SystemSettingsPanel v-if="activeTool === 'systemSettings'" />
+        </template>
+      </section>
       <footer v-if="layoutFooter.enabled" class="workspace-footer" :style="footerStyle">
         <span>{{ footerText }}</span>
         <a

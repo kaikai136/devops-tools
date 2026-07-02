@@ -255,12 +255,12 @@ function statusText(status: LoginLogStatus) {
           </div>
 
           <div v-for="log in logs" :key="log.id" class="login-log-row">
-            <span v-if="isColumnVisible('createdAt')">{{ formatTime(log.createdAt) }}</span>
-            <strong v-if="isColumnVisible('username')">{{ log.username || '-' }}</strong>
-            <span v-if="isColumnVisible('status')" class="login-log-status" :class="log.status">{{ statusText(log.status) }}</span>
-            <span v-if="isColumnVisible('ipAddress')">{{ log.ipAddress || '-' }}</span>
-            <span v-if="isColumnVisible('userAgent')" class="login-log-user-agent">{{ log.userAgent || '-' }}</span>
-            <span v-if="isColumnVisible('message')" class="login-log-tip">{{ log.message || '-' }}</span>
+            <span v-if="isColumnVisible('createdAt')" :title="formatTime(log.createdAt)">{{ formatTime(log.createdAt) }}</span>
+            <strong v-if="isColumnVisible('username')" :title="log.username || ''">{{ log.username || '-' }}</strong>
+            <span v-if="isColumnVisible('status')" class="login-log-status" :class="log.status" :title="statusText(log.status)">{{ statusText(log.status) }}</span>
+            <span v-if="isColumnVisible('ipAddress')" :title="log.ipAddress || ''">{{ log.ipAddress || '-' }}</span>
+            <span v-if="isColumnVisible('userAgent')" class="login-log-user-agent" :title="log.userAgent || ''">{{ log.userAgent || '-' }}</span>
+            <span v-if="isColumnVisible('message')" class="login-log-tip" :title="log.message || ''">{{ log.message || '-' }}</span>
           </div>
 
           <div v-if="!isLoading && !logs.length" class="login-log-empty">暂无登录记录</div>

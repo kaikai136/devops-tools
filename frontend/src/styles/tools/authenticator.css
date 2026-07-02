@@ -109,7 +109,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(300px, 1fr));
   gap: 12px;
-  max-height: calc(100vh - 230px);
+  max-height: calc(var(--workspace-body-height) - 172px);
   overflow: auto;
   padding: 0 6px 4px 0;
 }

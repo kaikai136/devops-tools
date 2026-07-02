@@ -7,7 +7,7 @@ from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpRequest
 
-from .models import LoginLog, SystemSetting
+from .models import LoginLog, OperationLog, SystemSetting
 
 BUILTIN_ADMIN_USERNAME = "admin"
 BUILTIN_ADMIN_EMAIL = "admin@ops.local"
@@ -25,6 +25,7 @@ FEATURE_PERMISSION_DEFINITIONS = [
     ("security", "安全工具", "auth", "双因子认证"),
     ("security", "安全工具", "password", "密码生成器"),
     ("system", "系统管理", "loginLogs", "登录日志"),
+    ("system", "系统管理", "operationLogs", "操作日志"),
     ("system", "系统管理", "users", "用户管理"),
     ("system", "系统管理", "roles", "角色管理"),
     ("system", "系统管理", "profile", "个人中心"),
@@ -69,6 +70,9 @@ PAGE_ACTION_PERMISSION_DEFINITIONS = [
     ("loginLogs", "refresh", "刷新日志"),
     ("loginLogs", "filter", "筛选日志"),
     ("loginLogs", "columns", "列设置"),
+    ("operationLogs", "refresh", "刷新日志"),
+    ("operationLogs", "filter", "筛选日志"),
+    ("operationLogs", "columns", "列设置"),
     ("users", "create", "新建用户"),
     ("users", "edit", "编辑用户"),
     ("users", "toggle_status", "启用禁用"),
@@ -233,3 +237,30 @@ def record_login_log(request: HttpRequest, username: str, status: str, message: 
         status=status,
         message=message,
     )
+
+
+def record_operation_log(
+    request: HttpRequest,
+    module: str,
+    action: str,
+    target: str = "",
+    detail: str = "",
+    user=None,
+) -> OperationLog:
+    operator = user or getattr(request, "user", None)
+    username = getattr(operator, "username", "") if getattr(operator, "is_authenticated", False) else ""
+    log = OperationLog.objects.create(
+        user=operator if getattr(operator, "is_authenticated", False) else None,
+        username=username,
+        module=str(module)[:80],
+        action=str(action)[:80],
+        target=str(target)[:255],
+        detail=str(detail),
+        ip_address=get_client_ip(request),
+        user_agent=request.META.get("HTTP_USER_AGENT", ""),
+    )
+    setattr(request, "_operation_log_recorded", True)
+    raw_request = getattr(request, "_request", None)
+    if raw_request is not None:
+        setattr(raw_request, "_operation_log_recorded", True)
+    return log

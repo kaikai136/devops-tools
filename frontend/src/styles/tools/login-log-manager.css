@@ -59,11 +59,22 @@
   box-shadow: 0 0 0 2px rgba(59, 115, 255, 0.12);
 }
 
+.operation-log-page .login-log-filter-panel {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 16px;
+  padding: 18px 22px;
+}
+
+.operation-log-page .login-log-filter-panel label {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .login-log-list-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) minmax(52px, auto);
   min-height: 0;
-  padding: 22px 24px 26px;
+  padding: 22px 24px 12px;
   overflow: hidden;
 }
 
@@ -220,6 +231,7 @@
 .login-log-table-wrap {
   min-height: 0;
   overflow: auto;
+  padding-bottom: 2px;
 }
 
 .login-log-table {
@@ -294,10 +306,14 @@
 }
 
 .login-log-pagination {
+  position: relative;
+  z-index: 2;
   justify-content: flex-end;
   gap: 8px;
-  min-height: 48px;
-  padding-top: 16px;
+  min-height: 52px;
+  padding-top: 10px;
+  border-top: 1px solid #eceff3;
+  background: #fff;
   color: #07172a;
   font-size: 14px;
 }
@@ -360,6 +376,10 @@
 
   .login-log-filter-panel label {
     grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .operation-log-page .login-log-filter-panel {
+    grid-template-columns: 1fr;
   }
 
   .login-log-toolbar {

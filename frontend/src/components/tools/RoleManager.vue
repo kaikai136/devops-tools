@@ -11,6 +11,17 @@ interface SystemRole {
   id: number;
   name: string;
   permissionIds: number[];
+  userCount: number;
+}
+
+interface SystemUser {
+  id: number;
+  username: string;
+  email: string;
+  firstName: string;
+  isActive: boolean;
+  isBuiltinAdmin?: boolean;
+  roleIds: number[];
 }
 
 interface SystemPermission {
@@ -28,6 +39,11 @@ type RoleDialogMode = 'create' | 'edit' | 'view' | 'permissions';
 interface RoleForm {
   name: string;
   permissionIds: number[];
+}
+
+interface RoleUserPayload {
+  role: SystemRole;
+  users: SystemUser[];
 }
 
 interface PermissionGroup {
@@ -51,6 +67,11 @@ const columnsOpen = ref(false);
 const dialog = ref<{ mode: RoleDialogMode; role: SystemRole | null } | null>(null);
 const deleteTarget = ref<SystemRole | null>(null);
 const form = ref<RoleForm>(emptyRoleForm());
+const roleUserDialog = ref<SystemRole | null>(null);
+const roleUsers = ref<SystemUser[]>([]);
+const roleUserIds = ref<Set<number>>(new Set());
+const isLoadingRoleUsers = ref(false);
+const isSavingRoleUsers = ref(false);
 
 const filteredRoles = computed(() => {
   const query = search.value.trim().toLowerCase();
@@ -140,6 +161,62 @@ function openPermissionDialog(role: SystemRole) {
   clearMessage();
   form.value = { name: role.name, permissionIds: roleFeaturePermissionIds(role) };
   dialog.value = { mode: 'permissions', role };
+}
+
+async function openRoleUserDialog(role: SystemRole) {
+  if (!canUsePageAction('roles', 'edit')) return;
+  clearMessage();
+  roleUserDialog.value = role;
+  roleUsers.value = [];
+  roleUserIds.value = new Set();
+  isLoadingRoleUsers.value = true;
+  try {
+    const payload = await apiGet<RoleUserPayload>(`/api/system/roles/${role.id}/users/`);
+    replaceRole(payload.role);
+    roleUserDialog.value = payload.role;
+    roleUsers.value = payload.users;
+    roleUserIds.value = new Set(payload.users.filter((user) => !user.isBuiltinAdmin && user.roleIds.includes(role.id)).map((user) => user.id));
+  } catch (error) {
+    setError(errorMessage(error));
+    roleUserDialog.value = null;
+  } finally {
+    isLoadingRoleUsers.value = false;
+  }
+}
+
+function closeRoleUserDialog() {
+  roleUserDialog.value = null;
+  roleUsers.value = [];
+  roleUserIds.value = new Set();
+}
+
+function toggleRoleUser(user: SystemUser, event: Event) {
+  if (user.isBuiltinAdmin) return;
+  const next = new Set(roleUserIds.value);
+  if ((event.target as HTMLInputElement).checked) {
+    next.add(user.id);
+  } else {
+    next.delete(user.id);
+  }
+  roleUserIds.value = next;
+}
+
+async function saveRoleUsers() {
+  const role = roleUserDialog.value;
+  if (!role || isSavingRoleUsers.value) return;
+  isSavingRoleUsers.value = true;
+  clearMessage();
+  try {
+    const payload = await apiPut<RoleUserPayload>(`/api/system/roles/${role.id}/users/`, { userIds: [...roleUserIds.value] });
+    replaceRole(payload.role);
+    closeRoleUserDialog();
+    await loadRoles();
+    setSuccess('角色用户已保存');
+  } catch (error) {
+    setError(errorMessage(error));
+  } finally {
+    isSavingRoleUsers.value = false;
+  }
 }
 
 async function saveRole() {
@@ -303,6 +380,12 @@ function permissionText(role: SystemRole) {
   return `${pageCount} 个页面 / ${actionCount} 项功能`;
 }
 
+function userRoleText(user: SystemUser) {
+  const roleNameById = new Map(roles.value.map((role) => [role.id, role.name]));
+  const names = user.roleIds.map((roleId) => roleNameById.get(roleId)).filter(Boolean);
+  return names.length ? names.join('、') : '暂无角色';
+}
+
 function roleFeaturePermissionIds(role: SystemRole) {
   const featureIds = new Set(featurePermissions.value.map((permission) => permission.id));
   return role.permissionIds.filter((permissionId) => featureIds.has(permissionId));
@@ -385,6 +468,7 @@ function emptyRoleForm(): RoleForm {
           <span>角色名称</span>
           <span>角色标识</span>
           <span>状态</span>
+          <span>用户数据</span>
           <span>权限管理</span>
           <span>操作</span>
         </div>
@@ -394,6 +478,18 @@ function emptyRoleForm(): RoleForm {
           <strong>{{ role.name }}</strong>
           <span>{{ roleCode(role) }}</span>
           <span><em class="role-status">启用</em></span>
+          <span>
+            <button
+              v-if="canUsePageAction('roles', 'edit')"
+              class="role-user-count"
+              type="button"
+              title="调整绑定用户"
+              @click.stop="openRoleUserDialog(role)"
+            >
+              {{ role.userCount ?? 0 }} 个用户
+            </button>
+            <em v-else class="role-user-count readonly">{{ role.userCount ?? 0 }} 个用户</em>
+          </span>
           <span>
             <button v-if="canUsePageAction('roles', 'permissions')" class="role-permission-button" type="button" :title="permissionText(role)" @click="openPermissionDialog(role)">管理</button>
             <em v-else class="role-action-placeholder">-</em>
@@ -499,6 +595,41 @@ function emptyRoleForm(): RoleForm {
         <div class="role-form-actions">
           <button type="button" @click="closeDialog">取消</button>
           <button v-if="dialog.mode !== 'view'" class="role-primary-button" type="submit">确定</button>
+        </div>
+      </form>
+    </div>
+
+    <div v-if="roleUserDialog" class="modal-backdrop role-modal-backdrop" @click.self="closeRoleUserDialog">
+      <form class="role-modal role-user-modal" @submit.prevent="saveRoleUsers">
+        <button class="modal-close" type="button" @click="closeRoleUserDialog"><AppIcon name="x" :size="16" /></button>
+        <h2>调整权限用户</h2>
+        <p class="role-user-dialog-subtitle">为角色“{{ roleUserDialog.name }}”选择绑定用户，保存后用户重新登录生效。</p>
+
+        <div v-if="isLoadingRoleUsers" class="role-user-loading">正在加载用户数据...</div>
+        <div v-else class="role-user-picker">
+          <label v-for="user in roleUsers" :key="user.id" class="role-user-option" :class="{ disabled: user.isBuiltinAdmin }">
+            <input
+              type="checkbox"
+              :checked="roleUserIds.has(user.id)"
+              :disabled="user.isBuiltinAdmin"
+              @change="toggleRoleUser(user, $event)"
+            />
+            <span>
+              <strong>{{ user.firstName || user.username }}</strong>
+              <em>{{ user.username }}{{ user.email ? ` / ${user.email}` : '' }}</em>
+              <small>当前角色：{{ userRoleText(user) }}</small>
+            </span>
+            <b>{{ user.isActive ? '启用' : '停用' }}</b>
+          </label>
+          <div v-if="!roleUsers.length" class="role-empty">暂无用户数据</div>
+        </div>
+
+        <div class="role-form-actions">
+          <span class="role-user-selected">已选择 {{ roleUserIds.size }} 个用户</span>
+          <button type="button" @click="closeRoleUserDialog">取消</button>
+          <button class="role-primary-button" type="submit" :disabled="isLoadingRoleUsers || isSavingRoleUsers">
+            {{ isSavingRoleUsers ? '保存中...' : '保存' }}
+          </button>
         </div>
       </form>
     </div>

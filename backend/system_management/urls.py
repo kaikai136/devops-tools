@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path("dashboard/summary/", views.dashboard_summary),
     path("system/login-logs/", views.login_logs),
+    path("system/operation-logs/", views.operation_logs),
     path("system/users/", views.system_users),
     path("system/users/<int:user_id>/", views.system_user_detail),
     path("system/users/<int:user_id>/2fa/enable/", views.system_user_2fa_enable),
@@ -12,6 +13,7 @@ urlpatterns = [
     path("system/users/<int:user_id>/2fa/reset/", views.system_user_2fa_reset),
     path("system/roles/", views.roles),
     path("system/role-options/", views.role_options),
+    path("system/roles/<int:role_id>/users/", views.role_users),
     path("system/roles/<int:role_id>/", views.role_detail),
     path("system/permissions/", views.permissions),
     path("system/settings/", views.system_settings),

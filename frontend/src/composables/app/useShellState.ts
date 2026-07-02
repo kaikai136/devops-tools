@@ -100,6 +100,7 @@ function navItemIcon(key: ToolKey): IconName {
     auth: 'shield',
     password: 'key',
     loginLogs: 'bell',
+    operationLogs: 'clipboard',
     users: 'user',
     roles: 'shield',
     profile: 'user',
