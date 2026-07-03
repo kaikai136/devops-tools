@@ -63,6 +63,8 @@ import {
   Users,
   X,
   Zap,
+  ZoomIn,
+  ZoomOut,
 } from '@lucide/vue';
 import { computed } from 'vue';
 
@@ -135,6 +137,8 @@ const icons = {
   users: Users,
   x: X,
   zap: Zap,
+  zoomIn: ZoomIn,
+  zoomOut: ZoomOut,
 };
 
 export type IconName = keyof typeof icons;

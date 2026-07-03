@@ -341,9 +341,13 @@ const MAX_CONNECTING_TERMINALS = 2;
 const TERMINAL_WORKSPACE_STORAGE_KEY = 'ops-tool.web-terminal.workspace';
 const TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-width';
 const TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-collapsed';
+const TERMINAL_FONT_SIZE_STORAGE_KEY = 'ops-tool.web-terminal.font-size';
 const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
+const TERMINAL_FONT_SIZE_DEFAULT = 14;
+const TERMINAL_FONT_SIZE_MIN = 10;
+const TERMINAL_FONT_SIZE_MAX = 24;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
 const TERMINAL_FILE_CONTEXT_MENU_HEIGHT = 540;
 const TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT = 300;
@@ -535,6 +539,7 @@ const canScrollTerminalTabsRight = ref(false);
 const isLoadingTree = ref(false);
 const treeError = ref('');
 const highlightEnabled = ref(true);
+const terminalFontSize = ref(readTerminalFontSize());
 const terminalSidebarMode = ref<TerminalSidebarMode>('hosts');
 const sidebarWidth = ref(readTerminalSidebarWidth());
 const isTerminalSidebarCollapsed = ref(readTerminalSidebarCollapsed());
@@ -621,6 +626,8 @@ const filteredTerminalQuickCommands = computed(() => {
   });
 });
 const activeTerminalReady = computed(() => activeTab.value?.status === 'connected' && activeTab.value.socket?.readyState === WebSocket.OPEN);
+const canDecreaseTerminalFontSize = computed(() => terminalFontSize.value > TERMINAL_FONT_SIZE_MIN);
+const canIncreaseTerminalFontSize = computed(() => terminalFontSize.value < TERMINAL_FONT_SIZE_MAX);
 const canUseTerminalQuickCommands = computed(() => {
   const user = terminalCurrentUser.value;
   if (!user) return false;
@@ -2736,7 +2743,7 @@ function createTerminalTab(host: TerminalHost, tabId = createTerminalTabId(host.
       cursorBlink: true,
       convertEol: false,
       fontFamily: 'Consolas, "Courier New", monospace',
-      fontSize: 14,
+      fontSize: terminalFontSize.value,
       lineHeight: 1.25,
       scrollback: 5000,
       theme: {
@@ -3109,6 +3116,25 @@ function fitActiveTerminalSoon() {
   });
 }
 
+function setTerminalFontSize(nextSize: number) {
+  const normalized = clampTerminalFontSize(nextSize);
+  if (normalized === terminalFontSize.value) return;
+  terminalFontSize.value = normalized;
+  window.localStorage.setItem(TERMINAL_FONT_SIZE_STORAGE_KEY, String(normalized));
+  for (const tab of tabs.value) {
+    tab.terminal.options.fontSize = normalized;
+  }
+  fitActiveTerminalSoon();
+}
+
+function decreaseTerminalFontSize() {
+  setTerminalFontSize(terminalFontSize.value - 1);
+}
+
+function increaseTerminalFontSize() {
+  setTerminalFontSize(terminalFontSize.value + 1);
+}
+
 async function closeTab(tab: TerminalTab) {
   closeTerminalTabMenu();
   const index = tabs.value.findIndex((item) => item.id === tab.id);
@@ -3363,6 +3389,16 @@ function readTerminalSidebarWidth() {
 function readTerminalSidebarCollapsed() {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY) === '1';
+}
+
+function readTerminalFontSize() {
+  if (typeof window === 'undefined') return TERMINAL_FONT_SIZE_DEFAULT;
+  return clampTerminalFontSize(Number(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY)));
+}
+
+function clampTerminalFontSize(value: number) {
+  if (!Number.isFinite(value)) return TERMINAL_FONT_SIZE_DEFAULT;
+  return Math.min(Math.max(Math.round(value), TERMINAL_FONT_SIZE_MIN), TERMINAL_FONT_SIZE_MAX);
 }
 
 function readTerminalQuickCommandPanelHeight() {
@@ -4108,6 +4144,27 @@ function readTerminalQuickCommandPanelCollapsed() {
         <span>{{ workspaceTitle }}</span>
         <div class="terminal-hint-actions">
           <strong v-if="workspaceStatus">{{ workspaceStatus }}</strong>
+          <div class="terminal-font-controls" :title="`终端字号 ${terminalFontSize}px`" aria-label="终端字号">
+            <button
+              type="button"
+              title="缩小终端字体"
+              aria-label="缩小终端字体"
+              :disabled="!canDecreaseTerminalFontSize"
+              @click="decreaseTerminalFontSize"
+            >
+              <AppIcon name="zoomOut" :size="15" />
+            </button>
+            <span>{{ terminalFontSize }}</span>
+            <button
+              type="button"
+              title="放大终端字体"
+              aria-label="放大终端字体"
+              :disabled="!canIncreaseTerminalFontSize"
+              @click="increaseTerminalFontSize"
+            >
+              <AppIcon name="zoomIn" :size="15" />
+            </button>
+          </div>
           <label class="terminal-highlight-toggle" title="关键词高亮">
             <input v-model="highlightEnabled" type="checkbox" />
             <span></span>
