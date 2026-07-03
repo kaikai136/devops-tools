@@ -1,88 +1,93 @@
 .host-session-audit-page {
   display: grid;
   flex: 1 1 auto;
+  height: calc(var(--workspace-body-height) - 28px);
+  max-height: calc(var(--workspace-body-height) - 28px);
   min-height: 0;
-  padding: 14px;
+  margin: 14px;
+  overflow: hidden;
 }
 
-.host-session-audit-panel {
-  grid-column: 1 / -1;
-  display: grid;
+.host-session-audit-list-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-  gap: 14px;
   padding: 24px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.88);
 }
 
-.host-session-audit-head,
-.host-session-audit-filter-actions,
-.host-session-audit-pagination,
+.host-session-audit-toolbar,
+.host-session-audit-toolbar-actions,
 .host-session-recording-modal header {
   display: flex;
   align-items: center;
 }
 
-.host-session-audit-head {
+.host-session-audit-toolbar {
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 16px;
 }
 
-.host-session-audit-head h2 {
-  margin: 0;
-  color: #0b2446;
-  font-size: 18px;
-}
-
-.host-session-audit-head span,
-.host-session-recording-modal header span {
-  display: block;
-  margin-top: 4px;
-  color: #6a7f9a;
-  font-size: 12px;
+.host-session-audit-toolbar > input {
+  width: min(360px, 34vw);
+  min-height: 36px;
+  border: 1px solid #d8e2ee;
+  border-radius: 0;
+  background: #fff;
+  padding: 0 14px;
+  color: #173252;
+  font-size: 14px;
   font-weight: 800;
 }
 
-.host-session-audit-filters {
-  display: grid;
-  grid-template-columns: minmax(180px, 1.2fr) minmax(120px, 0.7fr) minmax(180px, 1fr) minmax(170px, 0.9fr) minmax(170px, 0.9fr) auto;
+.host-session-audit-toolbar-actions {
   gap: 10px;
-  align-items: end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.host-session-audit-filters label {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-  color: #526b8a;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.host-session-audit-filters input,
-.host-session-audit-filters select {
-  min-width: 0;
+.host-session-audit-toolbar-actions select {
+  width: auto;
+  min-width: 132px;
   min-height: 36px;
   border: 1px solid #d8e2ee;
   border-radius: 0;
   background: #fff;
   color: #173252;
   padding: 0 10px;
-  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
 }
 
-.host-session-audit-filter-actions {
-  gap: 8px;
+.host-session-audit-toolbar-actions select:last-of-type {
+  min-width: 190px;
 }
 
-.host-session-audit-filter-actions button {
+.host-session-audit-toolbar-actions button {
   min-height: 36px;
   border-radius: 0;
 }
 
+.host-session-audit-toolbar-actions button:not(.primary):not(.icon-only) {
+  border: 1px solid #d8e2ee;
+  background: #fff;
+  color: #173252;
+}
+
+.host-session-recording-modal header span {
+  display: block;
+  color: #8b95a1;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .host-session-audit-message {
-  margin: 0;
+  margin: 0 0 12px;
   border: 1px solid #ffd4d4;
   background: #fff5f5;
   color: #d92d20;
@@ -92,13 +97,19 @@
 }
 
 .host-session-audit-table-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
-  border-top: 1px solid #edf1f6;
+}
+
+.host-session-audit-pagination {
+  flex: 0 0 auto;
 }
 
 .host-session-audit-table {
   min-width: 1220px;
+  border-top: 1px solid #edf1f6;
 }
 
 .host-session-audit-row {
@@ -106,19 +117,18 @@
   grid-template-columns: minmax(110px, 0.7fr) minmax(240px, 1.4fr) minmax(92px, 0.55fr) minmax(150px, 0.9fr) minmax(138px, 0.8fr) minmax(112px, 0.65fr) minmax(160px, 0.9fr) 54px;
   align-items: center;
   gap: 12px;
-  min-height: 58px;
+  min-height: 72px;
   border-bottom: 1px solid #edf1f6;
   padding: 0 18px;
 }
 
 .host-session-audit-row.head {
   position: sticky;
-  z-index: 3;
+  z-index: 5;
   top: 0;
-  min-height: 50px;
+  min-height: 56px;
   background: #f8fafc;
   color: #173252;
-  font-size: 13px;
   font-weight: 900;
 }
 
@@ -134,34 +144,47 @@
   color: #173252;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .host-session-audit-row code {
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 13px;
 }
 
 .host-session-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   justify-self: start;
-  border: 1px solid #b9e4c9;
-  background: #f1fff6;
-  color: #128244;
-  padding: 4px 9px;
-  font-size: 12px;
-  font-weight: 900;
+  color: #173252;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.host-session-risk::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #52c41a;
+  content: "";
 }
 
 .host-session-risk.medium {
-  border-color: #ffd999;
-  background: #fff8ec;
-  color: #b56a00;
+  color: #173252;
+}
+
+.host-session-risk.medium::before {
+  background: #f59e0b;
 }
 
 .host-session-risk.high {
-  border-color: #ffb3b8;
-  background: #fff2f3;
-  color: #d92d20;
+  color: #173252;
+}
+
+.host-session-risk.high::before {
+  background: #ff4d4f;
 }
 
 .host-session-link,
@@ -171,6 +194,8 @@
   background: transparent;
   padding: 0;
   color: #0755d8;
+  cursor: pointer;
+  font-size: 15px;
   font-weight: 900;
 }
 
@@ -180,6 +205,11 @@
   height: 32px;
   place-items: center;
   justify-self: center;
+}
+
+.host-session-expand:hover,
+.host-session-link:hover {
+  color: #0f46df;
 }
 
 .host-session-audit-detail {
@@ -194,7 +224,7 @@
 .host-session-audit-detail strong {
   display: block;
   margin-bottom: 8px;
-  color: #173252;
+  color: #303133;
   font-size: 13px;
 }
 
@@ -202,9 +232,10 @@
   max-height: 220px;
   margin: 0;
   overflow: auto;
-  border: 1px solid #e3eaf3;
+  border: 1px solid #dcdfe6;
+  border-radius: 0;
   background: #ffffff;
-  color: #173252;
+  color: #303133;
   padding: 12px;
   font-size: 12px;
   line-height: 1.55;
@@ -216,20 +247,18 @@
   display: grid;
   min-height: 120px;
   place-items: center;
-  color: #6a7f9a;
+  color: #8b95a1;
   font-size: 13px;
   font-weight: 900;
 }
 
 .host-session-audit-pagination {
-  justify-content: space-between;
-  gap: 14px;
-  min-height: 44px;
+  margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid #edf1f6;
-  color: #526b8a;
-  font-size: 13px;
-  font-weight: 800;
+}
+
+.host-session-audit-stats {
+  flex-wrap: wrap;
 }
 
 .host-session-recording-backdrop {
@@ -274,35 +303,61 @@
 }
 
 .host-session-recording-player {
-  min-height: 420px;
+  height: clamp(360px, 62vh, 560px);
+  min-height: 0;
   overflow: hidden;
   border: 1px solid #d8e2ee;
   background: #121314;
 }
 
-.host-session-recording-player .asciinema-player {
+.host-session-recording-player .ap-wrapper {
+  width: 100%;
+  height: 100%;
+  align-items: center;
+}
+
+.host-session-recording-player .ap-player {
   max-width: 100%;
+  max-height: 100%;
 }
 
 @media (max-width: 1180px) {
-  .host-session-audit-filters {
-    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  .host-session-audit-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-  .host-session-audit-filter-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
+  .host-session-audit-toolbar > input {
+    width: min(420px, 100%);
+  }
+
+  .host-session-audit-toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 920px) {
+  .host-session-audit-page {
+    margin: 14px;
+  }
+
+  .host-session-audit-list-panel {
+    min-width: 0;
+  }
+
+  .host-session-audit-list-panel {
+    padding: 18px 16px 14px;
   }
 }
 
 @media (max-width: 760px) {
-  .host-session-audit-panel {
-    padding: 16px;
-  }
-
-  .host-session-audit-filters,
   .host-session-audit-detail {
     grid-template-columns: 1fr;
+  }
+
+  .host-session-audit-toolbar-actions select {
+    width: 100%;
   }
 
   .host-session-audit-pagination {
@@ -310,7 +365,12 @@
     flex-direction: column;
   }
 
+  .host-session-audit-stats {
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+
   .host-session-recording-player {
-    min-height: 300px;
+    height: clamp(280px, 56vh, 420px);
   }
 }

@@ -20,6 +20,9 @@ interface SessionRecordingDialogState {
   error: string;
 }
 
+const ANSI_ESCAPE_PATTERN = /(?:\x1b|\u001b)\[[0-?]*[ -/]*[@-~]|(?:\x1b|\u001b)\][^\x07]*(?:\x07|\x1b\\)|(?:\x1b|\u001b)[PX^_][\s\S]*?(?:\x1b|\u001b)\\|(?:\x1b|\u001b)[@-_]/g;
+const ANSI_RESIDUE_PATTERN = /\[\?2004[hl]|\[(?:\d{1,3}(?:;\d{1,3})*)?[mK]|\[(?:\d{1,3}(?:;\d{1,3})*)?[ABCDGJKH]/g;
+
 const {
   activeTool,
   managedHosts,
@@ -31,8 +34,6 @@ const sessionAuditRecords = ref<TerminalSessionAudit[]>([]);
 const sessionAuditSearch = ref('');
 const sessionAuditRiskLevel = ref<SessionAuditRiskLevel | ''>('');
 const sessionAuditHostId = ref<number | ''>('');
-const sessionAuditDateFrom = ref('');
-const sessionAuditDateTo = ref('');
 const sessionAuditPage = ref(1);
 const sessionAuditPageSize = ref(20);
 const sessionAuditTotal = ref(0);
@@ -96,8 +97,6 @@ async function loadSessionAudits() {
       search: sessionAuditSearch.value.trim(),
       riskLevel: sessionAuditRiskLevel.value,
       host: sessionAuditHostId.value,
-      dateFrom: sessionAuditDateFrom.value,
-      dateTo: sessionAuditDateTo.value,
       page: sessionAuditPage.value,
       pageSize: sessionAuditPageSize.value,
     });
@@ -127,8 +126,6 @@ function resetSessionAuditFilters() {
   sessionAuditSearch.value = '';
   sessionAuditRiskLevel.value = '';
   sessionAuditHostId.value = '';
-  sessionAuditDateFrom.value = '';
-  sessionAuditDateTo.value = '';
   sessionAuditPage.value = 1;
   void loadSessionAudits();
 }
@@ -161,6 +158,17 @@ function formatAuditDate(value: string | null | undefined) {
   return formatDateTime(value, '-');
 }
 
+function formatAuditOutput(output: string | null | undefined) {
+  return String(output ?? '')
+    .replace(ANSI_ESCAPE_PATTERN, '')
+    .replace(ANSI_RESIDUE_PATTERN, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function openSessionRecording(sessionId: string) {
   if (!sessionId) return;
   disposeSessionRecordingPlayer();
@@ -176,7 +184,7 @@ async function openSessionRecording(sessionId: string) {
       sessionRecordingContainer.value,
       {
         autoPlay: true,
-        fit: 'width',
+        fit: 'both',
         idleTimeLimit: 2,
         theme: 'asciinema',
         controls: true,
@@ -212,50 +220,26 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="host-session-audit-page">
-    <article v-if="canUseSessionAudit" class="panel host-session-audit-panel">
-      <header class="host-session-audit-head">
-        <div>
-          <h2>会话审计</h2>
-          <span>记录 Web 终端命令、输出和 asciinema 操作录像</span>
-        </div>
-        <button class="icon-only" type="button" title="刷新" aria-label="刷新" :disabled="isSessionAuditLoading" @click="loadSessionAudits">
-          <AppIcon name="refresh" :size="16" />
-        </button>
-      </header>
-
-      <form class="host-session-audit-filters" @submit.prevent="applySessionAuditFilters">
-        <label>
-          <span>搜索</span>
-          <input v-model="sessionAuditSearch" type="search" placeholder="用户、命令、节点、IP、会话" />
-        </label>
-        <label>
-          <span>风险等级</span>
-          <select v-model="sessionAuditRiskLevel">
-            <option value="">全部</option>
+    <article v-if="canUseSessionAudit" class="panel host-session-audit-list-panel">
+      <form class="host-session-audit-toolbar" @submit.prevent="applySessionAuditFilters">
+        <input v-model="sessionAuditSearch" type="search" placeholder="输入用户/命令/节点/IP/会话检索" aria-label="会话审计搜索" />
+        <div class="host-session-audit-toolbar-actions">
+          <select v-model="sessionAuditRiskLevel" aria-label="风险等级">
+            <option value="">全部风险</option>
             <option value="accept">接受</option>
             <option value="medium">中风险</option>
             <option value="high">高风险</option>
           </select>
-        </label>
-        <label>
-          <span>资产节点</span>
-          <select v-model="sessionAuditHostId">
+          <select v-model="sessionAuditHostId" aria-label="资产节点">
             <option value="">全部资产</option>
             <option v-for="host in managedHosts" :key="host.id" :value="host.id">{{ host.name }} / {{ host.privateIp }}</option>
           </select>
-        </label>
-        <label>
-          <span>开始时间</span>
-          <input v-model="sessionAuditDateFrom" type="datetime-local" />
-        </label>
-        <label>
-          <span>结束时间</span>
-          <input v-model="sessionAuditDateTo" type="datetime-local" />
-        </label>
-        <div class="host-session-audit-filter-actions">
           <button type="button" @click="resetSessionAuditFilters">重置</button>
           <button class="primary" type="submit" :disabled="isSessionAuditLoading">
             {{ isSessionAuditLoading ? '加载中' : '查询' }}
+          </button>
+          <button class="icon-only" type="button" title="刷新" aria-label="刷新" :disabled="isSessionAuditLoading" @click="loadSessionAudits">
+            <AppIcon name="refresh" :size="16" />
           </button>
         </div>
       </form>
@@ -296,7 +280,7 @@ onBeforeUnmount(() => {
               </div>
               <div>
                 <strong>终端输出</strong>
-                <pre>{{ audit.output || '暂无输出' }}</pre>
+                <pre>{{ formatAuditOutput(audit.output) || '暂无输出' }}</pre>
               </div>
             </div>
           </template>
@@ -305,7 +289,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="host-session-audit-pagination" aria-label="会话审计分页">
+      <div class="host-pagination host-session-audit-pagination" aria-label="会话审计分页">
         <div class="host-pagination-summary">
           <span>共 {{ sessionAuditTotal }} 条</span>
           <span>{{ sessionAuditPageStart }}-{{ sessionAuditPageEnd }}</span>
@@ -331,6 +315,11 @@ onBeforeUnmount(() => {
             <option :value="20">20 条/页</option>
             <option :value="50">50 条/页</option>
           </select>
+        </div>
+        <div class="host-stats-line host-session-audit-stats">
+          <span>共 {{ sessionAuditTotal }} 条审计</span>
+          <span>本页 {{ sessionAuditRecords.length }}</span>
+          <span v-if="isSessionAuditLoading">加载中</span>
         </div>
       </div>
     </article>

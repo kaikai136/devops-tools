@@ -27,6 +27,7 @@
   .machine-probe-grid,
   .account-page,
   .host-manager-page,
+  .host-session-audit-page,
   .user-manager-page,
   .login-log-page,
   .role-manager-page,
@@ -53,6 +54,7 @@
   .scan-card,
   .host-groups-panel,
   .host-table-panel,
+  .host-session-audit-list-panel,
   .login-log-filter-panel,
   .login-log-list-panel,
   .password-generator-panel,
@@ -155,6 +157,7 @@
 .workspace-dark :where(
   .account-table,
   .host-table,
+  .host-session-audit-table,
   .login-log-table,
   .role-permission-tree,
   .role-table,
@@ -167,6 +170,8 @@
 .workspace-dark :where(
   .account-table-row,
   .host-table-row,
+  .host-session-audit-row,
+  .host-session-audit-detail,
   .login-log-table-row,
   .role-permission-row,
   .role-table-row,
@@ -180,6 +185,7 @@
 .workspace-dark :where(
   .account-table-row.head,
   .host-table-row.head,
+  .host-session-audit-row.head,
   .login-log-table-row.head,
   .role-permission-row.head,
   .role-table-row.head,
@@ -203,6 +209,39 @@
   .user-table-row > div
 ) {
   border-color: var(--workspace-border-soft);
+}
+
+.workspace-dark .host-session-audit-toolbar > input,
+.workspace-dark .host-session-audit-toolbar-actions select {
+  border-color: var(--dark-field-border);
+  background: var(--dark-field-bg);
+  color: var(--workspace-text);
+}
+
+.workspace-dark .host-session-audit-toolbar-actions button:not(.primary):not(.icon-only) {
+  border-color: var(--workspace-border);
+  background: var(--workspace-surface-muted);
+  color: var(--workspace-text-soft);
+}
+
+.workspace-dark .host-session-audit-row.head {
+  background: #17233a;
+  color: #b9c8dc;
+}
+
+.workspace-dark .host-session-audit-row > span,
+.workspace-dark .host-session-audit-row code,
+.workspace-dark .host-session-risk,
+.workspace-dark .host-session-risk.medium,
+.workspace-dark .host-session-risk.high,
+.workspace-dark .host-session-audit-detail strong,
+.workspace-dark .host-session-audit-detail pre {
+  color: var(--workspace-text-soft);
+}
+
+.workspace-dark .host-session-audit-detail,
+.workspace-dark .host-session-audit-detail pre {
+  background: var(--workspace-surface-muted);
 }
 
 .workspace-dark :where(
@@ -306,7 +345,7 @@
   color: #93c5fd;
 }
 
-.workspace-dark :where(.host-table-row:hover, .login-log-table-row:hover, .user-table-row:not(.head):hover, .account-table-row:not(.head):hover) {
+.workspace-dark :where(.host-table-row:hover, .host-session-audit-row:not(.head):hover, .login-log-table-row:hover, .user-table-row:not(.head):hover, .account-table-row:not(.head):hover) {
   background: rgba(30, 42, 66, 0.72);
 }
 

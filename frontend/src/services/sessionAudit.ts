@@ -19,8 +19,6 @@ export interface SessionAuditListParams {
   search?: string;
   riskLevel?: SessionAuditRiskLevel | '';
   host?: number | '';
-  dateFrom?: string;
-  dateTo?: string;
   page?: number;
   pageSize?: number;
 }
