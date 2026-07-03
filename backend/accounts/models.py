@@ -16,6 +16,7 @@ class UserProfile(models.Model):
     totp_required = models.BooleanField(default=False)
     totp_reset_required = models.BooleanField(default=False)
     totp_confirmed_at = models.DateTimeField(null=True, blank=True)
+    session_audit_enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

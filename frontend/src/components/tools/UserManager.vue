@@ -61,6 +61,7 @@ const {
   disableUserTwoFactor,
   openResetTwoFactor,
   resetUserTwoFactor,
+  toggleUserSessionAudit,
   openDeleteUser,
   deleteUser,
   closeAccountDialog,
@@ -70,6 +71,7 @@ const {
   roleNames,
   loginStateText,
   twoFactorStatusClass,
+  sessionAuditEnabled,
   openRoleManager,
   openMfaHelp,
   setPage,
@@ -152,11 +154,13 @@ const {
         :role-names="roleNames"
         :login-state-text="loginStateText"
         :two-factor-status-class="twoFactorStatusClass"
+        :session-audit-enabled="sessionAuditEnabled"
         :can-use-page-action="canUsePageAction"
         @toggle-status="toggleUserStatus"
         @enable-two-factor="enableUserTwoFactor"
         @disable-two-factor="disableUserTwoFactor"
         @reset-two-factor="openResetTwoFactor"
+        @toggle-session-audit="toggleUserSessionAudit"
         @edit="openEditDialog"
         @reset-password="openResetPassword"
         @delete="openDeleteUser"

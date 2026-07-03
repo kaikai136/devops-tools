@@ -11,6 +11,7 @@ urlpatterns = [
     path("system/users/<int:user_id>/2fa/enable/", views.system_user_2fa_enable),
     path("system/users/<int:user_id>/2fa/disable/", views.system_user_2fa_disable),
     path("system/users/<int:user_id>/2fa/reset/", views.system_user_2fa_reset),
+    path("system/users/<int:user_id>/session-audit/", views.system_user_session_audit),
     path("system/roles/", views.roles),
     path("system/role-options/", views.role_options),
     path("system/roles/<int:role_id>/users/", views.role_users),

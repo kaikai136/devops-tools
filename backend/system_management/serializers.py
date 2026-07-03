@@ -140,6 +140,7 @@ class SystemUserSerializer(serializers.ModelSerializer):
     twoFactorRequired = serializers.SerializerMethodField()
     twoFactorResetRequired = serializers.SerializerMethodField()
     twoFactorStatus = serializers.SerializerMethodField()
+    sessionAuditEnabled = serializers.SerializerMethodField()
     lastLogin = serializers.DateTimeField(source="last_login", read_only=True)
     dateJoined = serializers.DateTimeField(source="date_joined", read_only=True)
     roleIds = serializers.PrimaryKeyRelatedField(source="groups", queryset=Group.objects.all(), many=True, required=False)
@@ -161,6 +162,7 @@ class SystemUserSerializer(serializers.ModelSerializer):
             "twoFactorRequired",
             "twoFactorResetRequired",
             "twoFactorStatus",
+            "sessionAuditEnabled",
             "lastLogin",
             "dateJoined",
             "roleIds",
@@ -214,6 +216,10 @@ class SystemUserSerializer(serializers.ModelSerializer):
     def get_twoFactorStatus(self, obj):
         profile = self._profile(obj)
         return profile.two_factor_status if profile else "disabled"
+
+    def get_sessionAuditEnabled(self, obj):
+        profile = self._profile(obj)
+        return True if profile is None else bool(profile.session_audit_enabled)
 
     def _profile(self, obj):
         try:

@@ -185,7 +185,7 @@ def terminal_sessions(request):
         return bad_request("请选择要连接的主机")
 
     try:
-        session, greeting = create_terminal_session(host)
+        session, greeting = create_terminal_session(host, user=request.user)
     except TerminalConnectionError as error:
         return bad_request(error)
 

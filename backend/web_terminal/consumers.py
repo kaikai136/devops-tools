@@ -21,6 +21,7 @@ from .services import (
     asciicast_event,
     create_command_audit,
     initialize_session_recording,
+    is_session_audit_enabled,
     open_live_terminal,
     save_session_recording,
 )
@@ -327,6 +328,10 @@ class TerminalConsumer(WebsocketConsumer):
         self.close()
 
     def _create_audit_session(self, host: ManagedHost):
+        if not is_session_audit_enabled(self.scope.get("user")):
+            self.session = None
+            self.recording_last_event_at = None
+            return
         try:
             self.session = TerminalSession.objects.create(host=host, transcript=f"connect {host.name}\n")
             initialize_session_recording(self.session, DEFAULT_TERMINAL_COLS, DEFAULT_TERMINAL_ROWS)

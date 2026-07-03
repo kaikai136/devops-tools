@@ -17,6 +17,7 @@ const props = defineProps<{
   roleNames: (user: SystemUser) => string;
   loginStateText: (user: SystemUser) => string;
   twoFactorStatusClass: (user: SystemUser) => string;
+  sessionAuditEnabled: (user: SystemUser) => boolean;
   canUsePageAction: (pageKey: string, actionKey: string) => boolean;
 }>();
 
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   enableTwoFactor: [user: SystemUser];
   disableTwoFactor: [user: SystemUser];
   resetTwoFactor: [user: SystemUser];
+  toggleSessionAudit: [user: SystemUser];
   edit: [user: SystemUser];
   resetPassword: [user: SystemUser];
   delete: [user: SystemUser];
@@ -66,6 +68,10 @@ function hasTwoFactorActions(user: SystemUser) {
   return canToggleTwoFactor(user) || props.canUsePageAction('users', '2fa_reset');
 }
 
+function sessionAuditSwitchText(user: SystemUser) {
+  return props.sessionAuditEnabled(user) ? '开启' : '关闭';
+}
+
 function hasRowActions() {
   return (
     props.canUsePageAction('users', 'toggle_status') ||
@@ -84,6 +90,7 @@ function hasRowActions() {
       <span v-if="isColumnVisible('roles')">角色</span>
       <span v-if="isColumnVisible('status')">状态</span>
       <span v-if="isColumnVisible('lastLogin')">最近登录</span>
+      <span v-if="isColumnVisible('sessionAudit')">会话审计</span>
       <span v-if="isColumnVisible('twoFactor')">2FA</span>
       <span v-if="isColumnVisible('actions')">操作</span>
     </div>
@@ -98,6 +105,21 @@ function hasRowActions() {
         <i></i>{{ loginStateText(user) === '可登录' ? '正常' : loginStateText(user) }}
       </span>
       <span v-if="isColumnVisible('lastLogin')" class="user-date-cell">{{ formatDateTime(user.lastLogin) }}</span>
+      <div v-if="isColumnVisible('sessionAudit')" class="user-audit-cell">
+        <button
+          v-if="canUsePageAction('users', 'session_audit')"
+          class="user-2fa-switch user-audit-switch"
+          :class="{ enabled: sessionAuditEnabled(user) }"
+          type="button"
+          :title="sessionAuditEnabled(user) ? '点击关闭会话审计' : '点击开启会话审计'"
+          :disabled="user.isBuiltinAdmin"
+          @click="$emit('toggleSessionAudit', user)"
+        >
+          <span>{{ sessionAuditSwitchText(user) }}</span>
+          <i></i>
+        </button>
+        <span v-else class="permission-placeholder">-</span>
+      </div>
       <div v-if="isColumnVisible('twoFactor')" class="user-2fa-cell">
         <span v-if="user.twoFactorStatus === 'required'" class="user-2fa-pending">待验证</span>
         <template v-else-if="hasTwoFactorActions(user)">

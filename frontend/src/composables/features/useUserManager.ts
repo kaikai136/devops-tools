@@ -19,6 +19,7 @@ export interface SystemUser {
   twoFactorRequired?: boolean;
   twoFactorResetRequired?: boolean;
   twoFactorStatus?: 'disabled' | 'required' | 'enabled';
+  sessionAuditEnabled?: boolean;
   lastLogin: string | null;
   dateJoined: string | null;
   roleIds: number[];
@@ -45,7 +46,7 @@ export interface UserForm {
 }
 
 export type UserStatusFilter = 'all' | 'active' | 'disabled';
-export type UserColumnKey = 'username' | 'name' | 'roles' | 'status' | 'lastLogin' | 'twoFactor' | 'actions';
+export type UserColumnKey = 'username' | 'name' | 'roles' | 'status' | 'lastLogin' | 'sessionAudit' | 'twoFactor' | 'actions';
 export type UserColumnOption = TableColumnOption<UserColumnKey>;
 export type UserDialogState = { mode: 'create' | 'edit'; userId: number | null };
 export type MessageTone = 'error' | 'success';
@@ -57,6 +58,7 @@ export const userColumnOptions: readonly UserColumnOption[] = [
   { key: 'roles', label: '角色', width: 'minmax(120px, 1fr)' },
   { key: 'status', label: '状态', width: 'minmax(120px, 1fr)' },
   { key: 'lastLogin', label: '最近登录', width: 'minmax(210px, 1.8fr)' },
+  { key: 'sessionAudit', label: '会话审计', width: 'minmax(130px, 0.9fr)' },
   { key: 'twoFactor', label: '2FA', width: 'minmax(170px, 1fr)' },
   { key: 'actions', label: '操作', width: 'minmax(300px, 2fr)' },
 ];
@@ -368,6 +370,23 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     }
   }
 
+  async function toggleUserSessionAudit(user: SystemUser) {
+    if (user.isBuiltinAdmin) {
+      setError('内置管理员不允许在用户列表中操作会话审计');
+      return;
+    }
+    clearMessage();
+    const enabled = !sessionAuditEnabled(user);
+    try {
+      const saved = await apiPost<SystemUser>(`/api/system/users/${user.id}/session-audit/`, { enabled });
+      replaceUser(saved);
+      syncUserManagerCache();
+      setSuccess(`${saved.username} 的会话审计已${sessionAuditEnabled(saved) ? '开启' : '关闭'}。`);
+    } catch (error) {
+      setError(errorMessage(error));
+    }
+  }
+
   function openDeleteUser(user: SystemUser) {
     clearMessage();
     if (user.isBuiltinAdmin) {
@@ -413,6 +432,10 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
 
   function twoFactorStatusClass(user: SystemUser) {
     return user.twoFactorStatus ?? 'disabled';
+  }
+
+  function sessionAuditEnabled(user: SystemUser) {
+    return user.sessionAuditEnabled !== false;
   }
 
   function openRoleManager() {
@@ -590,6 +613,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     disableUserTwoFactor,
     openResetTwoFactor,
     resetUserTwoFactor,
+    toggleUserSessionAudit,
     openDeleteUser,
     deleteUser,
     closeAccountDialog,
@@ -599,6 +623,7 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
     roleNames,
     loginStateText,
     twoFactorStatusClass,
+    sessionAuditEnabled,
     openRoleManager,
     openMfaHelp,
     setPage,
@@ -650,6 +675,7 @@ function normalizeSystemUser(raw: Record<string, unknown>): SystemUser {
     twoFactorRequired: optionalBooleanValue(raw.twoFactorRequired ?? raw.two_factor_required),
     twoFactorResetRequired: optionalBooleanValue(raw.twoFactorResetRequired ?? raw.two_factor_reset_required),
     twoFactorStatus: twoFactorStatusValue(raw.twoFactorStatus ?? raw.two_factor_status),
+    sessionAuditEnabled: booleanValue(raw.sessionAuditEnabled ?? raw.session_audit_enabled, true),
     lastLogin: nullableStringValue(raw.lastLogin ?? raw.last_login),
     dateJoined: nullableStringValue(raw.dateJoined ?? raw.date_joined),
     roleIds: numberArrayValue(raw.roleIds ?? raw.role_ids ?? raw.groups),

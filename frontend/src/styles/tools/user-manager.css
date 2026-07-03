@@ -329,6 +329,7 @@
 .user-real-name,
 .user-role-cell,
 .user-date-cell,
+.user-audit-cell,
 .user-2fa-cell {
   min-width: 0;
   overflow: hidden;
@@ -374,6 +375,7 @@
   background: #9ca3af;
 }
 
+.user-audit-cell,
 .user-2fa-cell {
   display: inline-flex;
   align-items: center;
@@ -471,6 +473,7 @@
   text-decoration: underline;
 }
 
+.user-audit-cell button:disabled,
 .user-2fa-cell button:disabled {
   color: #a5adba;
   cursor: not-allowed;

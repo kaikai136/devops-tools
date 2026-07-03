@@ -3,6 +3,7 @@ from django.contrib.auth.models import Group, Permission
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from unittest.mock import patch
 
+from accounts.models import UserProfile
 from host_management.models import HostGroup, ManagedHost
 from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions
 
@@ -486,6 +487,23 @@ class TerminalSessionAuditTests(TestCase):
         self.assertIn('"version":3', self.session.recording)
         self.assertIn('"i","whoami\\r"', self.session.recording)
         self.assertIn('"o","ok\\n"', self.session.recording)
+
+    def test_rest_command_skips_audit_when_user_session_audit_disabled(self):
+        UserProfile.objects.create(user=self.user, session_audit_enabled=False)
+        initial_recording = self.session.recording
+
+        with patch("web_terminal.services.run_live_terminal_command", return_value=("ok\n", 0)):
+            response = self.client.post(
+                f"/api/web-terminal/sessions/{self.session.session_id}/commands/",
+                data={"command": "whoami"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("auditId", response.json())
+        self.assertFalse(TerminalCommandAudit.objects.exists())
+        self.session.refresh_from_db()
+        self.assertEqual(self.session.recording, initial_recording)
 
     def test_session_audit_list_requires_permission(self):
         viewer = get_user_model().objects.create_user(username="viewer", password="pass")

@@ -82,6 +82,7 @@ PAGE_ACTION_PERMISSION_DEFINITIONS = [
     ("users", "2fa_enable", "开启 2FA"),
     ("users", "2fa_disable", "关闭 2FA"),
     ("users", "2fa_reset", "重置 2FA"),
+    ("users", "session_audit", "会话审计"),
     ("users", "delete", "删除用户"),
     ("roles", "create", "新增角色"),
     ("roles", "edit", "编辑角色"),

@@ -234,6 +234,15 @@ class BuiltinAdminTests(TestCase):
         self.assertTrue(operator["twoFactorEnabled"])
         self.assertEqual(operator["twoFactorStatus"], "enabled")
 
+    def test_system_user_list_returns_session_audit_status(self):
+        UserProfile.objects.create(user=self.operator, session_audit_enabled=False)
+
+        response = self.client.get("/api/system/users/")
+
+        self.assertEqual(response.status_code, 200)
+        operator = next(item for item in response.json() if item["username"] == "operator")
+        self.assertFalse(operator["sessionAuditEnabled"])
+
     def test_staff_can_require_user_two_factor_setup(self):
         target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
 
@@ -343,6 +352,49 @@ class BuiltinAdminTests(TestCase):
         self.client.force_login(user)
 
         response = self.client.post(f"/api/system/users/{self.operator.id}/2fa/enable/", data={}, content_type="application/json")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_toggle_user_session_audit(self):
+        target = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+
+        response = self.client.post(
+            f"/api/system/users/{target.id}/session-audit/",
+            data={"enabled": False},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        profile = UserProfile.objects.get(user=target)
+        self.assertFalse(profile.session_audit_enabled)
+        self.assertFalse(response.json()["sessionAuditEnabled"])
+
+    def test_user_session_audit_actions_reject_builtin_admin_and_self(self):
+        admin = ensure_builtin_admin()
+
+        builtin_response = self.client.post(
+            f"/api/system/users/{admin.id}/session-audit/",
+            data={"enabled": False},
+            content_type="application/json",
+        )
+        self_response = self.client.post(
+            f"/api/system/users/{self.operator.id}/session-audit/",
+            data={"enabled": False},
+            content_type="application/json",
+        )
+
+        self.assertEqual(builtin_response.status_code, 400)
+        self.assertEqual(self_response.status_code, 400)
+
+    def test_non_staff_cannot_manage_user_session_audit(self):
+        user = get_user_model().objects.create_user(username="viewer", password="UserPass123")
+        self.client.force_login(user)
+
+        response = self.client.post(
+            f"/api/system/users/{self.operator.id}/session-audit/",
+            data={"enabled": False},
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 403)
 

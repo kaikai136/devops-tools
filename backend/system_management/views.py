@@ -305,6 +305,19 @@ def _get_manageable_2fa_user(request, user_id: int):
     return user, None
 
 
+def _get_manageable_session_audit_user(request, user_id: int):
+    User = get_user_model()
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return None, not_found("用户不存在")
+    if user.id == request.user.id:
+        return None, bad_request("不能在用户列表中操作当前登录用户的会话审计")
+    if is_builtin_admin_user(user):
+        return None, bad_request("内置管理员不允许在用户列表中操作会话审计")
+    return user, None
+
+
 @api_view(["POST"])
 def system_user_2fa_enable(request, user_id: int):
     access_error = require_system_permission(request, "users", "2fa_enable")
@@ -391,6 +404,26 @@ def system_user_2fa_reset(request, user_id: int):
         ]
     )
     record_operation_log(request, "用户管理", "重置 2FA", user.username, f"用户ID: {user.id}")
+    return Response(SystemUserSerializer(user).data)
+
+
+@api_view(["POST"])
+def system_user_session_audit(request, user_id: int):
+    access_error = require_system_permission(request, "users", "session_audit")
+    if access_error:
+        return access_error
+
+    user, error = _get_manageable_session_audit_user(request, user_id)
+    if error:
+        return error
+
+    profile, _created = UserProfile.objects.get_or_create(user=user)
+    enabled = _coerce_bool(request.data.get("enabled")) if "enabled" in request.data else not profile.session_audit_enabled
+    profile.session_audit_enabled = enabled
+    profile.save(update_fields=["session_audit_enabled", "updated_at"])
+
+    action = "开启会话审计" if enabled else "关闭会话审计"
+    record_operation_log(request, "用户管理", action, user.username, f"用户ID: {user.id}")
     return Response(SystemUserSerializer(user).data)
 
 

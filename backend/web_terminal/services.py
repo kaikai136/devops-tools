@@ -10,6 +10,7 @@ import time
 
 from django.utils import timezone
 
+from accounts.models import UserProfile
 from host_management.models import HostGroup, ManagedHost
 from host_management.services import build_group_tree
 
@@ -212,6 +213,15 @@ def classify_command_risk(command: str) -> str:
     return TerminalCommandAudit.RISK_ACCEPT
 
 
+def is_session_audit_enabled(user) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    try:
+        return bool(user.profile.session_audit_enabled)
+    except UserProfile.DoesNotExist:
+        return True
+
+
 def command_audit_payload(audit: TerminalCommandAudit) -> dict:
     return {
         "id": audit.id,
@@ -282,15 +292,17 @@ def save_session_recording(session: TerminalSession, events: list[str], update_f
         session.save(update_fields=update_fields)
 
 
-def create_terminal_session(host: ManagedHost) -> tuple[TerminalSession, str]:
+def create_terminal_session(host: ManagedHost, user=None) -> tuple[TerminalSession, str]:
     connection = open_live_terminal(host)
     greeting = connection.read_available()
+    audit_enabled = is_session_audit_enabled(user)
     session = TerminalSession.objects.create(
         host=host,
-        transcript=f"connect {host.name}\n{greeting}\n",
+        transcript=f"connect {host.name}\n{greeting}\n" if audit_enabled else "",
     )
-    initialize_session_recording(session)
-    if greeting:
+    if audit_enabled:
+        initialize_session_recording(session)
+    if audit_enabled and greeting:
         append_session_recording_event(session, "o", greeting)
         session.save(update_fields=["recording", "recording_last_event_at"])
     LIVE_TERMINALS[str(session.session_id)] = connection
@@ -312,27 +324,42 @@ def run_session_command(session: TerminalSession, command: str, user=None) -> di
     command = command.strip()
     if not command:
         return {"command": command, "output": "", "exitCode": 0}
+    audit_enabled = is_session_audit_enabled(user) and bool(session.recording_started_at)
     if command.lower() in {"clear", "cls"}:
-        audit = create_command_audit(session, command, user=user, output="")
-        append_session_recording_event(session, "i", command + "\r")
-        session.transcript += f"$ {command}\n"
+        audit = create_command_audit(session, command, user=user, output="") if audit_enabled else None
+        if audit_enabled:
+            append_session_recording_event(session, "i", command + "\r")
+            session.transcript += f"$ {command}\n"
         session.last_command_at = timezone.now()
-        session.save(update_fields=["transcript", "last_command_at", "recording", "recording_last_event_at"])
-        return {"command": command, "output": "__CLEAR__", "exitCode": 0, "auditId": audit.id}
+        update_fields = ["last_command_at"]
+        if audit_enabled:
+            update_fields.extend(["transcript", "recording", "recording_last_event_at"])
+        session.save(update_fields=update_fields)
+        payload = {"command": command, "output": "__CLEAR__", "exitCode": 0}
+        if audit:
+            payload["auditId"] = audit.id
+        return payload
 
     output, exit_code = run_live_terminal_command(session, command)
-    audit = create_command_audit(session, command, user=user, output=output)
-    append_session_recording_event(session, "i", command + "\r")
-    append_session_recording_event(session, "o", output)
-    session.transcript += f"$ {command}\n{output}\n"
+    audit = create_command_audit(session, command, user=user, output=output) if audit_enabled else None
+    if audit_enabled:
+        append_session_recording_event(session, "i", command + "\r")
+        append_session_recording_event(session, "o", output)
+        session.transcript += f"$ {command}\n{output}\n"
     session.last_command_at = timezone.now()
-    update_fields = ["transcript", "last_command_at", "recording", "recording_last_event_at"]
+    update_fields = ["last_command_at"]
+    if audit_enabled:
+        update_fields.extend(["transcript", "recording", "recording_last_event_at"])
     if command.lower() in {"exit", "logout"}:
         session.status = "closed"
         update_fields.append("status")
-        append_session_recording_event(session, "x", 0 if exit_code == 0 else 1)
+        if audit_enabled:
+            append_session_recording_event(session, "x", 0 if exit_code == 0 else 1)
     session.save(update_fields=update_fields)
-    return {"command": command, "output": output, "exitCode": exit_code, "auditId": audit.id}
+    payload = {"command": command, "output": output, "exitCode": exit_code}
+    if audit:
+        payload["auditId"] = audit.id
+    return payload
 
 
 def run_live_terminal_command(session: TerminalSession, command: str) -> tuple[str, int | None]:
