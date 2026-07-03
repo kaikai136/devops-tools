@@ -311,10 +311,8 @@ def _get_manageable_session_audit_user(request, user_id: int):
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
         return None, not_found("用户不存在")
-    if user.id == request.user.id:
+    if user.id == request.user.id and not is_builtin_admin_user(user):
         return None, bad_request("不能在用户列表中操作当前登录用户的会话审计")
-    if is_builtin_admin_user(user):
-        return None, bad_request("内置管理员不允许在用户列表中操作会话审计")
     return user, None
 
 

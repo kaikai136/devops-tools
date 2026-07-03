@@ -224,6 +224,27 @@ class BuiltinAdminTests(TestCase):
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
 
+    def test_builtin_admin_password_can_be_reset_from_user_list(self):
+        admin = ensure_builtin_admin()
+
+        response = self.client.put(
+            f"/api/system/users/{admin.id}/",
+            data={
+                "username": admin.username,
+                "email": admin.email,
+                "firstName": admin.first_name,
+                "isActive": admin.is_active,
+                "isStaff": admin.is_staff,
+                "roleIds": [],
+                "password": "ChangedPass123",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        admin.refresh_from_db()
+        self.assertTrue(admin.check_password("ChangedPass123"))
+
     def test_system_user_list_returns_two_factor_status(self):
         UserProfile.objects.create(user=self.operator, totp_enabled=True, totp_secret=pyotp.random_base32())
 
@@ -369,21 +390,41 @@ class BuiltinAdminTests(TestCase):
         self.assertFalse(profile.session_audit_enabled)
         self.assertFalse(response.json()["sessionAuditEnabled"])
 
-    def test_user_session_audit_actions_reject_builtin_admin_and_self(self):
+    def test_staff_can_toggle_builtin_admin_session_audit(self):
         admin = ensure_builtin_admin()
 
-        builtin_response = self.client.post(
+        response = self.client.post(
             f"/api/system/users/{admin.id}/session-audit/",
             data={"enabled": False},
             content_type="application/json",
         )
+
+        self.assertEqual(response.status_code, 200)
+        profile = UserProfile.objects.get(user=admin)
+        self.assertFalse(profile.session_audit_enabled)
+        self.assertFalse(response.json()["sessionAuditEnabled"])
+
+    def test_builtin_admin_can_toggle_own_session_audit(self):
+        admin = ensure_builtin_admin()
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            f"/api/system/users/{admin.id}/session-audit/",
+            data={"enabled": False},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        profile = UserProfile.objects.get(user=admin)
+        self.assertFalse(profile.session_audit_enabled)
+
+    def test_user_session_audit_actions_reject_non_builtin_self(self):
         self_response = self.client.post(
             f"/api/system/users/{self.operator.id}/session-audit/",
             data={"enabled": False},
             content_type="application/json",
         )
 
-        self.assertEqual(builtin_response.status_code, 400)
         self.assertEqual(self_response.status_code, 400)
 
     def test_non_staff_cannot_manage_user_session_audit(self):

@@ -112,7 +112,6 @@ function hasRowActions() {
           :class="{ enabled: sessionAuditEnabled(user) }"
           type="button"
           :title="sessionAuditEnabled(user) ? '点击关闭会话审计' : '点击开启会话审计'"
-          :disabled="user.isBuiltinAdmin"
           @click="$emit('toggleSessionAudit', user)"
         >
           <span>{{ sessionAuditSwitchText(user) }}</span>
@@ -152,7 +151,7 @@ function hasRowActions() {
       <div v-if="isColumnVisible('actions')" class="user-row-actions">
         <button v-if="canUsePageAction('users', 'toggle_status')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('toggleStatus', user)">{{ user.isActive ? '禁用' : '启用' }}</button>
         <button v-if="canUsePageAction('users', 'edit')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('edit', user)">编辑</button>
-        <button v-if="canUsePageAction('users', 'reset_password')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('resetPassword', user)">重置密码</button>
+        <button v-if="canUsePageAction('users', 'reset_password')" type="button" @click="$emit('resetPassword', user)">重置密码</button>
         <button v-if="canUsePageAction('users', 'delete')" class="danger" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('delete', user)">删除</button>
         <span v-if="!hasRowActions()" class="permission-placeholder">-</span>
       </div>

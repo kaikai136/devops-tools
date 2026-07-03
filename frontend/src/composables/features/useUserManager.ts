@@ -278,10 +278,6 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   }
 
   function openResetPassword(user: SystemUser) {
-    if (user.isBuiltinAdmin) {
-      setError('内置管理员密码由系统固定，不允许重置');
-      return;
-    }
     clearMessage();
     resetPassword.value = '';
     resetPasswordUser.value = user;
@@ -371,10 +367,6 @@ export function useUserManager({ setActiveTool }: { setActiveTool: (key: 'roles'
   }
 
   async function toggleUserSessionAudit(user: SystemUser) {
-    if (user.isBuiltinAdmin) {
-      setError('内置管理员不允许在用户列表中操作会话审计');
-      return;
-    }
     clearMessage();
     const enabled = !sessionAuditEnabled(user);
     try {

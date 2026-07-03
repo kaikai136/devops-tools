@@ -246,7 +246,6 @@ class SystemUserSerializer(serializers.ModelSerializer):
         if is_builtin_admin_user(instance):
             validated_data = {}
             groups = None
-            password = ""
 
         for field, value in validated_data.items():
             setattr(instance, field, value)
