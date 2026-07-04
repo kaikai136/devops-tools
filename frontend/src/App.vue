@@ -351,7 +351,7 @@ async function lockCurrentSession() {
                 aria-label="Web 终端"
                 @click="openWebTerminal()"
               >
-                <AppIcon name="terminal" :size="16" />
+                <AppIcon name="terminal" :size="20" />
               </button>
             </template>
             <template v-else-if="activeTool === 'dashboard' || activeTool === 'sessionAudits' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>

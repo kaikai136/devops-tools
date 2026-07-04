@@ -3092,9 +3092,7 @@ function selectTerminalSidebarMode(mode: TerminalSidebarMode) {
 
 function toggleTerminalQuickCommandFromRail() {
   if (!shouldShowTerminalQuickCommandPanel.value) return;
-  terminalSidebarMode.value = 'commands';
   toggleTerminalQuickCommandPanel();
-  if (!isTerminalSidebarCollapsed.value) setTerminalSidebarCollapsed(true);
 }
 
 function toggleTerminalSidebar() {
@@ -3459,11 +3457,12 @@ function readTerminalQuickCommandPanelCollapsed() {
           v-if="shouldShowTerminalQuickCommandPanel"
           class="terminal-quick-toggle-button"
           type="button"
-          title="双击打开/关闭快捷命令"
-          aria-label="双击打开/关闭快捷命令"
+          title="打开/关闭快捷命令"
+          aria-label="打开/关闭快捷命令"
           :aria-pressed="!isTerminalQuickCommandPanelCollapsed"
           :class="{ active: !isTerminalQuickCommandPanelCollapsed }"
-          @dblclick.stop="toggleTerminalQuickCommandFromRail"
+          @click.stop="toggleTerminalQuickCommandFromRail"
+          @dblclick.stop
         >
           <AppIcon name="zap" :size="18" />
         </button>
