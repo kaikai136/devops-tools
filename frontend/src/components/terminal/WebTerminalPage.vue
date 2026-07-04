@@ -33,7 +33,7 @@ interface TerminalGroup {
 }
 
 type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
-type TerminalSidebarMode = 'hosts' | 'files' | 'monitor' | 'commands';
+type TerminalSidebarMode = 'hosts' | 'files' | 'commands';
 type TerminalTransferKind = 'upload' | 'download';
 type TerminalTransferStatus = 'queued' | 'running' | 'success' | 'error' | 'canceled';
 type TerminalDownloadProtocol = 'auto' | 'scp' | 'sftp';
@@ -503,6 +503,7 @@ let terminalFileListRequestId = 0;
 const terminalMonitorData = ref<TerminalMonitorResponse | null>(null);
 const isTerminalMonitorLoading = ref(false);
 const terminalMonitorError = ref('');
+const isTerminalMonitorPanelOpen = ref(false);
 let terminalMonitorRequestId = 0;
 let terminalMonitorTimer: ReturnType<typeof window.setInterval> | null = null;
 const terminalQuickCommands = ref<TerminalQuickCommand[]>([]);
@@ -2509,8 +2510,7 @@ async function loadTerminalMonitor() {
 
 function isTerminalMonitorVisible() {
   return (
-    terminalSidebarMode.value === 'monitor' &&
-    !isTerminalSidebarCollapsed.value &&
+    isTerminalMonitorPanelOpen.value &&
     document.visibilityState === 'visible' &&
     Boolean(activeTab.value)
   );
@@ -2609,8 +2609,14 @@ watch([activeTabId, terminalSidebarMode], () => {
   syncTerminalMonitorPolling();
 });
 
-watch(isTerminalSidebarCollapsed, () => {
+watch(activeTabId, () => {
+  terminalMonitorData.value = null;
+  terminalMonitorError.value = '';
+});
+
+watch(isTerminalMonitorPanelOpen, () => {
   syncTerminalMonitorPolling();
+  fitActiveTerminalSoon();
 });
 
 const workspaceStatus = computed(() => {
@@ -2950,6 +2956,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
     tab.reconnectHintShown = false;
     finishConnectingTab(tab);
     fitTerminal(tab);
+    if (tab.id === activeTabId.value) openTerminalMonitorPanel();
     return;
   }
 
@@ -3095,6 +3102,28 @@ function toggleTerminalQuickCommandFromRail() {
   toggleTerminalQuickCommandPanel();
 }
 
+function openTerminalMonitorPanel() {
+  if (isTerminalMonitorPanelOpen.value) {
+    syncTerminalMonitorPolling();
+    fitActiveTerminalSoon();
+    return;
+  }
+  isTerminalMonitorPanelOpen.value = true;
+}
+
+function closeTerminalMonitorPanel() {
+  if (!isTerminalMonitorPanelOpen.value) return;
+  isTerminalMonitorPanelOpen.value = false;
+}
+
+function toggleTerminalMonitorPanel() {
+  if (isTerminalMonitorPanelOpen.value) {
+    closeTerminalMonitorPanel();
+  } else {
+    openTerminalMonitorPanel();
+  }
+}
+
 function toggleTerminalSidebar() {
   setTerminalSidebarCollapsed(!isTerminalSidebarCollapsed.value);
 }
@@ -3146,6 +3175,7 @@ async function closeTab(tab: TerminalTab) {
     activeTabId.value = nextTab?.id ?? null;
     if (nextTab) await activateTab(nextTab.id);
   }
+  if (!activeTabId.value) closeTerminalMonitorPanel();
   saveTerminalWorkspace();
   syncTerminalTabsScrollStateSoon();
 }
@@ -3436,10 +3466,11 @@ function readTerminalQuickCommandPanelCollapsed() {
         </button>
         <button
           type="button"
-          title="资源监控"
-          aria-label="资源监控"
-          :class="{ active: terminalSidebarMode === 'monitor' }"
-          @click="selectTerminalSidebarMode('monitor')"
+          :title="isTerminalMonitorPanelOpen ? '关闭资源监控' : '打开资源监控'"
+          :aria-label="isTerminalMonitorPanelOpen ? '关闭资源监控' : '打开资源监控'"
+          :aria-pressed="isTerminalMonitorPanelOpen"
+          :class="{ active: isTerminalMonitorPanelOpen }"
+          @click="toggleTerminalMonitorPanel"
         >
           <AppIcon name="monitor" :size="18" />
         </button>
@@ -4003,124 +4034,6 @@ function readTerminalQuickCommandPanelCollapsed() {
             </Teleport>
           </div>
         </template>
-        <template v-else-if="terminalSidebarMode === 'monitor'">
-          <div class="terminal-monitor-panel">
-            <header class="terminal-monitor-title">
-              <strong>资源监控</strong>
-              <span>{{ terminalMonitorNodeName }}</span>
-              <button
-                class="terminal-monitor-refresh"
-                type="button"
-                title="刷新"
-                aria-label="刷新"
-                :disabled="!activeTab || isTerminalMonitorLoading"
-                @click="loadTerminalMonitor"
-              >
-                <AppIcon name="refresh" :size="15" />
-              </button>
-            </header>
-
-            <div v-if="!activeTab" class="terminal-monitor-empty">请选择服务器</div>
-            <div v-else class="terminal-monitor-body">
-              <p v-if="terminalMonitorError" class="terminal-monitor-error">{{ terminalMonitorError }}</p>
-
-              <template v-if="terminalMonitorData">
-                <section class="terminal-monitor-card terminal-monitor-system">
-                  <h3><AppIcon name="monitor" :size="15" />系统</h3>
-                  <dl>
-                    <div>
-                      <dt>主机名称</dt>
-                      <dd>{{ terminalMonitorData.system.hostname }}</dd>
-                    </div>
-                    <div>
-                      <dt>系统架构</dt>
-                      <dd>{{ terminalMonitorData.system.arch }}</dd>
-                    </div>
-                    <div>
-                      <dt>操作系统</dt>
-                      <dd>{{ terminalMonitorData.system.os }}</dd>
-                    </div>
-                    <div>
-                      <dt>运行时长</dt>
-                      <dd>{{ formatMonitorUptime(terminalMonitorData.system.uptimeSeconds) }}</dd>
-                    </div>
-                  </dl>
-                </section>
-
-                <section class="terminal-monitor-card">
-                  <h3><AppIcon name="cpu" :size="15" />CPU</h3>
-                  <div class="terminal-monitor-usage">
-                    <div class="terminal-monitor-ring" :style="monitorProgressStyle(terminalMonitorData.cpu.usagePercent)">
-                      <span>{{ formatMonitorNumber(terminalMonitorData.cpu.usagePercent, 0) }}%</span>
-                    </div>
-                    <div class="terminal-monitor-usage-main">
-                      <div>
-                        <span>平均使用率</span>
-                        <strong>{{ formatMonitorPercent(terminalMonitorData.cpu.usagePercent) }}</strong>
-                      </div>
-                      <i><b :style="monitorProgressStyle(terminalMonitorData.cpu.usagePercent)"></b></i>
-                      <em>{{ terminalMonitorData.cpu.cores }} CPU</em>
-                    </div>
-                  </div>
-                  <div class="terminal-monitor-loads">
-                    <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load1, 2) }}</strong><em>1分钟</em></span>
-                    <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load5, 2) }}</strong><em>5分钟</em></span>
-                    <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load15, 2) }}</strong><em>15分钟</em></span>
-                  </div>
-                </section>
-
-                <section class="terminal-monitor-card">
-                  <h3><AppIcon name="gauge" :size="15" />内存</h3>
-                  <div class="terminal-monitor-usage">
-                    <div class="terminal-monitor-ring" :style="monitorProgressStyle(terminalMonitorData.memory.usagePercent)">
-                      <span>{{ formatMonitorNumber(terminalMonitorData.memory.usagePercent, 0) }}%</span>
-                    </div>
-                    <div class="terminal-monitor-usage-main">
-                      <div>
-                        <span>RAM</span>
-                        <strong>{{ formatMonitorPercent(terminalMonitorData.memory.usagePercent) }}</strong>
-                      </div>
-                      <i><b :style="monitorProgressStyle(terminalMonitorData.memory.usagePercent)"></b></i>
-                      <em>{{ formatMonitorBytes(terminalMonitorData.memory.usedBytes) }} / {{ formatMonitorBytes(terminalMonitorData.memory.totalBytes) }}</em>
-                    </div>
-                  </div>
-                  <div class="terminal-monitor-memory-extra">
-                    <span>剩余 {{ formatMonitorBytes(terminalMonitorData.memory.availableBytes) }}</span>
-                    <span>缓存 {{ formatMonitorBytes(terminalMonitorData.memory.cacheBytes) }}</span>
-                  </div>
-                </section>
-
-                <section class="terminal-monitor-card">
-                  <h3><AppIcon name="network" :size="15" />网络</h3>
-                  <div v-if="terminalMonitorData.network.length" class="terminal-monitor-network-list">
-                    <div v-for="item in terminalMonitorData.network" :key="item.name" class="terminal-monitor-network-item">
-                      <strong>{{ item.name }}</strong>
-                      <span><em>↑{{ formatMonitorRate(item.txBytesPerSecond) }}</em><em>↓{{ formatMonitorRate(item.rxBytesPerSecond) }}</em></span>
-                      <i><b :style="monitorProgressStyle(Math.min(100, (item.rxBytesPerSecond + item.txBytesPerSecond) / 1024))"></b></i>
-                    </div>
-                  </div>
-                  <p v-else class="terminal-monitor-muted">暂无网卡数据</p>
-                </section>
-
-                <section class="terminal-monitor-card">
-                  <h3><AppIcon name="hardDrive" :size="15" />磁盘</h3>
-                  <div v-if="terminalMonitorData.disks.length" class="terminal-monitor-disk-list">
-                    <div v-for="disk in terminalMonitorData.disks" :key="`${disk.filesystem}-${disk.mountpoint}`" class="terminal-monitor-disk-item">
-                      <div>
-                        <strong>{{ disk.mountpoint }}</strong>
-                        <em>{{ disk.filesystem }} · {{ disk.type }}</em>
-                      </div>
-                      <span>{{ formatMonitorPercent(disk.usagePercent) }}</span>
-                      <i><b :style="monitorProgressStyle(disk.usagePercent)"></b></i>
-                      <p>{{ formatMonitorBytes(disk.usedBytes) }} / {{ formatMonitorBytes(disk.totalBytes) }}，可用 {{ formatMonitorBytes(disk.availableBytes) }}</p>
-                    </div>
-                  </div>
-                  <p v-else class="terminal-monitor-muted">暂无磁盘数据</p>
-                </section>
-              </template>
-            </div>
-          </div>
-        </template>
       </div>
     </aside>
     <div
@@ -4240,16 +4153,145 @@ function readTerminalQuickCommandPanelCollapsed() {
           </div>
         </div>
       </div>
-      <div class="terminal-screen">
-        <div v-if="!tabs.length" class="terminal-empty">双击左侧主机名连接 SSH 终端。</div>
-        <div
-          v-for="tab in tabs"
-          :key="tab.id"
-          :ref="(element) => setTerminalContainer(tab.id, element)"
-          class="terminal-panel"
-          :class="{ active: tab.id === activeTabId }"
-          :aria-hidden="tab.id !== activeTabId"
-        ></div>
+      <div class="terminal-workspace-body" :class="{ 'monitor-open': isTerminalMonitorPanelOpen }">
+        <div class="terminal-screen">
+          <div v-if="!tabs.length" class="terminal-empty">双击左侧主机名连接 SSH 终端。</div>
+          <div
+            v-for="tab in tabs"
+            :key="tab.id"
+            :ref="(element) => setTerminalContainer(tab.id, element)"
+            class="terminal-panel"
+            :class="{ active: tab.id === activeTabId }"
+            :aria-hidden="tab.id !== activeTabId"
+          ></div>
+        </div>
+        <aside v-if="isTerminalMonitorPanelOpen" class="terminal-monitor-panel terminal-monitor-drawer">
+          <header class="terminal-monitor-title">
+            <strong>资源监控</strong>
+            <span>{{ terminalMonitorNodeName }}</span>
+            <div class="terminal-monitor-actions">
+              <button
+                class="terminal-monitor-refresh"
+                type="button"
+                title="刷新"
+                aria-label="刷新"
+                :disabled="!activeTab || isTerminalMonitorLoading"
+                @click="loadTerminalMonitor"
+              >
+                <AppIcon name="refresh" :size="15" />
+              </button>
+              <button
+                class="terminal-monitor-refresh"
+                type="button"
+                title="关闭资源监控"
+                aria-label="关闭资源监控"
+                @click="closeTerminalMonitorPanel"
+              >
+                <AppIcon name="x" :size="15" />
+              </button>
+            </div>
+          </header>
+
+          <div v-if="!activeTab" class="terminal-monitor-empty">请选择服务器</div>
+          <div v-else class="terminal-monitor-body">
+            <p v-if="terminalMonitorError" class="terminal-monitor-error">{{ terminalMonitorError }}</p>
+
+            <template v-if="terminalMonitorData">
+              <section class="terminal-monitor-card terminal-monitor-system">
+                <h3><AppIcon name="monitor" :size="15" />系统</h3>
+                <dl>
+                  <div>
+                    <dt>主机名称</dt>
+                    <dd>{{ terminalMonitorData.system.hostname }}</dd>
+                  </div>
+                  <div>
+                    <dt>系统架构</dt>
+                    <dd>{{ terminalMonitorData.system.arch }}</dd>
+                  </div>
+                  <div>
+                    <dt>操作系统</dt>
+                    <dd>{{ terminalMonitorData.system.os }}</dd>
+                  </div>
+                  <div>
+                    <dt>运行时长</dt>
+                    <dd>{{ formatMonitorUptime(terminalMonitorData.system.uptimeSeconds) }}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section class="terminal-monitor-card">
+                <h3><AppIcon name="cpu" :size="15" />CPU</h3>
+                <div class="terminal-monitor-usage">
+                  <div class="terminal-monitor-ring" :style="monitorProgressStyle(terminalMonitorData.cpu.usagePercent)">
+                    <span>{{ formatMonitorNumber(terminalMonitorData.cpu.usagePercent, 0) }}%</span>
+                  </div>
+                  <div class="terminal-monitor-usage-main">
+                    <div>
+                      <span>平均使用率</span>
+                      <strong>{{ formatMonitorPercent(terminalMonitorData.cpu.usagePercent) }}</strong>
+                    </div>
+                    <i><b :style="monitorProgressStyle(terminalMonitorData.cpu.usagePercent)"></b></i>
+                    <em>{{ terminalMonitorData.cpu.cores }} CPU</em>
+                  </div>
+                </div>
+                <div class="terminal-monitor-loads">
+                  <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load1, 2) }}</strong><em>1分钟</em></span>
+                  <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load5, 2) }}</strong><em>5分钟</em></span>
+                  <span><strong>{{ formatMonitorNumber(terminalMonitorData.cpu.load15, 2) }}</strong><em>15分钟</em></span>
+                </div>
+              </section>
+
+              <section class="terminal-monitor-card">
+                <h3><AppIcon name="gauge" :size="15" />内存</h3>
+                <div class="terminal-monitor-usage">
+                  <div class="terminal-monitor-ring" :style="monitorProgressStyle(terminalMonitorData.memory.usagePercent)">
+                    <span>{{ formatMonitorNumber(terminalMonitorData.memory.usagePercent, 0) }}%</span>
+                  </div>
+                  <div class="terminal-monitor-usage-main">
+                    <div>
+                      <span>RAM</span>
+                      <strong>{{ formatMonitorPercent(terminalMonitorData.memory.usagePercent) }}</strong>
+                    </div>
+                    <i><b :style="monitorProgressStyle(terminalMonitorData.memory.usagePercent)"></b></i>
+                    <em>{{ formatMonitorBytes(terminalMonitorData.memory.usedBytes) }} / {{ formatMonitorBytes(terminalMonitorData.memory.totalBytes) }}</em>
+                  </div>
+                </div>
+                <div class="terminal-monitor-memory-extra">
+                  <span>剩余 {{ formatMonitorBytes(terminalMonitorData.memory.availableBytes) }}</span>
+                  <span>缓存 {{ formatMonitorBytes(terminalMonitorData.memory.cacheBytes) }}</span>
+                </div>
+              </section>
+
+              <section class="terminal-monitor-card">
+                <h3><AppIcon name="network" :size="15" />网络</h3>
+                <div v-if="terminalMonitorData.network.length" class="terminal-monitor-network-list">
+                  <div v-for="item in terminalMonitorData.network" :key="item.name" class="terminal-monitor-network-item">
+                    <strong>{{ item.name }}</strong>
+                    <span><em>↑{{ formatMonitorRate(item.txBytesPerSecond) }}</em><em>↓{{ formatMonitorRate(item.rxBytesPerSecond) }}</em></span>
+                    <i><b :style="monitorProgressStyle(Math.min(100, (item.rxBytesPerSecond + item.txBytesPerSecond) / 1024))"></b></i>
+                  </div>
+                </div>
+                <p v-else class="terminal-monitor-muted">暂无网卡数据</p>
+              </section>
+
+              <section class="terminal-monitor-card">
+                <h3><AppIcon name="hardDrive" :size="15" />磁盘</h3>
+                <div v-if="terminalMonitorData.disks.length" class="terminal-monitor-disk-list">
+                  <div v-for="disk in terminalMonitorData.disks" :key="`${disk.filesystem}-${disk.mountpoint}`" class="terminal-monitor-disk-item">
+                    <div>
+                      <strong>{{ disk.mountpoint }}</strong>
+                      <em>{{ disk.filesystem }} · {{ disk.type }}</em>
+                    </div>
+                    <span>{{ formatMonitorPercent(disk.usagePercent) }}</span>
+                    <i><b :style="monitorProgressStyle(disk.usagePercent)"></b></i>
+                    <p>{{ formatMonitorBytes(disk.usedBytes) }} / {{ formatMonitorBytes(disk.totalBytes) }}，可用 {{ formatMonitorBytes(disk.availableBytes) }}</p>
+                  </div>
+                </div>
+                <p v-else class="terminal-monitor-muted">暂无磁盘数据</p>
+              </section>
+            </template>
+          </div>
+        </aside>
       </div>
       <section v-if="shouldShowTerminalQuickCommandPanel" class="terminal-quick-panel">
         <button

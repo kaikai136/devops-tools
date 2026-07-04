@@ -260,7 +260,6 @@ input {
 
 .terminal-monitor-panel {
   display: grid;
-  grid-row: 1 / -1;
   grid-template-rows: 36px minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
@@ -272,7 +271,7 @@ input {
 
 .terminal-monitor-title {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) 26px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 0 12px;
@@ -302,6 +301,12 @@ input {
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.terminal-monitor-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .terminal-monitor-refresh {
@@ -2082,6 +2087,18 @@ input {
   user-select: none;
 }
 
+.terminal-workspace-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.terminal-workspace-body.monitor-open {
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
 .terminal-hint {
   display: flex;
   align-items: center;
@@ -2462,6 +2479,7 @@ input {
 .terminal-screen {
   position: relative;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
   margin: 0;
   background: #000;
@@ -2503,6 +2521,11 @@ input {
   color: #8ea1b8;
   font-size: 14px;
   font-weight: 700;
+}
+
+.terminal-monitor-drawer {
+  width: 300px;
+  border-left: 1px solid #9fb2c8;
 }
 
 .terminal-quick-panel {
@@ -2965,6 +2988,16 @@ input {
   border-color: #1f63f1;
   background: #1f63f1;
   color: #fff;
+}
+
+@media (max-width: 1100px) {
+  .terminal-workspace-body.monitor-open {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+
+  .terminal-monitor-drawer {
+    width: 280px;
+  }
 }
 
 @keyframes terminal-unread-pulse {
