@@ -4053,7 +4053,6 @@ function readTerminalQuickCommandPanelCollapsed() {
       :style="terminalQuickCommandPanelStyle"
     >
       <div class="terminal-hint">
-        <span>{{ workspaceTitle }}</span>
         <div class="terminal-hint-actions">
           <strong v-if="workspaceStatus">{{ workspaceStatus }}</strong>
           <div class="terminal-font-controls" :title="`终端字号 ${terminalFontSize}px`" aria-label="终端字号">
@@ -4083,6 +4082,7 @@ function readTerminalQuickCommandPanelCollapsed() {
             <em>高亮</em>
           </label>
         </div>
+        <span class="terminal-workspace-title">{{ workspaceTitle }}</span>
       </div>
       <div class="terminal-tabbar">
         <div ref="terminalTabsRef" class="terminal-tabs" @scroll="syncTerminalTabsScrollState">

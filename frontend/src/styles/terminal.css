@@ -2113,6 +2113,17 @@ input {
   color: #1f63f1;
 }
 
+.terminal-workspace-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #102a4d;
+  font-size: 16px;
+  font-weight: 900;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .terminal-hint-actions {
   display: flex;
   align-items: center;
