@@ -34,6 +34,7 @@ interface TerminalGroup {
 
 type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
 type TerminalSidebarMode = 'hosts' | 'files' | 'commands';
+type TerminalSplitMode = 'single' | 'auto' | 'horizontal' | 'vertical';
 type TerminalTransferKind = 'upload' | 'download';
 type TerminalTransferStatus = 'queued' | 'running' | 'success' | 'error' | 'canceled';
 type TerminalDownloadProtocol = 'auto' | 'scp' | 'sftp';
@@ -293,6 +294,12 @@ interface TerminalFileContextMenuItem {
   action: () => void | Promise<void>;
 }
 
+interface TerminalSplitModeOption {
+  mode: TerminalSplitMode;
+  label: string;
+  icon: IconName;
+}
+
 interface TerminalFileRenameState {
   path: string;
   originalName: string;
@@ -342,6 +349,7 @@ const TERMINAL_WORKSPACE_STORAGE_KEY = 'ops-tool.web-terminal.workspace';
 const TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-width';
 const TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-collapsed';
 const TERMINAL_FONT_SIZE_STORAGE_KEY = 'ops-tool.web-terminal.font-size';
+const TERMINAL_SPLIT_MODE_STORAGE_KEY = 'ops-tool.web-terminal.split-mode';
 const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
@@ -412,6 +420,12 @@ const terminalHighlightRules: TerminalHighlightRule[] = [
     open: '\x1b[48;5;24m',
     close: '\x1b[49m',
   },
+];
+const terminalSplitModeOptions: TerminalSplitModeOption[] = [
+  { mode: 'single', label: '单屏模式', icon: 'maximize' },
+  { mode: 'auto', label: '自动平铺所有会话', icon: 'dashboard' },
+  { mode: 'horizontal', label: '水平平铺', icon: 'rows' },
+  { mode: 'vertical', label: '垂直平铺', icon: 'panelLeft' },
 ];
 const initialTerminalFileEntries: TerminalFileEntry[] = [
   { name: '..', type: 'directory', modifiedAt: '', path: '..', permissions: '', owner: '', group: '' },
@@ -534,6 +548,7 @@ const search = ref('');
 const tabs = ref<TerminalTab[]>([]);
 const activeTabId = ref<string | null>(null);
 const isTerminalTabMenuOpen = ref(false);
+const isTerminalSplitMenuOpen = ref(false);
 const terminalTabsRef = ref<HTMLElement | null>(null);
 const canScrollTerminalTabsLeft = ref(false);
 const canScrollTerminalTabsRight = ref(false);
@@ -541,6 +556,7 @@ const isLoadingTree = ref(false);
 const treeError = ref('');
 const highlightEnabled = ref(true);
 const terminalFontSize = ref(readTerminalFontSize());
+const terminalSplitMode = ref<TerminalSplitMode>(readTerminalSplitMode());
 const terminalSidebarMode = ref<TerminalSidebarMode>('hosts');
 const sidebarWidth = ref(readTerminalSidebarWidth());
 const isTerminalSidebarCollapsed = ref(readTerminalSidebarCollapsed());
@@ -567,6 +583,29 @@ const rows = computed(() => {
 });
 
 const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null);
+const connectedTerminalTabs = computed(() => tabs.value.filter((tab) => tab.status === 'connected'));
+const isTerminalSplitActive = computed(
+  () => terminalSplitMode.value !== 'single' && connectedTerminalTabs.value.length >= 2 && activeTab.value?.status === 'connected',
+);
+const visibleTerminalTabs = computed(() => (isTerminalSplitActive.value ? connectedTerminalTabs.value : activeTab.value ? [activeTab.value] : []));
+const terminalSplitModeLabel = computed(
+  () => terminalSplitModeOptions.find((option) => option.mode === terminalSplitMode.value)?.label ?? '单屏模式',
+);
+const terminalScreenStyle = computed<Record<string, string>>(() => {
+  if (!isTerminalSplitActive.value) return {};
+  const count = visibleTerminalTabs.value.length;
+  const columns =
+    terminalSplitMode.value === 'horizontal'
+      ? 1
+      : terminalSplitMode.value === 'vertical'
+        ? count
+        : Math.ceil(Math.sqrt(count));
+  const rows = terminalSplitMode.value === 'vertical' ? 1 : Math.ceil(count / columns);
+  return {
+    '--terminal-split-columns': String(columns),
+    '--terminal-split-rows': String(rows),
+  };
+});
 const activeTerminalNodeName = computed(() => activeTab.value?.host.name ?? '未选择主机');
 const terminalSidebarToggleLabel = computed(() => (isTerminalSidebarCollapsed.value ? '展开侧栏' : '收起侧栏'));
 const selectedTerminalFiles = computed(() =>
@@ -932,10 +971,27 @@ function closeTerminalDirectoryContextMenu() {
 
 function toggleTerminalTabMenu() {
   isTerminalTabMenuOpen.value = !isTerminalTabMenuOpen.value;
+  if (isTerminalTabMenuOpen.value) closeTerminalSplitMenu();
 }
 
 function closeTerminalTabMenu() {
   isTerminalTabMenuOpen.value = false;
+}
+
+function toggleTerminalSplitMenu() {
+  isTerminalSplitMenuOpen.value = !isTerminalSplitMenuOpen.value;
+  if (isTerminalSplitMenuOpen.value) closeTerminalTabMenu();
+}
+
+function closeTerminalSplitMenu() {
+  isTerminalSplitMenuOpen.value = false;
+}
+
+function setTerminalSplitMode(mode: TerminalSplitMode) {
+  terminalSplitMode.value = mode;
+  window.localStorage.setItem(TERMINAL_SPLIT_MODE_STORAGE_KEY, mode);
+  closeTerminalSplitMenu();
+  fitVisibleTerminalsSoon();
 }
 
 function syncTerminalTabsScrollState() {
@@ -1177,6 +1233,7 @@ function closeTerminalContextMenus() {
   closeTerminalFileContextMenu();
   closeTerminalDirectoryContextMenu();
   closeTerminalTabMenu();
+  closeTerminalSplitMenu();
 }
 
 async function selectTerminalTabFromMenu(tab: TerminalTab) {
@@ -2619,13 +2676,10 @@ watch(isTerminalMonitorPanelOpen, () => {
   fitActiveTerminalSoon();
 });
 
-const workspaceStatus = computed(() => {
-  if (!activeTab.value) return '';
-  if (activeTab.value.status === 'connecting') return '连接中...';
-  if (activeTab.value.status === 'connected') return '已连接';
-  if (activeTab.value.status === 'error') return '连接失败';
-  return '已关闭';
+watch([terminalSplitMode, visibleTerminalTabs], () => {
+  void nextTick(fitVisibleTerminalsSoon);
 });
+
 const terminalShellStyle = computed<Record<string, string>>(() => ({
   '--terminal-sidebar-width': `${isTerminalSidebarCollapsed.value ? 42 : sidebarWidth.value}px`,
   '--terminal-quick-command-height':
@@ -3011,13 +3065,17 @@ function getTabById(tabId: string) {
 
 function markTabUnread(tabId: string) {
   const tab = getTabById(tabId);
-  if (tab && tab.id !== activeTabId.value) {
+  if (tab && tab.id !== activeTabId.value && !isTerminalTabVisible(tab)) {
     tab.hasUnreadOutput = true;
   }
 }
 
+function isTerminalTabVisible(tab: TerminalTab) {
+  return visibleTerminalTabs.value.some((item) => item.id === tab.id);
+}
+
 function fitTerminal(tab: TerminalTab) {
-  if (!tab.mounted || activeTabId.value !== tab.id) return;
+  if (!tab.mounted || !isTerminalTabVisible(tab)) return;
   try {
     tab.fitAddon.fit();
     if (tab.socket?.readyState === WebSocket.OPEN) {
@@ -3137,9 +3195,12 @@ function setTerminalSidebarCollapsed(collapsed: boolean) {
 }
 
 function fitActiveTerminalSoon() {
+  fitVisibleTerminalsSoon();
+}
+
+function fitVisibleTerminalsSoon() {
   window.requestAnimationFrame(() => {
-    const tab = activeTab.value;
-    if (tab) fitTerminal(tab);
+    for (const tab of visibleTerminalTabs.value) fitTerminal(tab);
   });
 }
 
@@ -3422,6 +3483,12 @@ function readTerminalSidebarCollapsed() {
 function readTerminalFontSize() {
   if (typeof window === 'undefined') return TERMINAL_FONT_SIZE_DEFAULT;
   return clampTerminalFontSize(Number(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY)));
+}
+
+function readTerminalSplitMode(): TerminalSplitMode {
+  if (typeof window === 'undefined') return 'single';
+  const saved = window.localStorage.getItem(TERMINAL_SPLIT_MODE_STORAGE_KEY);
+  return saved === 'auto' || saved === 'horizontal' || saved === 'vertical' ? saved : 'single';
 }
 
 function clampTerminalFontSize(value: number) {
@@ -4054,7 +4121,34 @@ function readTerminalQuickCommandPanelCollapsed() {
     >
       <div class="terminal-hint">
         <div class="terminal-hint-actions">
-          <strong v-if="workspaceStatus">{{ workspaceStatus }}</strong>
+          <div class="terminal-split-menu" @click.stop>
+            <button
+              type="button"
+              class="terminal-split-trigger"
+              :class="{ active: isTerminalSplitMenuOpen || terminalSplitMode !== 'single' }"
+              :title="`分屏布局：${terminalSplitModeLabel}`"
+              :aria-label="`分屏布局：${terminalSplitModeLabel}`"
+              :aria-expanded="isTerminalSplitMenuOpen"
+              @click="toggleTerminalSplitMenu"
+            >
+              <AppIcon name="dashboard" :size="15" />
+            </button>
+            <div v-if="isTerminalSplitMenuOpen" class="terminal-split-menu-list" role="menu" aria-label="分屏布局">
+              <button
+                v-for="option in terminalSplitModeOptions"
+                :key="option.mode"
+                type="button"
+                class="terminal-split-menu-item"
+                :class="{ active: terminalSplitMode === option.mode }"
+                role="menuitem"
+                @click="setTerminalSplitMode(option.mode)"
+              >
+                <AppIcon :name="option.icon" :size="15" />
+                <span>{{ option.label }}</span>
+                <AppIcon v-if="terminalSplitMode === option.mode" name="check" :size="14" />
+              </button>
+            </div>
+          </div>
           <div class="terminal-font-controls" :title="`终端字号 ${terminalFontSize}px`" aria-label="终端字号">
             <button
               type="button"
@@ -4076,11 +4170,17 @@ function readTerminalQuickCommandPanelCollapsed() {
               <AppIcon name="zoomIn" :size="15" />
             </button>
           </div>
-          <label class="terminal-highlight-toggle" title="关键词高亮">
-            <input v-model="highlightEnabled" type="checkbox" />
-            <span></span>
-            <em>高亮</em>
-          </label>
+          <button
+            type="button"
+            class="terminal-highlight-toggle"
+            :class="{ active: highlightEnabled }"
+            :title="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
+            :aria-label="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
+            :aria-pressed="highlightEnabled"
+            @click="highlightEnabled = !highlightEnabled"
+          >
+            <AppIcon name="sun" :size="15" />
+          </button>
         </div>
         <span class="terminal-workspace-title">{{ workspaceTitle }}</span>
       </div>
@@ -4154,15 +4254,20 @@ function readTerminalQuickCommandPanelCollapsed() {
         </div>
       </div>
       <div class="terminal-workspace-body" :class="{ 'monitor-open': isTerminalMonitorPanelOpen }">
-        <div class="terminal-screen">
+        <div
+          class="terminal-screen"
+          :class="[`split-${terminalSplitMode}`, { 'split-active': isTerminalSplitActive }]"
+          :style="terminalScreenStyle"
+        >
           <div v-if="!tabs.length" class="terminal-empty">双击左侧主机名连接 SSH 终端。</div>
           <div
             v-for="tab in tabs"
             :key="tab.id"
             :ref="(element) => setTerminalContainer(tab.id, element)"
             class="terminal-panel"
-            :class="{ active: tab.id === activeTabId }"
-            :aria-hidden="tab.id !== activeTabId"
+            :class="{ active: tab.id === activeTabId, visible: isTerminalTabVisible(tab) }"
+            :aria-hidden="!isTerminalTabVisible(tab)"
+            @mousedown.capture="isTerminalTabVisible(tab) && tab.id !== activeTabId && activateTab(tab.id)"
           ></div>
         </div>
         <aside v-if="isTerminalMonitorPanelOpen" class="terminal-monitor-panel terminal-monitor-drawer">

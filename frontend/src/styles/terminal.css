@@ -2131,6 +2131,73 @@ input {
   min-width: 0;
 }
 
+.terminal-split-menu {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.terminal-split-trigger {
+  display: inline-grid;
+  width: 28px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid #b7c5d5;
+  background: #e3ebf4;
+  color: #315b91;
+  padding: 0;
+  cursor: pointer;
+}
+
+.terminal-split-trigger:hover,
+.terminal-split-trigger.active {
+  border-color: #7aa7ee;
+  background: #d8e7f7;
+  color: #1f63f1;
+}
+
+.terminal-split-menu-list {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 85;
+  display: grid;
+  width: 190px;
+  border: 1px solid #9fb2c8;
+  background: #f8fafc;
+  box-shadow: 0 16px 34px rgb(15 23 42 / 18%);
+  padding: 5px 0;
+}
+
+.terminal-split-menu-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  color: #43556b;
+  padding: 0 10px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.terminal-split-menu-item:hover,
+.terminal-split-menu-item.active {
+  background: #eaf1ff;
+  color: #1f63f1;
+}
+
+.terminal-split-menu-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .terminal-font-controls {
   display: inline-grid;
   grid-template-columns: 24px 28px 24px;
@@ -2177,61 +2244,33 @@ input {
 }
 
 .terminal-highlight-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #5c6d81;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.terminal-highlight-toggle input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.terminal-highlight-toggle span {
-  position: relative;
+  display: inline-grid;
   width: 28px;
-  height: 16px;
-  border: 1px solid #aebbc9;
-  border-radius: 999px;
-  background: #c9d2de;
-  transition: background 0.16s ease, border-color 0.16s ease;
+  height: 24px;
+  place-items: center;
+  border: 1px solid #b7c5d5;
+  background: #e3ebf4;
+  color: #6b7c91;
+  padding: 0;
+  cursor: pointer;
 }
 
-.terminal-highlight-toggle span::after {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgb(15 23 42 / 22%);
-  content: "";
-  transition: transform 0.16s ease;
+.terminal-highlight-toggle:hover {
+  border-color: #7aa7ee;
+  background: #d8e7f7;
+  color: #1f63f1;
 }
 
-.terminal-highlight-toggle input:checked + span {
-  border-color: #1f63f1;
-  background: #1f63f1;
-}
-
-.terminal-highlight-toggle input:checked + span::after {
-  transform: translateX(12px);
-}
-
-.terminal-highlight-toggle input:focus-visible + span {
+.terminal-highlight-toggle:focus-visible {
   outline: 2px solid #88adff;
   outline-offset: 2px;
 }
 
-.terminal-highlight-toggle em {
-  font-style: normal;
+.terminal-highlight-toggle.active {
+  border-color: #f5b51b;
+  background: #fff4cf;
+  color: #d97706;
+  box-shadow: 0 0 0 2px rgb(245 181 27 / 18%);
 }
 
 .terminal-tabbar {
@@ -2514,6 +2553,46 @@ input {
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);
+}
+
+.terminal-panel.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.terminal-screen.split-active {
+  display: grid;
+  grid-template-columns: repeat(var(--terminal-split-columns, 2), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--terminal-split-rows, 1), minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+}
+
+.terminal-screen.split-active .terminal-panel {
+  position: relative;
+  display: none;
+  inset: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #26384f;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transform: none;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.terminal-screen.split-active .terminal-panel.visible {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.terminal-screen.split-active .terminal-panel.active {
+  border-color: #4e8dff;
+  box-shadow: inset 0 0 0 1px rgb(78 141 255 / 48%);
 }
 
 .terminal-panel .xterm {
