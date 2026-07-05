@@ -38,10 +38,25 @@ type TerminalSplitMode = 'single' | 'auto' | 'horizontal' | 'vertical';
 type TerminalTransferKind = 'upload' | 'download';
 type TerminalTransferStatus = 'queued' | 'running' | 'success' | 'error' | 'canceled';
 type TerminalDownloadProtocol = 'auto' | 'scp' | 'sftp';
+type TerminalTabColorId =
+  | 'red'
+  | 'orange'
+  | 'amber'
+  | 'yellow'
+  | 'green'
+  | 'emerald'
+  | 'cyan'
+  | 'sky'
+  | 'blue'
+  | 'violet'
+  | 'pink'
+  | 'rose';
 
 interface TerminalTab {
   id: string;
   host: TerminalHost;
+  customTitle: string;
+  colorId: TerminalTabColorId | null;
   status: TerminalStatus;
   terminal: Terminal;
   fitAddon: FitAddon;
@@ -92,6 +107,8 @@ interface TerminalHighlightState {
 interface PersistedTerminalTab {
   id: string;
   hostId: number;
+  title?: string;
+  colorId?: TerminalTabColorId;
 }
 
 interface PersistedTerminalWorkspace {
@@ -294,6 +311,47 @@ interface TerminalFileContextMenuItem {
   action: () => void | Promise<void>;
 }
 
+interface TerminalContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  tabId: string | null;
+  selectedText: string;
+}
+
+interface TerminalContextMenuItem {
+  id: string;
+  label: string;
+  icon: IconName;
+  enabled: boolean;
+  danger?: boolean;
+  selected?: boolean;
+  swatchColor?: string;
+  separatorBefore?: boolean;
+  shortcut?: string;
+  children?: TerminalContextMenuItem[];
+  action: () => void | Promise<void>;
+}
+
+interface TerminalTabContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  tabId: string | null;
+}
+
+interface TerminalTabColorOption {
+  id: TerminalTabColorId;
+  label: string;
+  swatch: string;
+  background: string;
+  color: string;
+  border: string;
+  activeBackground: string;
+  activeColor: string;
+  activeBorder: string;
+}
+
 interface TerminalSplitModeOption {
   mode: TerminalSplitMode;
   label: string;
@@ -359,6 +417,11 @@ const TERMINAL_FONT_SIZE_MAX = 24;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
 const TERMINAL_FILE_CONTEXT_MENU_HEIGHT = 540;
 const TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT = 300;
+const TERMINAL_CONTEXT_MENU_WIDTH = 248;
+const TERMINAL_CONTEXT_MENU_HEIGHT = 560;
+const TERMINAL_TAB_CONTEXT_MENU_WIDTH = 252;
+const TERMINAL_TAB_CONTEXT_MENU_HEIGHT = 560;
+const TERMINAL_TAB_TITLE_MAX_LENGTH = 40;
 const TERMINAL_MONITOR_REFRESH_MS = 5000;
 const TERMINAL_TRANSFER_PANEL_DEFAULT_HEIGHT = 170;
 const TERMINAL_TRANSFER_PANEL_MIN_HEIGHT = 96;
@@ -395,6 +458,143 @@ const TERMINAL_LOCAL_FILENAME_RESERVED_NAMES = new Set([
   'LPT8',
   'LPT9',
 ]);
+const terminalTabColorOptions: TerminalTabColorOption[] = [
+  {
+    id: 'red',
+    label: '红色',
+    swatch: '#ef4444',
+    background: '#fff1f2',
+    color: '#991b1b',
+    border: '#f87171',
+    activeBackground: '#dc2626',
+    activeColor: '#ffffff',
+    activeBorder: '#ef4444',
+  },
+  {
+    id: 'orange',
+    label: '橙色',
+    swatch: '#f97316',
+    background: '#fff7ed',
+    color: '#9a3412',
+    border: '#fb923c',
+    activeBackground: '#ea580c',
+    activeColor: '#ffffff',
+    activeBorder: '#f97316',
+  },
+  {
+    id: 'amber',
+    label: '琥珀',
+    swatch: '#f59e0b',
+    background: '#fffbeb',
+    color: '#92400e',
+    border: '#fbbf24',
+    activeBackground: '#d97706',
+    activeColor: '#ffffff',
+    activeBorder: '#f59e0b',
+  },
+  {
+    id: 'yellow',
+    label: '黄色',
+    swatch: '#eab308',
+    background: '#fefce8',
+    color: '#854d0e',
+    border: '#facc15',
+    activeBackground: '#ca8a04',
+    activeColor: '#ffffff',
+    activeBorder: '#eab308',
+  },
+  {
+    id: 'green',
+    label: '绿色',
+    swatch: '#22c55e',
+    background: '#f0fdf4',
+    color: '#166534',
+    border: '#4ade80',
+    activeBackground: '#16a34a',
+    activeColor: '#ffffff',
+    activeBorder: '#22c55e',
+  },
+  {
+    id: 'emerald',
+    label: '翡翠',
+    swatch: '#10b981',
+    background: '#ecfdf5',
+    color: '#065f46',
+    border: '#34d399',
+    activeBackground: '#059669',
+    activeColor: '#ffffff',
+    activeBorder: '#10b981',
+  },
+  {
+    id: 'cyan',
+    label: '青色',
+    swatch: '#06b6d4',
+    background: '#ecfeff',
+    color: '#155e75',
+    border: '#22d3ee',
+    activeBackground: '#0891b2',
+    activeColor: '#ffffff',
+    activeBorder: '#06b6d4',
+  },
+  {
+    id: 'sky',
+    label: '天蓝',
+    swatch: '#0ea5e9',
+    background: '#f0f9ff',
+    color: '#075985',
+    border: '#38bdf8',
+    activeBackground: '#0284c7',
+    activeColor: '#ffffff',
+    activeBorder: '#0ea5e9',
+  },
+  {
+    id: 'blue',
+    label: '蓝色',
+    swatch: '#3b82f6',
+    background: '#eff6ff',
+    color: '#1e40af',
+    border: '#60a5fa',
+    activeBackground: '#2563eb',
+    activeColor: '#ffffff',
+    activeBorder: '#3b82f6',
+  },
+  {
+    id: 'violet',
+    label: '紫色',
+    swatch: '#8b5cf6',
+    background: '#f5f3ff',
+    color: '#5b21b6',
+    border: '#a78bfa',
+    activeBackground: '#7c3aed',
+    activeColor: '#ffffff',
+    activeBorder: '#8b5cf6',
+  },
+  {
+    id: 'pink',
+    label: '粉色',
+    swatch: '#ec4899',
+    background: '#fdf2f8',
+    color: '#9d174d',
+    border: '#f472b6',
+    activeBackground: '#db2777',
+    activeColor: '#ffffff',
+    activeBorder: '#ec4899',
+  },
+  {
+    id: 'rose',
+    label: '玫红',
+    swatch: '#f43f5e',
+    background: '#fff1f2',
+    color: '#9f1239',
+    border: '#fb7185',
+    activeBackground: '#e11d48',
+    activeColor: '#ffffff',
+    activeBorder: '#f43f5e',
+  },
+];
+const terminalTabColorOptionMap = new Map<TerminalTabColorId, TerminalTabColorOption>(
+  terminalTabColorOptions.map((option) => [option.id, option]),
+);
 const terminalHighlightRules: TerminalHighlightRule[] = [
   {
     name: 'danger',
@@ -467,6 +667,19 @@ const terminalDirectoryContextMenu = ref<Omit<TerminalFileContextMenuState, 'ent
   visible: false,
   x: 0,
   y: 0,
+});
+const terminalContextMenu = ref<TerminalContextMenuState>({
+  visible: false,
+  x: 0,
+  y: 0,
+  tabId: null,
+  selectedText: '',
+});
+const terminalTabContextMenu = ref<TerminalTabContextMenuState>({
+  visible: false,
+  x: 0,
+  y: 0,
+  tabId: null,
 });
 const terminalFileRename = ref<TerminalFileRenameState | null>(null);
 const terminalFileDeleteDialog = ref<TerminalFileDeleteDialogState>({
@@ -592,7 +805,7 @@ const terminalSplitModeLabel = computed(
   () => terminalSplitModeOptions.find((option) => option.mode === terminalSplitMode.value)?.label ?? '单屏模式',
 );
 const terminalScreenStyle = computed<Record<string, string>>(() => {
-  if (!isTerminalSplitActive.value) return {};
+  if (!isTerminalSplitActive.value) return {} as Record<string, string>;
   const count = visibleTerminalTabs.value.length;
   const columns =
     terminalSplitMode.value === 'horizontal'
@@ -741,6 +954,205 @@ const terminalDirectoryContextMenuItems = computed<TerminalFileContextMenuItem[]
   { id: 'send-directory', label: '将目录路径发送到终端', icon: 'cornerDownLeft', enabled: Boolean(activeTab.value), action: () => sendTerminalFileTextToActiveTerminal(terminalFilePath.value) },
   { id: 'properties', label: '属性', icon: 'info', enabled: Boolean(activeTab.value), separatorBefore: true, action: () => openTerminalCurrentDirectoryProperties() },
 ]);
+const terminalContextMenuItems = computed<TerminalContextMenuItem[]>(() => {
+  const tab = getTerminalContextMenuTab();
+  const selectedText = terminalContextMenu.value.selectedText.trim();
+  const hasSelection = Boolean(selectedText);
+  const isReady = Boolean(tab && isTerminalTabReady(tab));
+  const items: TerminalContextMenuItem[] = [];
+
+  if (hasSelection) {
+    items.push(
+      { id: 'copy-selection', label: '复制', icon: 'copy', enabled: true, shortcut: 'Ctrl+Shift+C', action: () => copyTerminalContextText(selectedText) },
+      { id: 'find-selection', label: '查找选中内容', icon: 'search', enabled: true, shortcut: 'Ctrl+Shift+F', action: () => findTerminalText(selectedText) },
+      {
+        id: 'online-search',
+        label: '在线搜索',
+        icon: 'globe',
+        enabled: true,
+        action: () => undefined,
+        children: [
+          { id: 'search-selection', label: '搜索选中内容', icon: 'search', enabled: true, action: () => openTerminalOnlineSearch(selectedText) },
+          { id: 'search-error', label: '搜索报错关键词', icon: 'alert', enabled: true, action: () => openTerminalOnlineSearch(`${selectedText} linux error`) },
+          { id: 'search-command', label: '搜索命令用法', icon: 'terminal', enabled: true, action: () => openTerminalOnlineSearch(`${selectedText} linux command usage`) },
+        ],
+      },
+      {
+        id: 'ai',
+        label: 'AI',
+        icon: 'zap',
+        enabled: true,
+        action: () => undefined,
+        children: [
+          { id: 'ai-explain', label: '解释选中内容', icon: 'circleHelp', enabled: false, action: () => undefined },
+          { id: 'ai-error', label: '分析错误原因', icon: 'alert', enabled: false, action: () => undefined },
+          { id: 'ai-fix', label: '生成修复建议', icon: 'settings', enabled: false, action: () => undefined },
+          { id: 'ai-summary', label: '总结这段输出', icon: 'file', enabled: false, action: () => undefined },
+        ],
+      },
+      {
+        id: 'translate',
+        label: '翻译',
+        icon: 'globe',
+        enabled: true,
+        action: () => undefined,
+        children: [
+          { id: 'translate-zh', label: '翻译为中文', icon: 'globe', enabled: true, action: () => openTerminalTranslation(selectedText, 'zh-Hans') },
+          { id: 'translate-en', label: '翻译为英文', icon: 'globe', enabled: true, action: () => openTerminalTranslation(selectedText, 'en') },
+        ],
+      },
+      { id: 'paste-selection', label: '粘贴选定文本到终端', icon: 'clipboard', enabled: isReady, separatorBefore: true, action: () => sendTextToTerminal(selectedText, tab) },
+      { id: 'paste-selection-single-line', label: '粘贴为单行', icon: 'cornerDownLeft', enabled: isReady, action: () => sendTextToTerminal(toSingleLineTerminalText(selectedText), tab) },
+      { id: 'save-selection-command', label: '保存为快捷命令...', icon: 'bookmark', enabled: canUseTerminalQuickCommands.value, action: () => openTerminalQuickCommandDialogFromText(selectedText) },
+    );
+  } else {
+    items.push(
+      { id: 'paste', label: '粘贴', icon: 'clipboard', enabled: isReady, shortcut: 'Ctrl+Shift+V', action: () => pasteClipboardToTerminal(tab) },
+      { id: 'find', label: '查找...', icon: 'search', enabled: true, shortcut: 'Ctrl+Shift+F', action: () => promptFindTerminalText() },
+      {
+        id: 'quick-commands',
+        label: '快捷命令',
+        icon: 'zap',
+        enabled: canUseTerminalQuickCommands.value,
+        action: () => undefined,
+        children: getTerminalQuickCommandContextItems(tab),
+      },
+    );
+  }
+
+  return [
+    ...items,
+    getTerminalSessionContextMenu(tab),
+    getTerminalControlKeyContextMenu(tab),
+    getTerminalViewContextMenu(tab),
+    getTerminalBufferContextMenu(tab),
+  ];
+});
+
+const terminalTabContextMenuItems = computed<TerminalContextMenuItem[]>(() => {
+  const tab = getTerminalTabContextMenuTab();
+  const hasTab = Boolean(tab);
+  const serverIp = tab ? getTerminalServerIp(tab) : '';
+  const rightSideTabs = tab ? getTerminalTabsRightOf(tab) : [];
+  const hasInactiveTabs = Boolean(tab && tabs.value.some((item) => item.id !== tab.id));
+
+  return [
+    {
+      id: 'tab-color',
+      label: '设置标签页颜色',
+      icon: 'palette',
+      enabled: hasTab,
+      action: () => undefined,
+      children: [
+        ...terminalTabColorOptions.map<TerminalContextMenuItem>((option) => ({
+          id: `tab-color-${option.id}`,
+          label: option.label,
+          icon: 'palette',
+          enabled: hasTab,
+          selected: tab?.colorId === option.id,
+          swatchColor: option.swatch,
+          action: () => {
+            if (tab) setTerminalTabColor(tab, option.id);
+          },
+        })),
+        {
+          id: 'tab-color-reset',
+          label: '恢复默认颜色',
+          icon: 'reset',
+          enabled: Boolean(tab?.colorId),
+          selected: Boolean(tab && !tab.colorId),
+          separatorBefore: true,
+          action: () => {
+            if (tab) setTerminalTabColor(tab, null);
+          },
+        },
+      ],
+    },
+    { id: 'tab-rename', label: '重命名标签名称', icon: 'edit', enabled: hasTab, action: () => { if (tab) renameTerminalTab(tab); } },
+    { id: 'tab-copy-name', label: '复制标签名称', icon: 'copy', enabled: hasTab, action: async () => { if (tab) await copyTerminalContextText(getTerminalTabLabel(tab)); } },
+    { id: 'tab-copy-ip', label: '复制服务器 IP', icon: 'copy', enabled: Boolean(serverIp), action: () => copyTerminalContextText(serverIp) },
+    {
+      id: 'tab-copy-session',
+      label: '复制会话信息',
+      icon: 'copy',
+      enabled: hasTab,
+      separatorBefore: true,
+      action: async () => {
+        if (tab) await copyTerminalContextText(getTerminalSessionInfo(tab));
+      },
+    },
+    { id: 'tab-duplicate', label: '新建同主机标签', icon: 'plus', enabled: hasTab, action: async () => { if (tab) await openHostTab(tab.host); } },
+    {
+      id: 'tab-quick-commands',
+      label: '快捷命令',
+      icon: 'zap',
+      enabled: canUseTerminalQuickCommands.value,
+      action: () => undefined,
+      children: getTerminalTabQuickCommandItems(tab),
+    },
+    {
+      id: 'tab-reconnect',
+      label: '重新连接',
+      icon: 'refresh',
+      enabled: Boolean(tab && (tab.status === 'closed' || tab.status === 'error')),
+      separatorBefore: true,
+      action: () => {
+        if (tab) reconnectTerminalTab(tab);
+      },
+    },
+    {
+      id: 'tab-disconnect',
+      label: '断开连接',
+      icon: 'logout',
+      enabled: canDisconnectTerminalTab(tab),
+      danger: true,
+      action: () => {
+        if (tab) disconnectTerminalTab(tab);
+      },
+    },
+    { id: 'tab-split-horizontal', label: '水平拆分会话', icon: 'rows', enabled: true, separatorBefore: true, action: () => setTerminalSplitMode('horizontal') },
+    { id: 'tab-split-vertical', label: '垂直拆分会话', icon: 'panelLeft', enabled: true, action: () => setTerminalSplitMode('vertical') },
+    { id: 'tab-split-single', label: '合并所有窗格', icon: 'maximize', enabled: terminalSplitMode.value !== 'single', action: () => setTerminalSplitMode('single') },
+    {
+      id: 'tab-close-current',
+      label: '关闭当前',
+      icon: 'x',
+      enabled: hasTab,
+      danger: true,
+      separatorBefore: true,
+      action: async () => {
+        if (tab) await closeTab(tab);
+      },
+    },
+    {
+      id: 'tab-close-all',
+      label: '关闭所有',
+      icon: 'x',
+      enabled: tabs.value.length > 0,
+      danger: true,
+      action: () => closeTerminalTabs(tabs.value),
+    },
+    {
+      id: 'tab-close-inactive',
+      label: '关闭非活动',
+      icon: 'x',
+      enabled: hasInactiveTabs,
+      danger: true,
+      action: async () => {
+        if (tab) await closeTerminalTabs(tabs.value.filter((item) => item.id !== tab.id));
+      },
+    },
+    {
+      id: 'tab-close-right',
+      label: '关闭右侧标签',
+      icon: 'moveRight',
+      enabled: rightSideTabs.length > 0,
+      danger: true,
+      action: () => closeTerminalTabs(rightSideTabs),
+    },
+  ];
+});
+
 const terminalRoot = computed<TerminalRoot>(() => ({
   id: null,
   name: rootLabel.value,
@@ -749,9 +1161,110 @@ const terminalRoot = computed<TerminalRoot>(() => ({
 
 const workspaceTitle = computed(() => {
   if (!activeTab.value) return '选择左侧主机开始连接';
-  const host = activeTab.value.host;
-  return `${host.name} / ${host.publicIp || host.privateIp}:${host.port}`;
+  const tab = activeTab.value;
+  const host = tab.host;
+  return `${getTerminalTabLabel(tab)} / ${host.publicIp || host.privateIp}:${host.port}`;
 });
+
+function normalizeTerminalTabTitle(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.trim().slice(0, TERMINAL_TAB_TITLE_MAX_LENGTH);
+}
+
+function isTerminalTabColorId(value: unknown): value is TerminalTabColorId {
+  return typeof value === 'string' && terminalTabColorOptionMap.has(value as TerminalTabColorId);
+}
+
+function normalizeTerminalTabColorId(value: unknown): TerminalTabColorId | null {
+  return isTerminalTabColorId(value) ? value : null;
+}
+
+function getTerminalTabLabel(tab: TerminalTab) {
+  return tab.customTitle || tab.host.name;
+}
+
+function getTerminalServerIp(tab: TerminalTab | null) {
+  return tab?.host.publicIp || tab?.host.privateIp || '';
+}
+
+function getTerminalTabStyle(tab: TerminalTab): Record<string, string> {
+  const option = tab.colorId ? terminalTabColorOptionMap.get(tab.colorId) : null;
+  if (!option) return {};
+  return {
+    '--terminal-tab-bg': option.background,
+    '--terminal-tab-color': option.color,
+    '--terminal-tab-border': option.border,
+    '--terminal-tab-hover-bg': option.background,
+    '--terminal-tab-hover-color': option.color,
+    '--terminal-tab-active-bg': option.activeBackground,
+    '--terminal-tab-active-color': option.activeColor,
+    '--terminal-tab-active-border': option.activeBorder,
+  };
+}
+
+function setTerminalTabColor(tab: TerminalTab, colorId: TerminalTabColorId | null) {
+  tab.colorId = colorId;
+  saveTerminalWorkspace();
+}
+
+function renameTerminalTab(tab: TerminalTab) {
+  const nextTitle = window.prompt('重命名标签名称', getTerminalTabLabel(tab));
+  if (nextTitle === null) return;
+  const normalized = normalizeTerminalTabTitle(nextTitle);
+  if (!normalized) return;
+  tab.customTitle = normalized === tab.host.name ? '' : normalized;
+  saveTerminalWorkspace();
+}
+
+function getTerminalTabsRightOf(tab: TerminalTab) {
+  const index = tabs.value.findIndex((item) => item.id === tab.id);
+  return index === -1 ? [] : tabs.value.slice(index + 1);
+}
+
+function sendQuickCommandToTerminalTab(command: TerminalQuickCommand, execute: boolean, tab: TerminalTab | null) {
+  if (!command.enabled || !isTerminalTabReady(tab)) return;
+  const data = execute ? `${command.command}\r` : command.command;
+  tab.socket?.send(JSON.stringify({ type: 'input', data }));
+  tab.terminal.focus();
+}
+
+function getTerminalTabQuickCommandItems(tab: TerminalTab | null): TerminalContextMenuItem[] {
+  const items: TerminalContextMenuItem[] = [
+    {
+      id: 'tab-quick-panel',
+      label: isTerminalQuickCommandPanelCollapsed.value ? '展开快捷命令面板' : '收起快捷命令面板',
+      icon: 'zap',
+      enabled: shouldShowTerminalQuickCommandPanel.value,
+      action: () => toggleTerminalQuickCommandPanel(),
+    },
+    { id: 'tab-quick-new', label: '新增命令...', icon: 'plus', enabled: canUseTerminalQuickCommands.value, action: () => openTerminalQuickCommandDialog() },
+  ];
+  const commands = terminalQuickCommands.value.filter((command) => command.enabled).slice(0, 6);
+  if (!commands.length) {
+    items.push({ id: 'tab-quick-empty', label: '暂无可用快捷命令', icon: 'terminal', enabled: false, separatorBefore: true, action: () => undefined });
+    return items;
+  }
+  for (const command of commands) {
+    items.push(
+      {
+        id: `tab-quick-append-${command.id}`,
+        label: `追加：${command.name}`,
+        icon: 'cornerDownLeft',
+        enabled: isTerminalTabReady(tab),
+        separatorBefore: items.length === 2,
+        action: () => sendQuickCommandToTerminalTab(command, false, tab),
+      },
+      {
+        id: `tab-quick-run-${command.id}`,
+        label: `执行：${command.name}`,
+        icon: 'zap',
+        enabled: isTerminalTabReady(tab),
+        action: () => sendQuickCommandToTerminalTab(command, true, tab),
+      },
+    );
+  }
+  return items;
+}
 
 function selectTerminalFile(entry: TerminalFileEntry, event?: MouseEvent | KeyboardEvent) {
   if (!activeTab.value) return;
@@ -925,7 +1438,11 @@ function openTerminalFileContextMenu(entry: TerminalFileEntry, event: MouseEvent
   } else {
     selectedTerminalFile.value = entry;
   }
+  closeTerminalContextMenu();
+  closeTerminalTabContextMenu();
   closeTerminalDirectoryContextMenu();
+  closeTerminalTabMenu();
+  closeTerminalSplitMenu();
   terminalFileContextMenu.value = {
     visible: true,
     ...getTerminalFileContextMenuPosition(event),
@@ -940,7 +1457,11 @@ function openTerminalDirectoryContextMenu(event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
   setTerminalFileSelection([], '');
+  closeTerminalContextMenu();
+  closeTerminalTabContextMenu();
   closeTerminalFileContextMenu();
+  closeTerminalTabMenu();
+  closeTerminalSplitMenu();
   terminalDirectoryContextMenu.value = {
     visible: true,
     ...getTerminalFileContextMenuPosition(event, TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT),
@@ -955,8 +1476,8 @@ function getTerminalFileContextMenuPosition(event: MouseEvent, menuHeight = TERM
   };
 }
 
-function isTerminalContextSubmenuLeft(x: number) {
-  return x + TERMINAL_FILE_CONTEXT_MENU_WIDTH * 2 + 16 > window.innerWidth;
+function isTerminalContextSubmenuLeft(x: number, menuWidth = TERMINAL_FILE_CONTEXT_MENU_WIDTH) {
+  return x + menuWidth * 2 + 16 > window.innerWidth;
 }
 
 function closeTerminalFileContextMenu() {
@@ -971,7 +1492,11 @@ function closeTerminalDirectoryContextMenu() {
 
 function toggleTerminalTabMenu() {
   isTerminalTabMenuOpen.value = !isTerminalTabMenuOpen.value;
-  if (isTerminalTabMenuOpen.value) closeTerminalSplitMenu();
+  if (isTerminalTabMenuOpen.value) {
+    closeTerminalContextMenu();
+    closeTerminalTabContextMenu();
+    closeTerminalSplitMenu();
+  }
 }
 
 function closeTerminalTabMenu() {
@@ -980,7 +1505,11 @@ function closeTerminalTabMenu() {
 
 function toggleTerminalSplitMenu() {
   isTerminalSplitMenuOpen.value = !isTerminalSplitMenuOpen.value;
-  if (isTerminalSplitMenuOpen.value) closeTerminalTabMenu();
+  if (isTerminalSplitMenuOpen.value) {
+    closeTerminalContextMenu();
+    closeTerminalTabContextMenu();
+    closeTerminalTabMenu();
+  }
 }
 
 function closeTerminalSplitMenu() {
@@ -1230,6 +1759,8 @@ function sendQuickCommandToTerminal(command: TerminalQuickCommand, execute: bool
 }
 
 function closeTerminalContextMenus() {
+  closeTerminalContextMenu();
+  closeTerminalTabContextMenu();
   closeTerminalFileContextMenu();
   closeTerminalDirectoryContextMenu();
   closeTerminalTabMenu();
@@ -1246,6 +1777,404 @@ async function runTerminalFileContextMenuItem(item: TerminalFileContextMenuItem)
   if (item.children?.length) return;
   closeTerminalContextMenus();
   await item.action();
+}
+
+async function runTerminalContextMenuItem(item: TerminalContextMenuItem) {
+  if (!item.enabled) return;
+  if (item.children?.length) return;
+  closeTerminalContextMenus();
+  await item.action();
+}
+
+async function runTerminalTabContextMenuItem(item: TerminalContextMenuItem) {
+  if (!item.enabled) return;
+  if (item.children?.length) return;
+  closeTerminalContextMenus();
+  await item.action();
+}
+
+function openTerminalTabContextMenu(tab: TerminalTab, event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (tab.id !== activeTabId.value) {
+    void activateTab(tab.id);
+  }
+  closeTerminalContextMenu();
+  closeTerminalFileContextMenu();
+  closeTerminalDirectoryContextMenu();
+  closeTerminalTabMenu();
+  closeTerminalSplitMenu();
+  terminalTabContextMenu.value = {
+    visible: true,
+    tabId: tab.id,
+    ...getTerminalTabContextMenuPosition(event),
+  };
+}
+
+function openTerminalContextMenu(tab: TerminalTab, event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (!isTerminalTabVisible(tab)) return;
+  if (tab.id !== activeTabId.value) {
+    void activateTab(tab.id);
+  }
+  const selectedText = tab.terminal.hasSelection() ? tab.terminal.getSelection() : '';
+  closeTerminalTabContextMenu();
+  closeTerminalFileContextMenu();
+  closeTerminalDirectoryContextMenu();
+  closeTerminalTabMenu();
+  closeTerminalSplitMenu();
+  terminalContextMenu.value = {
+    visible: true,
+    tabId: tab.id,
+    selectedText,
+    ...getTerminalContextMenuPosition(event),
+  };
+}
+
+function getTerminalTabContextMenuPosition(event: MouseEvent) {
+  const padding = 8;
+  return {
+    x: Math.max(padding, Math.min(event.clientX, window.innerWidth - TERMINAL_TAB_CONTEXT_MENU_WIDTH - padding)),
+    y: Math.max(padding, Math.min(event.clientY, window.innerHeight - TERMINAL_TAB_CONTEXT_MENU_HEIGHT - padding)),
+  };
+}
+
+function getTerminalContextMenuPosition(event: MouseEvent) {
+  const padding = 8;
+  return {
+    x: Math.max(padding, Math.min(event.clientX, window.innerWidth - TERMINAL_CONTEXT_MENU_WIDTH - padding)),
+    y: Math.max(padding, Math.min(event.clientY, window.innerHeight - TERMINAL_CONTEXT_MENU_HEIGHT - padding)),
+  };
+}
+
+function closeTerminalContextMenu() {
+  if (!terminalContextMenu.value.visible) return;
+  terminalContextMenu.value = { visible: false, x: 0, y: 0, tabId: null, selectedText: '' };
+}
+
+function closeTerminalTabContextMenu() {
+  if (!terminalTabContextMenu.value.visible) return;
+  terminalTabContextMenu.value = { visible: false, x: 0, y: 0, tabId: null };
+}
+
+function getTerminalContextMenuTab() {
+  const tabId = terminalContextMenu.value.tabId;
+  return tabId ? getTabById(tabId) : activeTab.value;
+}
+
+function getTerminalTabContextMenuTab() {
+  const tabId = terminalTabContextMenu.value.tabId;
+  return tabId ? getTabById(tabId) : activeTab.value;
+}
+
+function isTerminalTabReady(tab: TerminalTab | null): tab is TerminalTab {
+  return Boolean(tab && tab.status === 'connected' && tab.socket?.readyState === WebSocket.OPEN);
+}
+
+function canDisconnectTerminalTab(tab: TerminalTab | null) {
+  return Boolean(tab && (tab.status === 'connecting' || tab.status === 'connected' || tab.socket));
+}
+
+async function copyTerminalContextText(value: string) {
+  if (!value) return;
+  try {
+    await navigator.clipboard?.writeText(value);
+  } catch {
+    // Clipboard access can be denied outside a secure context or without permission.
+  }
+}
+
+async function pasteClipboardToTerminal(tab: TerminalTab | null) {
+  if (!isTerminalTabReady(tab)) return;
+  try {
+    const value = await navigator.clipboard?.readText();
+    if (value) sendTextToTerminal(value, tab);
+  } catch {
+    // Keep the menu action quiet when the browser blocks clipboard reads.
+  }
+}
+
+function sendTextToTerminal(value: string, tab: TerminalTab | null) {
+  if (!value || !isTerminalTabReady(tab)) return;
+  tab.socket?.send(JSON.stringify({ type: 'input', data: value }));
+  tab.terminal.focus();
+}
+
+function sendControlToTerminal(value: string, tab: TerminalTab | null) {
+  sendTextToTerminal(value, tab);
+}
+
+function toSingleLineTerminalText(value: string) {
+  return value.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function openTerminalOnlineSearch(query: string) {
+  const value = query.trim();
+  if (!value) return;
+  window.open(`https://www.bing.com/search?q=${encodeURIComponent(value)}`, '_blank', 'noopener,noreferrer');
+}
+
+function openTerminalTranslation(text: string, targetLanguage: 'zh-Hans' | 'en') {
+  const value = text.trim();
+  if (!value) return;
+  window.open(
+    `https://www.bing.com/translator?to=${encodeURIComponent(targetLanguage)}&text=${encodeURIComponent(value)}`,
+    '_blank',
+    'noopener,noreferrer',
+  );
+}
+
+function findTerminalText(query: string) {
+  const value = query.trim();
+  if (!value) return;
+  const finder = window as Window & { find?: (text: string, caseSensitive?: boolean, backwards?: boolean, wrap?: boolean) => boolean };
+  finder.find?.(value, false, false, true);
+}
+
+function promptFindTerminalText() {
+  const query = window.prompt('查找终端内容');
+  if (query) findTerminalText(query);
+}
+
+function openTerminalQuickCommandDialogFromText(commandText: string) {
+  const command = commandText.trim();
+  if (!command) return;
+  const firstLine = command.split(/\r?\n/).find(Boolean) ?? '快捷命令';
+  terminalQuickCommandDialog.value = {
+    visible: true,
+    mode: 'create',
+    commandId: null,
+    draft: {
+      ...createTerminalQuickCommandDraft(),
+      name: firstLine.slice(0, 40),
+      command,
+      description: '从终端选中内容保存',
+      enabled: true,
+    },
+    saving: false,
+    error: '',
+  };
+  if (isTerminalQuickCommandPanelCollapsed.value && shouldShowTerminalQuickCommandPanel.value) {
+    toggleTerminalQuickCommandPanel();
+  }
+}
+
+function getTerminalQuickCommandContextItems(tab: TerminalTab | null): TerminalContextMenuItem[] {
+  const items: TerminalContextMenuItem[] = [
+    {
+      id: 'quick-panel',
+      label: isTerminalQuickCommandPanelCollapsed.value ? '展开快捷命令面板' : '收起快捷命令面板',
+      icon: 'zap',
+      enabled: shouldShowTerminalQuickCommandPanel.value,
+      action: () => toggleTerminalQuickCommandPanel(),
+    },
+    { id: 'quick-new', label: '新增命令...', icon: 'plus', enabled: canUseTerminalQuickCommands.value, action: () => openTerminalQuickCommandDialog() },
+  ];
+  const commands = terminalQuickCommands.value.filter((command) => command.enabled).slice(0, 6);
+  for (const command of commands) {
+    items.push({
+      id: `quick-${command.id}`,
+      label: command.name,
+      icon: 'terminal',
+      enabled: isTerminalTabReady(tab),
+      separatorBefore: items.length === 2,
+      action: () => sendQuickCommandToTerminal(command, false),
+    });
+  }
+  return items;
+}
+
+function getTerminalSessionContextMenu(tab: TerminalTab | null): TerminalContextMenuItem {
+  return {
+    id: 'session',
+    label: '会话',
+    icon: 'server',
+    enabled: Boolean(tab),
+    separatorBefore: true,
+    action: () => undefined,
+    children: [
+      {
+        id: 'session-reconnect',
+        label: '重新连接',
+        icon: 'refresh',
+        enabled: Boolean(tab && (tab.status === 'closed' || tab.status === 'error')),
+        action: () => {
+          if (tab) reconnectTerminalTab(tab);
+        },
+      },
+      {
+        id: 'session-copy-info',
+        label: '复制当前主机信息',
+        icon: 'copy',
+        enabled: Boolean(tab),
+        action: async () => {
+          if (tab) await copyTerminalContextText(getTerminalSessionInfo(tab));
+        },
+      },
+      {
+        id: 'session-duplicate',
+        label: '新建同主机标签',
+        icon: 'plus',
+        enabled: Boolean(tab),
+        action: async () => {
+          if (tab) await openHostTab(tab.host);
+        },
+      },
+      {
+        id: 'session-close',
+        label: '关闭当前标签',
+        icon: 'x',
+        enabled: Boolean(tab),
+        danger: true,
+        separatorBefore: true,
+        action: async () => {
+          if (tab) await closeTab(tab);
+        },
+      },
+    ],
+  };
+}
+
+function getTerminalControlKeyContextMenu(tab: TerminalTab | null): TerminalContextMenuItem {
+  const enabled = isTerminalTabReady(tab);
+  return {
+    id: 'control-keys',
+    label: '发送控制键',
+    icon: 'terminal',
+    enabled,
+    action: () => undefined,
+    children: [
+      { id: 'control-c', label: '中断', icon: 'x', enabled, shortcut: 'Ctrl+C', action: () => sendControlToTerminal('\x03', tab) },
+      { id: 'control-d', label: 'EOF', icon: 'logout', enabled, shortcut: 'Ctrl+D', action: () => sendControlToTerminal('\x04', tab) },
+      { id: 'control-z', label: '挂起', icon: 'minimize', enabled, shortcut: 'Ctrl+Z', action: () => sendControlToTerminal('\x1a', tab) },
+      { id: 'control-u', label: '清空当前输入', icon: 'trash', enabled, shortcut: 'Ctrl+U', action: () => sendControlToTerminal('\x15', tab) },
+      { id: 'control-l', label: '清屏', icon: 'rows', enabled, shortcut: 'Ctrl+L', action: () => sendControlToTerminal('\x0c', tab) },
+    ],
+  };
+}
+
+function getTerminalViewContextMenu(tab: TerminalTab | null): TerminalContextMenuItem {
+  const filePanelOpen = terminalSidebarMode.value === 'files' && !isTerminalSidebarCollapsed.value;
+  const splitItems: TerminalContextMenuItem[] = terminalSplitModeOptions.map((option, index) => ({
+    id: `split-${option.mode}`,
+    label: terminalSplitMode.value === option.mode ? `${option.label} ✓` : option.label,
+    icon: option.icon,
+    enabled: true,
+    separatorBefore: index === 0,
+    action: () => setTerminalSplitMode(option.mode),
+  }));
+  return {
+    id: 'view',
+    label: '视图',
+    icon: 'settings',
+    enabled: true,
+    action: () => undefined,
+    children: [
+      { id: 'view-files', label: filePanelOpen ? '关闭文件面板' : '打开文件面板', icon: 'folder', enabled: Boolean(tab), action: () => toggleTerminalFilePanel() },
+      { id: 'view-monitor', label: isTerminalMonitorPanelOpen.value ? '关闭资源监控' : '打开资源监控', icon: 'monitor', enabled: Boolean(tab), action: () => toggleTerminalMonitorPanel() },
+      ...splitItems,
+      { id: 'font-decrease', label: '字号减小', icon: 'zoomOut', enabled: canDecreaseTerminalFontSize.value, separatorBefore: true, action: () => decreaseTerminalFontSize() },
+      { id: 'font-increase', label: '字号增大', icon: 'zoomIn', enabled: canIncreaseTerminalFontSize.value, action: () => increaseTerminalFontSize() },
+      { id: 'font-reset', label: '重置字号', icon: 'reset', enabled: terminalFontSize.value !== TERMINAL_FONT_SIZE_DEFAULT, action: () => setTerminalFontSize(TERMINAL_FONT_SIZE_DEFAULT) },
+      { id: 'highlight-toggle', label: highlightEnabled.value ? '关闭高亮' : '开启高亮', icon: 'sun', enabled: true, separatorBefore: true, action: () => { highlightEnabled.value = !highlightEnabled.value; } },
+    ],
+  };
+}
+
+function getTerminalBufferContextMenu(tab: TerminalTab | null): TerminalContextMenuItem {
+  const hasTab = Boolean(tab);
+  const ready = isTerminalTabReady(tab);
+  return {
+    id: 'buffer',
+    label: '缓冲区',
+    icon: 'rows',
+    enabled: hasTab,
+    action: () => undefined,
+    children: [
+      { id: 'buffer-clear-screen', label: '清屏', icon: 'rows', enabled: ready, shortcut: 'Ctrl+L', action: () => sendControlToTerminal('\x0c', tab) },
+      { id: 'buffer-clear-all', label: '全部清除', icon: 'trash', enabled: hasTab, action: () => tab?.terminal.clear() },
+      { id: 'buffer-bottom', label: '滚动到底部', icon: 'chevronDown', enabled: hasTab, action: () => tab?.terminal.scrollToBottom() },
+      {
+        id: 'buffer-copy-screen',
+        label: '复制当前屏幕',
+        icon: 'copy',
+        enabled: hasTab,
+        separatorBefore: true,
+        action: async () => {
+          if (tab) await copyTerminalContextText(getTerminalVisibleText(tab));
+        },
+      },
+      {
+        id: 'buffer-export',
+        label: '导出终端日志...',
+        icon: 'download',
+        enabled: hasTab,
+        action: () => {
+          if (tab) exportTerminalLog(tab);
+        },
+      },
+      { id: 'buffer-select-all', label: '全选', icon: 'scan', enabled: hasTab, shortcut: 'Ctrl+Shift+A', separatorBefore: true, action: () => tab?.terminal.selectAll() },
+    ],
+  };
+}
+
+function toggleTerminalFilePanel() {
+  if (terminalSidebarMode.value === 'files' && !isTerminalSidebarCollapsed.value) {
+    setTerminalSidebarCollapsed(true);
+    return;
+  }
+  selectTerminalSidebarMode('files');
+}
+
+function getTerminalSessionInfo(tab: TerminalTab) {
+  const host = tab.host;
+  return [
+    `主机：${host.name}`,
+    `登录用户：${host.loginUser || '-'}`,
+    `公网 IP：${host.publicIp || '-'}`,
+    `内网 IP：${host.privateIp || '-'}`,
+    `端口：${host.port}`,
+    `当前目录：${tab.currentCwd || '-'}`,
+    `状态：${tab.status}`,
+  ].join('\n');
+}
+
+function getTerminalVisibleText(tab: TerminalTab) {
+  const buffer = tab.terminal.buffer.active;
+  const start = buffer.viewportY;
+  const end = Math.min(buffer.length, start + tab.terminal.rows);
+  const lines: string[] = [];
+  for (let index = start; index < end; index += 1) {
+    lines.push(buffer.getLine(index)?.translateToString(true) ?? '');
+  }
+  return lines.join('\n').trimEnd();
+}
+
+function getTerminalBufferText(tab: TerminalTab) {
+  const buffer = tab.terminal.buffer.active;
+  const lines: string[] = [];
+  for (let index = 0; index < buffer.length; index += 1) {
+    lines.push(buffer.getLine(index)?.translateToString(true) ?? '');
+  }
+  return lines.join('\n').trimEnd();
+}
+
+function exportTerminalLog(tab: TerminalTab) {
+  const content = getTerminalBufferText(tab);
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${sanitizeTerminalLogFileName(tab.host.name)}-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function sanitizeTerminalLogFileName(value: string) {
+  return value.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') || 'terminal';
 }
 
 function startTerminalFileRename(entry: TerminalFileEntry) {
@@ -2797,7 +3726,11 @@ async function activateTab(tabId: string) {
   }
 }
 
-function createTerminalTab(host: TerminalHost, tabId = createTerminalTabId(host.id)): TerminalTab {
+function createTerminalTab(
+  host: TerminalHost,
+  tabId = createTerminalTabId(host.id),
+  options: { customTitle?: string; colorId?: TerminalTabColorId | null } = {},
+): TerminalTab {
   const terminal = markRaw(
     new Terminal({
       cursorBlink: true,
@@ -2823,6 +3756,8 @@ function createTerminalTab(host: TerminalHost, tabId = createTerminalTabId(host.
   return {
     id: tabId,
     host,
+    customTitle: normalizeTerminalTabTitle(options.customTitle),
+    colorId: normalizeTerminalTabColorId(options.colorId),
     status: 'connecting',
     terminal,
     fitAddon,
@@ -2967,6 +3902,18 @@ function reconnectTerminalTab(tab: TerminalTab) {
   finishConnectingTab(tab);
   tab.terminal.writeln('\r\n\x1b[32m[正在重新连接...]\x1b[0m');
   enqueueConnectTab(tab);
+}
+
+function disconnectTerminalTab(tab: TerminalTab) {
+  if (!canDisconnectTerminalTab(tab)) return;
+  removePendingConnectTab(tab.id);
+  finishConnectingTab(tab);
+  if (tab.socket && tab.socket.readyState !== WebSocket.CLOSED) {
+    tab.socket.close();
+  }
+  tab.socket = null;
+  tab.status = 'closed';
+  showTerminalReconnectHint(tab, '连接已手动断开。');
 }
 
 function connectTab(tab: TerminalTab) {
@@ -3225,14 +4172,31 @@ function increaseTerminalFontSize() {
 
 async function closeTab(tab: TerminalTab) {
   closeTerminalTabMenu();
-  const index = tabs.value.findIndex((item) => item.id === tab.id);
-  disposeTab(tab);
-  tabs.value = tabs.value.filter((item) => item.id !== tab.id);
-  terminalContainers.delete(tab.id);
+  closeTerminalTabContextMenu();
+  await closeTerminalTabs([tab]);
+}
+
+async function closeTerminalTabs(targetTabs: TerminalTab[]) {
+  const closingIds = new Set(targetTabs.map((tab) => tab.id));
+  if (!closingIds.size) return;
+
+  const currentTabs = tabs.value;
+  const firstClosingIndex = currentTabs.findIndex((tab) => closingIds.has(tab.id));
+  const previousActiveId = activeTabId.value;
+  const remainingTabs = currentTabs.filter((tab) => !closingIds.has(tab.id));
+  for (const tab of currentTabs) {
+    if (!closingIds.has(tab.id)) continue;
+    disposeTab(tab);
+    terminalContainers.delete(tab.id);
+  }
+  tabs.value = remainingTabs;
   await nextTick();
 
-  if (activeTabId.value === tab.id) {
-    const nextTab = tabs.value[Math.min(index, tabs.value.length - 1)] ?? null;
+  if (previousActiveId && !closingIds.has(previousActiveId) && remainingTabs.some((tab) => tab.id === previousActiveId)) {
+    activeTabId.value = previousActiveId;
+    await activateTab(previousActiveId);
+  } else {
+    const nextTab = remainingTabs[Math.min(Math.max(firstClosingIndex, 0), remainingTabs.length - 1)] ?? null;
     activeTabId.value = nextTab?.id ?? null;
     if (nextTab) await activateTab(nextTab.id);
   }
@@ -3248,7 +4212,7 @@ async function restoreTerminalWorkspace() {
   const restoredTabs = workspace.tabs
     .map((item) => {
       const host = findHostById(groups.value, item.hostId);
-      return host ? createTerminalTab(host, item.id) : null;
+      return host ? createTerminalTab(host, item.id, { customTitle: item.title, colorId: item.colorId ?? null }) : null;
     })
     .filter((tab): tab is TerminalTab => Boolean(tab));
 
@@ -3286,7 +4250,14 @@ function loadTerminalWorkspace(): PersistedTerminalWorkspace | null {
       const hostId = Number(item.hostId);
       if (!id || !Number.isFinite(hostId) || seenIds.has(id)) return [];
       seenIds.add(id);
-      return [{ id, hostId }];
+      const title = normalizeTerminalTabTitle((item as Partial<PersistedTerminalTab>).title);
+      const colorId = normalizeTerminalTabColorId((item as Partial<PersistedTerminalTab>).colorId);
+      return [{
+        id,
+        hostId,
+        ...(title ? { title } : {}),
+        ...(colorId ? { colorId } : {}),
+      }];
     });
 
     return {
@@ -3302,7 +4273,12 @@ function saveTerminalWorkspace() {
   if (typeof window === 'undefined') return;
 
   const workspace: PersistedTerminalWorkspace = {
-    tabs: tabs.value.map((tab) => ({ id: tab.id, hostId: tab.host.id })),
+    tabs: tabs.value.map((tab) => ({
+      id: tab.id,
+      hostId: tab.host.id,
+      ...(tab.customTitle ? { title: tab.customTitle } : {}),
+      ...(tab.colorId ? { colorId: tab.colorId } : {}),
+    })),
     activeTabId: activeTabId.value,
   };
 
@@ -4193,9 +5169,11 @@ function readTerminalQuickCommandPanelCollapsed() {
             class="terminal-tab"
             :data-terminal-tab-id="tab.id"
             :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
+            :style="getTerminalTabStyle(tab)"
             @click="activateTab(tab.id)"
+            @contextmenu="openTerminalTabContextMenu(tab, $event)"
           >
-            <span class="terminal-tab-label">{{ tab.host.name }}</span>
+            <span class="terminal-tab-label">{{ getTerminalTabLabel(tab) }}</span>
             <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
             <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)"><AppIcon name="x" :size="13" /></span>
           </button>
@@ -4247,8 +5225,62 @@ function readTerminalQuickCommandPanelCollapsed() {
                 <AppIcon v-if="tab.id === activeTabId" name="check" :size="15" />
               </span>
               <AppIcon name="server" :size="15" />
-              <span class="terminal-tab-menu-label">{{ index + 1 }} {{ tab.host.name }}</span>
+              <span class="terminal-tab-menu-label">{{ index + 1 }} {{ getTerminalTabLabel(tab) }}</span>
               <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        v-if="terminalTabContextMenu.visible"
+        class="terminal-file-context-menu terminal-context-menu terminal-tab-context-menu"
+        :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalTabContextMenu.x, TERMINAL_TAB_CONTEXT_MENU_WIDTH) }"
+        :style="{ left: `${terminalTabContextMenu.x}px`, top: `${terminalTabContextMenu.y}px` }"
+        role="menu"
+        aria-label="标签页操作"
+        @click.stop
+        @contextmenu.prevent.stop
+      >
+        <div
+          v-for="item in terminalTabContextMenuItems"
+          :key="item.id"
+          class="terminal-file-context-menu-row"
+          :class="{ separator: item.separatorBefore }"
+        >
+          <button
+            type="button"
+            class="terminal-file-context-menu-item terminal-context-menu-item terminal-tab-context-menu-item"
+            :class="{ danger: item.danger, selected: item.selected }"
+            :disabled="!item.enabled"
+            role="menuitem"
+            @click="runTerminalTabContextMenuItem(item)"
+          >
+            <span v-if="item.swatchColor" class="terminal-tab-color-swatch" :style="{ background: item.swatchColor }">
+              <AppIcon v-if="item.selected" name="check" :size="11" :stroke-width="3" />
+            </span>
+            <AppIcon v-else :name="item.selected ? 'check' : item.icon" :size="14" />
+            <span>{{ item.label }}</span>
+            <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
+            <AppIcon v-else-if="item.children?.length" name="chevronRight" :size="13" />
+          </button>
+          <div v-if="item.children?.length" class="terminal-file-context-submenu terminal-context-submenu terminal-tab-context-submenu">
+            <button
+              v-for="child in item.children"
+              :key="child.id"
+              type="button"
+              class="terminal-file-context-menu-item terminal-context-menu-item terminal-tab-context-menu-item"
+              :class="{ danger: child.danger, selected: child.selected, separator: child.separatorBefore }"
+              :disabled="!child.enabled"
+              role="menuitem"
+              @click="runTerminalTabContextMenuItem(child)"
+            >
+              <span v-if="child.swatchColor" class="terminal-tab-color-swatch" :style="{ background: child.swatchColor }">
+                <AppIcon v-if="child.selected" name="check" :size="11" :stroke-width="3" />
+              </span>
+              <AppIcon v-else :name="child.selected ? 'check' : child.icon" :size="14" />
+              <span>{{ child.label }}</span>
+              <kbd v-if="child.shortcut">{{ child.shortcut }}</kbd>
+              <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
             </button>
           </div>
         </div>
@@ -4268,7 +5300,52 @@ function readTerminalQuickCommandPanelCollapsed() {
             :class="{ active: tab.id === activeTabId, visible: isTerminalTabVisible(tab) }"
             :aria-hidden="!isTerminalTabVisible(tab)"
             @mousedown.capture="isTerminalTabVisible(tab) && tab.id !== activeTabId && activateTab(tab.id)"
+            @contextmenu="openTerminalContextMenu(tab, $event)"
           ></div>
+        </div>
+        <div
+          v-if="terminalContextMenu.visible"
+          class="terminal-file-context-menu terminal-context-menu"
+          :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalContextMenu.x) }"
+          :style="{ left: `${terminalContextMenu.x}px`, top: `${terminalContextMenu.y}px` }"
+          @click.stop
+          @contextmenu.prevent.stop
+        >
+          <div
+            v-for="item in terminalContextMenuItems"
+            :key="item.id"
+            class="terminal-file-context-menu-row"
+            :class="{ separator: item.separatorBefore }"
+          >
+            <button
+              type="button"
+              class="terminal-file-context-menu-item terminal-context-menu-item"
+              :class="{ danger: item.danger }"
+              :disabled="!item.enabled"
+              @click="runTerminalContextMenuItem(item)"
+            >
+              <AppIcon :name="item.icon" :size="14" />
+              <span>{{ item.label }}</span>
+              <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
+              <AppIcon v-else-if="item.children?.length" name="chevronRight" :size="13" />
+            </button>
+            <div v-if="item.children?.length" class="terminal-file-context-submenu terminal-context-submenu">
+              <button
+                v-for="child in item.children"
+                :key="child.id"
+                type="button"
+                class="terminal-file-context-menu-item terminal-context-menu-item"
+                :class="{ danger: child.danger, separator: child.separatorBefore }"
+                :disabled="!child.enabled"
+                @click="runTerminalContextMenuItem(child)"
+              >
+                <AppIcon :name="child.icon" :size="14" />
+                <span>{{ child.label }}</span>
+                <kbd v-if="child.shortcut">{{ child.shortcut }}</kbd>
+                <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
+              </button>
+            </div>
+          </div>
         </div>
         <aside v-if="isTerminalMonitorPanelOpen" class="terminal-monitor-panel terminal-monitor-drawer">
           <header class="terminal-monitor-title">
