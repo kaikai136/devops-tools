@@ -2317,6 +2317,7 @@ input {
 }
 
 .terminal-multi-execution-toggle,
+.terminal-search-toggle,
 .terminal-highlight-toggle {
   display: inline-grid;
   width: 28px;
@@ -2330,6 +2331,7 @@ input {
 }
 
 .terminal-multi-execution-toggle:hover:not(:disabled),
+.terminal-search-toggle:hover:not(:disabled),
 .terminal-highlight-toggle:hover {
   border-color: #7aa7ee;
   background: #d8e7f7;
@@ -2337,14 +2339,23 @@ input {
 }
 
 .terminal-multi-execution-toggle:focus-visible,
+.terminal-search-toggle:focus-visible,
 .terminal-highlight-toggle:focus-visible {
   outline: 2px solid #88adff;
   outline-offset: 2px;
 }
 
-.terminal-multi-execution-toggle:disabled {
+.terminal-multi-execution-toggle:disabled,
+.terminal-search-toggle:disabled {
   color: #9ba9b8;
   cursor: not-allowed;
+}
+
+.terminal-search-toggle.active {
+  border-color: #3b82f6;
+  background: #e0edff;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 2px rgb(59 130 246 / 18%);
 }
 
 .terminal-multi-execution-toggle.active {
@@ -2770,6 +2781,78 @@ input {
 .terminal-screen.split-active .terminal-panel.excluded {
   border-color: #6f7f93;
   box-shadow: inset 0 0 0 1px rgb(100 116 139 / 34%);
+}
+
+.terminal-panel-search {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: 16px minmax(72px, 1fr) 48px 26px 26px 26px;
+  align-items: center;
+  width: min(340px, calc(100% - 20px));
+  min-height: 32px;
+  border: 1px solid #4b72aa;
+  background: rgb(11 18 32 / 96%);
+  color: #dbeafe;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 38%);
+  padding: 3px 4px 3px 9px;
+}
+
+.terminal-panel-search > .app-icon {
+  color: #93c5fd;
+}
+
+.terminal-panel-search input {
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f8fafc;
+  font: 12px/1.2 Consolas, "Courier New", monospace;
+}
+
+.terminal-panel-search input::placeholder {
+  color: #7f94b2;
+}
+
+.terminal-panel-search-count {
+  overflow: hidden;
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-panel-search button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #cbd5e1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.terminal-panel-search button:first-of-type .app-icon {
+  transform: rotate(180deg);
+}
+
+.terminal-panel-search button:hover:not(:disabled) {
+  background: rgb(59 130 246 / 20%);
+  color: #eff6ff;
+}
+
+.terminal-panel-search button:disabled {
+  color: #64748b;
+  cursor: not-allowed;
 }
 
 .terminal-tab-multi-execution-indicator {

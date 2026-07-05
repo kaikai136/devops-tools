@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
-import type { IDisposable } from '@xterm/xterm';
+import type { IBufferLine, IDisposable } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
 import { ApiUnauthorizedError, apiDelete, apiGet, apiPost, apiPut } from '../../api';
@@ -60,6 +61,7 @@ interface TerminalTab {
   status: TerminalStatus;
   terminal: Terminal;
   fitAddon: FitAddon;
+  searchAddon: SearchAddon;
   socket: WebSocket | null;
   sessionId: string | null;
   mounted: boolean;
@@ -102,6 +104,12 @@ interface TerminalHighlightRule {
 interface TerminalHighlightState {
   sgrActive: boolean;
   pendingControl: string;
+}
+
+interface TerminalSearchMatch {
+  row: number;
+  col: number;
+  size: number;
 }
 
 interface PersistedTerminalTab {
@@ -411,7 +419,7 @@ const TERMINAL_SPLIT_MODE_STORAGE_KEY = 'ops-tool.web-terminal.split-mode';
 const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
-const TERMINAL_FONT_SIZE_DEFAULT = 14;
+const TERMINAL_FONT_SIZE_DEFAULT = 17;
 const TERMINAL_FONT_SIZE_MIN = 10;
 const TERMINAL_FONT_SIZE_MAX = 24;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
@@ -433,6 +441,14 @@ const TERMINAL_QUICK_COMMAND_PANEL_MIN_HEIGHT = 160;
 const TERMINAL_QUICK_COMMAND_PANEL_MAX_HEIGHT = 420;
 const TERMINAL_DOWNLOAD_FILE_CONCURRENCY = 1;
 const TERMINAL_DOWNLOAD_DIRECTORY_PICKER_ID = 'terminal-download-directory';
+const TERMINAL_SEARCH_DECORATIONS: NonNullable<ISearchOptions['decorations']> = {
+  matchBackground: '#7c3aed',
+  matchBorder: '#c084fc',
+  matchOverviewRuler: '#a855f7',
+  activeMatchBackground: '#a21caf',
+  activeMatchBorder: '#f0abfc',
+  activeMatchColorOverviewRuler: '#d946ef',
+};
 const TERMINAL_LOCAL_FILENAME_RESERVED_CHARS = /[<>:"/\\|?*\x00-\x1f]/g;
 const TERMINAL_LOCAL_FILENAME_RESERVED_NAMES = new Set([
   'CON',
@@ -764,12 +780,17 @@ const isTerminalTabMenuOpen = ref(false);
 const isTerminalSplitMenuOpen = ref(false);
 const isTerminalMultiExecutionEnabled = ref(false);
 const multiExecutionExcludedTabIds = ref<Set<string>>(new Set());
+const isTerminalSearchOpen = ref(false);
+const terminalSearchQuery = ref('');
+const terminalSearchResultIndex = ref(-1);
+const terminalSearchResultCount = ref(0);
+const terminalSearchInputRef = ref<HTMLInputElement | null>(null);
 const terminalTabsRef = ref<HTMLElement | null>(null);
 const canScrollTerminalTabsLeft = ref(false);
 const canScrollTerminalTabsRight = ref(false);
 const isLoadingTree = ref(false);
 const treeError = ref('');
-const highlightEnabled = ref(true);
+const highlightEnabled = ref(false);
 const terminalFontSize = ref(readTerminalFontSize());
 const terminalSplitMode = ref<TerminalSplitMode>(readTerminalSplitMode());
 const terminalSidebarMode = ref<TerminalSidebarMode>('hosts');
@@ -881,6 +902,12 @@ const filteredTerminalQuickCommands = computed(() => {
   });
 });
 const activeTerminalReady = computed(() => activeTab.value?.status === 'connected' && activeTab.value.socket?.readyState === WebSocket.OPEN);
+const terminalSearchResultText = computed(() => {
+  if (!terminalSearchQuery.value.trim()) return '';
+  if (terminalSearchResultCount.value <= 0) return '0';
+  if (terminalSearchResultIndex.value < 0) return String(terminalSearchResultCount.value);
+  return `${terminalSearchResultIndex.value + 1}/${terminalSearchResultCount.value}`;
+});
 const terminalMultiExecutionTargets = computed(() =>
   tabs.value.filter((tab) => isTerminalTabReady(tab) && !multiExecutionExcludedTabIds.value.has(tab.id)),
 );
@@ -2059,13 +2086,187 @@ function openTerminalTranslation(text: string, targetLanguage: 'zh-Hans' | 'en')
 function findTerminalText(query: string) {
   const value = query.trim();
   if (!value) return;
-  const finder = window as Window & { find?: (text: string, caseSensitive?: boolean, backwards?: boolean, wrap?: boolean) => boolean };
-  finder.find?.(value, false, false, true);
+  openTerminalSearch(value);
 }
 
 function promptFindTerminalText() {
-  const query = window.prompt('查找终端内容');
-  if (query) findTerminalText(query);
+  openTerminalSearch();
+}
+
+function getTerminalSearchOptions(incremental = false): ISearchOptions {
+  return {
+    caseSensitive: false,
+    incremental,
+    decorations: TERMINAL_SEARCH_DECORATIONS,
+  };
+}
+
+function resetTerminalSearchResultState() {
+  terminalSearchResultIndex.value = -1;
+  terminalSearchResultCount.value = 0;
+}
+
+function focusTerminalSearchInputSoon(select = false) {
+  void nextTick(() => {
+    const input = terminalSearchInputRef.value;
+    if (!input) return;
+    input.focus();
+    if (select) input.select();
+  });
+}
+
+function openTerminalSearch(initialQuery = '') {
+  if (!activeTab.value) return;
+  closeTerminalContextMenus();
+  isTerminalSearchOpen.value = true;
+  if (initialQuery.trim()) {
+    terminalSearchQuery.value = initialQuery.trim();
+  }
+  resetTerminalSearchResultState();
+  focusTerminalSearchInputSoon(!initialQuery.trim());
+  if (terminalSearchQuery.value.trim()) {
+    void nextTick(() => searchCurrentTerminal('next', true));
+  }
+}
+
+function clearTerminalSearchDecorations(tab: TerminalTab | null = activeTab.value) {
+  tab?.searchAddon.clearDecorations();
+}
+
+function clearAllTerminalSearchDecorations() {
+  for (const tab of tabs.value) clearTerminalSearchDecorations(tab);
+}
+
+function closeTerminalSearch() {
+  if (!isTerminalSearchOpen.value) return;
+  isTerminalSearchOpen.value = false;
+  clearAllTerminalSearchDecorations();
+  resetTerminalSearchResultState();
+  activeTab.value?.terminal.focus();
+}
+
+function searchCurrentTerminal(direction: 'next' | 'previous' = 'next', incremental = false) {
+  const query = terminalSearchQuery.value.trim();
+  const tab = activeTab.value;
+  if (!tab) {
+    resetTerminalSearchResultState();
+    return false;
+  }
+  if (!query) {
+    clearTerminalSearchDecorations(tab);
+    tab.terminal.clearSelection();
+    resetTerminalSearchResultState();
+    return false;
+  }
+  clearTerminalSearchDecorations(tab);
+  const matches = collectTerminalSearchMatches(tab, query);
+  terminalSearchResultCount.value = matches.length;
+  if (!matches.length) {
+    terminalSearchResultIndex.value = -1;
+    tab.terminal.clearSelection();
+    return false;
+  }
+
+  const currentIndex = terminalSearchResultIndex.value;
+  const nextIndex =
+    incremental || currentIndex < 0
+      ? 0
+      : direction === 'previous'
+        ? (currentIndex - 1 + matches.length) % matches.length
+        : (currentIndex + 1) % matches.length;
+  terminalSearchResultIndex.value = nextIndex;
+  decorateTerminalSearchMatches(tab, query);
+  selectTerminalSearchMatch(tab, matches[nextIndex]);
+  return true;
+}
+
+function decorateTerminalSearchMatches(tab: TerminalTab, query: string) {
+  try {
+    tab.searchAddon.findNext(query, getTerminalSearchOptions(false));
+  } catch {
+    // The buffer scan above is the source of truth; addon decorations are best-effort.
+  }
+}
+
+function selectTerminalSearchMatch(tab: TerminalTab, match: TerminalSearchMatch | undefined) {
+  if (!match) return;
+  const buffer = tab.terminal.buffer.active;
+  if (match.row < buffer.viewportY || match.row >= buffer.viewportY + tab.terminal.rows) {
+    tab.terminal.scrollToLine(Math.max(0, match.row - Math.floor(tab.terminal.rows / 2)));
+  }
+  tab.terminal.select(match.col, match.row, match.size);
+}
+
+function collectTerminalSearchMatches(tab: TerminalTab, query: string) {
+  const normalizedQuery = query.toLowerCase();
+  const matches: TerminalSearchMatch[] = [];
+  if (!normalizedQuery) return matches;
+
+  const buffer = tab.terminal.buffer.active;
+  const maxRow = buffer.baseY + tab.terminal.rows;
+  for (let row = 0; row < maxRow; row += 1) {
+    const line = buffer.getLine(row);
+    if (!line || line.isWrapped) continue;
+
+    const logicalLine = getTerminalLogicalSearchLine(tab, row, maxRow);
+    const searchText = logicalLine.text.toLowerCase();
+    let index = searchText.indexOf(normalizedQuery);
+    while (index !== -1) {
+      const position = getTerminalSearchBufferPosition(logicalLine.parts, index);
+      if (position) {
+        matches.push({
+          row: position.row,
+          col: position.col,
+          size: Math.max(1, query.length),
+        });
+      }
+      index = searchText.indexOf(normalizedQuery, index + Math.max(1, normalizedQuery.length));
+    }
+  }
+  return matches;
+}
+
+function getTerminalLogicalSearchLine(tab: TerminalTab, startRow: number, maxRow: number) {
+  const parts: Array<{ row: number; line: IBufferLine; start: number; text: string }> = [];
+  const buffer = tab.terminal.buffer.active;
+  let text = '';
+  for (let row = startRow; row < maxRow; row += 1) {
+    const line = buffer.getLine(row);
+    if (!line) break;
+    const nextLine = row + 1 < maxRow ? buffer.getLine(row + 1) : undefined;
+    const lineText = line.translateToString(!nextLine?.isWrapped);
+    parts.push({ row, line, start: text.length, text: lineText });
+    text += lineText;
+    if (!nextLine?.isWrapped) break;
+  }
+  return { text, parts };
+}
+
+function getTerminalSearchBufferPosition(
+  parts: Array<{ row: number; line: IBufferLine; start: number; text: string }>,
+  stringIndex: number,
+) {
+  for (const part of parts) {
+    if (stringIndex < part.start || stringIndex >= part.start + part.text.length) continue;
+    return {
+      row: part.row,
+      col: getTerminalColumnFromStringOffset(part.line, stringIndex - part.start),
+    };
+  }
+  return null;
+}
+
+function getTerminalColumnFromStringOffset(line: IBufferLine, offset: number) {
+  let consumed = 0;
+  for (let col = 0; col < line.length; col += 1) {
+    const cell = line.getCell(col);
+    if (!cell || cell.getWidth() === 0) continue;
+    const chars = cell.getChars() || ' ';
+    const nextConsumed = consumed + chars.length;
+    if (offset <= consumed || offset < nextConsumed) return col;
+    consumed = nextConsumed;
+  }
+  return Math.max(0, Math.min(line.length - 1, offset));
 }
 
 function openTerminalQuickCommandDialogFromText(commandText: string) {
@@ -3726,9 +3927,23 @@ watch([activeTabId, terminalSidebarMode], () => {
   syncTerminalMonitorPolling();
 });
 
-watch(activeTabId, () => {
+watch(activeTabId, (_tabId, previousTabId) => {
   terminalMonitorData.value = null;
   terminalMonitorError.value = '';
+  if (previousTabId) clearTerminalSearchDecorations(getTabById(previousTabId));
+  resetTerminalSearchResultState();
+  if (!activeTab.value) {
+    isTerminalSearchOpen.value = false;
+    return;
+  }
+  if (isTerminalSearchOpen.value && terminalSearchQuery.value.trim()) {
+    void nextTick(() => searchCurrentTerminal('next', true));
+  }
+});
+
+watch(terminalSearchQuery, () => {
+  if (!isTerminalSearchOpen.value) return;
+  searchCurrentTerminal('next', true);
 });
 
 watch(isTerminalMonitorPanelOpen, () => {
@@ -3794,6 +4009,10 @@ onBeforeUnmount(() => {
 
 function closeTerminalFileContextMenuOnEscape(event: KeyboardEvent) {
   if (event.key !== 'Escape') return;
+  if (isTerminalSearchOpen.value) {
+    closeTerminalSearch();
+    return;
+  }
   closeTerminalContextMenus();
   closeTerminalFileDeleteDialog();
   closeTerminalFileCreateDialog();
@@ -3874,17 +4093,19 @@ function createTerminalTab(
         background: '#000000',
         foreground: '#f5f7fb',
         cursor: '#f5f7fb',
-        selectionBackground: '#31588f',
+        selectionBackground: '#7e22ce',
       },
     }),
   );
   const fitAddon = markRaw(new FitAddon());
+  const searchAddon = markRaw(new SearchAddon({ highlightLimit: 2000 }));
   terminal.loadAddon(fitAddon);
+  terminal.loadAddon(searchAddon);
   terminal.attachCustomKeyEventHandler((event) => handleTerminalKey(event, terminal));
   terminal.writeln('CAPTAIN WEB TERMINAL');
   terminal.writeln(`正在连接 ${host.name} (${host.publicIp || host.privateIp}:${host.port})...`);
 
-  return {
+  const tab: TerminalTab = {
     id: tabId,
     host,
     customTitle: normalizeTerminalTabTitle(options.customTitle),
@@ -3892,6 +4113,7 @@ function createTerminalTab(
     status: 'connecting',
     terminal,
     fitAddon,
+    searchAddon,
     socket: null,
     sessionId: null,
     mounted: false,
@@ -3906,6 +4128,7 @@ function createTerminalTab(
     currentCwd: '',
     reconnectHintShown: false,
   };
+  return tab;
 }
 
 function createTerminalTabId(hostId: number) {
@@ -5270,6 +5493,17 @@ function readTerminalQuickCommandPanelCollapsed() {
               </button>
             </div>
           </div>
+          <button
+            type="button"
+            class="terminal-highlight-toggle"
+            :class="{ active: highlightEnabled }"
+            :title="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
+            :aria-label="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
+            :aria-pressed="highlightEnabled"
+            @click="highlightEnabled = !highlightEnabled"
+          >
+            <AppIcon name="sun" :size="15" />
+          </button>
           <div class="terminal-font-controls" :title="`终端字号 ${terminalFontSize}px`" aria-label="终端字号">
             <button
               type="button"
@@ -5293,14 +5527,15 @@ function readTerminalQuickCommandPanelCollapsed() {
           </div>
           <button
             type="button"
-            class="terminal-highlight-toggle"
-            :class="{ active: highlightEnabled }"
-            :title="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
-            :aria-label="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
-            :aria-pressed="highlightEnabled"
-            @click="highlightEnabled = !highlightEnabled"
+            class="terminal-search-toggle"
+            :class="{ active: isTerminalSearchOpen }"
+            title="查找当前终端"
+            aria-label="查找当前终端"
+            :aria-pressed="isTerminalSearchOpen"
+            :disabled="!activeTab"
+            @click="openTerminalSearch()"
           >
-            <AppIcon name="sun" :size="15" />
+            <AppIcon name="search" :size="15" />
           </button>
         </div>
         <span class="terminal-workspace-title">{{ workspaceTitle }}</span>
@@ -5486,6 +5721,33 @@ function readTerminalQuickCommandPanelCollapsed() {
             @mousedown.capture="isTerminalTabVisible(tab) && tab.id !== activeTabId && activateTab(tab.id)"
             @contextmenu="openTerminalContextMenu(tab, $event)"
           >
+            <div
+              v-if="isTerminalSearchOpen && tab.id === activeTabId"
+              class="terminal-panel-search"
+              @click.stop
+              @mousedown.stop
+              @contextmenu.stop
+            >
+              <AppIcon name="search" :size="14" />
+              <input
+                ref="terminalSearchInputRef"
+                v-model="terminalSearchQuery"
+                type="search"
+                placeholder="查找当前终端"
+                @keydown.enter.prevent="searchCurrentTerminal($event.shiftKey ? 'previous' : 'next')"
+                @keydown.esc.prevent.stop="closeTerminalSearch"
+              />
+              <span class="terminal-panel-search-count">{{ terminalSearchResultText }}</span>
+              <button type="button" title="上一个" aria-label="上一个" :disabled="!terminalSearchQuery.trim()" @click="searchCurrentTerminal('previous')">
+                <AppIcon name="chevronDown" :size="14" />
+              </button>
+              <button type="button" title="下一个" aria-label="下一个" :disabled="!terminalSearchQuery.trim()" @click="searchCurrentTerminal('next')">
+                <AppIcon name="chevronDown" :size="14" />
+              </button>
+              <button type="button" title="关闭" aria-label="关闭" @click="closeTerminalSearch">
+                <AppIcon name="x" :size="14" />
+              </button>
+            </div>
             <div :ref="(element) => setTerminalContainer(tab.id, element)" class="terminal-xterm-host"></div>
             <label
               v-if="isTerminalMultiExecutionEnabled"
