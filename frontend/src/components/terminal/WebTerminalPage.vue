@@ -762,6 +762,8 @@ const tabs = ref<TerminalTab[]>([]);
 const activeTabId = ref<string | null>(null);
 const isTerminalTabMenuOpen = ref(false);
 const isTerminalSplitMenuOpen = ref(false);
+const isTerminalMultiExecutionEnabled = ref(false);
+const multiExecutionExcludedTabIds = ref<Set<string>>(new Set());
 const terminalTabsRef = ref<HTMLElement | null>(null);
 const canScrollTerminalTabsLeft = ref(false);
 const canScrollTerminalTabsRight = ref(false);
@@ -879,6 +881,17 @@ const filteredTerminalQuickCommands = computed(() => {
   });
 });
 const activeTerminalReady = computed(() => activeTab.value?.status === 'connected' && activeTab.value.socket?.readyState === WebSocket.OPEN);
+const terminalMultiExecutionTargets = computed(() =>
+  tabs.value.filter((tab) => isTerminalTabReady(tab) && !multiExecutionExcludedTabIds.value.has(tab.id)),
+);
+const terminalMultiExecutionTargetCount = computed(() => terminalMultiExecutionTargets.value.length);
+const hasTerminalMultiExecutionCandidates = computed(() => tabs.value.some((tab) => isTerminalTabReady(tab)));
+const canSendToTerminalMultiExecutionTargets = computed(
+  () => isTerminalMultiExecutionEnabled.value && terminalMultiExecutionTargetCount.value > 0,
+);
+const terminalQuickCommandReady = computed(() =>
+  isTerminalMultiExecutionEnabled.value ? canSendToTerminalMultiExecutionTargets.value : activeTerminalReady.value,
+);
 const canDecreaseTerminalFontSize = computed(() => terminalFontSize.value > TERMINAL_FONT_SIZE_MIN);
 const canIncreaseTerminalFontSize = computed(() => terminalFontSize.value < TERMINAL_FONT_SIZE_MAX);
 const canUseTerminalQuickCommands = computed(() => {
@@ -1183,6 +1196,119 @@ function getTerminalTabLabel(tab: TerminalTab) {
   return tab.customTitle || tab.host.name;
 }
 
+function getTerminalMultiExecutionStatusText() {
+  const total = tabs.value.filter((tab) => isTerminalTabReady(tab)).length;
+  const targetCount = terminalMultiExecutionTargetCount.value;
+  if (!total) return '没有已连接终端';
+  return `键入内容将发送到 ${targetCount} / ${total} 个已连接终端`;
+}
+
+function isTerminalMultiExecutionExcluded(tab: TerminalTab) {
+  return multiExecutionExcludedTabIds.value.has(tab.id);
+}
+
+function shouldShowTerminalMultiExecutionTabIndicator(tab: TerminalTab) {
+  return isTerminalMultiExecutionEnabled.value && isTerminalTabReady(tab) && !isTerminalMultiExecutionExcluded(tab);
+}
+
+function setTerminalMultiExecutionExcluded(tab: TerminalTab, excluded: boolean) {
+  const next = new Set(multiExecutionExcludedTabIds.value);
+  if (excluded) {
+    next.add(tab.id);
+  } else {
+    next.delete(tab.id);
+  }
+  multiExecutionExcludedTabIds.value = next;
+}
+
+function setTerminalMultiExecutionExcludedFromEvent(tab: TerminalTab, event: Event) {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  setTerminalMultiExecutionExcluded(tab, input.checked);
+}
+
+function pruneTerminalMultiExecutionExclusions() {
+  if (!multiExecutionExcludedTabIds.value.size) return;
+  const knownTabIds = new Set(tabs.value.map((tab) => tab.id));
+  const next = new Set([...multiExecutionExcludedTabIds.value].filter((tabId) => knownTabIds.has(tabId)));
+  if (next.size !== multiExecutionExcludedTabIds.value.size) {
+    multiExecutionExcludedTabIds.value = next;
+  }
+}
+
+async function enableTerminalMultiExecution() {
+  if (!hasTerminalMultiExecutionCandidates.value) return;
+  const firstTarget = terminalMultiExecutionTargets.value[0];
+  if (firstTarget && !isTerminalTabReady(activeTab.value)) {
+    await activateTab(firstTarget.id);
+  }
+  isTerminalMultiExecutionEnabled.value = true;
+  pruneTerminalMultiExecutionExclusions();
+  if (terminalSplitMode.value === 'single' && connectedTerminalTabs.value.length >= 2) {
+    setTerminalSplitMode('auto');
+  } else {
+    fitVisibleTerminalsSoon();
+  }
+}
+
+function exitTerminalMultiExecution() {
+  isTerminalMultiExecutionEnabled.value = false;
+  multiExecutionExcludedTabIds.value = new Set();
+  fitVisibleTerminalsSoon();
+}
+
+async function toggleTerminalMultiExecution() {
+  if (isTerminalMultiExecutionEnabled.value) {
+    exitTerminalMultiExecution();
+  } else {
+    await enableTerminalMultiExecution();
+  }
+}
+
+function sendTerminalInput(tab: TerminalTab | null, data: string, options: { focus?: boolean } = {}) {
+  if (!data || !isTerminalTabReady(tab)) return false;
+  tab.socket?.send(JSON.stringify({ type: 'input', data }));
+  if (options.focus) tab.terminal.focus();
+  return true;
+}
+
+function getTerminalMultiExecutionBroadcastTargets(sourceTab: TerminalTab | null = null) {
+  if (!isTerminalMultiExecutionEnabled.value) return [];
+  if (sourceTab && isTerminalMultiExecutionExcluded(sourceTab)) return [];
+  return terminalMultiExecutionTargets.value.filter((tab) => tab.id !== sourceTab?.id);
+}
+
+function broadcastTerminalInputToMultiExecutionTargets(data: string, sourceTab: TerminalTab | null = null) {
+  if (!data) return 0;
+  const targets = sourceTab ? getTerminalMultiExecutionBroadcastTargets(sourceTab) : terminalMultiExecutionTargets.value;
+  let sentCount = 0;
+  for (const tab of targets) {
+    if (sendTerminalInput(tab, data)) sentCount += 1;
+  }
+  return sentCount;
+}
+
+function sendTerminalInputToMultiExecutionTargets(data: string) {
+  if (!data || !canSendToTerminalMultiExecutionTargets.value) return false;
+  const sentCount = broadcastTerminalInputToMultiExecutionTargets(data);
+  activeTab.value?.terminal.focus();
+  return sentCount > 0;
+}
+
+async function pasteClipboardToTerminalMultiExecutionTargets() {
+  if (!canSendToTerminalMultiExecutionTargets.value) return;
+  try {
+    const value = await navigator.clipboard?.readText();
+    if (value) sendTerminalInputToMultiExecutionTargets(value);
+  } catch {
+    // Keep the multi-paste action quiet when the browser blocks clipboard reads.
+  }
+}
+
+function canSendQuickCommandToTab(tab: TerminalTab | null) {
+  return isTerminalMultiExecutionEnabled.value ? canSendToTerminalMultiExecutionTargets.value : isTerminalTabReady(tab);
+}
+
 function getTerminalServerIp(tab: TerminalTab | null) {
   return tab?.host.publicIp || tab?.host.privateIp || '';
 }
@@ -1222,10 +1348,13 @@ function getTerminalTabsRightOf(tab: TerminalTab) {
 }
 
 function sendQuickCommandToTerminalTab(command: TerminalQuickCommand, execute: boolean, tab: TerminalTab | null) {
-  if (!command.enabled || !isTerminalTabReady(tab)) return;
+  if (!command.enabled || !canSendQuickCommandToTab(tab)) return;
   const data = execute ? `${command.command}\r` : command.command;
-  tab.socket?.send(JSON.stringify({ type: 'input', data }));
-  tab.terminal.focus();
+  if (isTerminalMultiExecutionEnabled.value) {
+    sendTerminalInputToMultiExecutionTargets(data);
+    return;
+  }
+  sendTerminalInput(tab, data, { focus: true });
 }
 
 function getTerminalTabQuickCommandItems(tab: TerminalTab | null): TerminalContextMenuItem[] {
@@ -1250,7 +1379,7 @@ function getTerminalTabQuickCommandItems(tab: TerminalTab | null): TerminalConte
         id: `tab-quick-append-${command.id}`,
         label: `追加：${command.name}`,
         icon: 'cornerDownLeft',
-        enabled: isTerminalTabReady(tab),
+        enabled: canSendQuickCommandToTab(tab),
         separatorBefore: items.length === 2,
         action: () => sendQuickCommandToTerminalTab(command, false, tab),
       },
@@ -1258,7 +1387,7 @@ function getTerminalTabQuickCommandItems(tab: TerminalTab | null): TerminalConte
         id: `tab-quick-run-${command.id}`,
         label: `执行：${command.name}`,
         icon: 'zap',
-        enabled: isTerminalTabReady(tab),
+        enabled: canSendQuickCommandToTab(tab),
         action: () => sendQuickCommandToTerminalTab(command, true, tab),
       },
     );
@@ -1752,10 +1881,14 @@ function handleTerminalAuthStorageEvent(event: StorageEvent) {
 }
 
 function sendQuickCommandToTerminal(command: TerminalQuickCommand, execute: boolean) {
-  if (!command.enabled || !activeTerminalReady.value || !activeTab.value) return;
+  if (!command.enabled) return;
   const data = execute ? `${command.command}\r` : command.command;
-  activeTab.value.socket?.send(JSON.stringify({ type: 'input', data }));
-  activeTab.value.terminal.focus();
+  if (isTerminalMultiExecutionEnabled.value) {
+    sendTerminalInputToMultiExecutionTargets(data);
+    return;
+  }
+  if (!activeTerminalReady.value || !activeTab.value) return;
+  sendTerminalInput(activeTab.value, data, { focus: true });
 }
 
 function closeTerminalContextMenus() {
@@ -1896,9 +2029,7 @@ async function pasteClipboardToTerminal(tab: TerminalTab | null) {
 }
 
 function sendTextToTerminal(value: string, tab: TerminalTab | null) {
-  if (!value || !isTerminalTabReady(tab)) return;
-  tab.socket?.send(JSON.stringify({ type: 'input', data: value }));
-  tab.terminal.focus();
+  sendTerminalInput(tab, value, { focus: true });
 }
 
 function sendControlToTerminal(value: string, tab: TerminalTab | null) {
@@ -1977,7 +2108,7 @@ function getTerminalQuickCommandContextItems(tab: TerminalTab | null): TerminalC
       id: `quick-${command.id}`,
       label: command.name,
       icon: 'terminal',
-      enabled: isTerminalTabReady(tab),
+      enabled: canSendQuickCommandToTab(tab),
       separatorBefore: items.length === 2,
       action: () => sendQuickCommandToTerminal(command, false),
     });
@@ -3823,8 +3954,8 @@ function mountTerminal(tab: TerminalTab) {
       const sendableData = getSendableTerminalData(tab, data);
       if (!sendableData) return;
 
-      if (tab.socket?.readyState === WebSocket.OPEN) {
-        tab.socket.send(JSON.stringify({ type: 'input', data: sendableData }));
+      if (sendTerminalInput(tab, sendableData)) {
+        broadcastTerminalInputToMultiExecutionTargets(sendableData, tab);
       }
     }),
   );
@@ -4190,6 +4321,7 @@ async function closeTerminalTabs(targetTabs: TerminalTab[]) {
     terminalContainers.delete(tab.id);
   }
   tabs.value = remainingTabs;
+  pruneTerminalMultiExecutionExclusions();
   await nextTick();
 
   if (previousActiveId && !closingIds.has(previousActiveId) && remainingTabs.some((tab) => tab.id === previousActiveId)) {
@@ -5092,11 +5224,24 @@ function readTerminalQuickCommandPanelCollapsed() {
       :class="{
         'quick-panel-collapsed': shouldShowTerminalQuickCommandPanel && isTerminalQuickCommandPanelCollapsed,
         'quick-panel-resizing': shouldShowTerminalQuickCommandPanel && isTerminalQuickCommandPanelResizing,
+        'multi-execution-enabled': isTerminalMultiExecutionEnabled,
       }"
       :style="terminalQuickCommandPanelStyle"
     >
       <div class="terminal-hint">
         <div class="terminal-hint-actions">
+          <button
+            type="button"
+            class="terminal-multi-execution-toggle"
+            :class="{ active: isTerminalMultiExecutionEnabled }"
+            :title="isTerminalMultiExecutionEnabled ? '退出多执行模式' : '开启多执行模式'"
+            :aria-label="isTerminalMultiExecutionEnabled ? '退出多执行模式' : '开启多执行模式'"
+            :aria-pressed="isTerminalMultiExecutionEnabled"
+            :disabled="!isTerminalMultiExecutionEnabled && !hasTerminalMultiExecutionCandidates"
+            @click="toggleTerminalMultiExecution"
+          >
+            <AppIcon name="chevronsRight" :size="15" />
+          </button>
           <div class="terminal-split-menu" @click.stop>
             <button
               type="button"
@@ -5160,6 +5305,29 @@ function readTerminalQuickCommandPanelCollapsed() {
         </div>
         <span class="terminal-workspace-title">{{ workspaceTitle }}</span>
       </div>
+      <div v-if="isTerminalMultiExecutionEnabled" class="terminal-multi-execution-bar">
+        <div class="terminal-multi-execution-info">
+          <AppIcon name="chevronsRight" :size="16" />
+          <strong>多执行模式</strong>
+          <span>{{ getTerminalMultiExecutionStatusText() }}</span>
+        </div>
+        <div class="terminal-multi-execution-actions">
+          <button
+            type="button"
+            title="多粘贴"
+            aria-label="多粘贴"
+            :disabled="!canSendToTerminalMultiExecutionTargets"
+            @click="pasteClipboardToTerminalMultiExecutionTargets"
+          >
+            <AppIcon name="clipboard" :size="14" />
+            <span>多粘贴</span>
+          </button>
+          <button type="button" title="退出多执行模式" aria-label="退出多执行模式" @click="exitTerminalMultiExecution">
+            <AppIcon name="x" :size="14" />
+            <span>退出</span>
+          </button>
+        </div>
+      </div>
       <div class="terminal-tabbar">
         <div ref="terminalTabsRef" class="terminal-tabs" @scroll="syncTerminalTabsScrollState">
           <button
@@ -5168,12 +5336,25 @@ function readTerminalQuickCommandPanelCollapsed() {
             type="button"
             class="terminal-tab"
             :data-terminal-tab-id="tab.id"
-            :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
+            :class="{
+              active: tab.id === activeTabId,
+              closed: tab.status === 'closed',
+              error: tab.status === 'error',
+              'multi-execution-target': shouldShowTerminalMultiExecutionTabIndicator(tab),
+            }"
             :style="getTerminalTabStyle(tab)"
             @click="activateTab(tab.id)"
             @contextmenu="openTerminalTabContextMenu(tab, $event)"
           >
             <span class="terminal-tab-label">{{ getTerminalTabLabel(tab) }}</span>
+            <span
+              v-if="shouldShowTerminalMultiExecutionTabIndicator(tab)"
+              class="terminal-tab-multi-execution-indicator"
+              title="多执行控制中"
+              aria-label="多执行控制中"
+            >
+              <AppIcon name="chevronsRight" :size="12" :stroke-width="2.5" />
+            </span>
             <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
             <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)"><AppIcon name="x" :size="13" /></span>
           </button>
@@ -5295,13 +5476,32 @@ function readTerminalQuickCommandPanelCollapsed() {
           <div
             v-for="tab in tabs"
             :key="tab.id"
-            :ref="(element) => setTerminalContainer(tab.id, element)"
             class="terminal-panel"
-            :class="{ active: tab.id === activeTabId, visible: isTerminalTabVisible(tab) }"
+            :class="{
+              active: tab.id === activeTabId,
+              visible: isTerminalTabVisible(tab),
+              excluded: isTerminalMultiExecutionEnabled && isTerminalMultiExecutionExcluded(tab),
+            }"
             :aria-hidden="!isTerminalTabVisible(tab)"
             @mousedown.capture="isTerminalTabVisible(tab) && tab.id !== activeTabId && activateTab(tab.id)"
             @contextmenu="openTerminalContextMenu(tab, $event)"
-          ></div>
+          >
+            <div :ref="(element) => setTerminalContainer(tab.id, element)" class="terminal-xterm-host"></div>
+            <label
+              v-if="isTerminalMultiExecutionEnabled"
+              class="terminal-multi-execution-exclude"
+              @click.stop
+              @mousedown.stop
+              @contextmenu.stop
+            >
+              <input
+                type="checkbox"
+                :checked="isTerminalMultiExecutionExcluded(tab)"
+                @change="setTerminalMultiExecutionExcludedFromEvent(tab, $event)"
+              />
+              <span>不控制 {{ getTerminalTabLabel(tab) }}</span>
+            </label>
+          </div>
         </div>
         <div
           v-if="terminalContextMenu.visible"
@@ -5487,7 +5687,8 @@ function readTerminalQuickCommandPanelCollapsed() {
         <header class="terminal-quick-header">
           <div>
             <strong><AppIcon name="zap" :size="15" />快捷命令</strong>
-            <span v-if="!activeTerminalReady">请选择已连接的终端</span>
+            <span v-if="isTerminalMultiExecutionEnabled">多执行目标 {{ terminalMultiExecutionTargetCount }} 个</span>
+            <span v-else-if="!activeTerminalReady">请选择已连接的终端</span>
             <span v-else>{{ activeTab?.host.name }}</span>
           </div>
           <div class="terminal-quick-actions">
@@ -5560,7 +5761,7 @@ function readTerminalQuickCommandPanelCollapsed() {
                       type="button"
                       title="立即执行"
                       aria-label="立即执行"
-                      :disabled="!command.enabled || !activeTerminalReady"
+                      :disabled="!command.enabled || !terminalQuickCommandReady"
                       @click="sendQuickCommandToTerminal(command, true)"
                     >
                       <AppIcon name="zap" :size="14" />
@@ -5570,7 +5771,7 @@ function readTerminalQuickCommandPanelCollapsed() {
                       type="button"
                       title="追加输入"
                       aria-label="追加输入"
-                      :disabled="!command.enabled || !activeTerminalReady"
+                      :disabled="!command.enabled || !terminalQuickCommandReady"
                       @click="sendQuickCommandToTerminal(command, false)"
                     >
                       <AppIcon name="cornerDownLeft" :size="14" />
