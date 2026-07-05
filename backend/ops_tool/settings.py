@@ -1,10 +1,31 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-vue-dev-secret-key"
-DEBUG = True
-ALLOWED_HOSTS = ["*"]
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_list(name: str, default: list[str] | None = None) -> list[str]:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default or []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def env_path(name: str, default: Path) -> Path:
+    return Path(os.environ.get(name, str(default)))
+
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-vue-dev-secret-key")
+DEBUG = env_bool("DJANGO_DEBUG", True)
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["*"])
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
     "daphne",
@@ -29,6 +50,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -62,7 +84,7 @@ ASGI_APPLICATION = "ops_tool.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": env_path("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3"),
     }
 }
 
@@ -71,12 +93,28 @@ TIME_ZONE = "Asia/Shanghai"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+STATIC_URL = os.environ.get("DJANGO_STATIC_URL", "/static/")
+STATIC_ROOT = env_path("DJANGO_STATIC_ROOT", BASE_DIR / "staticfiles")
+FRONTEND_DIST_DIR = env_path("DJANGO_FRONTEND_DIST_DIR", BASE_DIR / "frontend_dist")
+STATICFILES_DIRS = [FRONTEND_DIST_DIR] if FRONTEND_DIST_DIR.exists() else []
+MEDIA_URL = os.environ.get("DJANGO_MEDIA_URL", "/media/")
+MEDIA_ROOT = env_path("DJANGO_MEDIA_ROOT", BASE_DIR / "media")
+SERVE_MEDIA_FILES = env_bool("DJANGO_SERVE_MEDIA_FILES", DEBUG)
+WHITENOISE_AUTOREFRESH = env_bool("WHITENOISE_AUTOREFRESH", DEBUG)
+WHITENOISE_USE_FINDERS = env_bool("WHITENOISE_USE_FINDERS", DEBUG)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = env_bool("DJANGO_CORS_ALLOW_ALL_ORIGINS", DEBUG)
+CORS_ALLOWED_ORIGINS = env_list("DJANGO_CORS_ALLOWED_ORIGINS")
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["accounts.authentication.CsrfExemptSessionAuthentication"],
