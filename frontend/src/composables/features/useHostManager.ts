@@ -238,7 +238,7 @@ export function useHostManager({
       const [groups, hosts, credentials] = await Promise.all([
         hostApi.listHostGroups(),
         hostApi.listManagedHosts(),
-        hostApi.listHostCredentials(),
+        loadHostCredentials(),
       ]);
       hostGroups.value = groups;
       managedHosts.value = hosts;
@@ -250,6 +250,25 @@ export function useHostManager({
     } finally {
       isLoadingHosts.value = false;
     }
+  }
+
+  async function loadHostCredentials() {
+    const credentials = await hostApi.listHostCredentials();
+    hostCredentials.value = credentials;
+    return credentials;
+  }
+
+  function replaceHostCredential(credential: HostCredential) {
+    const index = hostCredentials.value.findIndex((item) => item.id === credential.id);
+    if (index >= 0) {
+      hostCredentials.value.splice(index, 1, credential);
+    } else {
+      hostCredentials.value.push(credential);
+    }
+  }
+
+  function removeHostCredential(credentialId: number) {
+    hostCredentials.value = hostCredentials.value.filter((item) => item.id !== credentialId);
   }
 
   async function exportHostManagement(format: HostTransferFormat = 'json', options: HostExportOptions = {}) {
@@ -582,7 +601,7 @@ export function useHostManager({
         sort_after: rootHostGroupSortAfter.value,
       });
       hostGroups.value = result.groups;
-      selectedHostGroup.value = result.group.key;
+      if (result.group) selectedHostGroup.value = result.group.key;
       hostGroupRootExpanded.value = true;
       rootHostGroupDialogOpen.value = false;
       showToast('操作成功', '分组已添加。');
@@ -654,8 +673,13 @@ export function useHostManager({
     }
   }
 
-  function addManagedHost(group = selectedHostGroup.value ?? flatHostGroups.value[0]?.key ?? null) {
+  async function addManagedHost(group = selectedHostGroup.value ?? flatHostGroups.value[0]?.key ?? null) {
     closeHostGroupMenu();
+    try {
+      await loadHostCredentials();
+    } catch (error) {
+      showToast('账号加载失败', (error as Error).message);
+    }
     const targetGroup = group ?? flatHostGroups.value[0]?.key ?? null;
     hostForm.value = emptyHostForm(targetGroup, managedHosts.value.length + 10);
     hostDialog.value = { mode: 'create', hostId: null };
@@ -944,6 +968,9 @@ export function useHostManager({
     verifyingHostIds,
     selectedManagedHostIds,
     loadHostManagement,
+    loadHostCredentials,
+    replaceHostCredential,
+    removeHostCredential,
     backupHostManagement,
     exportHostManagement,
     importHostManagement,

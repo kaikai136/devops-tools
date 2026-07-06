@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { useAppContext } from '../../appContext';
-import { createHostCredential, deleteHostCredential, listHostCredentials, updateHostCredential } from '../../services/hostManagement';
+import { createHostCredential, deleteHostCredential, updateHostCredential } from '../../services/hostManagement';
 import type { HostCredential } from '../../types';
 import AppIcon from '../common/AppIcon.vue';
 
@@ -16,9 +16,17 @@ interface CredentialForm {
   remark: string;
 }
 
-const { activeTool, canUsePageAction, canUseAnyPageAction } = useAppContext();
+const {
+  activeTool,
+  hostCredentials,
+  loadHostCredentials,
+  replaceHostCredential,
+  removeHostCredential,
+  canUsePageAction,
+  canUseAnyPageAction,
+} = useAppContext();
 
-const credentials = ref<HostCredential[]>([]);
+const credentials = hostCredentials;
 const search = ref('');
 const isLoading = ref(false);
 const message = ref('');
@@ -46,7 +54,7 @@ async function loadCredentials() {
   isLoading.value = true;
   message.value = '';
   try {
-    credentials.value = await listHostCredentials();
+    await loadHostCredentials();
   } catch (error) {
     message.value = (error as Error).message;
   } finally {
@@ -94,7 +102,7 @@ async function saveCredential() {
       dialog.value?.mode === 'edit' && dialog.value.credentialId
         ? await updateHostCredential(dialog.value.credentialId, payload)
         : await createHostCredential(payload);
-    replaceCredential(saved);
+    replaceHostCredential(saved);
     dialog.value = null;
   } catch (error) {
     message.value = (error as Error).message;
@@ -116,19 +124,10 @@ async function deleteCredential() {
   try {
     const targetId = confirmDelete.value.id;
     await deleteHostCredential(targetId);
-    credentials.value = credentials.value.filter((item) => item.id !== targetId);
+    removeHostCredential(targetId);
     confirmDelete.value = null;
   } catch (error) {
     message.value = (error as Error).message;
-  }
-}
-
-function replaceCredential(credential: HostCredential) {
-  const index = credentials.value.findIndex((item) => item.id === credential.id);
-  if (index >= 0) {
-    credentials.value.splice(index, 1, credential);
-  } else {
-    credentials.value.push(credential);
   }
 }
 

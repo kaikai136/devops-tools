@@ -157,7 +157,8 @@ async function refreshDashboard() {
   if (isDashboardRefreshing.value) return;
   isDashboardRefreshing.value = true;
   try {
-    await dashboardPageRef.value?.refresh();
+    const refresh = dashboardPageRef.value?.refresh;
+    if (refresh) await refresh();
     showToast('刷新完成', '仪表盘数据已更新。');
   } finally {
     isDashboardRefreshing.value = false;

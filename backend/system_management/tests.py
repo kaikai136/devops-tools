@@ -15,6 +15,7 @@ from .services import (
     BUILTIN_ADMIN_USERNAME,
     FEATURE_PERMISSION_CODE_BY_KEY,
     PAGE_ACTION_PERMISSION_CODE_BY_KEY,
+    UI_PERMISSION_CODES,
     ensure_builtin_admin,
     ensure_feature_permissions,
     record_login_log,
@@ -180,6 +181,15 @@ class BuiltinAdminTests(TestCase):
         self.assertTrue(admin.is_superuser)
         self.assertTrue(admin.check_password("Admin@123456"))
         self.assertTrue(any(item["username"] == BUILTIN_ADMIN_USERNAME and item["isBuiltinAdmin"] for item in response.json()))
+
+    def test_builtin_admin_is_bound_to_admin_role(self):
+        admin = ensure_builtin_admin()
+
+        role = Group.objects.filter(name="\u7ba1\u7406\u5458").first()
+
+        self.assertIsNotNone(role)
+        self.assertTrue(admin.groups.filter(id=role.id).exists())
+        self.assertEqual(set(role.permissions.values_list("codename", flat=True)), UI_PERMISSION_CODES)
 
     def test_builtin_admin_password_is_not_reset_after_profile_change(self):
         admin = ensure_builtin_admin()

@@ -14,6 +14,7 @@ BUILTIN_ADMIN_EMAIL = "admin@ops.local"
 BUILTIN_ADMIN_FIRST_NAME = "System Administrator"
 BUILTIN_ADMIN_PASSWORD_ENV = "OPS_TOOL_ADMIN_PASSWORD"
 BUILTIN_ADMIN_DEFAULT_PASSWORD = "Admin@123456"
+BUILTIN_ADMIN_ROLE_NAME = "\u7ba1\u7406\u5458"
 
 FEATURE_PERMISSION_DEFINITIONS = [
     ("dashboard", "仪表盘", "dashboard", "仪表盘"),
@@ -157,6 +158,7 @@ def ensure_builtin_admin():
 
     if update_fields:
         user.save(update_fields=list(dict.fromkeys(update_fields)))
+    ensure_builtin_admin_role(user)
     return user
 
 
@@ -202,6 +204,18 @@ def ensure_feature_permissions():
     inherit_created_action_permissions(page_permissions_by_key, created_action_permissions_by_feature)
     _feature_permissions_ready = True
     return permissions
+
+
+def ensure_builtin_admin_role(user=None):
+    if user is None:
+        user = ensure_builtin_admin()
+
+    permissions = ensure_feature_permissions()
+    role, _created = Group.objects.get_or_create(name=BUILTIN_ADMIN_ROLE_NAME)
+    role.permissions.set(permissions)
+    if not user.groups.filter(id=role.id).exists():
+        user.groups.add(role)
+    return role
 
 
 def inherit_created_action_permissions(page_permissions_by_key: dict[str, Permission], created_action_permissions_by_feature: dict[str, list[Permission]]):

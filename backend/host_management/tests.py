@@ -1,9 +1,21 @@
-from django.test import TestCase
+from importlib import import_module
+
+from django.db import migrations
+from django.test import SimpleTestCase, TestCase
 
 from web_terminal.services import TerminalConnectionError
 
 from .models import HostCredential, HostGroup, ManagedHost
 from .probe import verify_host
+
+
+class HostInitialMigrationTests(SimpleTestCase):
+    def test_initial_migration_does_not_seed_demo_hosts(self):
+        migration_module = import_module("host_management.migrations.0001_initial")
+
+        seed_operations = [operation for operation in migration_module.Migration.operations if isinstance(operation, migrations.RunPython)]
+
+        self.assertEqual(seed_operations, [])
 
 
 class HostVerifyTests(TestCase):
