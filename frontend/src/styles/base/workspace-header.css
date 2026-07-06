@@ -468,7 +468,7 @@ label span {
   color: #64748b;
 }
 
-.workspace-dark button:not(.primary):not(.danger):not(.modal-close):not(.workspace-menu-button):not(.workspace-icon-button):not(.workspace-avatar-button):not(.workspace-menu-action):not(.sidebar-toggle):not(.nav-dashboard-button):not(.nav-dashboard-compact):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab) {
+.workspace-dark button:not(.primary):not(.danger):not(.modal-close):not(.workspace-menu-button):not(.workspace-icon-button):not(.workspace-avatar-button):not(.workspace-menu-action):not(.nav-dashboard-button):not(.nav-dashboard-compact):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab) {
   border-color: var(--workspace-border);
   background: var(--workspace-surface-muted);
   color: var(--workspace-text-soft);

@@ -190,17 +190,6 @@ async function lockCurrentSession() {
     <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
         <img :src="sidebarLogoUrl" :alt="siteIdentity.appName" />
-        <button
-          class="sidebar-toggle"
-          type="button"
-          :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
-          :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
-          @click="toggleSidebar"
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -237,18 +226,20 @@ async function lockCurrentSession() {
             <span class="nav-caret"><AppIcon name="chevronDown" :size="14" /></span>
           </button>
           <Transition name="nav-collapse">
-            <div v-if="groupsOpen[group.key] && !sidebarCollapsed" class="nav-items">
-              <button
-                v-for="item in group.items"
-                :key="item.key"
-                class="nav-item"
-                :class="{ active: activeTool === item.key }"
-                type="button"
-                @click="setActiveTool(item.key)"
-              >
-                <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
-                <span>{{ item.label }}</span>
-              </button>
+            <div v-if="groupsOpen[group.key] && !sidebarCollapsed" class="nav-items-shell">
+              <div class="nav-items">
+                <button
+                  v-for="item in group.items"
+                  :key="item.key"
+                  class="nav-item"
+                  :class="{ active: activeTool === item.key }"
+                  type="button"
+                  @click="setActiveTool(item.key)"
+                >
+                  <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
+                  <span>{{ item.label }}</span>
+                </button>
+              </div>
             </div>
           </Transition>
           <div
