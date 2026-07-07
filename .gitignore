@@ -21,6 +21,7 @@ pnpm-debug.log*
 
 # Local runtime logs
 *.log
+.worktrees/
 
 # Editor / OS
 .DS_Store
