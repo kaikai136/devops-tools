@@ -73,11 +73,10 @@
   animation: lock-panel-shake 320ms ease;
 }
 
-.lock-screen-avatar {
+.lock-screen-avatar.user-avatar {
   width: 104px;
   height: 104px;
   border-radius: 50%;
-  object-fit: cover;
   border: 5px solid rgba(255, 255, 255, 0.86);
   box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
 }

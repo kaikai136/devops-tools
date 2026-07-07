@@ -16,6 +16,8 @@ class FrontendServingTests(SimpleTestCase):
             "<!doctype html><html><body><div id=\"terminal-app\"></div></body></html>",
             encoding="utf-8",
         )
+        self.banner_bytes = b"\x89PNG\r\n\x1a\nbrand"
+        (self.frontend_dist / "captain-banner.png").write_bytes(self.banner_bytes)
         self.static_root = self.frontend_dist / "static-root"
         self.static_root.mkdir()
 
@@ -43,6 +45,17 @@ class FrontendServingTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'id="app"', b"".join(response.streaming_content))
+
+    def test_root_level_frontend_asset_serves_file(self):
+        with override_settings(FRONTEND_DIST_DIR=self.frontend_dist, STATIC_ROOT=self.static_root):
+            response = self.client.get("/captain-banner.png")
+
+        try:
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Content-Type"], "image/png")
+            self.assertEqual(b"".join(response.streaming_content), self.banner_bytes)
+        finally:
+            response.close()
 
     def test_missing_frontend_dist_returns_not_found(self):
         with override_settings(FRONTEND_DIST_DIR=self.frontend_dist / "missing", STATIC_ROOT=self.static_root):

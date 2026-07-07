@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 import { errorMessage } from '../../utils/errors';
 import AppIcon from './AppIcon.vue';
+import UserAvatar from './UserAvatar.vue';
 
 interface WaterfallColumn {
   id: number;
@@ -15,7 +16,9 @@ interface WaterfallColumn {
 const props = defineProps<{
   locked: boolean;
   avatarUrl: string;
+  username?: string;
   displayName: string;
+  firstName?: string;
   account: string;
   unlockSession: (password: string) => Promise<unknown>;
   logout: () => Promise<void>;
@@ -203,7 +206,14 @@ function submitFromKeyboard() {
       <div class="lock-screen-blur" aria-hidden="true"></div>
 
       <form class="lock-screen-panel" @submit.prevent="submitFromKeyboard">
-        <img class="lock-screen-avatar" :src="avatarUrl" alt="" />
+        <UserAvatar
+          class="lock-screen-avatar"
+          :src="avatarUrl"
+          :username="username"
+          :display-name="displayName"
+          :first-name="firstName"
+          size="xl"
+        />
         <h2>{{ displayName }}</h2>
         <p>{{ account }}</p>
 

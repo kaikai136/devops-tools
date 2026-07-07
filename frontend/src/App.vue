@@ -5,6 +5,7 @@ import { appContextKey } from './appContext';
 import AppIcon from './components/common/AppIcon.vue';
 import WatermarkOverlay from './components/common/WatermarkOverlay.vue';
 import LockScreenOverlay from './components/common/LockScreenOverlay.vue';
+import UserAvatar from './components/common/UserAvatar.vue';
 import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
 import { errorMessage } from './utils/errors';
@@ -115,7 +116,7 @@ const {
 const selectedManagedHostCount = computed(() => visibleManagedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id)).length);
 const currentUserDisplayName = computed(() => currentUser.value?.displayName || currentUser.value?.first_name || currentUser.value?.username || '未命名用户');
 const currentUserAccount = computed(() => currentUser.value?.username || currentUser.value?.email || '当前账户');
-const currentUserAvatar = computed(() => currentUser.value?.avatarUrl || siteIdentity.value.iconUrl);
+const currentUserAvatar = computed(() => currentUser.value?.avatarUrl || '');
 const sidebarLogoUrl = computed(() => siteIdentity.value.logoImageUrl || siteIdentity.value.iconUrl);
 const footerText = computed(() => renderSystemTemplate(layoutFooter.value.textTemplate));
 const footerLinkText = computed(() => renderSystemTemplate(layoutFooter.value.linkText));
@@ -382,11 +383,25 @@ async function lockCurrentSession() {
           </button>
           <div class="workspace-user-menu">
             <button class="workspace-avatar-button" type="button" aria-haspopup="menu" aria-label="账户菜单">
-              <img :src="currentUserAvatar" alt="" />
+              <UserAvatar
+                class="workspace-avatar"
+                :src="currentUserAvatar"
+                :username="currentUser?.username"
+                :display-name="currentUserDisplayName"
+                :first-name="currentUser?.first_name"
+                size="sm"
+              />
             </button>
             <div class="workspace-user-dropdown" role="menu">
               <div class="workspace-user-card">
-                <img :src="currentUserAvatar" alt="" />
+                <UserAvatar
+                  class="workspace-avatar"
+                  :src="currentUserAvatar"
+                  :username="currentUser?.username"
+                  :display-name="currentUserDisplayName"
+                  :first-name="currentUser?.first_name"
+                  size="md"
+                />
                 <div>
                   <strong>{{ currentUserDisplayName }}</strong>
                   <span>{{ currentUserAccount }}</span>
@@ -448,7 +463,9 @@ async function lockCurrentSession() {
       v-if="currentUser"
       :locked="isLocked"
       :avatar-url="currentUserAvatar"
+      :username="currentUser.username"
       :display-name="currentUserDisplayName"
+      :first-name="currentUser.first_name"
       :account="currentUserAccount"
       :unlock-session="unlockSession"
       :logout="logout"

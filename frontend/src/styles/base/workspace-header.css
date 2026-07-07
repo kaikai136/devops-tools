@@ -215,12 +215,11 @@
   overflow: hidden;
 }
 
-.workspace-avatar-button img {
+.workspace-avatar-button .workspace-avatar {
   display: block;
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  object-fit: cover;
 }
 
 .workspace-user-dropdown {
@@ -271,11 +270,10 @@
   padding: 4px 4px 10px;
 }
 
-.workspace-user-card img {
+.workspace-user-card .workspace-avatar {
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  object-fit: cover;
 }
 
 .workspace-user-card div {

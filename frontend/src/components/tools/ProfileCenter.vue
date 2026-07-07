@@ -8,8 +8,7 @@ import type { ProfilePayload, TwoFactorSetupPayload } from '../../types';
 import { formatDateTime } from '../../utils/datetime';
 import { errorMessage } from '../../utils/errors';
 import AppIcon from '../common/AppIcon.vue';
-
-const DEFAULT_AVATAR = '/ops-captain-icon.png';
+import UserAvatar from '../common/UserAvatar.vue';
 
 const { activeTool, currentUser, updateCurrentUser, showToast, logout, copyText, canUsePageAction, canUseAnyPageAction } = useAppContext();
 
@@ -30,7 +29,7 @@ const profileForm = ref({ username: '', first_name: '', email: '' });
 const passwordForm = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
 
 const passwordStrength = usePasswordStrength(computed(() => passwordForm.value.newPassword));
-const profileAvatar = computed(() => currentUser.value?.avatarUrl || DEFAULT_AVATAR);
+const profileAvatar = computed(() => currentUser.value?.avatarUrl || '');
 const displayName = computed(() => currentUser.value?.displayName || currentUser.value?.first_name || currentUser.value?.username || '未命名用户');
 const accountLabel = computed(() => currentUser.value?.username || currentUser.value?.email || '当前账户');
 const roleTags = computed(() => {
@@ -204,7 +203,15 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
 
     <aside class="profile-overview-card">
       <div class="profile-avatar-frame">
-        <img :src="profileAvatar" alt="用户头像" />
+        <UserAvatar
+          class="profile-avatar"
+          :src="profileAvatar"
+          :username="currentUser?.username"
+          :display-name="displayName"
+          :first-name="currentUser?.first_name"
+          size="xl"
+          alt="用户头像"
+        />
       </div>
       <div class="profile-identity">
         <div class="profile-name-row">
@@ -246,7 +253,15 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
         </header>
         <div class="profile-basic-grid" :class="{ 'without-avatar': !canUploadAvatar }">
           <section v-if="canUploadAvatar" class="profile-avatar-editor">
-            <img :src="profileAvatar" alt="用户头像" />
+            <UserAvatar
+              class="profile-avatar"
+              :src="profileAvatar"
+              :username="currentUser?.username"
+              :display-name="displayName"
+              :first-name="currentUser?.first_name"
+              size="lg"
+              alt="用户头像"
+            />
             <div>
               <strong>资料头像</strong>
               <p>上传图片后会立即更新当前头像。</p>
