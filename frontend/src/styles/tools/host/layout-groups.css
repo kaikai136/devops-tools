@@ -299,6 +299,14 @@
   font: inherit;
 }
 
+.host-form-modal input.invalid,
+.host-form-modal select.invalid,
+.host-form-modal textarea.invalid {
+  border-color: #ff4058;
+  background: #fff6f7;
+  box-shadow: 0 0 0 2px rgb(255 64 88 / 12%);
+}
+
 .host-form-modal textarea {
   min-height: 76px;
   padding: 10px 12px;

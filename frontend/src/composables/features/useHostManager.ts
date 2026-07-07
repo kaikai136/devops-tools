@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import * as hostApi from '../../services/hostManagement';
 import type { HostManagementExport } from '../../services/hostManagement';
@@ -8,7 +8,7 @@ import { compareHosts, findGroup, flattenGroups, flattenVisibleGroups, type Flat
 
 type ConfirmFn = (title: string, message: string, actionText: string, action: () => Promise<void>) => void;
 type HostStatusFilter = 'all' | 'verified' | 'unverified';
-type HostOs = ManagedHost['os'];
+type HostOs = ManagedHost['os'] | '';
 type HostGroupDropPosition = 'before' | 'inside' | 'after';
 export type HostTransferFormat = 'json' | 'excel';
 export type HostExportScope = 'all' | 'selected';
@@ -35,6 +35,8 @@ type ExportColumn = {
   width: number;
 };
 export type HostExportColumnOption = ExportColumn & { field: HostExportColumnKey };
+
+const selectableHostOsValues: readonly ManagedHost['os'][] = ['centos', 'windows'];
 
 export const hostExportColumnOptions: readonly HostExportColumnOption[] = [
   { field: 'group', label: '主机分组', width: 18 },
@@ -103,6 +105,8 @@ interface ManagedHostForm {
   verified: boolean;
 }
 
+type HostFormErrors = Partial<Record<'group' | 'name' | 'privateIp' | 'os' | 'port', string>>;
+
 interface HostMoveForm {
   hostId: number | null;
   targetGroup: number | null;
@@ -150,6 +154,7 @@ export function useHostManager({
   const hostGroupMenu = ref<{ group: HostGroupMenuGroup; x: number; y: number } | null>(null);
   const hostDialog = ref<{ mode: 'create' | 'edit'; hostId: number | null } | null>(null);
   const hostForm = ref<ManagedHostForm>(emptyHostForm());
+  const hostFormErrors = ref<HostFormErrors>({});
   const hostMoveDialogOpen = ref(false);
   const hostMoveMode = ref<'single' | 'selected'>('single');
   const hostMoveForm = ref<HostMoveForm>({ hostId: null, targetGroup: null });
@@ -231,6 +236,14 @@ export function useHostManager({
     verified: managedHosts.value.filter((host) => host.verified).length,
     unverified: managedHosts.value.filter((host) => !host.verified).length,
   }));
+
+  watch(
+    hostForm,
+    () => {
+      if (Object.keys(hostFormErrors.value).length) validateHostForm();
+    },
+    { deep: true },
+  );
 
   async function loadHostManagement() {
     isLoadingHosts.value = true;
@@ -709,6 +722,7 @@ export function useHostManager({
       return;
     }
     hostForm.value = emptyHostForm(targetGroup, managedHosts.value.length + 10);
+    hostFormErrors.value = {};
     hostDialog.value = { mode: 'create', hostId: null };
   }
 
@@ -727,19 +741,40 @@ export function useHostManager({
       remark: host.remark ?? '',
       cpu: host.cpu,
       memory: host.memory,
-      os: host.os,
+      os: isSelectableHostOs(host.os) ? host.os : '',
       verified: host.verified,
     };
+    hostFormErrors.value = {};
     hostDialog.value = { mode: 'edit', hostId: host.id };
   }
 
-  async function saveManagedHost() {
+  function validateHostForm() {
+    const errors: HostFormErrors = {};
+    const privateIp = hostForm.value.privateIp.trim();
+    const port = Number(hostForm.value.port);
+
     if (!hostForm.value.group) {
-      showToast('保存失败', '请选择分组。');
-      return;
+      errors.group = '请选择主机分组。';
     }
     if (!hostForm.value.name.trim() || !hostForm.value.privateIp.trim()) {
-      showToast('保存失败', '请输入主机名称和内网 IP。');
+      if (!hostForm.value.name.trim()) errors.name = '请输入节点名称。';
+      if (!privateIp) errors.privateIp = '请输入主机 IP。';
+    } else if (!isIPv4Address(privateIp)) {
+      errors.privateIp = '请输入正确的主机 IP。';
+    }
+    if (!isSelectableHostOs(hostForm.value.os)) {
+      errors.os = '请选择平台类型。';
+    }
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      errors.port = '端口范围为 1-65535。';
+    }
+
+    hostFormErrors.value = errors;
+    return !Object.keys(errors).length;
+  }
+
+  async function saveManagedHost() {
+    if (!validateHostForm()) {
       return;
     }
 
@@ -770,6 +805,7 @@ export function useHostManager({
     selectedHostGroup.value = saved.group;
     hostSearch.value = '';
     hostStatusFilter.value = 'all';
+    hostFormErrors.value = {};
     hostDialog.value = null;
     await refreshGroupsOnly();
     showToast('操作成功', mode === 'edit' ? '主机已更新。' : '主机已添加。');
@@ -987,6 +1023,7 @@ export function useHostManager({
     hostGroupMenu,
     hostDialog,
     hostForm,
+    hostFormErrors,
     hostMoveDialogOpen,
     hostMoveMode,
     hostMoveForm,
@@ -1052,6 +1089,22 @@ function setWithValue<T>(source: Set<T>, value: T, active: boolean) {
 
 function createdGroupKey(result: { groups: HostGroup[] } | { group: HostGroup; groups: HostGroup[] }) {
   return 'group' in result ? result.group.key : null;
+}
+
+function isIPv4Address(value: string) {
+  const parts = value.split('.');
+  return (
+    parts.length === 4 &&
+    parts.every((part) => {
+      if (!/^\d{1,3}$/.test(part)) return false;
+      const octet = Number(part);
+      return octet >= 0 && octet <= 255;
+    })
+  );
+}
+
+function isSelectableHostOs(value: HostOs) {
+  return selectableHostOsValues.some((option) => option === value);
 }
 
 function emptyHostForm(group: number | null = null, sequence = 10): ManagedHostForm {

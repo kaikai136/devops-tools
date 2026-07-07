@@ -77,6 +77,7 @@ const {
   hostGroupMenu,
   hostDialog,
   hostForm,
+  hostFormErrors,
   hostMoveDialogOpen,
   hostMoveMode,
   hostMoveForm,
@@ -1024,29 +1025,35 @@ function hostPlatformType(value: string | null | undefined) {
         <h2>{{ hostDialog.mode === 'edit' ? '编辑主机' : '新增主机' }}</h2>
         <label class="host-horizontal-field required">
           <span>主机分组：</span>
-          <select v-model.number="hostForm.group">
+          <select v-model.number="hostForm.group" :class="{ invalid: hostFormErrors.group }">
             <option disabled :value="null">{{ hostGroupRoot.label }}</option>
             <option v-for="group in flatHostGroups" :key="group.key" :value="group.key">{{ `${'　'.repeat(group.level)}${group.label}` }}</option>
           </select>
+          <p v-if="hostFormErrors.group" class="host-field-error">{{ hostFormErrors.group }}</p>
         </label>
         <label class="host-horizontal-field required">
           <span>节点：</span>
-          <input v-model="hostForm.name" autofocus />
+          <input v-model="hostForm.name" :class="{ invalid: hostFormErrors.name }" autofocus />
+          <p v-if="hostFormErrors.name" class="host-field-error">{{ hostFormErrors.name }}</p>
         </label>
         <label class="host-horizontal-field required">
           <span>主机 IP：</span>
-          <input v-model="hostForm.privateIp" />
+          <input v-model="hostForm.privateIp" :class="{ invalid: hostFormErrors.privateIp }" />
+          <p v-if="hostFormErrors.privateIp" class="host-field-error">{{ hostFormErrors.privateIp }}</p>
         </label>
         <label class="host-horizontal-field required">
           <span>平台类型：</span>
-          <select v-model="hostForm.os">
+          <select v-model="hostForm.os" :class="{ invalid: hostFormErrors.os }">
+            <option disabled value="">请选择平台类型</option>
             <option value="centos">linux</option>
             <option value="windows">windows</option>
           </select>
+          <p v-if="hostFormErrors.os" class="host-field-error">{{ hostFormErrors.os }}</p>
         </label>
         <label class="host-horizontal-field">
           <span>端口：</span>
-          <input v-model.number="hostForm.port" min="1" max="65535" type="number" />
+          <input v-model.number="hostForm.port" min="1" max="65535" type="number" :class="{ invalid: hostFormErrors.port }" />
+          <p v-if="hostFormErrors.port" class="host-field-error">{{ hostFormErrors.port }}</p>
         </label>
         <label class="host-horizontal-field">
           <span>账号：</span>
