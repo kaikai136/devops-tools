@@ -9,6 +9,13 @@ import '@xterm/xterm/css/xterm.css';
 import { ApiUnauthorizedError, apiDelete, apiGet, apiPost, apiPut } from '../../api';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
+import {
+  TERMINAL_FONT_SIZE_DEFAULT,
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_FONT_SIZE_MIN,
+  clampTerminalFontSize,
+  readStoredTerminalFontSize,
+} from '../../utils/terminalSettings';
 import AppIcon from '../common/AppIcon.vue';
 import type { IconName } from '../common/AppIcon.vue';
 import type { AccountUser } from '../../types';
@@ -419,9 +426,6 @@ const TERMINAL_SPLIT_MODE_STORAGE_KEY = 'ops-tool.web-terminal.split-mode';
 const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
-const TERMINAL_FONT_SIZE_DEFAULT = 17;
-const TERMINAL_FONT_SIZE_MIN = 10;
-const TERMINAL_FONT_SIZE_MAX = 24;
 const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
 const TERMINAL_FILE_CONTEXT_MENU_HEIGHT = 540;
 const TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT = 300;
@@ -4813,18 +4817,13 @@ function readTerminalSidebarCollapsed() {
 
 function readTerminalFontSize() {
   if (typeof window === 'undefined') return TERMINAL_FONT_SIZE_DEFAULT;
-  return clampTerminalFontSize(Number(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY)));
+  return readStoredTerminalFontSize(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY));
 }
 
 function readTerminalSplitMode(): TerminalSplitMode {
   if (typeof window === 'undefined') return 'single';
   const saved = window.localStorage.getItem(TERMINAL_SPLIT_MODE_STORAGE_KEY);
   return saved === 'auto' || saved === 'horizontal' || saved === 'vertical' ? saved : 'single';
-}
-
-function clampTerminalFontSize(value: number) {
-  if (!Number.isFinite(value)) return TERMINAL_FONT_SIZE_DEFAULT;
-  return Math.min(Math.max(Math.round(value), TERMINAL_FONT_SIZE_MIN), TERMINAL_FONT_SIZE_MAX);
 }
 
 function readTerminalQuickCommandPanelHeight() {
