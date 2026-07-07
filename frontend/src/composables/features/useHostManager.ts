@@ -673,6 +673,21 @@ export function useHostManager({
     }
   }
 
+  async function ensureDefaultHostGroup() {
+    const existingGroup = flatHostGroups.value[0]?.key ?? null;
+    if (existingGroup) return existingGroup;
+
+    const result = await hostApi.createHostGroup({
+      name: 'default',
+      parent: null,
+    });
+    hostGroups.value = result.groups;
+    hostGroupRootExpanded.value = true;
+    const targetGroup = createdGroupKey(result) ?? flatHostGroups.value[0]?.key ?? null;
+    if (targetGroup) selectedHostGroup.value = targetGroup;
+    return targetGroup;
+  }
+
   async function addManagedHost(group = selectedHostGroup.value ?? flatHostGroups.value[0]?.key ?? null) {
     closeHostGroupMenu();
     try {
@@ -680,7 +695,19 @@ export function useHostManager({
     } catch (error) {
       showToast('账号加载失败', (error as Error).message);
     }
-    const targetGroup = group ?? flatHostGroups.value[0]?.key ?? null;
+    let targetGroup = group ?? flatHostGroups.value[0]?.key ?? null;
+    if (!targetGroup) {
+      try {
+        targetGroup = await ensureDefaultHostGroup();
+      } catch (error) {
+        showToast('分组创建失败', (error as Error).message);
+        return;
+      }
+    }
+    if (!targetGroup) {
+      showToast('分组创建失败', '未返回默认分组。');
+      return;
+    }
     hostForm.value = emptyHostForm(targetGroup, managedHosts.value.length + 10);
     hostDialog.value = { mode: 'create', hostId: null };
   }

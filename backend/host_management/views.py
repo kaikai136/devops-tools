@@ -21,6 +21,8 @@ from .services import (
     sync_verify_status,
 )
 
+DEFAULT_HOST_GROUP_NAME = "default"
+
 
 def host_payload(host: ManagedHost) -> dict:
     return ManagedHostSerializer(host).data
@@ -29,6 +31,20 @@ def host_payload(host: ManagedHost) -> dict:
 def groups_payload() -> list[dict]:
     tree = build_group_tree()
     return HostGroupSerializer(tree, many=True, context={"counts": build_group_counts(tree)}).data
+
+
+def request_payload_with_default_group(request) -> dict:
+    payload = request.data.copy()
+    if payload.get("group") not in (None, "", "null") or HostGroup.objects.exists():
+        return payload
+
+    group, _created = HostGroup.objects.get_or_create(
+        parent=None,
+        name=DEFAULT_HOST_GROUP_NAME,
+        defaults={"sort_order": next_group_sort_order(None, "", None)},
+    )
+    payload["group"] = group.id
+    return payload
 
 
 @api_view(["GET", "POST"])
@@ -115,11 +131,12 @@ def managed_hosts(request):
         hosts = ManagedHost.objects.select_related("group", "created_by").all()
         return Response(ManagedHostSerializer(hosts, many=True).data)
 
-    serializer = ManagedHostSerializer(data=request.data)
+    payload = request_payload_with_default_group(request)
+    serializer = ManagedHostSerializer(data=payload)
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
 
-    creator = request.user if request.user.is_authenticated else resolve_creator(request.data.get("creator"))
+    creator = request.user if request.user.is_authenticated else resolve_creator(payload.get("creator"))
     host = serializer.save(created_by=creator)
     sync_verify_status(host)
     return Response(host_payload(host), status=status.HTTP_201_CREATED)

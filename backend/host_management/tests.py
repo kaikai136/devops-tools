@@ -84,6 +84,26 @@ class HostVerifyTests(TestCase):
         return patch("host_management.probe.probe_host_info", return_value=result)
 
 
+class HostDefaultGroupTests(TestCase):
+    def test_create_host_without_groups_creates_default_group(self):
+        response = self.client.post(
+            "/api/host-management/hosts/",
+            data={
+                "name": "host-10",
+                "privateIp": "172.16.0.99",
+                "port": 22,
+                "loginUser": "root",
+                "os": "ubuntu",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        group = HostGroup.objects.get(name="default", parent__isnull=True)
+        self.assertEqual(response.json()["group"], group.id)
+        self.assertTrue(ManagedHost.objects.filter(name="host-10", group=group).exists())
+
+
 class HostImportExportTests(TestCase):
     def test_export_host_management_payload(self):
         group = HostGroup.objects.create(name="prod", sort_order=10)
