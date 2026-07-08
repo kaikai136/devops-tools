@@ -809,13 +809,13 @@ class SystemSettingsApiTests(TestCase):
                 "key": "watermark",
                 "label": "水印设置",
                 "description": "页面水印配置",
-                "value": {"enabled": True, "text": "CAPTAIN", "pages": ["ip", "webTerminal", "ip"]},
+                "value": {"enabled": True, "text": "CAPTAIN", "pages": ["ip", "sessionAudits", "webTerminal", "ip"]},
             },
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()["value"], {"enabled": True, "text": "CAPTAIN", "pages": ["ip", "webTerminal"]})
+        self.assertEqual(response.json()["value"], {"enabled": True, "text": "CAPTAIN", "pages": ["ip", "sessionAudits", "webTerminal"]})
 
         update_response = self.client.put(
             "/api/system/settings/watermark/",

@@ -13,7 +13,7 @@
 
 .watermark-overlay-item {
   min-width: 160px;
-  color: rgba(35, 57, 93, 0.12);
+  color: rgba(35, 57, 93, 0.28);
   font-size: 18px;
   font-weight: 900;
   letter-spacing: 0;
@@ -27,6 +27,6 @@
 }
 
 .watermark-overlay.watermark-terminal .watermark-overlay-item {
-  color: rgba(216, 232, 255, 0.16);
-  text-shadow: 0 0 12px rgba(216, 232, 255, 0.08);
+  color: rgba(216, 232, 255, 0.32);
+  text-shadow: 0 0 12px rgba(216, 232, 255, 0.16);
 }

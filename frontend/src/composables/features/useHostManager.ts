@@ -37,6 +37,8 @@ type ExportColumn = {
 export type HostExportColumnOption = ExportColumn & { field: HostExportColumnKey };
 
 const selectableHostOsValues: readonly ManagedHost['os'][] = ['centos', 'windows'];
+const SSH_DEFAULT_PORT = 22;
+const RDP_DEFAULT_PORT = 3389;
 
 export const hostExportColumnOptions: readonly HostExportColumnOption[] = [
   { field: 'group', label: '主机分组', width: 18 },
@@ -243,6 +245,15 @@ export function useHostManager({
       if (Object.keys(hostFormErrors.value).length) validateHostForm();
     },
     { deep: true },
+  );
+  watch(
+    () => hostForm.value.os,
+    (nextOs) => {
+      if (hostDialog.value?.mode !== 'create') return;
+      if (nextOs === 'windows' && (!hostForm.value.port || hostForm.value.port === SSH_DEFAULT_PORT)) {
+        hostForm.value.port = RDP_DEFAULT_PORT;
+      }
+    },
   );
 
   async function loadHostManagement() {
@@ -733,7 +744,7 @@ export function useHostManager({
       credential: null,
       publicIp: host.publicIp ?? '',
       privateIp: host.privateIp,
-      port: host.port ?? 22,
+      port: host.port ?? SSH_DEFAULT_PORT,
       loginUser: host.loginUser ?? '',
       loginPassword: host.loginPassword ?? '',
       privateKeyName: host.privateKeyName ?? '',
@@ -1114,7 +1125,7 @@ function emptyHostForm(group: number | null = null, sequence = 10): ManagedHostF
     credential: null,
     publicIp: '',
     privateIp: '',
-    port: 22,
+    port: SSH_DEFAULT_PORT,
     loginUser: '',
     loginPassword: '',
     privateKeyName: '',

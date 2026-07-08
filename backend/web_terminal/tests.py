@@ -1,10 +1,17 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
-from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.core.management import call_command
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 from unittest.mock import patch
+from io import StringIO
+from pathlib import Path
+from threading import Event
+from tempfile import TemporaryDirectory
 
 from accounts.models import UserProfile
 from host_management.models import HostGroup, ManagedHost
+from system_management.models import SystemSetting
 from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions
 
 from . import views
@@ -15,6 +22,7 @@ from .consumers import (
     CWD_HOOK_SCRIPT,
     CWD_MARKER_END,
     CWD_MARKER_START,
+    RdpTerminalConsumer,
     TerminalConsumer,
     command_buffer_after_input,
     filter_changed_cwd_paths,
@@ -24,11 +32,18 @@ from .consumers import (
 )
 from .services import (
     TerminalConnectionError,
+    build_rdp_connection_parameters,
     classify_command_risk,
+    cleanup_expired_rdp_recordings,
     create_remote_directory,
     create_remote_file,
     create_remote_symlink,
+    create_rdp_terminal_session,
+    guacamole_instruction,
+    is_guacamole_internal_instruction,
+    parse_guacamole_instruction,
     initialize_session_recording,
+    is_rdp_recording_enabled,
     parse_monitor_disks,
     parse_monitor_memory,
     parse_monitor_network,
@@ -40,6 +55,7 @@ from .services import (
     normalize_remote_file_owner,
     parse_remote_stat_output,
     remote_file_properties_payload,
+    terminal_protocol_for_host,
 )
 from .models import TerminalCommandAudit, TerminalQuickCommand, TerminalSession
 
@@ -358,6 +374,170 @@ tmpfs tmpfs 1000 1 999 1% /run
         self.assertIn("ln -s /opt/app /data/app-link", run_command.call_args.args[1])
 
 
+class RdpTerminalServiceTests(TestCase):
+    def setUp(self):
+        self.group = HostGroup.objects.create(name="default")
+        self.user = get_user_model().objects.create_user(username="operator", password="secret")
+
+    def create_windows_host(self, **overrides):
+        values = {
+            "name": "win-01",
+            "group": self.group,
+            "private_ip": "10.0.0.9",
+            "public_ip": None,
+            "port": 3389,
+            "login_user": "Administrator",
+            "login_password": "rdp-secret",
+            "os": "windows",
+        }
+        values.update(overrides)
+        return ManagedHost.objects.create(**values)
+
+    def test_terminal_protocol_for_host_routes_windows_to_rdp(self):
+        windows = self.create_windows_host()
+        linux = ManagedHost.objects.create(name="linux-01", group=self.group, private_ip="10.0.0.8", port=22, os="centos")
+
+        self.assertEqual(terminal_protocol_for_host(windows), "rdp")
+        self.assertEqual(terminal_protocol_for_host(linux), "ssh")
+
+    def test_guacamole_instruction_round_trips_elements(self):
+        encoded = guacamole_instruction("", "ping", "12345")
+
+        self.assertEqual(encoded, "0.,4.ping,5.12345;")
+        self.assertEqual(parse_guacamole_instruction(encoded), ["", "ping", "12345"])
+        self.assertTrue(is_guacamole_internal_instruction(encoded))
+
+    def test_guacamole_instruction_parser_rejects_partial_data(self):
+        with self.assertRaises(TerminalConnectionError):
+            parse_guacamole_instruction("3.foo")
+
+    @override_settings(RDP_RECORDING_DEFAULT_ENABLED=False)
+    def test_rdp_recording_defaults_to_disabled(self):
+        self.assertFalse(is_rdp_recording_enabled())
+
+    @override_settings(RDP_RECORDING_DEFAULT_ENABLED=False)
+    def test_rdp_recording_system_setting_can_enable_recording(self):
+        SystemSetting.objects.create(key="rdp_recording", value={"enabled": True})
+
+        self.assertTrue(is_rdp_recording_enabled())
+
+    @override_settings(RDP_RECORDING_DEFAULT_ENABLED=True, RDP_RECORDING_ROOT=Path("C:/recordings"))
+    def test_build_rdp_connection_parameters_includes_target_credentials_and_recording(self):
+        host = self.create_windows_host(public_ip="203.0.113.10")
+        session = TerminalSession.objects.create(
+            host=host,
+            protocol="rdp",
+            recording_enabled=True,
+            recording_file="2026/07/session-123",
+        )
+
+        params = build_rdp_connection_parameters(host, session, width=1440, height=900)
+
+        self.assertEqual(params["hostname"], "203.0.113.10")
+        self.assertEqual(params["port"], "3389")
+        self.assertEqual(params["username"], "Administrator")
+        self.assertEqual(params["password"], "rdp-secret")
+        self.assertEqual(params["security"], "any")
+        self.assertEqual(params["ignore-cert"], "true")
+        self.assertEqual(params["width"], "1440")
+        self.assertEqual(params["height"], "900")
+        self.assertEqual(params["recording-path"], str(Path("C:/recordings") / "2026" / "07"))
+        self.assertEqual(params["recording-name"], "session-123")
+        self.assertEqual(params["create-recording-path"], "true")
+
+    @override_settings(RDP_RECORDING_DEFAULT_ENABLED=True, RDP_RECORDING_ROOT=Path("C:/recordings"))
+    def test_create_rdp_terminal_session_records_protocol_and_recording_file(self):
+        host = self.create_windows_host()
+
+        session = create_rdp_terminal_session(host, user=self.user)
+
+        self.assertEqual(session.protocol, "rdp")
+        self.assertTrue(session.recording_enabled)
+        self.assertIn(str(session.session_id), session.recording_file)
+        self.assertEqual(session.status, "connected")
+
+    @override_settings(RDP_RECORDING_RETENTION_DAYS=30)
+    def test_cleanup_expired_rdp_recordings_removes_old_files_only(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            old_file = root / "old.guac"
+            fresh_file = root / "fresh.guac"
+            old_file.write_text("old", encoding="utf-8")
+            fresh_file.write_text("fresh", encoding="utf-8")
+            old_session = TerminalSession.objects.create(
+                host=self.create_windows_host(name="win-old", private_ip="10.0.0.10"),
+                protocol="rdp",
+                recording_enabled=True,
+                recording_file=old_file.name,
+            )
+            fresh_session = TerminalSession.objects.create(
+                host=self.create_windows_host(name="win-fresh", private_ip="10.0.0.11"),
+                protocol="rdp",
+                recording_enabled=True,
+                recording_file=fresh_file.name,
+            )
+            old_session.created_at = timezone.now() - timezone.timedelta(days=40)
+            old_session.save(update_fields=["created_at"])
+
+            result = cleanup_expired_rdp_recordings(root=root, now=timezone.now())
+
+            old_session.refresh_from_db()
+            fresh_session.refresh_from_db()
+            self.assertEqual(result["deleted"], 1)
+            self.assertFalse(old_file.exists())
+            self.assertTrue(fresh_file.exists())
+            self.assertEqual(old_session.recording_file, "")
+            self.assertEqual(fresh_session.recording_file, fresh_file.name)
+
+    def test_rdp_consumer_reports_guacd_connection_refused(self):
+        host = self.create_windows_host()
+        session = TerminalSession.objects.create(host=host, protocol="rdp")
+        consumer = RdpTerminalConsumer()
+        consumer.scope = {"query_string": b"width=1280&height=720"}
+        consumer.session = session
+
+        with patch("web_terminal.consumers.socket.create_connection", side_effect=ConnectionRefusedError("refused")):
+            with self.assertRaises(TerminalConnectionError) as raised:
+                consumer._connect_guacd(host)
+
+        self.assertIn("guacd", str(raised.exception))
+
+    def test_rdp_requested_size_tolerates_guacamole_trailing_query_marker(self):
+        consumer = RdpTerminalConsumer()
+        consumer.scope = {"query_string": b"width=1280&height=720?"}
+
+        self.assertEqual(consumer._requested_size(), (1280, 720))
+
+    def test_rdp_reader_reframes_split_guacamole_instructions(self):
+        first = guacamole_instruction("size", "0", "1280", "720")
+        second = guacamole_instruction("sync", "12345")
+
+        class FakeSocket:
+            def __init__(self, chunks):
+                self.chunks = list(chunks)
+
+            def recv(self, _size):
+                return self.chunks.pop(0) if self.chunks else b""
+
+        consumer = RdpTerminalConsumer()
+        consumer.stop_reader = Event()
+        consumer.guacd_socket = FakeSocket(
+            [
+                first[:8].encode("utf-8"),
+                (first[8:] + second[:5]).encode("utf-8"),
+                second[5:].encode("utf-8"),
+                b"",
+            ]
+        )
+        sent = []
+        consumer.send = lambda text_data=None, **_kwargs: sent.append(text_data)
+        consumer.close = lambda *_args, **_kwargs: None
+
+        consumer._read_guacd_output()
+
+        self.assertEqual(sent, [first, second])
+
+
 class TerminalMonitorViewTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
@@ -535,6 +715,36 @@ class TerminalSessionAuditTests(TestCase):
         self.assertEqual(payload["results"][0]["command"], "rm -rf /tmp/cache")
         self.assertEqual(payload["results"][0]["riskLevel"], "high")
 
+    def test_session_audit_list_includes_protocol_and_recording_status(self):
+        self.session.protocol = TerminalSession.PROTOCOL_RDP
+        self.session.recording_enabled = True
+        self.session.recording_file = "2026/07/session.guac"
+        self.session.ended_at = timezone.now()
+        self.session.error_message = "rdp failed"
+        self.session.save(update_fields=["protocol", "recording_enabled", "recording_file", "ended_at", "error_message"])
+        TerminalCommandAudit.objects.create(
+            session=self.session,
+            host=self.host,
+            user=self.user,
+            username=self.user.username,
+            command="connect",
+            output="",
+            risk_level=TerminalCommandAudit.RISK_ACCEPT,
+            asset_name=self.host.name,
+            ip_address=self.host.private_ip,
+            executed_at=self.session.created_at,
+        )
+
+        response = self.client.get("/api/web-terminal/session-audits/")
+
+        self.assertEqual(response.status_code, 200)
+        item = response.json()["results"][0]
+        self.assertEqual(item["protocol"], "rdp")
+        self.assertTrue(item["recordingEnabled"])
+        self.assertTrue(item["hasRdpRecording"])
+        self.assertIsNotNone(item["endedAt"])
+        self.assertEqual(item["errorMessage"], "rdp failed")
+
     def test_recording_endpoint_returns_asciicast(self):
         self.session.recording += '[0.1,"o","hello"]\n'
         self.session.save(update_fields=["recording"])
@@ -544,6 +754,53 @@ class TerminalSessionAuditTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("application/x-asciicast", response["Content-Type"])
         self.assertTrue(response.content.decode("utf-8").startswith('{"version":3'))
+
+    def test_rdp_recording_endpoint_returns_recording_file(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            recording_file = root / "2026" / "07" / "session.guac"
+            recording_file.parent.mkdir(parents=True)
+            recording_file.write_text("rdp-recording", encoding="utf-8")
+            self.session.protocol = "rdp"
+            self.session.recording_enabled = True
+            self.session.recording_file = "2026/07/session.guac"
+            self.session.save(update_fields=["protocol", "recording_enabled", "recording_file"])
+            with override_settings(RDP_RECORDING_ROOT=root):
+                response = self.client.get(f"/api/web-terminal/sessions/{self.session.session_id}/rdp-recording/")
+                content = b"".join(response.streaming_content)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/octet-stream")
+        self.assertEqual(content, b"rdp-recording")
+
+    def test_rdp_recording_endpoint_rejects_unsafe_recording_path(self):
+        self.session.protocol = "rdp"
+        self.session.recording_enabled = True
+        self.session.recording_file = "../secret.guac"
+        self.session.save(update_fields=["protocol", "recording_enabled", "recording_file"])
+
+        response = self.client.get(f"/api/web-terminal/sessions/{self.session.session_id}/rdp-recording/")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_cleanup_rdp_recordings_command_removes_expired_recordings(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            old_file = root / "old.guac"
+            old_file.write_text("old", encoding="utf-8")
+            old_session = TerminalSession.objects.create(
+                host=self.host,
+                protocol=TerminalSession.PROTOCOL_RDP,
+                recording_enabled=True,
+                recording_file=old_file.name,
+            )
+            TerminalSession.objects.filter(id=old_session.id).update(created_at=timezone.now() - timezone.timedelta(days=40))
+            output = StringIO()
+            with override_settings(RDP_RECORDING_ROOT=root, RDP_RECORDING_RETENTION_DAYS=30):
+                call_command("cleanup_rdp_recordings", stdout=output)
+
+            self.assertFalse(old_file.exists())
+            self.assertIn("deleted=1", output.getvalue())
 
 
 class TerminalQuickCommandApiTests(TestCase):

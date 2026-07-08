@@ -11,6 +11,11 @@ export interface TerminalSessionAudit {
   assetName: string;
   ipAddress: string;
   sessionId: string;
+  protocol: 'ssh' | 'rdp' | string;
+  recordingEnabled: boolean;
+  hasRdpRecording: boolean;
+  endedAt: string | null;
+  errorMessage: string;
   hostId: number;
   executedAt: string | null;
 }
@@ -43,4 +48,8 @@ export function listSessionAudits(params: SessionAuditListParams = {}) {
 
 export function sessionRecordingUrl(sessionId: string) {
   return `/api/web-terminal/sessions/${encodeURIComponent(sessionId)}/recording.cast`;
+}
+
+export function rdpSessionRecordingUrl(sessionId: string) {
+  return `/api/web-terminal/sessions/${encodeURIComponent(sessionId)}/rdp-recording/`;
 }

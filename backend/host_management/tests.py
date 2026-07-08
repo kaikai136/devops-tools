@@ -76,6 +76,68 @@ class HostVerifyTests(TestCase):
         self.assertEqual(updated.cpu, 0)
         self.assertEqual(updated.memory, 0)
 
+    def test_verify_windows_host_only_checks_port_connectivity(self):
+        host = ManagedHost.objects.create(
+            name="win-host",
+            group=self.group,
+            private_ip="10.10.10.12",
+            public_ip="203.0.113.12",
+            port=3389,
+            login_user="Administrator",
+            login_password="secret",
+            cpu=8,
+            memory=16,
+            machine_name="stale-name",
+            system_arch="x86_64",
+            system_type="windows",
+            os="windows",
+            verified=False,
+        )
+
+        class FakeSocket:
+            def close(self):
+                pass
+
+        from unittest.mock import patch
+
+        with patch("host_management.probe.probe_host_info") as probe_info, patch(
+            "host_management.probe.socket.create_connection", return_value=FakeSocket()
+        ) as connect:
+            updated, error = verify_host(host)
+
+        self.assertIsNone(error)
+        probe_info.assert_not_called()
+        connect.assert_called_once_with(("203.0.113.12", 3389), timeout=8)
+        self.assertTrue(updated.verified)
+        self.assertEqual(updated.verify_status, "verified")
+        self.assertEqual(updated.os, "windows")
+        self.assertEqual(updated.machine_name, "")
+        self.assertEqual(updated.cpu, 0)
+        self.assertEqual(updated.memory, 0)
+        self.assertEqual(updated.system_arch, "")
+        self.assertEqual(updated.system_type, "")
+
+    def test_verify_windows_host_marks_failed_when_port_unreachable(self):
+        host = ManagedHost.objects.create(
+            name="win-failed",
+            group=self.group,
+            private_ip="10.10.10.13",
+            port=3389,
+            os="windows",
+            verified=True,
+            verify_status="verified",
+        )
+
+        from unittest.mock import patch
+
+        with patch("host_management.probe.socket.create_connection", side_effect=OSError("refused")):
+            updated, error = verify_host(host)
+
+        self.assertIn("refused", error)
+        self.assertFalse(updated.verified)
+        self.assertEqual(updated.verify_status, "failed")
+        self.assertEqual(updated.os, "windows")
+
     def patch_probe(self, result):
         from unittest.mock import patch
 

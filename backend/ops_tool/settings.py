@@ -11,6 +11,16 @@ def env_bool(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 def env_list(name: str, default: list[str] | None = None) -> list[str]:
     value = os.environ.get(name)
     if value is None or not value.strip():
@@ -100,6 +110,11 @@ STATICFILES_DIRS = [FRONTEND_DIST_DIR] if FRONTEND_DIST_DIR.exists() else []
 MEDIA_URL = os.environ.get("DJANGO_MEDIA_URL", "/media/")
 MEDIA_ROOT = env_path("DJANGO_MEDIA_ROOT", BASE_DIR / "media")
 SERVE_MEDIA_FILES = env_bool("DJANGO_SERVE_MEDIA_FILES", DEBUG)
+GUACD_HOST = os.environ.get("GUACD_HOST", "127.0.0.1")
+GUACD_PORT = env_int("GUACD_PORT", 4822)
+RDP_RECORDING_ROOT = env_path("RDP_RECORDING_ROOT", BASE_DIR / "rdp_recordings")
+RDP_RECORDING_RETENTION_DAYS = env_int("RDP_RECORDING_RETENTION_DAYS", 30)
+RDP_RECORDING_DEFAULT_ENABLED = env_bool("RDP_RECORDING_DEFAULT_ENABLED", False)
 WHITENOISE_AUTOREFRESH = env_bool("WHITENOISE_AUTOREFRESH", DEBUG)
 WHITENOISE_USE_FINDERS = env_bool("WHITENOISE_USE_FINDERS", DEBUG)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

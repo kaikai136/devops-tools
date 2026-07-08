@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { useAppContext } from '../../appContext';
 import { buildReadmeTypingSvgUrl, buildTemplateVariables, renderTemplate } from '../../composables/features/useSiteSettings';
 import { watermarkPageGroups } from '../../composables/features/useWatermarkSettings';
+import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from '../../services/system';
 import AppIcon from '../common/AppIcon.vue';
 import WatermarkOverlay from '../common/WatermarkOverlay.vue';
 
-type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'watermark';
+type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'rdp' | 'watermark';
 type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image';
+const RDP_RECORDING_SETTING_KEY = 'rdp_recording';
 
 const {
   siteIdentityDraft,
@@ -49,15 +51,21 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string; title: string; s
   { key: 'dashboard', label: '仪表盘', title: '仪表盘动态文字', subtitle: 'Hero 文案、样式与打字动画', icon: 'dashboard' },
   { key: 'login', label: '登录页', title: '登录页文案', subtitle: '欢迎标题、徽标和版权模板', icon: 'monitor' },
   { key: 'footer', label: '页脚', title: '页脚配置', subtitle: '工作台底部文案、链接与样式', icon: 'rows' },
+  { key: 'rdp', label: 'RDP', title: 'RDP 录屏', subtitle: 'Windows 远程桌面录屏开关', icon: 'monitor' },
   { key: 'watermark', label: '水印', title: '水印配置', subtitle: '水印模板与应用页面', icon: 'image' },
 ];
 
 const activeTab = ref<SettingsTabKey>('identity');
+const rdpRecordingDraft = ref({ enabled: false });
+const rdpRecordingSettingExists = ref(false);
+const rdpRecordingLoading = ref(false);
+const rdpRecordingSaving = ref(false);
+const rdpRecordingMessage = ref('');
 const canSave = computed(() => canUsePageAction('systemSettings', 'save'));
 const currentTab = computed(() => settingsTabs.find((tab) => tab.key === activeTab.value) ?? settingsTabs[0]);
-const currentBusy = computed(() => (activeTab.value === 'watermark' ? watermarkSaving.value : siteSettingsSaving.value));
-const currentLoading = computed(() => (activeTab.value === 'watermark' ? watermarkLoading.value : siteSettingsLoading.value));
-const currentMessage = computed(() => (activeTab.value === 'watermark' ? watermarkMessage.value : siteSettingsMessage.value));
+const currentBusy = computed(() => (activeTab.value === 'watermark' ? watermarkSaving.value : activeTab.value === 'rdp' ? rdpRecordingSaving.value : siteSettingsSaving.value));
+const currentLoading = computed(() => (activeTab.value === 'watermark' ? watermarkLoading.value : activeTab.value === 'rdp' ? rdpRecordingLoading.value : siteSettingsLoading.value));
+const currentMessage = computed(() => (activeTab.value === 'watermark' ? watermarkMessage.value : activeTab.value === 'rdp' ? rdpRecordingMessage.value : siteSettingsMessage.value));
 const selectedPages = computed(() => new Set(watermarkDraft.value.pages));
 const allPageKeys = computed(() => watermarkPageGroups.flatMap((group) => group.pages.map((page) => page.key)));
 const previewVariables = computed(() =>
@@ -89,6 +97,7 @@ async function refreshCurrentTab() {
   else if (activeTab.value === 'dashboard') await loadDashboardHeroSetting();
   else if (activeTab.value === 'login') await loadLoginContentSetting();
   else if (activeTab.value === 'footer') await loadLayoutFooterSetting();
+  else if (activeTab.value === 'rdp') await loadRdpRecordingSetting();
   else await loadWatermarkSetting();
 }
 
@@ -98,6 +107,7 @@ async function saveCurrentTab() {
   else if (activeTab.value === 'dashboard') await saveDashboardHeroSetting();
   else if (activeTab.value === 'login') await saveLoginContentSetting();
   else if (activeTab.value === 'footer') await saveLayoutFooterSetting();
+  else if (activeTab.value === 'rdp') await saveRdpRecordingSetting();
   else await saveWatermarkSetting();
 }
 
@@ -106,7 +116,52 @@ function resetCurrentTab() {
   else if (activeTab.value === 'dashboard') resetDashboardHeroDraft();
   else if (activeTab.value === 'login') resetLoginContentDraft();
   else if (activeTab.value === 'footer') resetLayoutFooterDraft();
+  else if (activeTab.value === 'rdp') resetRdpRecordingDraft();
   else resetWatermarkDraft();
+}
+
+async function loadRdpRecordingSetting() {
+  rdpRecordingLoading.value = true;
+  rdpRecordingMessage.value = '';
+  try {
+    const setting = await getSystemSettingOrNull(RDP_RECORDING_SETTING_KEY);
+    rdpRecordingSettingExists.value = Boolean(setting);
+    const value = setting?.value as { enabled?: unknown } | undefined;
+    rdpRecordingDraft.value = { enabled: Boolean(value?.enabled) };
+  } catch (error) {
+    rdpRecordingMessage.value = error instanceof Error ? error.message : 'RDP 录屏设置加载失败';
+  } finally {
+    rdpRecordingLoading.value = false;
+  }
+}
+
+async function saveRdpRecordingSetting() {
+  rdpRecordingSaving.value = true;
+  rdpRecordingMessage.value = '';
+  const payload = {
+    key: RDP_RECORDING_SETTING_KEY,
+    label: 'RDP 录屏',
+    description: '控制新建 Windows RDP Web 终端会话是否录屏',
+    value: { enabled: Boolean(rdpRecordingDraft.value.enabled) },
+  };
+  try {
+    const setting = rdpRecordingSettingExists.value
+      ? await updateSystemSetting(RDP_RECORDING_SETTING_KEY, payload)
+      : await createSystemSetting(payload);
+    rdpRecordingSettingExists.value = true;
+    const value = setting.value as { enabled?: unknown };
+    rdpRecordingDraft.value = { enabled: Boolean(value?.enabled) };
+    rdpRecordingMessage.value = 'RDP 录屏设置已保存';
+  } catch (error) {
+    rdpRecordingMessage.value = error instanceof Error ? error.message : 'RDP 录屏设置保存失败';
+  } finally {
+    rdpRecordingSaving.value = false;
+  }
+}
+
+function resetRdpRecordingDraft() {
+  rdpRecordingDraft.value = { enabled: false };
+  rdpRecordingMessage.value = '';
 }
 
 function toggleWatermarkPage(page: string) {
@@ -124,6 +179,10 @@ function toggleAllWatermarkPages() {
   if (!canSave.value) return;
   watermarkDraft.value.pages = watermarkDraft.value.pages.length === allPageKeys.value.length ? [] : [...allPageKeys.value];
 }
+
+onMounted(() => {
+  void loadRdpRecordingSetting();
+});
 </script>
 
 <template>
@@ -354,6 +413,19 @@ function toggleAllWatermarkPages() {
           </div>
         </section>
 
+        <section v-else-if="activeTab === 'rdp'" class="settings-section single">
+          <header>
+            <h3>RDP 录屏</h3>
+            <span>Windows 远程桌面新会话录屏</span>
+          </header>
+          <div class="settings-field-grid">
+            <label class="settings-check-row">
+              <input v-model="rdpRecordingDraft.enabled" :disabled="!canSave" type="checkbox" />
+              <span>开启 RDP 录屏</span>
+            </label>
+          </div>
+        </section>
+
         <section v-else class="settings-section single">
           <header>
             <h3>水印配置</h3>
@@ -457,6 +529,15 @@ function toggleAllWatermarkPages() {
             <section class="settings-preview-footer" :style="{ color: layoutFooterDraft.color, fontSize: `${layoutFooterDraft.fontSize}px` }">
               <span>{{ previewFooterText }}</span>
               <a v-if="layoutFooterDraft.linkText && layoutFooterDraft.linkUrl">{{ previewFooterLink }}</a>
+            </section>
+          </template>
+
+          <template v-else-if="activeTab === 'rdp'">
+            <section class="settings-preview-meta">
+              <span>新建 RDP 会话</span>
+              <strong>{{ rdpRecordingDraft.enabled ? '录屏开启' : '录屏关闭' }}</strong>
+              <span>默认留存</span>
+              <strong>30 天</strong>
             </section>
           </template>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
+import Guacamole from 'guacamole-common-js';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
@@ -31,6 +32,9 @@ interface TerminalHost {
   remark: string;
   verified: boolean;
   verifyStatus?: 'unverified' | 'verified' | 'failed';
+  os?: string;
+  platformType?: string;
+  terminalProtocol?: TerminalTabKind;
 }
 
 interface TerminalGroup {
@@ -41,6 +45,11 @@ interface TerminalGroup {
 }
 
 type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
+type TerminalTabKind = 'ssh' | 'rdp';
+type GuacamoleClientInstance = InstanceType<typeof Guacamole.Client>;
+type GuacamoleWebSocketTunnelInstance = InstanceType<typeof Guacamole.WebSocketTunnel>;
+type GuacamoleMouseInstance = InstanceType<typeof Guacamole.Mouse>;
+type GuacamoleKeyboardInstance = InstanceType<typeof Guacamole.Keyboard>;
 type TerminalSidebarMode = 'hosts' | 'files' | 'commands';
 type TerminalSplitMode = 'single' | 'auto' | 'horizontal' | 'vertical';
 type TerminalTransferKind = 'upload' | 'download';
@@ -62,6 +71,7 @@ type TerminalTabColorId =
 
 interface TerminalTab {
   id: string;
+  kind: TerminalTabKind;
   host: TerminalHost;
   customTitle: string;
   colorId: TerminalTabColorId | null;
@@ -70,6 +80,12 @@ interface TerminalTab {
   fitAddon: FitAddon;
   searchAddon: SearchAddon;
   socket: WebSocket | null;
+  guacClient: GuacamoleClientInstance | null;
+  guacTunnel: GuacamoleWebSocketTunnelInstance | null;
+  guacMouse: GuacamoleMouseInstance | null;
+  guacKeyboard: GuacamoleKeyboardInstance | null;
+  guacDisplayElement: HTMLElement | null;
+  rdpErrorMessage: string;
   sessionId: string | null;
   mounted: boolean;
   disposables: IDisposable[];
@@ -905,7 +921,10 @@ const filteredTerminalQuickCommands = computed(() => {
       .some((value) => String(value).toLowerCase().includes(query));
   });
 });
-const activeTerminalReady = computed(() => activeTab.value?.status === 'connected' && activeTab.value.socket?.readyState === WebSocket.OPEN);
+const activeTerminalSupportsSshTools = computed(() => Boolean(activeTab.value && activeTab.value.kind === 'ssh'));
+const activeTerminalReady = computed(
+  () => activeTab.value?.kind === 'ssh' && activeTab.value.status === 'connected' && activeTab.value.socket?.readyState === WebSocket.OPEN,
+);
 const terminalSearchResultText = computed(() => {
   if (!terminalSearchQuery.value.trim()) return '';
   if (terminalSearchResultCount.value <= 0) return '0';
@@ -931,7 +950,9 @@ const canUseTerminalQuickCommands = computed(() => {
   if (user.is_superuser || user.is_staff) return true;
   return (user.featurePermissionCodes ?? []).includes('action_hosts_quick_commands');
 });
-const shouldShowTerminalQuickCommandPanel = computed(() => canUseTerminalQuickCommands.value && terminalQuickCommands.value.length > 0);
+const shouldShowTerminalQuickCommandPanel = computed(
+  () => activeTerminalSupportsSshTools.value && canUseTerminalQuickCommands.value && terminalQuickCommands.value.length > 0,
+);
 const terminalQuickCommandPanelStyle = computed<Record<string, string>>(() => ({
   '--terminal-quick-command-height':
     !shouldShowTerminalQuickCommandPanel.value || isTerminalQuickCommandPanelCollapsed.value ? '0px' : `${terminalQuickCommandPanelHeight.value}px`,
@@ -1900,6 +1921,7 @@ function handleTerminalAuthExpired(error?: unknown) {
       tab.socket.close();
     }
     tab.socket = null;
+    cleanupRdpClient(tab);
   }
   window.location.replace('/');
   return true;
@@ -1982,7 +2004,7 @@ function openTerminalContextMenu(tab: TerminalTab, event: MouseEvent) {
   if (tab.id !== activeTabId.value) {
     void activateTab(tab.id);
   }
-  const selectedText = tab.terminal.hasSelection() ? tab.terminal.getSelection() : '';
+  const selectedText = tab.kind === 'ssh' && tab.terminal.hasSelection() ? tab.terminal.getSelection() : '';
   closeTerminalTabContextMenu();
   closeTerminalFileContextMenu();
   closeTerminalDirectoryContextMenu();
@@ -2033,11 +2055,15 @@ function getTerminalTabContextMenuTab() {
 }
 
 function isTerminalTabReady(tab: TerminalTab | null): tab is TerminalTab {
-  return Boolean(tab && tab.status === 'connected' && tab.socket?.readyState === WebSocket.OPEN);
+  return Boolean(tab && tab.kind === 'ssh' && tab.status === 'connected' && tab.socket?.readyState === WebSocket.OPEN);
+}
+
+function isSshTerminalTab(tab: TerminalTab | null): tab is TerminalTab {
+  return Boolean(tab && tab.kind === 'ssh');
 }
 
 function canDisconnectTerminalTab(tab: TerminalTab | null) {
-  return Boolean(tab && (tab.status === 'connecting' || tab.status === 'connected' || tab.socket));
+  return Boolean(tab && (tab.status === 'connecting' || tab.status === 'connected' || tab.socket || tab.guacClient));
 }
 
 async function copyTerminalContextText(value: string) {
@@ -2120,7 +2146,7 @@ function focusTerminalSearchInputSoon(select = false) {
 }
 
 function openTerminalSearch(initialQuery = '') {
-  if (!activeTab.value) return;
+  if (!isSshTerminalTab(activeTab.value)) return;
   closeTerminalContextMenus();
   isTerminalSearchOpen.value = true;
   if (initialQuery.trim()) {
@@ -2134,7 +2160,7 @@ function openTerminalSearch(initialQuery = '') {
 }
 
 function clearTerminalSearchDecorations(tab: TerminalTab | null = activeTab.value) {
-  tab?.searchAddon.clearDecorations();
+  if (tab?.kind === 'ssh') tab.searchAddon.clearDecorations();
 }
 
 function clearAllTerminalSearchDecorations() {
@@ -2146,13 +2172,13 @@ function closeTerminalSearch() {
   isTerminalSearchOpen.value = false;
   clearAllTerminalSearchDecorations();
   resetTerminalSearchResultState();
-  activeTab.value?.terminal.focus();
+  if (activeTab.value?.kind === 'ssh') activeTab.value.terminal.focus();
 }
 
 function searchCurrentTerminal(direction: 'next' | 'previous' = 'next', incremental = false) {
   const query = terminalSearchQuery.value.trim();
   const tab = activeTab.value;
-  if (!tab) {
+  if (!isSshTerminalTab(tab)) {
     resetTerminalSearchResultState();
     return false;
   }
@@ -2392,6 +2418,7 @@ function getTerminalControlKeyContextMenu(tab: TerminalTab | null): TerminalCont
 
 function getTerminalViewContextMenu(tab: TerminalTab | null): TerminalContextMenuItem {
   const filePanelOpen = terminalSidebarMode.value === 'files' && !isTerminalSidebarCollapsed.value;
+  const sshTab = isSshTerminalTab(tab);
   const splitItems: TerminalContextMenuItem[] = terminalSplitModeOptions.map((option, index) => ({
     id: `split-${option.mode}`,
     label: terminalSplitMode.value === option.mode ? `${option.label} ✓` : option.label,
@@ -2407,8 +2434,8 @@ function getTerminalViewContextMenu(tab: TerminalTab | null): TerminalContextMen
     enabled: true,
     action: () => undefined,
     children: [
-      { id: 'view-files', label: filePanelOpen ? '关闭文件面板' : '打开文件面板', icon: 'folder', enabled: Boolean(tab), action: () => toggleTerminalFilePanel() },
-      { id: 'view-monitor', label: isTerminalMonitorPanelOpen.value ? '关闭资源监控' : '打开资源监控', icon: 'monitor', enabled: Boolean(tab), action: () => toggleTerminalMonitorPanel() },
+      { id: 'view-files', label: filePanelOpen ? '关闭文件面板' : '打开文件面板', icon: 'folder', enabled: sshTab, action: () => toggleTerminalFilePanel() },
+      { id: 'view-monitor', label: isTerminalMonitorPanelOpen.value ? '关闭资源监控' : '打开资源监控', icon: 'monitor', enabled: sshTab, action: () => toggleTerminalMonitorPanel() },
       ...splitItems,
       { id: 'font-decrease', label: '字号减小', icon: 'zoomOut', enabled: canDecreaseTerminalFontSize.value, separatorBefore: true, action: () => decreaseTerminalFontSize() },
       { id: 'font-increase', label: '字号增大', icon: 'zoomIn', enabled: canIncreaseTerminalFontSize.value, action: () => increaseTerminalFontSize() },
@@ -2419,7 +2446,7 @@ function getTerminalViewContextMenu(tab: TerminalTab | null): TerminalContextMen
 }
 
 function getTerminalBufferContextMenu(tab: TerminalTab | null): TerminalContextMenuItem {
-  const hasTab = Boolean(tab);
+  const hasTab = isSshTerminalTab(tab);
   const ready = isTerminalTabReady(tab);
   return {
     id: 'buffer',
@@ -2456,6 +2483,7 @@ function getTerminalBufferContextMenu(tab: TerminalTab | null): TerminalContextM
 }
 
 function toggleTerminalFilePanel() {
+  if (!activeTerminalSupportsSshTools.value) return;
   if (terminalSidebarMode.value === 'files' && !isTerminalSidebarCollapsed.value) {
     setTerminalSidebarCollapsed(true);
     return;
@@ -3834,7 +3862,7 @@ function isTerminalMonitorVisible() {
   return (
     isTerminalMonitorPanelOpen.value &&
     document.visibilityState === 'visible' &&
-    Boolean(activeTab.value)
+    activeTerminalSupportsSshTools.value
   );
 }
 
@@ -3915,12 +3943,16 @@ function monitorProgressStyle(value: number): Record<string, string> {
 
 watch([activeTabId, terminalSidebarMode], () => {
   closeTerminalContextMenus();
-  if (activeTab.value && terminalSidebarMode.value === 'files') {
+  if (!activeTerminalSupportsSshTools.value && (terminalSidebarMode.value === 'files' || terminalSidebarMode.value === 'commands')) {
+    terminalSidebarMode.value = 'hosts';
+  }
+  if (activeTerminalSupportsSshTools.value && terminalSidebarMode.value === 'files') {
     terminalFilePath.value = '.';
     void loadTerminalDirectory('.');
     void nextTick(syncTerminalTransferPanelHeight);
   }
   if (
+    activeTerminalSupportsSshTools.value &&
     canUseTerminalQuickCommands.value &&
     terminalSidebarMode.value === 'commands' &&
     !terminalQuickCommands.value.length &&
@@ -3936,8 +3968,9 @@ watch(activeTabId, (_tabId, previousTabId) => {
   terminalMonitorError.value = '';
   if (previousTabId) clearTerminalSearchDecorations(getTabById(previousTabId));
   resetTerminalSearchResultState();
-  if (!activeTab.value) {
+  if (!activeTerminalSupportsSshTools.value) {
     isTerminalSearchOpen.value = false;
+    closeTerminalMonitorPanel();
     return;
   }
   if (isTerminalSearchOpen.value && terminalSearchQuery.value.trim()) {
@@ -4073,8 +4106,12 @@ async function activateTab(tabId: string) {
     tab.hasUnreadOutput = false;
     mountTerminal(tab);
     fitTerminal(tab);
-    tab.terminal.focus();
-    if (isTerminalFileFollowingCwd.value && tab.currentCwd) {
+    if (tab.kind === 'ssh') {
+      tab.terminal.focus();
+    } else {
+      tab.guacDisplayElement?.focus();
+    }
+    if (tab.kind === 'ssh' && isTerminalFileFollowingCwd.value && tab.currentCwd) {
       void loadTerminalDirectory(tab.currentCwd);
     }
   }
@@ -4085,6 +4122,7 @@ function createTerminalTab(
   tabId = createTerminalTabId(host.id),
   options: { customTitle?: string; colorId?: TerminalTabColorId | null } = {},
 ): TerminalTab {
+  const kind = getTerminalHostProtocol(host);
   const terminal = markRaw(
     new Terminal({
       cursorBlink: true,
@@ -4106,11 +4144,12 @@ function createTerminalTab(
   terminal.loadAddon(fitAddon);
   terminal.loadAddon(searchAddon);
   terminal.attachCustomKeyEventHandler((event) => handleTerminalKey(event, terminal));
-  terminal.writeln('CAPTAIN WEB TERMINAL');
+  terminal.writeln(kind === 'rdp' ? 'CAPTAIN WEB RDP' : 'CAPTAIN WEB TERMINAL');
   terminal.writeln(`正在连接 ${host.name} (${host.publicIp || host.privateIp}:${host.port})...`);
 
   const tab: TerminalTab = {
     id: tabId,
+    kind,
     host,
     customTitle: normalizeTerminalTabTitle(options.customTitle),
     colorId: normalizeTerminalTabColorId(options.colorId),
@@ -4119,6 +4158,12 @@ function createTerminalTab(
     fitAddon,
     searchAddon,
     socket: null,
+    guacClient: null,
+    guacTunnel: null,
+    guacMouse: null,
+    guacKeyboard: null,
+    guacDisplayElement: null,
+    rdpErrorMessage: '',
     sessionId: null,
     mounted: false,
     disposables: [],
@@ -4137,6 +4182,12 @@ function createTerminalTab(
 
 function createTerminalTabId(hostId: number) {
   return `${hostId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getTerminalHostProtocol(host: TerminalHost): TerminalTabKind {
+  const protocol = String(host.terminalProtocol || '').toLowerCase();
+  const platform = String(host.platformType || host.os || '').toLowerCase();
+  return protocol === 'rdp' || platform === 'windows' ? 'rdp' : 'ssh';
 }
 
 function handleTerminalKey(event: KeyboardEvent, terminal: Terminal) {
@@ -4167,6 +4218,10 @@ function mountTerminal(tab: TerminalTab) {
   if (tab.mounted) return;
   const container = terminalContainers.get(tab.id);
   if (!container) return;
+  if (tab.kind === 'rdp') {
+    mountRdpTerminal(tab, container);
+    return;
+  }
 
   tab.terminal.open(container);
   tab.mounted = true;
@@ -4204,6 +4259,16 @@ function mountTerminal(tab: TerminalTab) {
   tab.resizeObserver.observe(container);
   fitTerminal(tab);
   tab.terminal.focus();
+}
+
+function mountRdpTerminal(tab: TerminalTab, container: HTMLElement) {
+  container.tabIndex = 0;
+  container.textContent = '';
+  tab.mounted = true;
+  tab.resizeObserver = new ResizeObserver(() => fitTerminal(tab));
+  tab.resizeObserver.observe(container);
+  fitTerminal(tab);
+  container.focus();
 }
 
 function enqueueConnectTab(tab: TerminalTab) {
@@ -4254,6 +4319,7 @@ function reconnectTerminalTab(tab: TerminalTab) {
   tab.sessionId = null;
   tab.currentCwd = '';
   tab.socket = null;
+  cleanupRdpClient(tab);
   tab.reconnectHintShown = false;
   resetTerminalHighlightState(tab);
   removePendingConnectTab(tab.id);
@@ -4270,11 +4336,16 @@ function disconnectTerminalTab(tab: TerminalTab) {
     tab.socket.close();
   }
   tab.socket = null;
+  cleanupRdpClient(tab);
   tab.status = 'closed';
   showTerminalReconnectHint(tab, '连接已手动断开。');
 }
 
 function connectTab(tab: TerminalTab) {
+  if (tab.kind === 'rdp') {
+    connectRdpTab(tab);
+    return;
+  }
   if (terminalAuthRedirecting) return;
   tab.reconnectHintShown = false;
   const socket = new WebSocket(buildWebSocketUrl(tab.host.id));
@@ -4298,6 +4369,96 @@ function connectTab(tab: TerminalTab) {
       void confirmTerminalSessionStillAuthenticated();
     }
   });
+}
+
+function connectRdpTab(tab: TerminalTab) {
+  if (terminalAuthRedirecting) return;
+  cleanupRdpClient(tab);
+  tab.reconnectHintShown = false;
+  tab.rdpErrorMessage = '';
+  const tunnel = markRaw(new Guacamole.WebSocketTunnel(buildRdpWebSocketUrl(tab)));
+  const client = markRaw(new Guacamole.Client(tunnel));
+  tab.guacTunnel = tunnel;
+  tab.guacClient = client;
+
+  const container = terminalContainers.get(tab.id);
+  const displayElement = client.getDisplay().getElement();
+  displayElement.classList.add('terminal-rdp-display');
+  displayElement.tabIndex = 0;
+  if (container) {
+    container.textContent = '';
+    container.appendChild(displayElement);
+  }
+  tab.guacDisplayElement = displayElement;
+  attachRdpInputHandlers(tab, client, displayElement);
+
+  client.onstatechange = (state) => {
+    if (state === Guacamole.Client.State.CONNECTED) {
+      tab.status = 'connected';
+      finishConnectingTab(tab);
+      fitTerminal(tab);
+      if (tab.id !== activeTabId.value) markTabUnread(tab.id);
+      return;
+    }
+    if (state === Guacamole.Client.State.DISCONNECTED && tab.status !== 'closed') {
+      const wasConnecting = tab.status === 'connecting';
+      tab.status = wasConnecting ? 'error' : 'closed';
+      if (wasConnecting) {
+        tab.rdpErrorMessage = getRdpConnectionErrorMessage();
+      }
+      finishConnectingTab(tab);
+    }
+  };
+  client.onerror = (status) => {
+    tab.status = 'error';
+    tab.rdpErrorMessage = getRdpConnectionErrorMessage(status);
+    finishConnectingTab(tab);
+  };
+  tunnel.onerror = (status) => {
+    tab.status = 'error';
+    tab.rdpErrorMessage = getRdpConnectionErrorMessage(status);
+    finishConnectingTab(tab);
+  };
+
+  try {
+    client.connect(buildRdpConnectionQuery(tab));
+  } catch (error) {
+    tab.status = 'error';
+    tab.rdpErrorMessage = getRdpConnectionErrorMessage(error);
+    finishConnectingTab(tab);
+  }
+}
+
+function getRdpConnectionErrorMessage(status?: unknown) {
+  const message = typeof (status as { message?: unknown } | undefined)?.message === 'string'
+    ? (status as { message: string }).message.trim()
+    : '';
+  return message || 'guacd RDP gateway unavailable or Windows remote desktop connection failed.';
+}
+
+function attachRdpInputHandlers(tab: TerminalTab, client: GuacamoleClientInstance, displayElement: HTMLElement) {
+  const mouse = markRaw(new Guacamole.Mouse(displayElement));
+  mouse.onEach(['mousedown', 'mousemove', 'mouseup'], (event) => {
+    if (tab.status !== 'connected') return;
+    client.sendMouseState((event as Guacamole.Mouse.Event).state, true);
+    displayElement.focus();
+  });
+  mouse.on('mouseout', () => {
+    client.getDisplay().showCursor(false);
+  });
+  tab.guacMouse = mouse;
+
+  const keyboard = markRaw(new Guacamole.Keyboard(displayElement));
+  keyboard.onkeydown = (keysym) => {
+    if (tab.status !== 'connected' || tab.id !== activeTabId.value) return true;
+    client.sendKeyEvent(1, keysym);
+    return false;
+  };
+  keyboard.onkeyup = (keysym) => {
+    if (tab.status !== 'connected' || tab.id !== activeTabId.value) return;
+    client.sendKeyEvent(0, keysym);
+  };
+  tab.guacKeyboard = keyboard;
 }
 
 function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
@@ -4381,6 +4542,10 @@ function isTerminalTabVisible(tab: TerminalTab) {
 
 function fitTerminal(tab: TerminalTab) {
   if (!tab.mounted || !isTerminalTabVisible(tab)) return;
+  if (tab.kind === 'rdp') {
+    fitRdpTerminal(tab);
+    return;
+  }
   try {
     tab.fitAddon.fit();
     if (tab.socket?.readyState === WebSocket.OPEN) {
@@ -4448,6 +4613,10 @@ function stopSidebarResize() {
 }
 
 function selectTerminalSidebarMode(mode: TerminalSidebarMode) {
+  if ((mode === 'files' || mode === 'commands') && !activeTerminalSupportsSshTools.value) {
+    terminalSidebarMode.value = 'hosts';
+    return;
+  }
   if (mode === 'commands' && !shouldShowTerminalQuickCommandPanel.value) return;
   terminalSidebarMode.value = mode;
   if (mode === 'commands' && isTerminalQuickCommandPanelCollapsed.value) {
@@ -4466,6 +4635,7 @@ function toggleTerminalQuickCommandFromRail() {
 }
 
 function openTerminalMonitorPanel() {
+  if (!activeTerminalSupportsSshTools.value) return;
   if (isTerminalMonitorPanelOpen.value) {
     syncTerminalMonitorPolling();
     fitActiveTerminalSoon();
@@ -4480,10 +4650,45 @@ function closeTerminalMonitorPanel() {
 }
 
 function toggleTerminalMonitorPanel() {
+  if (!activeTerminalSupportsSshTools.value) return;
   if (isTerminalMonitorPanelOpen.value) {
     closeTerminalMonitorPanel();
   } else {
     openTerminalMonitorPanel();
+  }
+}
+
+function fitRdpTerminal(tab: TerminalTab) {
+  const client = tab.guacClient;
+  const container = terminalContainers.get(tab.id);
+  if (!client || !container) return;
+  const width = Math.max(320, Math.floor(container.clientWidth || 1280));
+  const height = Math.max(240, Math.floor(container.clientHeight || 720));
+  try {
+    client.sendSize(width, height);
+    const display = client.getDisplay();
+    const scale = Math.min(width / Math.max(display.getWidth(), 1), height / Math.max(display.getHeight(), 1));
+    display.scale(Number.isFinite(scale) && scale > 0 ? scale : 1);
+  } catch {
+    // The Guacamole display may not be ready until the RDP handshake completes.
+  }
+}
+
+async function toggleRdpFullscreen(tab: TerminalTab | null) {
+  if (!tab || tab.kind !== 'rdp') return;
+  const container = terminalContainers.get(tab.id);
+  if (!container) return;
+  try {
+    if (document.fullscreenElement === container) {
+      await document.exitFullscreen();
+    } else {
+      await container.requestFullscreen();
+      tab.guacDisplayElement?.focus();
+    }
+  } catch {
+    // Browser fullscreen can be blocked outside a trusted user gesture.
+  } finally {
+    fitTerminal(tab);
   }
 }
 
@@ -4515,7 +4720,9 @@ function setTerminalFontSize(nextSize: number) {
   terminalFontSize.value = normalized;
   window.localStorage.setItem(TERMINAL_FONT_SIZE_STORAGE_KEY, String(normalized));
   for (const tab of tabs.value) {
-    tab.terminal.options.fontSize = normalized;
+    if (tab.kind === 'ssh') {
+      tab.terminal.options.fontSize = normalized;
+    }
   }
   fitActiveTerminalSoon();
 }
@@ -4657,6 +4864,7 @@ function disposeTab(tab: TerminalTab) {
     tab.socket.close();
   }
   tab.socket = null;
+  cleanupRdpClient(tab);
   tab.resizeObserver?.disconnect();
   tab.resizeObserver = null;
   for (const disposable of tab.disposables) disposable.dispose();
@@ -4684,6 +4892,38 @@ function setTerminalContainer(tabId: string, element: unknown) {
 function buildWebSocketUrl(hostId: number) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/ws/web-terminal/${hostId}/`;
+}
+
+function buildRdpWebSocketUrl(tab: TerminalTab) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/ws/web-terminal/rdp/${tab.host.id}/`;
+}
+
+function buildRdpConnectionQuery(tab: TerminalTab) {
+  const container = terminalContainers.get(tab.id);
+  const params = new URLSearchParams({
+    width: String(Math.max(320, Math.floor(container?.clientWidth || 1280))),
+    height: String(Math.max(240, Math.floor(container?.clientHeight || 720))),
+  });
+  return params.toString();
+}
+
+function cleanupRdpClient(tab: TerminalTab) {
+  if (tab.guacKeyboard) {
+    tab.guacKeyboard.onkeydown = null;
+    tab.guacKeyboard.onkeyup = null;
+  }
+  try {
+    tab.guacClient?.disconnect();
+  } catch {
+    // Ignore disconnect races while closing or reconnecting a tab.
+  }
+  tab.guacClient = null;
+  tab.guacTunnel = null;
+  tab.guacMouse = null;
+  tab.guacKeyboard = null;
+  tab.guacDisplayElement?.remove();
+  tab.guacDisplayElement = null;
 }
 
 function highlightTerminalOutput(output: string, state: TerminalHighlightState) {
@@ -4857,6 +5097,7 @@ function readTerminalQuickCommandPanelCollapsed() {
           title="FTP 文件夹"
           aria-label="FTP 文件夹"
           :class="{ active: terminalSidebarMode === 'files' }"
+          :disabled="!activeTerminalSupportsSshTools"
           @click="selectTerminalSidebarMode('files')"
         >
           <AppIcon name="folder" :size="19" />
@@ -4867,6 +5108,7 @@ function readTerminalQuickCommandPanelCollapsed() {
           :aria-label="isTerminalMonitorPanelOpen ? '关闭资源监控' : '打开资源监控'"
           :aria-pressed="isTerminalMonitorPanelOpen"
           :class="{ active: isTerminalMonitorPanelOpen }"
+          :disabled="!activeTerminalSupportsSshTools"
           @click="toggleTerminalMonitorPanel"
         >
           <AppIcon name="monitor" :size="18" />
@@ -5459,7 +5701,7 @@ function readTerminalQuickCommandPanelCollapsed() {
             :title="isTerminalMultiExecutionEnabled ? '退出多执行模式' : '开启多执行模式'"
             :aria-label="isTerminalMultiExecutionEnabled ? '退出多执行模式' : '开启多执行模式'"
             :aria-pressed="isTerminalMultiExecutionEnabled"
-            :disabled="!isTerminalMultiExecutionEnabled && !hasTerminalMultiExecutionCandidates"
+            :disabled="!activeTerminalSupportsSshTools || (!isTerminalMultiExecutionEnabled && !hasTerminalMultiExecutionCandidates)"
             @click="toggleTerminalMultiExecution"
           >
             <AppIcon name="chevronsRight" :size="15" />
@@ -5499,6 +5741,7 @@ function readTerminalQuickCommandPanelCollapsed() {
             :title="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
             :aria-label="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
             :aria-pressed="highlightEnabled"
+            :disabled="!activeTerminalSupportsSshTools"
             @click="highlightEnabled = !highlightEnabled"
           >
             <AppIcon name="sun" :size="15" />
@@ -5508,7 +5751,7 @@ function readTerminalQuickCommandPanelCollapsed() {
               type="button"
               title="缩小终端字体"
               aria-label="缩小终端字体"
-              :disabled="!canDecreaseTerminalFontSize"
+              :disabled="!activeTerminalSupportsSshTools || !canDecreaseTerminalFontSize"
               @click="decreaseTerminalFontSize"
             >
               <AppIcon name="zoomOut" :size="15" />
@@ -5518,7 +5761,7 @@ function readTerminalQuickCommandPanelCollapsed() {
               type="button"
               title="放大终端字体"
               aria-label="放大终端字体"
-              :disabled="!canIncreaseTerminalFontSize"
+              :disabled="!activeTerminalSupportsSshTools || !canIncreaseTerminalFontSize"
               @click="increaseTerminalFontSize"
             >
               <AppIcon name="zoomIn" :size="15" />
@@ -5531,10 +5774,20 @@ function readTerminalQuickCommandPanelCollapsed() {
             title="查找当前终端"
             aria-label="查找当前终端"
             :aria-pressed="isTerminalSearchOpen"
-            :disabled="!activeTab"
+            :disabled="!activeTerminalSupportsSshTools"
             @click="openTerminalSearch()"
           >
             <AppIcon name="search" :size="15" />
+          </button>
+          <button
+            v-if="activeTab?.kind === 'rdp'"
+            type="button"
+            class="terminal-search-toggle"
+            title="全屏远程桌面"
+            aria-label="全屏远程桌面"
+            @click="toggleRdpFullscreen(activeTab)"
+          >
+            <AppIcon name="maximize" :size="15" />
           </button>
         </div>
         <span class="terminal-workspace-title">{{ workspaceTitle }}</span>
@@ -5747,9 +6000,16 @@ function readTerminalQuickCommandPanelCollapsed() {
                 <AppIcon name="x" :size="14" />
               </button>
             </div>
-            <div :ref="(element) => setTerminalContainer(tab.id, element)" class="terminal-xterm-host"></div>
+            <div
+              :ref="(element) => setTerminalContainer(tab.id, element)"
+              :class="tab.kind === 'rdp' ? 'terminal-rdp-host' : 'terminal-xterm-host'"
+            ></div>
+            <div v-if="tab.kind === 'rdp' && tab.rdpErrorMessage" class="terminal-rdp-status-overlay">
+              <strong>RDP connection failed</strong>
+              <span>{{ tab.rdpErrorMessage }}</span>
+            </div>
             <label
-              v-if="isTerminalMultiExecutionEnabled"
+              v-if="isTerminalMultiExecutionEnabled && tab.kind === 'ssh'"
               class="terminal-multi-execution-exclude"
               @click.stop
               @mousedown.stop

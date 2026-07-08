@@ -49,6 +49,11 @@ class TerminalCommandAuditSerializer(serializers.ModelSerializer):
     assetName = serializers.CharField(source="asset_name")
     ipAddress = serializers.SerializerMethodField()
     sessionId = serializers.UUIDField(source="session.session_id")
+    protocol = serializers.CharField(source="session.protocol")
+    recordingEnabled = serializers.BooleanField(source="session.recording_enabled")
+    hasRdpRecording = serializers.SerializerMethodField()
+    endedAt = serializers.DateTimeField(source="session.ended_at", allow_null=True)
+    errorMessage = serializers.CharField(source="session.error_message", allow_blank=True)
     hostId = serializers.IntegerField(source="host_id")
     executedAt = serializers.DateTimeField(source="executed_at")
 
@@ -63,9 +68,18 @@ class TerminalCommandAuditSerializer(serializers.ModelSerializer):
             "assetName",
             "ipAddress",
             "sessionId",
+            "protocol",
+            "recordingEnabled",
+            "hasRdpRecording",
+            "endedAt",
+            "errorMessage",
             "hostId",
             "executedAt",
         ]
 
     def get_ipAddress(self, obj):
         return str(obj.ip_address) if obj.ip_address else ""
+
+    def get_hasRdpRecording(self, obj):
+        session = obj.session
+        return bool(session and session.protocol == session.PROTOCOL_RDP and session.recording_enabled and session.recording_file)

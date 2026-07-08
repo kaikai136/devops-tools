@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import socket
 
 from django.utils import timezone
 
@@ -18,6 +19,9 @@ SYSTEM_TYPE_COMMAND = ". /etc/os-release 2>/dev/null && printf '%s' \"${ID:-}\" 
 
 
 def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
+    if is_windows_host(host):
+        return verify_windows_host_connectivity(host)
+
     now = timezone.now()
     try:
         info = probe_host_info(host)
@@ -41,6 +45,34 @@ def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
     host.verify_status = "verified"
     host.updated_at = now
     host.save(update_fields=["machine_name", "cpu", "memory", "os", "system_arch", "system_type", "verified", "verify_status", "updated_at"])
+    return host, None
+
+
+def is_windows_host(host: ManagedHost) -> bool:
+    return (host.os or "").lower() == "windows"
+
+
+def verify_windows_host_connectivity(host: ManagedHost) -> tuple[ManagedHost, str | None]:
+    now = timezone.now()
+    try:
+        connection = socket.create_connection((str(host.public_ip or host.private_ip), int(host.port or 3389)), timeout=8)
+        connection.close()
+    except OSError as error:
+        host.verified = False
+        host.verify_status = "failed"
+        host.updated_at = now
+        host.save(update_fields=["verified", "verify_status", "updated_at"])
+        return host, str(error)
+
+    host.machine_name = ""
+    host.cpu = 0
+    host.memory = 0
+    host.system_arch = ""
+    host.system_type = ""
+    host.verified = True
+    host.verify_status = "verified"
+    host.updated_at = now
+    host.save(update_fields=["machine_name", "cpu", "memory", "system_arch", "system_type", "verified", "verify_status", "updated_at"])
     return host, None
 
 

@@ -77,6 +77,7 @@ WATERMARK_ALLOWED_PAGES = {
     "ports",
     "subnet",
     "hosts",
+    "sessionAudits",
     "accounts",
     "auth",
     "password",

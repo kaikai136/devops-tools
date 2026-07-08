@@ -7,7 +7,9 @@ import shlex
 import stat
 import threading
 import time
+from pathlib import Path
 
+from django.conf import settings
 from django.utils import timezone
 
 from accounts.models import UserProfile
@@ -101,6 +103,8 @@ REMOTE_FILE_STREAM_CHUNK_BYTES = 1024 * 1024
 REMOTE_FILE_OWNER_PATTERN = re.compile(r"^[^\s:\x00-\x1f\x7f]+$")
 REMOTE_FILE_OCTAL_MODE_PATTERN = re.compile(r"^[0-7]{3,4}$")
 REMOTE_MONITOR_SAMPLE_INTERVAL_SECONDS = 1
+TERMINAL_PROTOCOL_SSH = TerminalSession.PROTOCOL_SSH
+TERMINAL_PROTOCOL_RDP = TerminalSession.PROTOCOL_RDP
 REMOTE_MONITOR_COMMAND = r"""
 set -eu
 test -r /proc/stat
@@ -136,6 +140,7 @@ df -PT -B1 2>/dev/null
 
 
 def host_payload(host: ManagedHost) -> dict:
+    platform_type = "windows" if host.os == "windows" or host.system_type.lower() == "windows" else "linux"
     return {
         "id": host.id,
         "name": host.name,
@@ -147,6 +152,9 @@ def host_payload(host: ManagedHost) -> dict:
         "remark": host.remark,
         "verified": host.verified,
         "verifyStatus": host.verify_status,
+        "os": host.os,
+        "platformType": platform_type,
+        "terminalProtocol": terminal_protocol_for_host(host),
     }
 
 
@@ -165,6 +173,12 @@ def terminal_tree_payload() -> list[dict]:
     for host in ManagedHost.objects.select_related("group").order_by("name", "id"):
         hosts_by_group.setdefault(host.group_id, []).append(host)
     return [group_payload(group, hosts_by_group) for group in groups]
+
+
+def terminal_protocol_for_host(host: ManagedHost) -> str:
+    if host.os == "windows" or host.system_type.lower() == "windows":
+        return TERMINAL_PROTOCOL_RDP
+    return TERMINAL_PROTOCOL_SSH
 
 
 def session_payload(session: TerminalSession, greeting: str = "") -> dict:
@@ -307,6 +321,208 @@ def create_terminal_session(host: ManagedHost, user=None) -> tuple[TerminalSessi
         session.save(update_fields=["recording", "recording_last_event_at"])
     LIVE_TERMINALS[str(session.session_id)] = connection
     return session, greeting or greeting_for(host)
+
+
+def is_rdp_recording_enabled() -> bool:
+    from system_management.models import SystemSetting
+
+    try:
+        setting = SystemSetting.objects.get(key="rdp_recording")
+    except SystemSetting.DoesNotExist:
+        return bool(getattr(settings, "RDP_RECORDING_DEFAULT_ENABLED", False))
+
+    value = setting.value if isinstance(setting.value, dict) else {}
+    if "enabled" in value:
+        return bool(value["enabled"])
+    return bool(getattr(settings, "RDP_RECORDING_DEFAULT_ENABLED", False))
+
+
+def create_rdp_terminal_session(host: ManagedHost, user=None) -> TerminalSession:
+    recording_enabled = is_rdp_recording_enabled()
+    session = TerminalSession.objects.create(
+        host=host,
+        protocol=TERMINAL_PROTOCOL_RDP,
+        status="connected",
+        transcript=f"connect-rdp {host.name}\n",
+        recording_enabled=recording_enabled,
+    )
+    if recording_enabled:
+        session.recording_file = build_rdp_recording_file(session)
+        session.save(update_fields=["recording_file"])
+    return session
+
+
+def build_rdp_recording_file(session: TerminalSession) -> str:
+    created_at = session.created_at or timezone.now()
+    return f"{created_at:%Y/%m}/{session.session_id}"
+
+
+def build_rdp_connection_parameters(host: ManagedHost, session: TerminalSession, *, width: int = 1280, height: int = 720) -> dict[str, str]:
+    target = str(host.public_ip or host.private_ip)
+    params = {
+        "hostname": target,
+        "port": str(host.port or 3389),
+        "username": host.login_user,
+        "password": host.login_password,
+        "security": "any",
+        "ignore-cert": "true",
+        "width": str(clamp_rdp_dimension(width, default=1280)),
+        "height": str(clamp_rdp_dimension(height, default=720)),
+    }
+    if session.recording_enabled and session.recording_file:
+        recording_relative = safe_recording_relative_path(session.recording_file)
+        recording_path = rdp_recording_root() / recording_relative.parent
+        params.update(
+            {
+                "recording-path": str(recording_path),
+                "recording-name": recording_relative.name,
+                "create-recording-path": "true",
+            }
+        )
+    return params
+
+
+def guacamole_instruction(*elements) -> str:
+    return ",".join(guacamole_element(element) for element in elements) + ";"
+
+
+def guacamole_element(value) -> str:
+    text = str(value)
+    return f"{len(text)}.{text}"
+
+
+def parse_guacamole_instruction(data: str) -> list[str]:
+    elements: list[str] = []
+    cursor = 0
+    while cursor < len(data):
+        length_end = data.find(".", cursor)
+        if length_end < 0:
+            raise TerminalConnectionError("Guacamole 指令不完整")
+        try:
+            length = int(data[cursor:length_end])
+        except ValueError as error:
+            raise TerminalConnectionError("Guacamole 指令长度无效") from error
+        value_start = length_end + 1
+        value_end = value_start + length
+        if value_end >= len(data):
+            raise TerminalConnectionError("Guacamole 指令不完整")
+        elements.append(data[value_start:value_end])
+        terminator = data[value_end]
+        cursor = value_end + 1
+        if terminator == ";":
+            if cursor != len(data):
+                raise TerminalConnectionError("Guacamole 指令包含多余数据")
+            return elements
+        if terminator != ",":
+            raise TerminalConnectionError("Guacamole 指令分隔符无效")
+    raise TerminalConnectionError("Guacamole 指令不完整")
+
+
+def is_guacamole_internal_instruction(data: str) -> bool:
+    try:
+        elements = parse_guacamole_instruction(data)
+    except TerminalConnectionError:
+        return False
+    return bool(elements) and elements[0] == ""
+
+
+def read_guacamole_instruction(source, *, max_chars: int = 1024 * 1024) -> str:
+    chunks: list[str] = []
+    total = 0
+    while total < max_chars:
+        data = source.recv(8192)
+        if not data:
+            raise TerminalConnectionError("guacd 连接已关闭")
+        text = data.decode("utf-8", errors="replace")
+        chunks.append(text)
+        total += len(text)
+        combined = "".join(chunks)
+        terminator = find_guacamole_instruction_end(combined)
+        if terminator >= 0:
+            return combined[:terminator]
+    raise TerminalConnectionError("guacd 指令过大")
+
+
+def find_guacamole_instruction_end(data: str) -> int:
+    cursor = 0
+    while cursor < len(data):
+        length_end = data.find(".", cursor)
+        if length_end < 0:
+            return -1
+        try:
+            length = int(data[cursor:length_end])
+        except ValueError as error:
+            raise TerminalConnectionError("Guacamole 指令长度无效") from error
+        value_end = length_end + 1 + length
+        if value_end >= len(data):
+            return -1
+        terminator = data[value_end]
+        cursor = value_end + 1
+        if terminator == ";":
+            return cursor
+        if terminator != ",":
+            raise TerminalConnectionError("Guacamole 指令分隔符无效")
+    return -1
+
+
+def clamp_rdp_dimension(value: int, *, default: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(320, min(number, 7680))
+
+
+def rdp_recording_root() -> Path:
+    return Path(getattr(settings, "RDP_RECORDING_ROOT", Path(settings.BASE_DIR) / "rdp_recordings"))
+
+
+def safe_recording_relative_path(value: str) -> Path:
+    normalized = Path(str(value).replace("\\", "/"))
+    if normalized.is_absolute() or ".." in normalized.parts:
+        raise TerminalConnectionError("RDP 录屏路径无效")
+    return normalized
+
+
+def cleanup_expired_rdp_recordings(*, root: Path | None = None, now=None) -> dict[str, int]:
+    root = Path(root or rdp_recording_root())
+    now = now or timezone.now()
+    retention_days = int(getattr(settings, "RDP_RECORDING_RETENTION_DAYS", 30))
+    cutoff = now - timezone.timedelta(days=max(retention_days, 1))
+    sessions = TerminalSession.objects.filter(
+        protocol=TERMINAL_PROTOCOL_RDP,
+        recording_file__gt="",
+        created_at__lt=cutoff,
+    )
+    deleted = 0
+    for session in sessions:
+        try:
+            relative_path = safe_recording_relative_path(session.recording_file)
+        except TerminalConnectionError:
+            continue
+        target = (root / relative_path).resolve()
+        try:
+            target.relative_to(root.resolve())
+        except ValueError:
+            continue
+        if target.is_file():
+            target.unlink()
+            prune_empty_recording_parents(target.parent, root)
+            deleted += 1
+        session.recording_file = ""
+        session.save(update_fields=["recording_file"])
+    return {"deleted": deleted}
+
+
+def prune_empty_recording_parents(directory: Path, root: Path) -> None:
+    root = root.resolve()
+    current = directory.resolve()
+    while current != root:
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
 
 
 def greeting_for(host: ManagedHost) -> str:

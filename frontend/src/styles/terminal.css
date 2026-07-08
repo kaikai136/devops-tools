@@ -2897,10 +2897,56 @@ input {
   }
 }
 
-.terminal-xterm-host {
+.terminal-xterm-host,
+.terminal-rdp-host {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.terminal-rdp-host {
+  display: grid;
+  place-items: center;
+  background: #05070b;
+  outline: 0;
+}
+
+.terminal-rdp-display {
+  max-width: 100%;
+  max-height: 100%;
+  outline: 0;
+}
+
+.terminal-rdp-display canvas {
+  display: block;
+}
+
+.terminal-rdp-status-overlay {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  width: min(520px, calc(100% - 32px));
+  gap: 6px;
+  transform: translateX(-50%);
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff7f7;
+  box-shadow: 0 14px 30px rgb(15 23 42 / 18%);
+  color: #991b1b;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.terminal-rdp-status-overlay strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.terminal-rdp-status-overlay span {
+  overflow-wrap: anywhere;
 }
 
 .terminal-panel .xterm {

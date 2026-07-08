@@ -28,18 +28,30 @@ class TerminalQuickCommand(models.Model):
 
 
 class TerminalSession(models.Model):
+    PROTOCOL_SSH = "ssh"
+    PROTOCOL_RDP = "rdp"
+    PROTOCOL_CHOICES = [
+        (PROTOCOL_SSH, "SSH"),
+        (PROTOCOL_RDP, "RDP"),
+    ]
+
     session_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     host = models.ForeignKey(ManagedHost, related_name="terminal_sessions", on_delete=models.CASCADE)
+    protocol = models.CharField(max_length=20, choices=PROTOCOL_CHOICES, default=PROTOCOL_SSH)
     status = models.CharField(max_length=20, default="connected")
     transcript = models.TextField(blank=True)
     recording = models.TextField(blank=True)
+    recording_file = models.CharField(max_length=500, blank=True)
+    recording_enabled = models.BooleanField(default=False)
     recording_started_at = models.DateTimeField(null=True, blank=True)
     recording_last_event_at = models.DateTimeField(null=True, blank=True)
     recording_cols = models.PositiveSmallIntegerField(default=120)
     recording_rows = models.PositiveSmallIntegerField(default=36)
     recording_has_input = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
     last_command_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
 
     class Meta:
         ordering = ["-created_at"]

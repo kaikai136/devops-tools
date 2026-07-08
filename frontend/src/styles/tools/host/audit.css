@@ -108,13 +108,13 @@
 }
 
 .host-session-audit-table {
-  min-width: 1220px;
+  min-width: 1420px;
   border-top: 1px solid #edf1f6;
 }
 
 .host-session-audit-row {
   display: grid;
-  grid-template-columns: minmax(110px, 0.7fr) minmax(240px, 1.4fr) minmax(92px, 0.55fr) minmax(150px, 0.9fr) minmax(138px, 0.8fr) minmax(112px, 0.65fr) minmax(160px, 0.9fr) 54px;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(220px, 1.25fr) minmax(92px, 0.55fr) minmax(64px, 0.38fr) minmax(88px, 0.5fr) minmax(150px, 0.85fr) minmax(138px, 0.75fr) minmax(112px, 0.6fr) minmax(160px, 0.85fr) 54px;
   align-items: center;
   gap: 12px;
   min-height: 72px;
@@ -317,6 +317,20 @@
 }
 
 .host-session-recording-player .ap-player {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.host-session-rdp-recording-display {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: #05070b;
+}
+
+.host-session-rdp-recording-display canvas {
+  display: block;
   max-width: 100%;
   max-height: 100%;
 }

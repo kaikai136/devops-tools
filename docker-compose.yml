@@ -1,4 +1,10 @@
 services:
+  guacd:
+    image: guacamole/guacd:1.5.5
+    container_name: ${GUACD_CONTAINER_NAME:-devops-tools-guacd}
+    restart: unless-stopped
+    init: true
+
   app:
     build:
       context: .
@@ -19,12 +25,23 @@ services:
       DJANGO_DB_PATH: /app/data/db.sqlite3
       DJANGO_MEDIA_ROOT: /app/media
       DJANGO_SERVE_MEDIA_FILES: "1"
+      GUACD_HOST: "${GUACD_HOST:-guacd}"
+      GUACD_PORT: "${GUACD_PORT:-4822}"
+      RDP_RECORDING_ROOT: /app/rdp_recordings
+      RDP_RECORDING_RETENTION_DAYS: "${RDP_RECORDING_RETENTION_DAYS:-30}"
+      RDP_RECORDING_DEFAULT_ENABLED: "${RDP_RECORDING_DEFAULT_ENABLED:-0}"
+    depends_on:
+      - guacd
     volumes:
       - ./data:/app/data
       - ./media:/app/media
+      - rdp_recordings:/app/rdp_recordings
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8001/api/health/ >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 30s
+
+volumes:
+  rdp_recordings:

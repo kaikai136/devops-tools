@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import * as AsciinemaPlayer from 'asciinema-player';
 import type { Player as AsciinemaPlayerInstance } from 'asciinema-player';
+import Guacamole from 'guacamole-common-js';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import 'asciinema-player/dist/bundle/asciinema-player.css';
 
 import { useAppContext } from '../../appContext';
 import {
   listSessionAudits,
+  rdpSessionRecordingUrl,
   sessionRecordingUrl,
   type SessionAuditRiskLevel,
   type TerminalSessionAudit,
@@ -17,6 +19,7 @@ import AppIcon from '../common/AppIcon.vue';
 interface SessionRecordingDialogState {
   visible: boolean;
   sessionId: string;
+  protocol: 'ssh' | 'rdp' | string;
   error: string;
 }
 
@@ -43,10 +46,12 @@ const expandedSessionAuditIds = ref<Set<number>>(new Set());
 const sessionRecordingDialog = ref<SessionRecordingDialogState>({
   visible: false,
   sessionId: '',
+  protocol: 'ssh',
   error: '',
 });
 const sessionRecordingContainer = ref<HTMLElement | null>(null);
 let sessionRecordingPlayer: AsciinemaPlayerInstance | null = null;
+let rdpSessionRecordingPlayer: InstanceType<typeof Guacamole.SessionRecording> | null = null;
 let sessionAuditRequestId = 0;
 
 const sessionAuditTotalPages = computed(() => Math.max(1, Math.ceil(sessionAuditTotal.value / sessionAuditPageSize.value)));
@@ -169,16 +174,20 @@ function formatAuditOutput(output: string | null | undefined) {
     .trim();
 }
 
-async function openSessionRecording(sessionId: string) {
-  if (!sessionId) return;
+async function openSessionRecording(audit: TerminalSessionAudit) {
+  if (!audit.sessionId) return;
   disposeSessionRecordingPlayer();
-  sessionRecordingDialog.value = { visible: true, sessionId, error: '' };
+  sessionRecordingDialog.value = { visible: true, sessionId: audit.sessionId, protocol: audit.protocol || 'ssh', error: '' };
   await nextTick();
   if (!sessionRecordingContainer.value) return;
+  if (audit.protocol === 'rdp') {
+    await openRdpSessionRecording(audit);
+    return;
+  }
   try {
     sessionRecordingPlayer = AsciinemaPlayer.create(
       {
-        url: sessionRecordingUrl(sessionId),
+        url: sessionRecordingUrl(audit.sessionId),
         fetchOpts: { credentials: 'include' },
       },
       sessionRecordingContainer.value,
@@ -198,12 +207,54 @@ async function openSessionRecording(sessionId: string) {
   }
 }
 
+async function openRdpSessionRecording(audit: TerminalSessionAudit) {
+  if (!sessionRecordingContainer.value) return;
+  if (!audit.hasRdpRecording) {
+    sessionRecordingDialog.value = {
+      ...sessionRecordingDialog.value,
+      error: 'RDP 录屏不存在或已清理',
+    };
+    return;
+  }
+  try {
+    const tunnel = new Guacamole.StaticHTTPTunnel(rdpSessionRecordingUrl(audit.sessionId), false, {});
+    const recording = new Guacamole.SessionRecording(tunnel, 250);
+    rdpSessionRecordingPlayer = recording;
+    const displayElement = recording.getDisplay().getElement();
+    displayElement.classList.add('host-session-rdp-recording-display');
+    sessionRecordingContainer.value.textContent = '';
+    sessionRecordingContainer.value.appendChild(displayElement);
+    recording.onerror = (message) => {
+      sessionRecordingDialog.value = {
+        ...sessionRecordingDialog.value,
+        error: message || 'RDP 录屏加载失败',
+      };
+    };
+    recording.onload = () => {
+      recording.play();
+    };
+    recording.connect('');
+  } catch (error) {
+    sessionRecordingDialog.value = {
+      ...sessionRecordingDialog.value,
+      error: error instanceof Error ? error.message : 'RDP 录屏加载失败',
+    };
+  }
+}
+
 function closeSessionRecording() {
   disposeSessionRecordingPlayer();
-  sessionRecordingDialog.value = { visible: false, sessionId: '', error: '' };
+  sessionRecordingDialog.value = { visible: false, sessionId: '', protocol: 'ssh', error: '' };
 }
 
 function disposeSessionRecordingPlayer() {
+  if (rdpSessionRecordingPlayer) {
+    try {
+      rdpSessionRecordingPlayer.abort();
+    } finally {
+      rdpSessionRecordingPlayer = null;
+    }
+  }
   if (!sessionRecordingPlayer) return;
   try {
     sessionRecordingPlayer.dispose();
@@ -252,6 +303,8 @@ onBeforeUnmount(() => {
             <span>用户</span>
             <span>命令</span>
             <span>风险等级</span>
+            <span>协议</span>
+            <span>录屏</span>
             <span>资产节点</span>
             <span>IP 地址</span>
             <span>会话</span>
@@ -263,9 +316,11 @@ onBeforeUnmount(() => {
               <span :title="audit.username">{{ audit.username || '-' }}</span>
               <code :title="audit.command">{{ audit.command }}</code>
               <span class="host-session-risk" :class="audit.riskLevel">{{ sessionAuditRiskText(audit.riskLevel) }}</span>
+              <span>{{ audit.protocol === 'rdp' ? 'RDP' : 'SSH' }}</span>
+              <span>{{ audit.protocol === 'rdp' ? (audit.hasRdpRecording ? '已录制' : audit.recordingEnabled ? '录制中' : '未开启') : '-' }}</span>
               <span :title="audit.assetName">{{ audit.assetName || '-' }}</span>
               <span>{{ audit.ipAddress || '-' }}</span>
-              <button class="host-session-link" type="button" :title="audit.sessionId" @click="openSessionRecording(audit.sessionId)">
+              <button class="host-session-link" type="button" :title="audit.sessionId" @click="openSessionRecording(audit)">
                 {{ shortSessionId(audit.sessionId) }}
               </button>
               <span>{{ formatAuditDate(audit.executedAt) }}</span>
@@ -281,6 +336,10 @@ onBeforeUnmount(() => {
               <div>
                 <strong>终端输出</strong>
                 <pre>{{ formatAuditOutput(audit.output) || '暂无输出' }}</pre>
+              </div>
+              <div v-if="audit.endedAt || audit.errorMessage">
+                <strong>会话状态</strong>
+                <pre>{{ audit.endedAt ? `结束：${formatAuditDate(audit.endedAt)}` : '' }}{{ audit.errorMessage ? `\n错误：${audit.errorMessage}` : '' }}</pre>
               </div>
             </div>
           </template>
