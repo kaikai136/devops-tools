@@ -23,9 +23,6 @@ export function useShellState() {
 
   function setActiveTool(key: ToolKey) {
     activeTool.value = key;
-    if (key === 'hosts') {
-      sidebarCollapsed.value = true;
-    }
   }
 
   watch(activeTool, (key) => {
