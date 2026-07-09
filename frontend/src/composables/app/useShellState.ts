@@ -97,6 +97,7 @@ function navItemIcon(key: ToolKey): IconName {
     subnet: 'globe',
     auth: 'shield',
     password: 'key',
+    securityScan: 'scan',
     loginLogs: 'bell',
     operationLogs: 'clipboard',
     users: 'user',

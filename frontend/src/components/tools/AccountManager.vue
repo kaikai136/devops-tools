@@ -10,7 +10,6 @@ interface CredentialForm {
   name: string;
   username: string;
   password: string;
-  port: number;
   privateKeyName: string;
   privateKey: string;
   remark: string;
@@ -72,7 +71,6 @@ function openEditDialog(credential: HostCredential) {
     name: credential.name,
     username: credential.username,
     password: credential.password,
-    port: credential.port,
     privateKeyName: credential.privateKeyName,
     privateKey: credential.privateKey,
     remark: credential.remark,
@@ -86,7 +84,6 @@ async function saveCredential() {
     name: form.value.name.trim(),
     username: form.value.username.trim(),
     password: form.value.password.trim(),
-    port: form.value.port || 22,
     privateKeyName: form.value.privateKeyName.trim(),
     privateKey: form.value.privateKey.trim(),
     remark: form.value.remark.trim(),
@@ -136,7 +133,6 @@ function emptyForm(): CredentialForm {
     name: '',
     username: '',
     password: '',
-    port: 22,
     privateKeyName: '',
     privateKey: '',
     remark: '',
@@ -171,7 +167,6 @@ function emptyForm(): CredentialForm {
         <div class="account-table-row head credential-row">
           <span>账号名称</span>
           <span>用户</span>
-          <span>端口</span>
           <span>密码</span>
           <span>独立密钥</span>
           <span>备注</span>
@@ -183,7 +178,6 @@ function emptyForm(): CredentialForm {
             <span>ID {{ credential.id }}</span>
           </div>
           <strong>{{ credential.username }}</strong>
-          <span>{{ credential.port }}</span>
           <span class="account-status" :class="{ active: credential.password }">{{ credential.password ? '已保存' : '未设置' }}</span>
           <span class="account-role" :class="{ staff: credential.privateKey }">{{ credential.privateKeyName || '未上传' }}</span>
           <span class="account-date">{{ credential.remark || '无备注' }}</span>
@@ -210,10 +204,6 @@ function emptyForm(): CredentialForm {
         <label class="account-horizontal-field required">
           <span>用户：</span>
           <input v-model="form.username" />
-        </label>
-        <label class="account-horizontal-field">
-          <span>端口：</span>
-          <input v-model.number="form.port" min="1" max="65535" type="number" />
         </label>
         <label class="account-horizontal-field">
           <span>密码：</span>

@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "authenticators",
     "host_management",
     "web_terminal",
+    "security_scanner",
     "operations",
     "system_management",
 ]
@@ -135,6 +136,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["accounts.authentication.CsrfExemptSessionAuthentication"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser", "rest_framework.parsers.MultiPartParser", "rest_framework.parsers.FormParser"],
+    "URL_FORMAT_OVERRIDE": None,
 }
 
 CHANNEL_LAYERS = {

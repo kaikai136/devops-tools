@@ -27,6 +27,7 @@ const OperationLogManager = defineAsyncComponent(() => import('./components/tool
 const PasswordGenerator = defineAsyncComponent(() => import('./components/tools/PasswordGenerator.vue'));
 const ProfileCenter = defineAsyncComponent(() => import('./components/tools/ProfileCenter.vue'));
 const RoleManager = defineAsyncComponent(() => import('./components/tools/RoleManager.vue'));
+const SecurityScanPanel = defineAsyncComponent(() => import('./components/tools/SecurityScanPanel.vue'));
 const SubnetCalculator = defineAsyncComponent(() => import('./components/tools/SubnetCalculator.vue'));
 const SystemSettingsPanel = defineAsyncComponent(() => import('./components/tools/SystemSettingsPanel.vue'));
 const UserManager = defineAsyncComponent(() => import('./components/tools/UserManager.vue'));
@@ -347,7 +348,7 @@ async function lockCurrentSession() {
                 <AppIcon name="terminal" :size="20" />
               </button>
             </template>
-            <template v-else-if="activeTool === 'dashboard' || activeTool === 'sessionAudits' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings'"></template>
+            <template v-else-if="activeTool === 'dashboard' || activeTool === 'sessionAudits' || activeTool === 'accounts' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings' || activeTool === 'securityScan'"></template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
             </template>
@@ -437,6 +438,7 @@ async function lockCurrentSession() {
           <SubnetCalculator v-if="activeTool === 'subnet'" />
           <AuthenticatorPanel v-if="activeTool === 'auth'" />
           <PasswordGenerator v-if="activeTool === 'password'" />
+          <SecurityScanPanel v-if="activeTool === 'securityScan'" />
           <LoginLogManager v-if="activeTool === 'loginLogs'" />
           <OperationLogManager v-if="activeTool === 'operationLogs'" />
           <UserManager v-if="activeTool === 'users'" />

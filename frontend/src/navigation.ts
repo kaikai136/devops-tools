@@ -45,6 +45,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { key: 'auth' as const, label: '双因子认证', desc: 'TOTP 动态口令' },
       { key: 'password' as const, label: '密码生成器', desc: '强密码生成与记录' },
+      { key: 'securityScan' as const, label: '安全扫描', desc: 'Linux 主机基线、端口风险与 CVE 扫描' },
     ],
   },
   {

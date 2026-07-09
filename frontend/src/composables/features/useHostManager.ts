@@ -250,9 +250,7 @@ export function useHostManager({
     () => hostForm.value.os,
     (nextOs) => {
       if (hostDialog.value?.mode !== 'create') return;
-      if (nextOs === 'windows' && (!hostForm.value.port || hostForm.value.port === SSH_DEFAULT_PORT)) {
-        hostForm.value.port = RDP_DEFAULT_PORT;
-      }
+      hostForm.value.port = defaultPortForHostOs(nextOs);
     },
   );
 
@@ -825,7 +823,6 @@ export function useHostManager({
   function applyCredentialToHostForm() {
     const credential = hostCredentials.value.find((item) => item.id === hostForm.value.credential);
     if (!credential) return;
-    hostForm.value.port = credential.port || 22;
     hostForm.value.loginUser = credential.username;
     hostForm.value.loginPassword = credential.password;
     hostForm.value.privateKeyName = credential.privateKeyName;
@@ -1116,6 +1113,10 @@ function isIPv4Address(value: string) {
 
 function isSelectableHostOs(value: HostOs) {
   return selectableHostOsValues.some((option) => option === value);
+}
+
+function defaultPortForHostOs(value: HostOs) {
+  return value === 'windows' ? RDP_DEFAULT_PORT : SSH_DEFAULT_PORT;
 }
 
 function emptyHostForm(group: number | null = null, sequence = 10): ManagedHostForm {

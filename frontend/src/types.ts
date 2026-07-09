@@ -8,6 +8,7 @@ export type ToolKey =
   | 'subnet'
   | 'auth'
   | 'password'
+  | 'securityScan'
   | 'loginLogs'
   | 'operationLogs'
   | 'users'
@@ -396,4 +397,104 @@ export interface DashboardSummary {
   groupRanking: Array<{ id: number; label: string; value: number }>;
   egressNetwork: DashboardEgressNetwork;
   generatedAt: string;
+}
+
+export type SecurityScanStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type SecurityScanSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+export interface SecurityScanRiskCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+}
+
+export interface SecurityScanHostTarget {
+  id: number;
+  name: string;
+  group: number;
+  groupName: string;
+  privateIp: string;
+  port: number;
+  loginUser: string;
+  os: string;
+  systemType: string;
+  systemArch: string;
+  verified: boolean;
+}
+
+export interface SecurityScanTask {
+  id: number;
+  name: string;
+  status: SecurityScanStatus;
+  targetCount: number;
+  completedCount: number;
+  riskCounts: SecurityScanRiskCounts;
+  options: Record<string, unknown>;
+  error: string;
+  createdBy: string;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface SecurityScanHostResult {
+  id: number;
+  host: number | null;
+  hostName: string;
+  hostIp: string;
+  hostPort: number;
+  loginUser: string;
+  os: string;
+  systemType: string;
+  status: SecurityScanStatus | 'pending';
+  systemInfo: Record<string, unknown>;
+  openPorts: Array<{ port: number; service: string; duration?: number }>;
+  packageCount: number;
+  riskCounts: SecurityScanRiskCounts;
+  error: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface SecurityScanFinding {
+  id: number;
+  hostResult: number;
+  hostName: string;
+  hostIp: string;
+  category: 'baseline' | 'port' | 'cve' | string;
+  severity: SecurityScanSeverity;
+  title: string;
+  recommendation: string;
+  cveId: string;
+  packageName: string;
+  currentVersion: string;
+  fixedVersion: string;
+  port: number | null;
+  service: string;
+  cvss: number | null;
+  cwe: string;
+  source: string;
+}
+
+export interface SecurityScanTaskDetail extends SecurityScanTask {
+  hostResults: SecurityScanHostResult[];
+}
+
+export interface SecurityScanFindingPage {
+  results: SecurityScanFinding[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
+export interface SecurityScanCreatePayload {
+  hostIds: number[];
+  portsInput: string;
+  enableBaseline: boolean;
+  enablePortScan: boolean;
+  enableCveScan: boolean;
+  name?: string;
 }
