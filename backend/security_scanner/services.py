@@ -9,35 +9,48 @@ import urllib.parse
 import urllib.request
 from io import StringIO
 
-from django.conf import settings
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet, Sum
 from django.utils import timezone
 
 from host_management.models import ManagedHost
 from network_tools.services import parse_ports, scan_ports
+from system_management.models import SystemSetting
 from web_terminal.services import run_one_shot_ssh_command
 
-from .models import SecurityScanFinding, SecurityScanHostResult, SecurityScanTask, VulnerabilityCache
+from .models import ScanFinding, ScanTargetResult, ScanTask, VulnerabilityCache
 
-DEFAULT_SECURITY_SCAN_PORTS = "21,22,23,25,53,80,110,139,143,443,445,3306,5432,5900,6379,8080,8443,27017"
-MAX_SCAN_HOSTS = 50
+DEFAULT_SECURITY_SCAN_PORTS = "21,22,23,25,53,80,110,139,143,443,445,3306,3389,5432,5900,6379,8080,8443,27017"
+MAX_SCAN_TARGETS = 50
 MAX_SCAN_PORTS = 256
-NVD_DISCLAIMER = "NVD 数据不代表 NVD 官方背书。"
+SECURITY_SCAN_SETTING_KEY = "security_scan"
+NVD_DISCLAIMER = "NVD 数据仅用于漏洞信息补充，不代表 NVD 官方背书。"
+
+DEFAULT_SCAN_MODULES = {"baseline": True, "ports": True, "cve": False}
 
 PORT_RISK_RULES = {
     21: ("medium", "FTP 服务开放", "FTP 明文传输可能泄露凭据，建议改用 SFTP/FTPS。"),
     23: ("high", "Telnet 服务开放", "Telnet 明文传输风险较高，建议关闭并改用 SSH。"),
     3306: ("medium", "MySQL 服务开放", "数据库端口暴露会增加暴力破解和未授权访问风险。"),
+    3389: ("medium", "RDP 服务开放", "RDP 暴露会增加暴力破解风险，请限制来源。"),
     5432: ("medium", "PostgreSQL 服务开放", "数据库端口暴露会增加暴力破解和未授权访问风险。"),
     5900: ("high", "VNC 服务开放", "VNC 暴露可能被暴力破解或利用弱口令访问。"),
     6379: ("high", "Redis 服务开放", "Redis 暴露可能导致未授权访问和数据泄露。"),
     27017: ("high", "MongoDB 服务开放", "MongoDB 暴露可能导致未授权访问和数据泄露。"),
     445: ("medium", "SMB 服务开放", "SMB 暴露会增加横向移动和漏洞利用风险。"),
-    3389: ("medium", "RDP 服务开放", "RDP 暴露会增加暴力破解风险。"),
 }
 
 
-def scannable_hosts_queryset() -> QuerySet[ManagedHost]:
+def security_scan_settings() -> dict:
+    setting = SystemSetting.objects.filter(key=SECURITY_SCAN_SETTING_KEY).first()
+    value = setting.value if setting and isinstance(setting.value, dict) else {}
+    return {
+        "onlineCveEnabled": bool(value.get("onlineCveEnabled", False)),
+        "nvdApiKeyConfigured": bool(os.environ.get("NVD_API_KEY", "").strip()),
+        "sources": ["OSV", "NVD"] if value.get("onlineCveEnabled", False) else [],
+    }
+
+
+def scannable_targets_queryset() -> QuerySet[ManagedHost]:
     return ManagedHost.objects.select_related("group", "created_by").filter(verified=True, verify_status="verified").exclude(os="windows").exclude(login_user="")
 
 
@@ -45,8 +58,22 @@ def has_ssh_credential(host: ManagedHost) -> bool:
     return bool(host.login_user and (host.login_password or host.private_key))
 
 
-def list_scannable_hosts() -> list[ManagedHost]:
-    return [host for host in scannable_hosts_queryset() if has_ssh_credential(host)]
+def list_scannable_targets() -> list[ManagedHost]:
+    return [host for host in scannable_targets_queryset() if has_ssh_credential(host)]
+
+
+def normalize_scan_modules(payload: dict) -> dict:
+    raw_modules = payload.get("scanModules") or payload.get("scan_modules") or {}
+    if not isinstance(raw_modules, dict):
+        raw_modules = {}
+    modules = {
+        "baseline": bool(raw_modules.get("baseline", DEFAULT_SCAN_MODULES["baseline"])),
+        "ports": bool(raw_modules.get("ports", raw_modules.get("portScan", DEFAULT_SCAN_MODULES["ports"]))),
+        "cve": bool(raw_modules.get("cve", DEFAULT_SCAN_MODULES["cve"])),
+    }
+    if not any(modules.values()):
+        raise ValueError("请至少选择一个扫描模块")
+    return modules
 
 
 def normalize_scan_options(payload: dict) -> dict:
@@ -56,32 +83,36 @@ def normalize_scan_options(payload: dict) -> dict:
         raise ValueError(f"单台主机最多扫描 {MAX_SCAN_PORTS} 个端口")
     return {
         "portsInput": ports_input,
-        "enableBaseline": bool(payload.get("enableBaseline", True)),
-        "enablePortScan": bool(payload.get("enablePortScan", True)),
-        "enableCveScan": bool(payload.get("enableCveScan", True)),
+        "portTimeoutMs": 2000,
+        "portConcurrency": 50,
     }
 
 
-def create_security_scan_task(user, payload: dict) -> SecurityScanTask:
-    host_ids = payload.get("hostIds") or payload.get("host_ids") or []
-    if not isinstance(host_ids, list) or not host_ids:
-        raise ValueError("请选择要扫描的 Linux 主机")
-    if len(host_ids) > MAX_SCAN_HOSTS:
-        raise ValueError(f"每次最多选择 {MAX_SCAN_HOSTS} 台主机")
+def create_scan_task(user, payload: dict) -> ScanTask:
+    target_ids = payload.get("targetIds") or payload.get("target_ids") or payload.get("hostIds") or []
+    if not isinstance(target_ids, list) or not target_ids:
+        raise ValueError("请选择要扫描的 Linux SSH 主机")
+    if len(target_ids) > MAX_SCAN_TARGETS:
+        raise ValueError(f"每次最多选择 {MAX_SCAN_TARGETS} 台主机")
+    target_ids = [int(item) for item in target_ids]
     options = normalize_scan_options(payload)
-    hosts_by_id = {host.id: host for host in list_scannable_hosts() if host.id in set(int(item) for item in host_ids)}
-    hosts = [hosts_by_id.get(int(host_id)) for host_id in host_ids if int(host_id) in hosts_by_id]
+    modules = normalize_scan_modules(payload)
+    source = security_scan_settings()
+    hosts_by_id = {host.id: host for host in list_scannable_targets() if host.id in set(target_ids)}
+    hosts = [hosts_by_id[target_id] for target_id in target_ids if target_id in hosts_by_id]
     if not hosts:
-        raise ValueError("没有可扫描的 Linux 主机")
+        raise ValueError("没有可扫描的 Linux SSH 主机")
 
-    task = SecurityScanTask.objects.create(
-        name=str(payload.get("name", "")).strip() or f"安全扫描 {timezone.localtime().strftime('%Y-%m-%d %H:%M:%S')}",
+    task = ScanTask.objects.create(
+        name=str(payload.get("name", "")).strip() or f"安全巡检 {timezone.localtime().strftime('%Y-%m-%d %H:%M:%S')}",
         created_by=user if getattr(user, "is_authenticated", False) else None,
         target_count=len(hosts),
+        scan_modules=modules,
         options=options,
+        vulnerability_source=source,
     )
     for host in hosts:
-        SecurityScanHostResult.objects.create(
+        ScanTargetResult.objects.create(
             task=task,
             host=host,
             host_name=host.name,
@@ -90,60 +121,85 @@ def create_security_scan_task(user, payload: dict) -> SecurityScanTask:
             login_user=host.login_user,
             os=host.os,
             system_type=host.system_type,
+            system_arch=host.system_arch,
         )
     return task
 
 
-def run_security_scan_task(task_id: int) -> None:
-    task = SecurityScanTask.objects.get(id=task_id)
-    task.status = SecurityScanTask.STATUS_RUNNING
-    task.started_at = timezone.now()
+def run_scan_task(task_id: int, retry_target_ids: list[int] | None = None) -> None:
+    task = ScanTask.objects.get(id=task_id)
+    task.status = ScanTask.STATUS_RUNNING
+    task.started_at = task.started_at or timezone.now()
+    task.finished_at = None
     task.error = ""
-    task.save(update_fields=["status", "started_at", "error"])
+    task.cancel_requested = False if retry_target_ids else task.cancel_requested
+    task.save(update_fields=["status", "started_at", "finished_at", "error", "cancel_requested"])
+    queryset = task.target_results.select_related("host").all()
+    if retry_target_ids is not None:
+        queryset = queryset.filter(id__in=retry_target_ids)
     try:
-        for host_result in task.host_results.select_related("host").all():
-            scan_host_result(host_result)
+        for target_result in queryset:
+            task.refresh_from_db(fields=["cancel_requested", "status"])
+            if task.cancel_requested:
+                mark_target_skipped(target_result, "任务已取消，跳过后续主机")
+                continue
+            scan_target_result(target_result)
             refresh_task_counts(task)
-        task.status = SecurityScanTask.STATUS_COMPLETED
+        task.refresh_from_db(fields=["cancel_requested"])
+        task.status = ScanTask.STATUS_CANCELED if task.cancel_requested else final_task_status(task)
     except Exception as error:
-        task.status = SecurityScanTask.STATUS_FAILED
+        task.status = ScanTask.STATUS_FAILED
         task.error = str(error)
     finally:
         task.finished_at = timezone.now()
         refresh_task_counts(task)
-        task.save(update_fields=["status", "error", "finished_at", "completed_count", "critical_count", "high_count", "medium_count", "low_count", "info_count"])
+        task.save(update_fields=["status", "error", "finished_at", "completed_count", "failed_count", "critical_count", "high_count", "medium_count", "low_count", "info_count"])
 
 
-def scan_host_result(host_result: SecurityScanHostResult) -> None:
-    host = host_result.host
+def final_task_status(task: ScanTask) -> str:
+    failed = task.target_results.filter(status=ScanTargetResult.STATUS_FAILED).exists()
+    pending = task.target_results.filter(status__in=[ScanTargetResult.STATUS_PENDING, ScanTargetResult.STATUS_RUNNING]).exists()
+    if pending:
+        return ScanTask.STATUS_RUNNING
+    return ScanTask.STATUS_FAILED if failed else ScanTask.STATUS_COMPLETED
+
+
+def scan_target_result(target_result: ScanTargetResult) -> None:
+    host = target_result.host
     if host is None:
-        mark_host_failed(host_result, "主机已不存在")
+        mark_target_failed(target_result, "主机已不存在")
         return
-    host_result.status = SecurityScanHostResult.STATUS_RUNNING
-    host_result.started_at = timezone.now()
-    host_result.error = ""
-    host_result.save(update_fields=["status", "started_at", "error"])
-    options = host_result.task.options
+    target_result.status = ScanTargetResult.STATUS_RUNNING
+    target_result.started_at = timezone.now()
+    target_result.finished_at = None
+    target_result.error = ""
+    target_result.skipped_modules = []
+    target_result.save(update_fields=["status", "started_at", "finished_at", "error", "skipped_modules"])
+    task = target_result.task
+    modules = task.scan_modules or DEFAULT_SCAN_MODULES
     try:
         system_info = collect_system_info(host)
-        host_result.system_info = system_info
+        target_result.system_info = system_info
         packages = []
-        if options.get("enableBaseline", True):
-            create_baseline_findings(host_result, host, system_info)
-        if options.get("enablePortScan", True):
-            create_port_findings(host_result, host, options.get("portsInput", DEFAULT_SECURITY_SCAN_PORTS))
-        if options.get("enableCveScan", True):
-            packages = collect_packages(host, system_info)
-            create_cve_findings(host_result, packages, system_info)
-        host_result.package_count = len(packages)
-        host_result.status = SecurityScanHostResult.STATUS_COMPLETED
+        if modules.get("baseline", True):
+            create_baseline_findings(target_result, host, system_info)
+        if modules.get("ports", True):
+            create_port_findings(target_result, host, task.options.get("portsInput", DEFAULT_SECURITY_SCAN_PORTS))
+        if modules.get("cve", False):
+            if not (task.vulnerability_source or {}).get("onlineCveEnabled"):
+                target_result.skipped_modules = sorted(set([*target_result.skipped_modules, "cve"]))
+            else:
+                packages = collect_packages(host, system_info)
+                create_cve_findings(target_result, packages, system_info)
+        target_result.package_count = len(packages)
+        target_result.status = ScanTargetResult.STATUS_COMPLETED
     except Exception as error:
-        host_result.status = SecurityScanHostResult.STATUS_FAILED
-        host_result.error = str(error)
+        target_result.status = ScanTargetResult.STATUS_FAILED
+        target_result.error = str(error)
         add_finding(
-            host_result,
-            category="baseline",
-            severity="high",
+            target_result,
+            category=ScanFinding.CATEGORY_BASELINE,
+            severity=ScanFinding.SEVERITY_HIGH,
             title="SSH 安全扫描失败",
             description="无法通过 SSH 完成主机安全扫描。",
             evidence=str(error),
@@ -151,14 +207,15 @@ def scan_host_result(host_result: SecurityScanHostResult) -> None:
             source="baseline",
         )
     finally:
-        host_result.finished_at = timezone.now()
-        refresh_host_counts(host_result)
-        host_result.save(
+        target_result.finished_at = timezone.now()
+        refresh_target_counts(target_result)
+        target_result.save(
             update_fields=[
                 "status",
                 "system_info",
                 "open_ports",
                 "package_count",
+                "skipped_modules",
                 "error",
                 "finished_at",
                 "critical_count",
@@ -170,11 +227,50 @@ def scan_host_result(host_result: SecurityScanHostResult) -> None:
         )
 
 
-def mark_host_failed(host_result: SecurityScanHostResult, message: str) -> None:
-    host_result.status = SecurityScanHostResult.STATUS_FAILED
-    host_result.error = message
-    host_result.finished_at = timezone.now()
-    host_result.save(update_fields=["status", "error", "finished_at"])
+def mark_target_failed(target_result: ScanTargetResult, message: str) -> None:
+    target_result.status = ScanTargetResult.STATUS_FAILED
+    target_result.error = message
+    target_result.finished_at = timezone.now()
+    target_result.save(update_fields=["status", "error", "finished_at"])
+
+
+def mark_target_skipped(target_result: ScanTargetResult, message: str) -> None:
+    if target_result.status in {ScanTargetResult.STATUS_COMPLETED, ScanTargetResult.STATUS_FAILED}:
+        return
+    target_result.status = ScanTargetResult.STATUS_SKIPPED
+    target_result.error = message
+    target_result.finished_at = timezone.now()
+    target_result.save(update_fields=["status", "error", "finished_at"])
+
+
+def prepare_failed_targets_for_retry(task: ScanTask) -> list[int]:
+    failed_targets = list(task.target_results.filter(status=ScanTargetResult.STATUS_FAILED))
+    if not failed_targets:
+        raise ValueError("当前任务没有失败主机可重试")
+    failed_ids = [target.id for target in failed_targets]
+    ScanFinding.objects.filter(target_result_id__in=failed_ids).delete()
+    ScanTargetResult.objects.filter(id__in=failed_ids).update(
+        status=ScanTargetResult.STATUS_PENDING,
+        error="",
+        system_info={},
+        open_ports=[],
+        package_count=0,
+        skipped_modules=[],
+        critical_count=0,
+        high_count=0,
+        medium_count=0,
+        low_count=0,
+        info_count=0,
+        started_at=None,
+        finished_at=None,
+    )
+    task.cancel_requested = False
+    task.status = ScanTask.STATUS_QUEUED
+    task.finished_at = None
+    task.error = ""
+    task.save(update_fields=["cancel_requested", "status", "finished_at", "error"])
+    refresh_task_counts(task)
+    return failed_ids
 
 
 def run_remote_command(host: ManagedHost, command: str) -> str:
@@ -210,17 +306,12 @@ def collect_packages(host: ManagedHost, system_info: dict) -> list[dict]:
     os_id = str(system_info.get("id", "")).lower()
     if os_id in {"ubuntu", "debian"}:
         output = run_remote_command(host, "dpkg-query -W -f='${Package}\\t${Version}\\n' 2>/dev/null || true")
-        return parse_dpkg_packages(output)
+        return parse_package_lines(output)
     output = run_remote_command(host, "rpm -qa --qf '%{NAME}\\t%{VERSION}-%{RELEASE}\\n' 2>/dev/null || true")
-    packages = parse_dpkg_packages(output)
-    if not packages:
-        add_system_unavailable_finding = getattr(collect_packages, "_add_finding", None)
-        if add_system_unavailable_finding:
-            add_system_unavailable_finding()
-    return packages
+    return parse_package_lines(output)
 
 
-def parse_dpkg_packages(output: str) -> list[dict]:
+def parse_package_lines(output: str) -> list[dict]:
     packages = []
     for line in output.splitlines():
         if "\t" not in line:
@@ -233,12 +324,12 @@ def parse_dpkg_packages(output: str) -> list[dict]:
     return packages
 
 
-def create_baseline_findings(host_result: SecurityScanHostResult, host: ManagedHost, system_info: dict) -> None:
+def create_baseline_findings(target_result: ScanTargetResult, host: ManagedHost, system_info: dict) -> None:
     if not system_info.get("id"):
         add_finding(
-            host_result,
-            category="baseline",
-            severity="medium",
+            target_result,
+            category=ScanFinding.CATEGORY_BASELINE,
+            severity=ScanFinding.SEVERITY_MEDIUM,
             title="系统版本无法识别",
             description="无法从 /etc/os-release 识别系统版本。",
             evidence=json.dumps(system_info, ensure_ascii=False),
@@ -248,21 +339,64 @@ def create_baseline_findings(host_result: SecurityScanHostResult, host: ManagedH
     sshd_config = run_remote_command(host, "sshd -T 2>/dev/null | grep -E '^(permitrootlogin|passwordauthentication) ' || true")
     config = dict(line.split(None, 1) for line in sshd_config.splitlines() if " " in line)
     if config.get("permitrootlogin", "").lower() in {"yes", "without-password", "prohibit-password"}:
-        add_finding(host_result, category="baseline", severity="high", title="SSH 允许 root 登录", evidence=sshd_config, recommendation="建议关闭 PermitRootLogin。", source="baseline")
+        add_finding(
+            target_result,
+            category=ScanFinding.CATEGORY_BASELINE,
+            severity=ScanFinding.SEVERITY_HIGH,
+            title="SSH 允许 root 登录",
+            evidence=sshd_config,
+            recommendation="建议关闭 PermitRootLogin，并使用普通账号加 sudo 提权。",
+            source="baseline",
+        )
     if config.get("passwordauthentication", "").lower() == "yes":
-        add_finding(host_result, category="baseline", severity="medium", title="SSH 开启密码登录", evidence=sshd_config, recommendation="建议使用密钥登录并关闭 PasswordAuthentication。", source="baseline")
+        add_finding(
+            target_result,
+            category=ScanFinding.CATEGORY_BASELINE,
+            severity=ScanFinding.SEVERITY_MEDIUM,
+            title="SSH 开启密码登录",
+            evidence=sshd_config,
+            recommendation="建议使用密钥登录并关闭 PasswordAuthentication。",
+            source="baseline",
+        )
     firewall = run_remote_command(host, "ufw status 2>/dev/null || firewall-cmd --state 2>/dev/null || systemctl is-active firewalld 2>/dev/null || true")
     if "inactive" in firewall.lower() or "not running" in firewall.lower() or firewall.strip() in {"", "unknown"}:
-        add_finding(host_result, category="baseline", severity="medium", title="防火墙未启用或状态未知", evidence=firewall, recommendation="建议启用 ufw/firewalld 并限制管理端口来源。", source="baseline")
-    sudoers = run_remote_command(host, "grep -R \"NOPASSWD\" /etc/sudoers /etc/sudoers.d 2>/dev/null || true")
+        add_finding(
+            target_result,
+            category=ScanFinding.CATEGORY_BASELINE,
+            severity=ScanFinding.SEVERITY_MEDIUM,
+            title="防火墙未启用或状态未知",
+            evidence=firewall,
+            recommendation="建议启用 ufw/firewalld 并限制管理端口来源。",
+            source="baseline",
+        )
+    sudoers = run_remote_command(host, 'grep -R "NOPASSWD" /etc/sudoers /etc/sudoers.d 2>/dev/null || true')
     if sudoers.strip():
-        add_finding(host_result, category="baseline", severity="medium", title="存在免密 sudo 配置", evidence=sudoers[:2000], recommendation="请确认 NOPASSWD 授权是否必要，并限制到最小命令范围。", source="baseline")
+        add_finding(
+            target_result,
+            category=ScanFinding.CATEGORY_BASELINE,
+            severity=ScanFinding.SEVERITY_MEDIUM,
+            title="存在免密 sudo 配置",
+            evidence=sudoers[:2000],
+            recommendation="请确认 NOPASSWD 授权是否必要，并限制到最小命令范围。",
+            source="baseline",
+        )
 
 
-def create_port_findings(host_result: SecurityScanHostResult, host: ManagedHost, ports_input: str) -> None:
+def create_port_findings(target_result: ScanTargetResult, host: ManagedHost, ports_input: str) -> None:
     result = scan_ports(host.private_ip, ports_input, timeout_ms=2000, concurrency=50)
     open_details = result.get("open_details", [])
-    host_result.open_ports = open_details
+    target_result.open_ports = open_details
+    if result.get("error"):
+        add_finding(
+            target_result,
+            category=ScanFinding.CATEGORY_PORT,
+            severity=ScanFinding.SEVERITY_INFO,
+            title="端口扫描结果不可信",
+            evidence=str(result["error"]),
+            recommendation="请调整扫描网络环境后重试。",
+            source="port",
+        )
+        return
     for detail in open_details:
         port = int(detail.get("port", 0))
         service = str(detail.get("service", "未知"))
@@ -273,8 +407,8 @@ def create_port_findings(host_result: SecurityScanHostResult, host: ManagedHost,
         else:
             severity, title, recommendation = "low", f"{service} 端口开放", "请确认端口暴露符合安全策略。"
         add_finding(
-            host_result,
-            category="port",
+            target_result,
+            category=ScanFinding.CATEGORY_PORT,
             severity=severity,
             title=title,
             evidence=f"{host.private_ip}:{port} open ({service})",
@@ -285,13 +419,13 @@ def create_port_findings(host_result: SecurityScanHostResult, host: ManagedHost,
         )
 
 
-def create_cve_findings(host_result: SecurityScanHostResult, packages: list[dict], system_info: dict) -> None:
+def create_cve_findings(target_result: ScanTargetResult, packages: list[dict], system_info: dict) -> None:
     ecosystem = osv_ecosystem(system_info)
     if not ecosystem:
         add_finding(
-            host_result,
-            category="cve",
-            severity="medium",
+            target_result,
+            category=ScanFinding.CATEGORY_CVE,
+            severity=ScanFinding.SEVERITY_MEDIUM,
             title="系统发行版不支持 CVE 匹配",
             description="当前系统无法映射到 OSV 支持的 Linux 生态。",
             evidence=json.dumps(system_info, ensure_ascii=False),
@@ -299,18 +433,16 @@ def create_cve_findings(host_result: SecurityScanHostResult, packages: list[dict
             source="osv",
         )
         return
+    vulnerabilities_by_package = query_osv_batch(ecosystem, packages, target_result=target_result)
     for package in packages:
-        vulnerabilities = query_osv_vulnerabilities(ecosystem, package["name"], package["version"], host_result=host_result)
-        for vulnerability in vulnerabilities:
+        for vulnerability in vulnerabilities_by_package.get(package["name"], []):
             cve_id = primary_cve_id(vulnerability)
             nvd = fetch_nvd_cve(cve_id) if cve_id else {}
             cvss = nvd.get("cvss")
-            severity = severity_from_cvss(cvss)
-            references = merge_references(vulnerability, nvd)
             add_finding(
-                host_result,
-                category="cve",
-                severity=severity,
+                target_result,
+                category=ScanFinding.CATEGORY_CVE,
+                severity=severity_from_cvss(cvss),
                 title=vulnerability.get("summary") or cve_id or vulnerability.get("id") or f"{package['name']} 存在漏洞",
                 description=nvd.get("description") or vulnerability.get("details", ""),
                 evidence=f"{package['name']} {package['version']}",
@@ -322,7 +454,7 @@ def create_cve_findings(host_result: SecurityScanHostResult, packages: list[dict
                 cvss=cvss,
                 cwe=nvd.get("cwe", ""),
                 source="osv+nvd" if nvd else "osv",
-                references=references,
+                references=merge_references(vulnerability, nvd),
                 raw={"osv": vulnerability, "nvd": nvd, "disclaimer": NVD_DISCLAIMER},
             )
 
@@ -339,39 +471,53 @@ def osv_ecosystem(system_info: dict) -> str:
     return ""
 
 
-def query_osv_vulnerabilities(ecosystem: str, package_name: str, version: str, host_result: SecurityScanHostResult | None = None) -> list[dict]:
-    cache_key = f"{ecosystem}:{package_name}:{version}"
-    cached = VulnerabilityCache.objects.filter(source=VulnerabilityCache.SOURCE_OSV, cache_key=cache_key).first()
+def query_osv_batch(ecosystem: str, packages: list[dict], target_result: ScanTargetResult | None = None) -> dict[str, list[dict]]:
+    if not packages:
+        return {}
+    cache_key = batch_cache_key(ecosystem, packages)
+    cached = VulnerabilityCache.objects.filter(source=VulnerabilityCache.SOURCE_OSV_BATCH, cache_key=cache_key).first()
     if cached and cached.payload:
-        return cached.payload.get("vulns", [])
-    payload = {"version": version, "package": {"name": package_name, "ecosystem": ecosystem}}
-    response = post_json("https://api.osv.dev/v1/query", payload)
+        return cached.payload.get("vulnerabilitiesByPackage", {})
+    payload = {
+        "queries": [
+            {"version": package["version"], "package": {"name": package["name"], "ecosystem": ecosystem}}
+            for package in packages
+        ]
+    }
+    response = post_json("https://api.osv.dev/v1/querybatch", payload)
     if response.get("_error"):
         VulnerabilityCache.objects.update_or_create(
-            source=VulnerabilityCache.SOURCE_OSV,
+            source=VulnerabilityCache.SOURCE_OSV_BATCH,
             cache_key=cache_key,
             defaults={"payload": {}, "error": str(response["_error"])},
         )
-        if host_result:
+        if target_result:
             add_finding(
-                host_result,
-                category="cve",
-                severity="info",
+                target_result,
+                category=ScanFinding.CATEGORY_CVE,
+                severity=ScanFinding.SEVERITY_INFO,
                 title="OSV 漏洞源查询失败",
-                description="该软件包的 OSV 查询失败，已保留其他扫描结果。",
-                evidence=f"{package_name} {version}: {response['_error']}",
+                description="OSV 批量查询失败，已保留其他扫描结果。",
+                evidence=str(response["_error"]),
                 recommendation="请稍后重试，或检查服务器访问 https://api.osv.dev 的网络连通性。",
-                package_name=package_name,
-                current_version=version,
                 source="osv",
             )
-        return []
+        return {}
+    results = response.get("results") or []
+    grouped: dict[str, list[dict]] = {}
+    for package, result in zip(packages, results):
+        grouped[package["name"]] = result.get("vulns") or []
     VulnerabilityCache.objects.update_or_create(
-        source=VulnerabilityCache.SOURCE_OSV,
+        source=VulnerabilityCache.SOURCE_OSV_BATCH,
         cache_key=cache_key,
-        defaults={"payload": response, "error": ""},
+        defaults={"payload": {"vulnerabilitiesByPackage": grouped}, "error": ""},
     )
-    return response.get("vulns", [])
+    return grouped
+
+
+def batch_cache_key(ecosystem: str, packages: list[dict]) -> str:
+    parts = [f"{package['name']}@{package['version']}" for package in packages]
+    return f"{ecosystem}:" + "|".join(parts)[:280]
 
 
 def fetch_nvd_cve(cve_id: str) -> dict:
@@ -432,7 +578,7 @@ def normalize_nvd_payload(payload: dict) -> dict:
     refs = cve.get("references", {}).get("referenceData", [])
     return {
         "cvss": cvss,
-        "description": next((item.get("value", "") for item in descriptions if item.get("lang") == "zh" or item.get("lang") == "en"), ""),
+        "description": next((item.get("value", "") for item in descriptions if item.get("lang") in {"zh", "en"}), ""),
         "cwe": next((desc.get("value", "") for weakness in weaknesses for desc in weakness.get("description", []) if desc.get("value")), ""),
         "references": [item.get("url") for item in refs if item.get("url")],
         "disclaimer": NVD_DISCLAIMER,
@@ -464,33 +610,34 @@ def severity_from_cvss(score) -> str:
     try:
         value = float(score)
     except (TypeError, ValueError):
-        return "medium"
+        return ScanFinding.SEVERITY_MEDIUM
     if value >= 9:
-        return "critical"
+        return ScanFinding.SEVERITY_CRITICAL
     if value >= 7:
-        return "high"
+        return ScanFinding.SEVERITY_HIGH
     if value >= 4:
-        return "medium"
-    return "low"
+        return ScanFinding.SEVERITY_MEDIUM
+    return ScanFinding.SEVERITY_LOW
 
 
-def add_finding(host_result: SecurityScanHostResult, **kwargs) -> SecurityScanFinding:
-    return SecurityScanFinding.objects.create(task=host_result.task, host_result=host_result, **kwargs)
+def add_finding(target_result: ScanTargetResult, **kwargs) -> ScanFinding:
+    return ScanFinding.objects.create(task=target_result.task, target_result=target_result, **kwargs)
 
 
-def refresh_host_counts(host_result: SecurityScanHostResult) -> None:
-    counts = finding_counts(host_result.findings.all())
+def refresh_target_counts(target_result: ScanTargetResult) -> None:
+    counts = finding_counts(target_result.findings.all())
     for key, value in counts.items():
-        setattr(host_result, f"{key}_count", value)
+        setattr(target_result, f"{key}_count", value)
 
 
-def refresh_task_counts(task: SecurityScanTask) -> None:
-    findings = task.findings.all()
-    counts = finding_counts(findings)
+def refresh_task_counts(task: ScanTask) -> None:
+    task.refresh_from_db(fields=["id"])
+    counts = finding_counts(task.findings.all())
     for key, value in counts.items():
         setattr(task, f"{key}_count", value)
-    task.completed_count = task.host_results.filter(status__in=[SecurityScanHostResult.STATUS_COMPLETED, SecurityScanHostResult.STATUS_FAILED]).count()
-    task.save(update_fields=["completed_count", "critical_count", "high_count", "medium_count", "low_count", "info_count"])
+    task.completed_count = task.target_results.filter(status__in=[ScanTargetResult.STATUS_COMPLETED, ScanTargetResult.STATUS_FAILED, ScanTargetResult.STATUS_SKIPPED]).count()
+    task.failed_count = task.target_results.filter(status=ScanTargetResult.STATUS_FAILED).count()
+    task.save(update_fields=["completed_count", "failed_count", "critical_count", "high_count", "medium_count", "low_count", "info_count"])
 
 
 def finding_counts(queryset) -> dict[str, int]:
@@ -501,22 +648,68 @@ def finding_counts(queryset) -> dict[str, int]:
     return counts
 
 
-def export_task_json(task: SecurityScanTask) -> dict:
-    from .serializers import SecurityScanTaskExportSerializer
+def summary_payload() -> dict:
+    source = security_scan_settings()
+    aggregate = ScanTask.objects.aggregate(
+        critical=Sum("critical_count"),
+        high=Sum("high_count"),
+        medium=Sum("medium_count"),
+        low=Sum("low_count"),
+        info=Sum("info_count"),
+    )
+    return {
+        "riskCounts": {key: int(aggregate.get(key) or 0) for key in ["critical", "high", "medium", "low", "info"]},
+        "taskCounts": {
+            "total": ScanTask.objects.count(),
+            "running": ScanTask.objects.filter(status__in=[ScanTask.STATUS_QUEUED, ScanTask.STATUS_RUNNING]).count(),
+            "failed": ScanTask.objects.filter(status=ScanTask.STATUS_FAILED).count(),
+        },
+        "failedTargetCount": ScanTargetResult.objects.filter(status=ScanTargetResult.STATUS_FAILED).count(),
+        "latestTaskId": ScanTask.objects.order_by("-created_at", "-id").values_list("id", flat=True).first(),
+        "vulnerabilitySource": source,
+    }
 
-    return {"disclaimer": NVD_DISCLAIMER, "task": SecurityScanTaskExportSerializer(task).data}
+
+def filter_findings(task_id: int, params) -> QuerySet[ScanFinding]:
+    queryset = ScanFinding.objects.select_related("target_result").filter(task_id=task_id).order_by("id")
+    severity = str(params.get("severity", "")).strip()
+    category = str(params.get("category", "")).strip()
+    host_id = str(params.get("hostId", "") or params.get("host", "")).strip()
+    keyword = str(params.get("keyword", "")).strip()
+    if severity:
+        queryset = queryset.filter(severity=severity)
+    if category:
+        queryset = queryset.filter(category=category)
+    if host_id:
+        queryset = queryset.filter(target_result_id=int(host_id))
+    if keyword:
+        queryset = queryset.filter(
+            Q(title__icontains=keyword)
+            | Q(recommendation__icontains=keyword)
+            | Q(cve_id__icontains=keyword)
+            | Q(package_name__icontains=keyword)
+            | Q(target_result__host_name__icontains=keyword)
+            | Q(target_result__host_ip__icontains=keyword)
+        )
+    return queryset
 
 
-def export_task_csv(task: SecurityScanTask) -> str:
+def export_task_json(task: ScanTask) -> dict:
+    from .serializers import ScanTaskExportSerializer
+
+    return {"disclaimer": NVD_DISCLAIMER, "task": ScanTaskExportSerializer(task).data}
+
+
+def export_task_csv(task: ScanTask) -> str:
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(["任务", "主机", "IP", "严重级别", "分类", "标题", "CVE", "包名", "当前版本", "修复版本", "端口", "服务", "CVSS", "建议", "来源"])
-    for finding in task.findings.select_related("host_result").all():
+    for finding in task.findings.select_related("target_result").all():
         writer.writerow(
             [
                 task.name,
-                finding.host_result.host_name,
-                finding.host_result.host_ip,
+                finding.target_result.host_name,
+                finding.target_result.host_ip,
                 finding.severity,
                 finding.category,
                 finding.title,

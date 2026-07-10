@@ -44,6 +44,7 @@ AUDIT_RULES = [
     AuditRule("/api/web-terminal/quick-commands/reorder/", "Web 终端", {"POST": "调整快捷命令排序"}),
     AuditRule("/api/web-terminal/quick-commands/", "Web 终端"),
     AuditRule("/api/web-terminal/hosts/", "Web 终端"),
+    AuditRule("/api/security-scans/tasks/", "安全扫描", {"POST": "开始扫描", "DELETE": "删除任务"}),
 ]
 
 EXCLUDED_PREFIXES = [
@@ -116,6 +117,10 @@ class OperationLogMiddleware:
             return "调整权限用户"
         if "/verify/" in path and path.startswith("/api/host-management/hosts/"):
             return "验证主机"
+        if path.startswith("/api/security-scans/tasks/") and "/cancel/" in path:
+            return "取消扫描"
+        if path.startswith("/api/security-scans/tasks/") and "/retry-failed/" in path:
+            return "重试失败主机"
         if "/files/upload/" in path:
             return "上传文件"
         if "/files/create-file/" in path:

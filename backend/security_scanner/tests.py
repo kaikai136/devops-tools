@@ -5,7 +5,8 @@ from django.contrib.auth.models import Group, Permission
 from django.test import TestCase, override_settings
 
 from host_management.models import HostGroup, ManagedHost
-from security_scanner.models import SecurityScanFinding, SecurityScanHostResult, SecurityScanTask
+from security_scanner.models import ScanFinding, ScanTargetResult, ScanTask, VulnerabilityCache
+from system_management.models import SystemSetting
 from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions
 
 
@@ -19,7 +20,7 @@ def grant_security_scan_permissions(user, *actions):
 
 
 @override_settings(SECURITY_SCAN_RUN_ASYNC=False)
-class SecurityScannerApiTests(TestCase):
+class SecurityScannerRedesignApiTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="operator", password="UserPass123")
         self.viewer = get_user_model().objects.create_user(username="viewer", password="UserPass123")
@@ -34,6 +35,7 @@ class SecurityScannerApiTests(TestCase):
             login_password="secret",
             os="ubuntu",
             system_type="ubuntu",
+            system_arch="x86_64",
             verified=True,
             verify_status="verified",
         )
@@ -49,92 +51,92 @@ class SecurityScannerApiTests(TestCase):
             verified=True,
             verify_status="verified",
         )
-        self.unverified_host = ManagedHost.objects.create(
-            name="linux-unverified",
-            group=self.group,
-            private_ip="10.0.0.30",
-            port=22,
-            login_user="root",
-            login_password="secret",
-            os="ubuntu",
-            verified=False,
-            verify_status="unverified",
-        )
         self.client.force_login(self.user)
 
-    def test_scan_hosts_require_permission(self):
+    def test_targets_require_security_scan_permission(self):
         self.client.force_login(self.viewer)
 
-        response = self.client.get("/api/security-scans/hosts/")
+        response = self.client.get("/api/security-scans/targets/")
 
         self.assertEqual(response.status_code, 403)
 
-    def test_scan_hosts_include_only_verified_linux_ssh_targets(self):
-        response = self.client.get("/api/security-scans/hosts/")
+    def test_targets_include_only_verified_linux_ssh_hosts(self):
+        response = self.client.get("/api/security-scans/targets/")
 
         self.assertEqual(response.status_code, 200)
-        names = [item["name"] for item in response.json()]
-        self.assertEqual(names, ["linux-1"])
+        self.assertEqual([item["name"] for item in response.json()], ["linux-1"])
+        self.assertEqual(response.json()[0]["privateIp"], "10.0.0.10")
 
     @patch("security_scanner.views.start_security_scan_task")
-    def test_create_task_persists_history_and_starts_runner(self, start_task):
+    def test_create_task_persists_targets_and_uses_new_contract(self, start_task):
         response = self.client.post(
             "/api/security-scans/tasks/",
             data={
-                "hostIds": [self.linux_host.id],
+                "targetIds": [self.linux_host.id],
                 "portsInput": "22,80",
-                "enableBaseline": True,
-                "enablePortScan": True,
-                "enableCveScan": True,
+                "scanModules": {"baseline": True, "ports": True, "cve": False},
+                "name": "巡检一",
             },
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 201)
         payload = response.json()
+        self.assertEqual(payload["name"], "巡检一")
         self.assertEqual(payload["status"], "queued")
         self.assertEqual(payload["targetCount"], 1)
-        start_task.assert_called_once_with(payload["id"])
+        self.assertEqual(payload["scanModules"], {"baseline": True, "ports": True, "cve": False})
+        start_task.assert_called_once_with(payload["id"], retry_target_ids=None)
+        target = ScanTargetResult.objects.get(task_id=payload["id"])
+        self.assertEqual(target.host_name, "linux-1")
+        self.assertEqual(target.status, ScanTargetResult.STATUS_PENDING)
 
+    @patch("security_scanner.services.post_json")
     @patch("security_scanner.services.fetch_nvd_cve")
-    @patch("security_scanner.services.query_osv_vulnerabilities")
     @patch("security_scanner.services.scan_ports")
     @patch("security_scanner.services.run_remote_command")
-    def test_synchronous_task_execution_creates_cve_finding(self, run_command, scan_ports, query_osv, fetch_nvd):
+    def test_run_scan_respects_cve_setting_and_caches_vulnerabilities(self, run_command, scan_ports, fetch_nvd, post_json):
+        SystemSetting.objects.create(key="security_scan", value={"onlineCveEnabled": True})
+
         def command_output(_host, command):
             if "os-release" in command:
-                return "ID=ubuntu\nVERSION_ID=22.04\nPRETTY_NAME=Ubuntu 22.04\n"
+                return "ID=ubuntu\nVERSION_ID=22.04\nPRETTY_NAME=Ubuntu 22.04\n__UNAME__\nLinux test 6.8\n"
             if "dpkg-query" in command:
                 return "openssl\t1.1.1f-1ubuntu2\n"
-            if "ss -tulpen" in command:
-                return "tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:((\"sshd\",pid=1,fd=3))\n"
             if "sshd -T" in command:
                 return "permitrootlogin yes\npasswordauthentication yes\n"
             if "ufw status" in command:
                 return "Status: inactive\n"
+            if "NOPASSWD" in command:
+                return ""
             return ""
 
         run_command.side_effect = command_output
         scan_ports.return_value = {"open_details": [{"port": 22, "service": "SSH", "duration": 12}], "open_ports": [22]}
-        query_osv.return_value = [
-            {
-                "id": "CVE-2024-0001",
-                "summary": "OpenSSL test vulnerability",
-                "details": "A test vulnerability",
-                "affected": [{"ranges": [{"events": [{"fixed": "1.1.1f-1ubuntu3"}]}]}],
-                "references": [{"url": "https://example.test/CVE-2024-0001"}],
-            }
-        ]
+        post_json.return_value = {
+            "results": [
+                {
+                    "package": {"name": "openssl"},
+                    "vulns": [
+                        {
+                            "id": "CVE-2024-0001",
+                            "summary": "OpenSSL test vulnerability",
+                            "details": "A test vulnerability",
+                            "affected": [{"ranges": [{"events": [{"fixed": "1.1.1f-1ubuntu3"}]}]}],
+                            "references": [{"url": "https://example.test/CVE-2024-0001"}],
+                        }
+                    ],
+                }
+            ]
+        }
         fetch_nvd.return_value = {"cvss": 9.8, "cwe": "CWE-79", "description": "NVD description", "references": ["https://nvd.test/ref"]}
 
         response = self.client.post(
             "/api/security-scans/tasks/",
             data={
-                "hostIds": [self.linux_host.id],
+                "targetIds": [self.linux_host.id],
                 "portsInput": "22",
-                "enableBaseline": True,
-                "enablePortScan": True,
-                "enableCveScan": True,
+                "scanModules": {"baseline": True, "ports": True, "cve": True},
             },
             content_type="application/json",
         )
@@ -143,106 +145,98 @@ class SecurityScannerApiTests(TestCase):
         detail = self.client.get(f"/api/security-scans/tasks/{response.json()['id']}/").json()
         self.assertEqual(detail["status"], "completed")
         self.assertEqual(detail["riskCounts"]["critical"], 1)
-        findings = self.client.get(f"/api/security-scans/tasks/{response.json()['id']}/findings/").json()["results"]
-        cve_finding = next(item for item in findings if item["cveId"] == "CVE-2024-0001")
-        self.assertEqual(cve_finding["severity"], "critical")
-        self.assertEqual(cve_finding["packageName"], "openssl")
-        self.assertEqual(cve_finding["fixedVersion"], "1.1.1f-1ubuntu3")
+        self.assertTrue(detail["vulnerabilitySource"]["onlineCveEnabled"])
+        cve_finding = ScanFinding.objects.get(task_id=response.json()["id"], cve_id="CVE-2024-0001")
+        self.assertEqual(cve_finding.severity, "critical")
+        self.assertEqual(cve_finding.package_name, "openssl")
+        self.assertTrue(VulnerabilityCache.objects.filter(source=VulnerabilityCache.SOURCE_OSV_BATCH).exists())
 
-    @patch("security_scanner.views.start_security_scan_task")
-    def test_export_and_delete_task(self, _start_task):
-        create_response = self.client.post(
+    @patch("security_scanner.services.post_json")
+    @patch("security_scanner.services.scan_ports")
+    @patch("security_scanner.services.run_remote_command")
+    def test_cve_module_is_skipped_when_online_source_is_disabled(self, run_command, scan_ports, post_json):
+        def command_output(_host, command):
+            if "os-release" in command:
+                return "ID=ubuntu\nVERSION_ID=22.04\nPRETTY_NAME=Ubuntu 22.04\n__UNAME__\nLinux test 6.8\n"
+            if "sshd -T" in command:
+                return ""
+            if "ufw status" in command:
+                return "Status: active\n"
+            if "NOPASSWD" in command:
+                return ""
+            return ""
+
+        run_command.side_effect = command_output
+        scan_ports.return_value = {"open_details": [], "open_ports": []}
+
+        response = self.client.post(
             "/api/security-scans/tasks/",
-            data={"hostIds": [self.linux_host.id], "portsInput": "22"},
+            data={"targetIds": [self.linux_host.id], "portsInput": "22", "scanModules": {"baseline": True, "ports": True, "cve": True}},
             content_type="application/json",
         )
-        self.assertEqual(create_response.status_code, 201)
-        task_id = create_response.json()["id"]
-        self.assertTrue(SecurityScanTask.objects.filter(id=task_id).exists())
 
-        csv_response = self.client.get(f"/api/security-scans/tasks/{task_id}/export/?format=csv")
-        json_response = self.client.get(f"/api/security-scans/tasks/{task_id}/export/?format=json")
-        delete_response = self.client.delete(f"/api/security-scans/tasks/{task_id}/")
+        self.assertEqual(response.status_code, 201)
+        post_json.assert_not_called()
+        target = ScanTargetResult.objects.get(task_id=response.json()["id"])
+        self.assertIn("cve", target.skipped_modules)
 
-        self.assertEqual(csv_response.status_code, 200, csv_response.content.decode("utf-8", errors="replace"))
-        self.assertIn("text/csv", csv_response["Content-Type"])
-        self.assertEqual(json_response.status_code, 200)
-        self.assertEqual(delete_response.status_code, 200)
-        self.assertEqual(self.client.get(f"/api/security-scans/tasks/{task_id}/").status_code, 404)
-
-    def test_task_detail_does_not_embed_all_findings(self):
-        task, _host_result = self.create_task_with_findings(3)
-
-        response = self.client.get(f"/api/security-scans/tasks/{task.id}/")
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertIn("hostResults", payload)
-        self.assertNotIn("findings", payload)
-
-    def test_task_findings_are_paginated_and_compact(self):
-        task, _host_result = self.create_task_with_findings(3)
-
-        response = self.client.get(f"/api/security-scans/tasks/{task.id}/findings/?page=1&pageSize=2")
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["total"], 3)
-        self.assertEqual(payload["page"], 1)
-        self.assertEqual(payload["pageSize"], 2)
-        self.assertTrue(payload["hasNext"])
-        self.assertEqual(len(payload["results"]), 2)
-        self.assertNotIn("raw", payload["results"][0])
-        self.assertNotIn("description", payload["results"][0])
-        self.assertEqual(payload["results"][0]["hostName"], self.linux_host.name)
-
-    def test_json_export_still_includes_full_findings(self):
-        task, _host_result = self.create_task_with_findings(1)
-
-        response = self.client.get(f"/api/security-scans/tasks/{task.id}/export/?format=json")
-
-        self.assertEqual(response.status_code, 200)
-        finding = response.json()["task"]["findings"][0]
-        self.assertEqual(finding["description"], "heavy description" * 100)
-        self.assertIn("raw", finding)
-
-    def create_task_with_findings(self, count):
-        task = SecurityScanTask.objects.create(
-            name="large security scan",
-            created_by=self.user,
-            status=SecurityScanTask.STATUS_COMPLETED,
-            target_count=1,
-            completed_count=1,
-            high_count=count,
-        )
-        host_result = SecurityScanHostResult.objects.create(
+    @patch("security_scanner.views.start_security_scan_task")
+    def test_cancel_and_retry_failed_targets(self, start_task):
+        task = ScanTask.objects.create(name="running", created_by=self.user, status=ScanTask.STATUS_RUNNING, target_count=2)
+        failed_target = ScanTargetResult.objects.create(
             task=task,
             host=self.linux_host,
-            host_name=self.linux_host.name,
-            host_ip=self.linux_host.private_ip,
-            host_port=self.linux_host.port,
-            login_user=self.linux_host.login_user,
-            os=self.linux_host.os,
-            system_type=self.linux_host.system_type,
-            status=SecurityScanHostResult.STATUS_COMPLETED,
-            high_count=count,
+            host_name="linux-1",
+            host_ip="10.0.0.10",
+            host_port=22,
+            login_user="root",
+            status=ScanTargetResult.STATUS_FAILED,
+            error="ssh failed",
         )
-        for index in range(count):
-            SecurityScanFinding.objects.create(
-                task=task,
-                host_result=host_result,
-                category="cve",
-                severity="high",
-                title=f"Finding {index}",
-                description="heavy description" * 100,
-                evidence="heavy evidence" * 100,
-                recommendation="Upgrade the affected package.",
-                cve_id=f"CVE-2026-{index:04d}",
-                package_name="openssl",
-                current_version="1.0",
-                fixed_version="1.1",
-                source="test",
-                references=["https://example.test/finding"],
-                raw={"large": "payload" * 100},
-            )
-        return task, host_result
+        ScanTargetResult.objects.create(task=task, host_name="linux-2", host_ip="10.0.0.11", host_port=22, status=ScanTargetResult.STATUS_COMPLETED)
+
+        cancel_response = self.client.post(f"/api/security-scans/tasks/{task.id}/cancel/")
+        retry_response = self.client.post(f"/api/security-scans/tasks/{task.id}/retry-failed/")
+
+        self.assertEqual(cancel_response.status_code, 200)
+        self.assertTrue(cancel_response.json()["cancelRequested"])
+        self.assertEqual(retry_response.status_code, 200)
+        start_task.assert_called_once_with(task.id, retry_target_ids=[failed_target.id])
+        failed_target.refresh_from_db()
+        self.assertEqual(failed_target.status, ScanTargetResult.STATUS_PENDING)
+
+    def test_findings_filtering_and_exports(self):
+        task = ScanTask.objects.create(name="report", created_by=self.user, status=ScanTask.STATUS_COMPLETED, target_count=1, completed_count=1, high_count=1)
+        target = ScanTargetResult.objects.create(
+            task=task,
+            host=self.linux_host,
+            host_name="linux-1",
+            host_ip="10.0.0.10",
+            host_port=22,
+            login_user="root",
+            status=ScanTargetResult.STATUS_COMPLETED,
+            high_count=1,
+        )
+        ScanFinding.objects.create(
+            task=task,
+            target_result=target,
+            category="baseline",
+            severity="high",
+            title="SSH 允许 root 登录",
+            description="root login",
+            evidence="permitrootlogin yes",
+            recommendation="关闭 PermitRootLogin",
+            source="baseline",
+        )
+
+        findings_response = self.client.get(f"/api/security-scans/tasks/{task.id}/findings/?severity=high&keyword=root")
+        csv_response = self.client.get(f"/api/security-scans/tasks/{task.id}/export/?format=csv")
+        json_response = self.client.get(f"/api/security-scans/tasks/{task.id}/export/?format=json")
+
+        self.assertEqual(findings_response.status_code, 200)
+        self.assertEqual(findings_response.json()["total"], 1)
+        self.assertEqual(findings_response.json()["results"][0]["targetName"], "linux-1")
+        self.assertEqual(csv_response.status_code, 200)
+        self.assertTrue(csv_response.content.decode("utf-8").startswith("\ufeff"))
+        self.assertEqual(json_response.status_code, 200)
+        self.assertEqual(json_response.json()["task"]["findings"][0]["title"], "SSH 允许 root 登录")

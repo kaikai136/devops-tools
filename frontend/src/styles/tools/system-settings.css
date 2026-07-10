@@ -302,6 +302,13 @@
   accent-color: #14b8a6;
 }
 
+.settings-inline-help {
+  margin: -4px 0 0;
+  color: #63748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .watermark-form-grid,
 .watermark-page-picker {
   display: grid;

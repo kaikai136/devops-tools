@@ -399,8 +399,10 @@ export interface DashboardSummary {
   generatedAt: string;
 }
 
-export type SecurityScanStatus = 'queued' | 'running' | 'completed' | 'failed';
+export type SecurityScanStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
+export type SecurityScanTargetStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 export type SecurityScanSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+export type SecurityScanCategory = 'baseline' | 'port' | 'cve' | string;
 
 export interface SecurityScanRiskCounts {
   critical: number;
@@ -410,7 +412,7 @@ export interface SecurityScanRiskCounts {
   info: number;
 }
 
-export interface SecurityScanHostTarget {
+export interface SecurityScanTarget {
   id: number;
   name: string;
   group: number;
@@ -424,14 +426,30 @@ export interface SecurityScanHostTarget {
   verified: boolean;
 }
 
+export interface SecurityScanModules {
+  baseline: boolean;
+  ports: boolean;
+  cve: boolean;
+}
+
+export interface SecurityScanSourceState {
+  onlineCveEnabled: boolean;
+  nvdApiKeyConfigured: boolean;
+  sources: string[];
+}
+
 export interface SecurityScanTask {
   id: number;
   name: string;
   status: SecurityScanStatus;
+  cancelRequested: boolean;
   targetCount: number;
   completedCount: number;
+  failedCount: number;
   riskCounts: SecurityScanRiskCounts;
+  scanModules: SecurityScanModules;
   options: Record<string, unknown>;
+  vulnerabilitySource: SecurityScanSourceState;
   error: string;
   createdBy: string;
   createdAt: string;
@@ -439,7 +457,7 @@ export interface SecurityScanTask {
   finishedAt: string | null;
 }
 
-export interface SecurityScanHostResult {
+export interface SecurityScanTargetResult {
   id: number;
   host: number | null;
   hostName: string;
@@ -448,10 +466,11 @@ export interface SecurityScanHostResult {
   loginUser: string;
   os: string;
   systemType: string;
-  status: SecurityScanStatus | 'pending';
+  status: SecurityScanTargetStatus;
   systemInfo: Record<string, unknown>;
   openPorts: Array<{ port: number; service: string; duration?: number }>;
   packageCount: number;
+  skippedModules: string[];
   riskCounts: SecurityScanRiskCounts;
   error: string;
   startedAt: string | null;
@@ -460,10 +479,10 @@ export interface SecurityScanHostResult {
 
 export interface SecurityScanFinding {
   id: number;
-  hostResult: number;
-  hostName: string;
-  hostIp: string;
-  category: 'baseline' | 'port' | 'cve' | string;
+  targetResult: number;
+  targetName: string;
+  targetIp: string;
+  category: SecurityScanCategory;
   severity: SecurityScanSeverity;
   title: string;
   recommendation: string;
@@ -479,7 +498,7 @@ export interface SecurityScanFinding {
 }
 
 export interface SecurityScanTaskDetail extends SecurityScanTask {
-  hostResults: SecurityScanHostResult[];
+  targetResults: SecurityScanTargetResult[];
 }
 
 export interface SecurityScanFindingPage {
@@ -491,10 +510,20 @@ export interface SecurityScanFindingPage {
 }
 
 export interface SecurityScanCreatePayload {
-  hostIds: number[];
+  targetIds: number[];
   portsInput: string;
-  enableBaseline: boolean;
-  enablePortScan: boolean;
-  enableCveScan: boolean;
+  scanModules: SecurityScanModules;
   name?: string;
+}
+
+export interface SecurityScanSummary {
+  riskCounts: SecurityScanRiskCounts;
+  taskCounts: {
+    total: number;
+    running: number;
+    failed: number;
+  };
+  failedTargetCount: number;
+  latestTaskId: number | null;
+  vulnerabilitySource: SecurityScanSourceState;
 }

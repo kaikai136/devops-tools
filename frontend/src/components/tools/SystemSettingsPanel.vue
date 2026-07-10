@@ -8,9 +8,10 @@ import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from
 import AppIcon from '../common/AppIcon.vue';
 import WatermarkOverlay from '../common/WatermarkOverlay.vue';
 
-type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'rdp' | 'watermark';
-type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image';
+type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'rdp' | 'securityScan' | 'watermark';
+type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image' | 'shield';
 const RDP_RECORDING_SETTING_KEY = 'rdp_recording';
+const SECURITY_SCAN_SETTING_KEY = 'security_scan';
 
 const {
   siteIdentityDraft,
@@ -52,6 +53,7 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string; title: string; s
   { key: 'login', label: '登录页', title: '登录页文案', subtitle: '欢迎标题、徽标和版权模板', icon: 'monitor' },
   { key: 'footer', label: '页脚', title: '页脚配置', subtitle: '工作台底部文案、链接与样式', icon: 'rows' },
   { key: 'rdp', label: 'RDP', title: 'RDP 录屏', subtitle: 'Windows 远程桌面录屏开关', icon: 'monitor' },
+  { key: 'securityScan', label: '安全扫描', title: '安全扫描', subtitle: '在线漏洞源访问开关', icon: 'shield' },
   { key: 'watermark', label: '水印', title: '水印配置', subtitle: '水印模板与应用页面', icon: 'image' },
 ];
 
@@ -61,11 +63,40 @@ const rdpRecordingSettingExists = ref(false);
 const rdpRecordingLoading = ref(false);
 const rdpRecordingSaving = ref(false);
 const rdpRecordingMessage = ref('');
+const securityScanDraft = ref({ onlineCveEnabled: false });
+const securityScanSettingExists = ref(false);
+const securityScanLoading = ref(false);
+const securityScanSaving = ref(false);
+const securityScanMessage = ref('');
 const canSave = computed(() => canUsePageAction('systemSettings', 'save'));
 const currentTab = computed(() => settingsTabs.find((tab) => tab.key === activeTab.value) ?? settingsTabs[0]);
-const currentBusy = computed(() => (activeTab.value === 'watermark' ? watermarkSaving.value : activeTab.value === 'rdp' ? rdpRecordingSaving.value : siteSettingsSaving.value));
-const currentLoading = computed(() => (activeTab.value === 'watermark' ? watermarkLoading.value : activeTab.value === 'rdp' ? rdpRecordingLoading.value : siteSettingsLoading.value));
-const currentMessage = computed(() => (activeTab.value === 'watermark' ? watermarkMessage.value : activeTab.value === 'rdp' ? rdpRecordingMessage.value : siteSettingsMessage.value));
+const currentBusy = computed(() =>
+  activeTab.value === 'watermark'
+    ? watermarkSaving.value
+    : activeTab.value === 'rdp'
+      ? rdpRecordingSaving.value
+      : activeTab.value === 'securityScan'
+        ? securityScanSaving.value
+        : siteSettingsSaving.value,
+);
+const currentLoading = computed(() =>
+  activeTab.value === 'watermark'
+    ? watermarkLoading.value
+    : activeTab.value === 'rdp'
+      ? rdpRecordingLoading.value
+      : activeTab.value === 'securityScan'
+        ? securityScanLoading.value
+        : siteSettingsLoading.value,
+);
+const currentMessage = computed(() =>
+  activeTab.value === 'watermark'
+    ? watermarkMessage.value
+    : activeTab.value === 'rdp'
+      ? rdpRecordingMessage.value
+      : activeTab.value === 'securityScan'
+        ? securityScanMessage.value
+        : siteSettingsMessage.value,
+);
 const selectedPages = computed(() => new Set(watermarkDraft.value.pages));
 const allPageKeys = computed(() => watermarkPageGroups.flatMap((group) => group.pages.map((page) => page.key)));
 const previewVariables = computed(() =>
@@ -98,6 +129,7 @@ async function refreshCurrentTab() {
   else if (activeTab.value === 'login') await loadLoginContentSetting();
   else if (activeTab.value === 'footer') await loadLayoutFooterSetting();
   else if (activeTab.value === 'rdp') await loadRdpRecordingSetting();
+  else if (activeTab.value === 'securityScan') await loadSecurityScanSetting();
   else await loadWatermarkSetting();
 }
 
@@ -108,6 +140,7 @@ async function saveCurrentTab() {
   else if (activeTab.value === 'login') await saveLoginContentSetting();
   else if (activeTab.value === 'footer') await saveLayoutFooterSetting();
   else if (activeTab.value === 'rdp') await saveRdpRecordingSetting();
+  else if (activeTab.value === 'securityScan') await saveSecurityScanSetting();
   else await saveWatermarkSetting();
 }
 
@@ -117,6 +150,7 @@ function resetCurrentTab() {
   else if (activeTab.value === 'login') resetLoginContentDraft();
   else if (activeTab.value === 'footer') resetLayoutFooterDraft();
   else if (activeTab.value === 'rdp') resetRdpRecordingDraft();
+  else if (activeTab.value === 'securityScan') resetSecurityScanDraft();
   else resetWatermarkDraft();
 }
 
@@ -164,6 +198,50 @@ function resetRdpRecordingDraft() {
   rdpRecordingMessage.value = '';
 }
 
+async function loadSecurityScanSetting() {
+  securityScanLoading.value = true;
+  securityScanMessage.value = '';
+  try {
+    const setting = await getSystemSettingOrNull(SECURITY_SCAN_SETTING_KEY);
+    securityScanSettingExists.value = Boolean(setting);
+    const value = setting?.value as { onlineCveEnabled?: unknown } | undefined;
+    securityScanDraft.value = { onlineCveEnabled: Boolean(value?.onlineCveEnabled) };
+  } catch (error) {
+    securityScanMessage.value = error instanceof Error ? error.message : '安全扫描设置加载失败';
+  } finally {
+    securityScanLoading.value = false;
+  }
+}
+
+async function saveSecurityScanSetting() {
+  securityScanSaving.value = true;
+  securityScanMessage.value = '';
+  const payload = {
+    key: SECURITY_SCAN_SETTING_KEY,
+    label: '安全扫描',
+    description: '控制安全扫描是否访问 OSV/NVD 在线漏洞源',
+    value: { onlineCveEnabled: Boolean(securityScanDraft.value.onlineCveEnabled) },
+  };
+  try {
+    const setting = securityScanSettingExists.value
+      ? await updateSystemSetting(SECURITY_SCAN_SETTING_KEY, payload)
+      : await createSystemSetting(payload);
+    securityScanSettingExists.value = true;
+    const value = setting.value as { onlineCveEnabled?: unknown };
+    securityScanDraft.value = { onlineCveEnabled: Boolean(value.onlineCveEnabled) };
+    securityScanMessage.value = '安全扫描设置已保存';
+  } catch (error) {
+    securityScanMessage.value = error instanceof Error ? error.message : '安全扫描设置保存失败';
+  } finally {
+    securityScanSaving.value = false;
+  }
+}
+
+function resetSecurityScanDraft() {
+  securityScanDraft.value = { onlineCveEnabled: false };
+  securityScanMessage.value = '';
+}
+
 function toggleWatermarkPage(page: string) {
   if (!canSave.value) return;
   const next = new Set(watermarkDraft.value.pages);
@@ -182,6 +260,7 @@ function toggleAllWatermarkPages() {
 
 onMounted(() => {
   void loadRdpRecordingSetting();
+  void loadSecurityScanSetting();
 });
 </script>
 
@@ -426,6 +505,22 @@ onMounted(() => {
           </div>
         </section>
 
+        <section v-else-if="activeTab === 'securityScan'" class="settings-section single">
+          <header>
+            <h3>安全扫描</h3>
+            <span>OSV/NVD 在线漏洞源访问</span>
+          </header>
+          <div class="settings-field-grid">
+            <label class="settings-check-row span-2">
+              <input v-model="securityScanDraft.onlineCveEnabled" :disabled="!canSave" type="checkbox" />
+              <span>开启在线 CVE 查询</span>
+            </label>
+            <p class="span-2 settings-inline-help">
+              关闭时安全扫描只执行基线和端口风险检查；开启后会访问 OSV 和 NVD 获取 CVE 详情，并缓存查询结果。
+            </p>
+          </div>
+        </section>
+
         <section v-else class="settings-section single">
           <header>
             <h3>水印配置</h3>
@@ -538,6 +633,15 @@ onMounted(() => {
               <strong>{{ rdpRecordingDraft.enabled ? '录屏开启' : '录屏关闭' }}</strong>
               <span>默认留存</span>
               <strong>30 天</strong>
+            </section>
+          </template>
+
+          <template v-else-if="activeTab === 'securityScan'">
+            <section class="settings-preview-meta">
+              <span>CVE 查询</span>
+              <strong>{{ securityScanDraft.onlineCveEnabled ? '在线开启' : '默认关闭' }}</strong>
+              <span>漏洞源</span>
+              <strong>{{ securityScanDraft.onlineCveEnabled ? 'OSV / NVD' : '不访问外网' }}</strong>
             </section>
           </template>
 

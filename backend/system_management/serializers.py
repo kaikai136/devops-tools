@@ -12,12 +12,14 @@ DASHBOARD_HERO_SETTING_KEY = "dashboard_hero"
 LAYOUT_FOOTER_SETTING_KEY = "layout_footer"
 LOGIN_CONTENT_SETTING_KEY = "login_content"
 WATERMARK_SETTING_KEY = "watermark"
+SECURITY_SCAN_SETTING_KEY = "security_scan"
 DISPLAY_SETTING_KEYS = {
     SITE_IDENTITY_SETTING_KEY,
     DASHBOARD_HERO_SETTING_KEY,
     LAYOUT_FOOTER_SETTING_KEY,
     LOGIN_CONTENT_SETTING_KEY,
     WATERMARK_SETTING_KEY,
+    SECURITY_SCAN_SETTING_KEY,
 }
 PUBLIC_DISPLAY_SETTING_KEYS = {
     SITE_IDENTITY_SETTING_KEY,
@@ -349,6 +351,8 @@ class SystemSettingSerializer(serializers.ModelSerializer):
             attrs["value"] = validate_login_content_value(value)
         elif key == WATERMARK_SETTING_KEY:
             attrs["value"] = validate_watermark_value(value)
+        elif key == SECURITY_SCAN_SETTING_KEY:
+            attrs["value"] = validate_security_scan_value(value)
         return attrs
 
 
@@ -521,3 +525,9 @@ def validate_watermark_value(value):
         raise serializers.ValidationError({"value": "开启水印时请输入水印文本"})
 
     return {"enabled": enabled, "text": text, "pages": pages}
+
+
+def validate_security_scan_value(value):
+    if not isinstance(value, dict):
+        raise serializers.ValidationError({"value": "安全扫描配置格式无效"})
+    return {"onlineCveEnabled": bool(value.get("onlineCveEnabled", False))}

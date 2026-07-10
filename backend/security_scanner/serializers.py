@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import SecurityScanFinding, SecurityScanHostResult, SecurityScanTask
+from .models import ScanFinding, ScanTargetResult, ScanTask
 
 
 def risk_counts(instance) -> dict:
@@ -13,25 +13,33 @@ def risk_counts(instance) -> dict:
     }
 
 
-class SecurityScanTaskSerializer(serializers.ModelSerializer):
+class ScanTaskSerializer(serializers.ModelSerializer):
     targetCount = serializers.IntegerField(source="target_count", read_only=True)
     completedCount = serializers.IntegerField(source="completed_count", read_only=True)
+    failedCount = serializers.IntegerField(source="failed_count", read_only=True)
+    cancelRequested = serializers.BooleanField(source="cancel_requested", read_only=True)
     riskCounts = serializers.SerializerMethodField()
+    scanModules = serializers.JSONField(source="scan_modules", read_only=True)
+    vulnerabilitySource = serializers.JSONField(source="vulnerability_source", read_only=True)
     createdBy = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source="created_at", read_only=True)
     startedAt = serializers.DateTimeField(source="started_at", read_only=True)
     finishedAt = serializers.DateTimeField(source="finished_at", read_only=True)
 
     class Meta:
-        model = SecurityScanTask
+        model = ScanTask
         fields = [
             "id",
             "name",
             "status",
+            "cancelRequested",
             "targetCount",
             "completedCount",
+            "failedCount",
             "riskCounts",
+            "scanModules",
             "options",
+            "vulnerabilitySource",
             "error",
             "createdBy",
             "createdAt",
@@ -46,21 +54,23 @@ class SecurityScanTaskSerializer(serializers.ModelSerializer):
         return instance.created_by.username if instance.created_by_id and instance.created_by else "system"
 
 
-class SecurityScanHostResultSerializer(serializers.ModelSerializer):
+class ScanTargetResultSerializer(serializers.ModelSerializer):
     hostName = serializers.CharField(source="host_name", read_only=True)
     hostIp = serializers.IPAddressField(source="host_ip", read_only=True)
     hostPort = serializers.IntegerField(source="host_port", read_only=True)
     loginUser = serializers.CharField(source="login_user", read_only=True)
     systemType = serializers.CharField(source="system_type", read_only=True)
+    systemArch = serializers.CharField(source="system_arch", read_only=True)
     systemInfo = serializers.JSONField(source="system_info", read_only=True)
     openPorts = serializers.JSONField(source="open_ports", read_only=True)
     packageCount = serializers.IntegerField(source="package_count", read_only=True)
+    skippedModules = serializers.JSONField(source="skipped_modules", read_only=True)
     riskCounts = serializers.SerializerMethodField()
     startedAt = serializers.DateTimeField(source="started_at", read_only=True)
     finishedAt = serializers.DateTimeField(source="finished_at", read_only=True)
 
     class Meta:
-        model = SecurityScanHostResult
+        model = ScanTargetResult
         fields = [
             "id",
             "host",
@@ -70,10 +80,12 @@ class SecurityScanHostResultSerializer(serializers.ModelSerializer):
             "loginUser",
             "os",
             "systemType",
+            "systemArch",
             "status",
             "systemInfo",
             "openPorts",
             "packageCount",
+            "skippedModules",
             "riskCounts",
             "error",
             "startedAt",
@@ -84,22 +96,22 @@ class SecurityScanHostResultSerializer(serializers.ModelSerializer):
         return risk_counts(instance)
 
 
-class SecurityScanFindingSerializer(serializers.ModelSerializer):
-    hostResult = serializers.IntegerField(source="host_result_id", read_only=True)
-    hostName = serializers.CharField(source="host_result.host_name", read_only=True)
-    hostIp = serializers.IPAddressField(source="host_result.host_ip", read_only=True)
+class ScanFindingSerializer(serializers.ModelSerializer):
+    targetResult = serializers.IntegerField(source="target_result_id", read_only=True)
+    targetName = serializers.CharField(source="target_result.host_name", read_only=True)
+    targetIp = serializers.IPAddressField(source="target_result.host_ip", read_only=True)
     cveId = serializers.CharField(source="cve_id", read_only=True)
     packageName = serializers.CharField(source="package_name", read_only=True)
     currentVersion = serializers.CharField(source="current_version", read_only=True)
     fixedVersion = serializers.CharField(source="fixed_version", read_only=True)
 
     class Meta:
-        model = SecurityScanFinding
+        model = ScanFinding
         fields = [
             "id",
-            "hostResult",
-            "hostName",
-            "hostIp",
+            "targetResult",
+            "targetName",
+            "targetIp",
             "category",
             "severity",
             "title",
@@ -120,22 +132,22 @@ class SecurityScanFindingSerializer(serializers.ModelSerializer):
         ]
 
 
-class SecurityScanFindingSummarySerializer(serializers.ModelSerializer):
-    hostResult = serializers.IntegerField(source="host_result_id", read_only=True)
-    hostName = serializers.CharField(source="host_result.host_name", read_only=True)
-    hostIp = serializers.IPAddressField(source="host_result.host_ip", read_only=True)
+class ScanFindingSummarySerializer(serializers.ModelSerializer):
+    targetResult = serializers.IntegerField(source="target_result_id", read_only=True)
+    targetName = serializers.CharField(source="target_result.host_name", read_only=True)
+    targetIp = serializers.IPAddressField(source="target_result.host_ip", read_only=True)
     cveId = serializers.CharField(source="cve_id", read_only=True)
     packageName = serializers.CharField(source="package_name", read_only=True)
     currentVersion = serializers.CharField(source="current_version", read_only=True)
     fixedVersion = serializers.CharField(source="fixed_version", read_only=True)
 
     class Meta:
-        model = SecurityScanFinding
+        model = ScanFinding
         fields = [
             "id",
-            "hostResult",
-            "hostName",
-            "hostIp",
+            "targetResult",
+            "targetName",
+            "targetIp",
             "category",
             "severity",
             "title",
@@ -152,21 +164,21 @@ class SecurityScanFindingSummarySerializer(serializers.ModelSerializer):
         ]
 
 
-class SecurityScanTaskDetailSerializer(SecurityScanTaskSerializer):
-    hostResults = serializers.SerializerMethodField()
+class ScanTaskDetailSerializer(ScanTaskSerializer):
+    targetResults = serializers.SerializerMethodField()
 
-    class Meta(SecurityScanTaskSerializer.Meta):
-        fields = SecurityScanTaskSerializer.Meta.fields + ["hostResults"]
+    class Meta(ScanTaskSerializer.Meta):
+        fields = ScanTaskSerializer.Meta.fields + ["targetResults"]
 
-    def get_hostResults(self, instance):
-        return SecurityScanHostResultSerializer(instance.host_results.all(), many=True).data
+    def get_targetResults(self, instance):
+        return ScanTargetResultSerializer(instance.target_results.all(), many=True).data
 
 
-class SecurityScanTaskExportSerializer(SecurityScanTaskDetailSerializer):
+class ScanTaskExportSerializer(ScanTaskDetailSerializer):
     findings = serializers.SerializerMethodField()
 
-    class Meta(SecurityScanTaskDetailSerializer.Meta):
-        fields = SecurityScanTaskDetailSerializer.Meta.fields + ["findings"]
+    class Meta(ScanTaskDetailSerializer.Meta):
+        fields = ScanTaskDetailSerializer.Meta.fields + ["findings"]
 
     def get_findings(self, instance):
-        return SecurityScanFindingSerializer(instance.findings.select_related("host_result").all(), many=True).data
+        return ScanFindingSerializer(instance.findings.select_related("target_result").all(), many=True).data
