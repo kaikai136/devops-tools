@@ -22,6 +22,9 @@ pnpm-debug.log*
 
 # Local runtime logs
 *.log
+.codex-logs/
+/data/
+/media/
 .worktrees/
 
 # Editor / OS
