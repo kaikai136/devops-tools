@@ -14,8 +14,8 @@ from host_management.models import HostGroup, ManagedHost
 from system_management.models import SystemSetting
 from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions
 
-from . import views
-from .consumers import (
+from .. import views
+from ..consumers import (
     CWD_HOOK_ECHO_OFF,
     CWD_HOOK_ECHO_ON,
     CWD_HOOK_INSTALL_SCRIPT,
@@ -30,7 +30,7 @@ from .consumers import (
     strip_cwd_hook_install_echo,
     strip_cwd_markers_with_pending,
 )
-from .services import (
+from ..services import (
     TerminalConnectionError,
     build_rdp_connection_parameters,
     classify_command_risk,
@@ -57,7 +57,7 @@ from .services import (
     remote_file_properties_payload,
     terminal_protocol_for_host,
 )
-from .models import TerminalCommandAudit, TerminalQuickCommand, TerminalSession
+from ..models import TerminalCommandAudit, TerminalQuickCommand, TerminalSession
 
 
 class RemoteFilePropertiesTests(SimpleTestCase):
