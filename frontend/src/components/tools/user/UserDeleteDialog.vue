@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AppIcon from '../../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 import type { SystemUser } from '../../../composables/features/useUserManager';
 
 defineProps<{ user: SystemUser }>();

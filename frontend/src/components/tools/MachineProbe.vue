@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useAppContext } from '../../appContext';
+import { useAppContext } from '@app/context';
 import PingProbe from './machine/PingProbe.vue';
 import PortScanner from './machine/PortScanner.vue';
 

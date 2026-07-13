@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-import { dashboardNavItem, navGroups } from '../../navigation';
+import { dashboardNavItem, navGroups } from '@app/navigation';
 import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from '../../services/system';
 import type { SystemSetting, ToolKey, WatermarkConfig } from '../../types';
 

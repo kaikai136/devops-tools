@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, provide, ref, watch } from 'vue';
 
-import { appContextKey } from './appContext';
-import AppIcon from './components/common/AppIcon.vue';
-import WatermarkOverlay from './components/common/WatermarkOverlay.vue';
-import LockScreenOverlay from './components/common/LockScreenOverlay.vue';
-import UserAvatar from './components/common/UserAvatar.vue';
+import { appContextKey } from '@app/context';
+import AppIcon from '@shared/components/AppIcon.vue';
+import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
+import LockScreenOverlay from '@shared/components/LockScreenOverlay.vue';
+import UserAvatar from '@shared/components/UserAvatar.vue';
 import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
-import { errorMessage } from './utils/errors';
+import { errorMessage } from '@shared/utils/errors';
 
 type DashboardPageExpose = {
   refresh?: () => Promise<void> | void;

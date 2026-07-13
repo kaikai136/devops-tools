@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { getSliderChallenge, verifySliderChallenge, type SliderChallenge } from '../../../services/auth';
-import AppIcon from '../../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 const HANDLE_SIZE = 40;
 

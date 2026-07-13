@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 
-import { useAppContext } from '../../appContext';
-import { useColumnVisibility } from '../../composables/useColumnVisibility';
+import { useAppContext } from '@app/context';
+import { useColumnVisibility } from '@shared/composables/useColumnVisibility';
 import {
   createQuickCommand,
   deleteQuickCommand,
@@ -13,7 +13,7 @@ import {
   type QuickCommandPayload,
 } from '../../services/quickCommands';
 import { formatDateTime } from '../../utils/datetime';
-import AppIcon from '../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 interface HostQuickCommandDialogState {
   visible: boolean;

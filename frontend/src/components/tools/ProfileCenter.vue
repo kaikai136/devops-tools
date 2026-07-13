@@ -2,13 +2,13 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { apiGet, apiPost, apiPut } from '../../api';
-import { useAppContext } from '../../appContext';
-import { passwordsMismatch, usePasswordStrength } from '../../composables/usePasswordStrength';
+import { useAppContext } from '@app/context';
+import { passwordsMismatch, usePasswordStrength } from '@shared/composables/usePasswordStrength';
 import type { ProfilePayload, TwoFactorSetupPayload } from '../../types';
 import { formatDateTime } from '../../utils/datetime';
-import { errorMessage } from '../../utils/errors';
-import AppIcon from '../common/AppIcon.vue';
-import UserAvatar from '../common/UserAvatar.vue';
+import { errorMessage } from '@shared/utils/errors';
+import AppIcon from '@shared/components/AppIcon.vue';
+import UserAvatar from '@shared/components/UserAvatar.vue';
 
 const { activeTool, currentUser, updateCurrentUser, showToast, logout, copyText, canUsePageAction, canUseAnyPageAction } = useAppContext();
 

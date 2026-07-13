@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 
-import { appContextKey } from '../../appContext';
+import { appContextKey } from '@app/context';
 import {
   cancelSecurityScanTask,
   createSecurityScanTask,
@@ -24,8 +24,8 @@ import type {
   SecurityScanTask,
   SecurityScanTaskDetail,
 } from '../../types';
-import { errorMessage } from '../../utils/errors';
-import AppIcon from '../common/AppIcon.vue';
+import { errorMessage } from '@shared/utils/errors';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 const DEFAULT_PORTS = '21,22,23,25,53,80,110,139,143,443,445,3306,3389,5432,5900,6379,8080,8443,27017';
 const emptyRiskCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };

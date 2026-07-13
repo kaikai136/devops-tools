@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
-import { errorMessage } from '../../utils/errors';
+import { errorMessage } from '@shared/utils/errors';
 import AppIcon from './AppIcon.vue';
 import UserAvatar from './UserAvatar.vue';
 

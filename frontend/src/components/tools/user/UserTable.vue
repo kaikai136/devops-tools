@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 import { formatDateTime } from '../../../utils/datetime';
-import AppIcon from '../../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 import type { SystemUser, UserColumnKey } from '../../../composables/features/useUserManager';
 
 const props = defineProps<{

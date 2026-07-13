@@ -2,11 +2,11 @@
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue';
 
 import { apiGet } from '../../api';
-import { useAppContext } from '../../appContext';
+import { useAppContext } from '@app/context';
 import { buildReadmeTypingSvgUrl, buildTemplateVariables, renderTemplate } from '../../composables/features/useSiteSettings';
 import type { DashboardDistributionItem, DashboardSummary } from '../../types';
-import { errorMessage } from '../../utils/errors';
-import AppIcon from '../common/AppIcon.vue';
+import { errorMessage } from '@shared/utils/errors';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 const DashboardChart = defineAsyncComponent(() => import('./dashboard/DashboardChart.vue'));
 

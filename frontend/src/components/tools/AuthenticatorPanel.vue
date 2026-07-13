@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useAppContext } from '../../appContext';
-import AppIcon from '../common/AppIcon.vue';
+import { useAppContext } from '@app/context';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 const {
   activeTool,

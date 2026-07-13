@@ -2,10 +2,10 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
-import { useAppContext } from '../../appContext';
-import { dashboardNavItem, navGroups } from '../../navigation';
-import { errorMessage } from '../../utils/errors';
-import AppIcon from '../common/AppIcon.vue';
+import { useAppContext } from '@app/context';
+import { dashboardNavItem, navGroups } from '@app/navigation';
+import { errorMessage } from '@shared/utils/errors';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 interface SystemRole {
   id: number;

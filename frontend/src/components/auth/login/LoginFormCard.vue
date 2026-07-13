@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { useAppContext } from '../../../appContext';
+import { useAppContext } from '@app/context';
 import type { LoginTwoFactorChallenge, LoginTwoFactorSetupChallenge } from '../../../types';
-import AppIcon from '../../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 import LoginSliderVerify from './LoginSliderVerify.vue';
 
 const props = defineProps<{

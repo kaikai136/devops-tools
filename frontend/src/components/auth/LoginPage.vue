@@ -3,7 +3,7 @@ import { computed, ref, watch, type CSSProperties } from 'vue';
 
 import { useLoginForm } from '../../composables/auth/useLoginForm';
 import type { LoginPayload, LoginResult } from '../../types';
-import AppIcon from '../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 import LoginFormCard from './login/LoginFormCard.vue';
 import LoginVisualPanel from './login/LoginVisualPanel.vue';
 

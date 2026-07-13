@@ -17,8 +17,8 @@ import {
   clampTerminalFontSize,
   readStoredTerminalFontSize,
 } from '../../utils/terminalSettings';
-import AppIcon from '../common/AppIcon.vue';
-import type { IconName } from '../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
+import type { IconName } from '@shared/components/AppIcon.vue';
 import type { AccountUser } from '../../types';
 
 interface TerminalHost {

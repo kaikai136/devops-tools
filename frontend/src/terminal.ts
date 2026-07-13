@@ -1,6 +1,6 @@
 import { createApp } from 'vue';
 
-import WatermarkOverlay from './components/common/WatermarkOverlay.vue';
+import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
 import WebTerminalPage from './components/terminal/WebTerminalPage.vue';
 import { buildTemplateVariables, normalizeSiteIdentity, renderTemplate, SITE_IDENTITY_SETTING_KEY } from './composables/features/useSiteSettings';
 import { normalizeWatermarkConfig, watermarkAppliesToPage, WATERMARK_SETTING_KEY } from './composables/features/useWatermarkSettings';

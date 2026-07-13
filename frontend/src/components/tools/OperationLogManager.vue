@@ -2,9 +2,9 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { apiGet } from '../../api';
-import { useAppContext } from '../../appContext';
-import { errorMessage } from '../../utils/errors';
-import AppIcon from '../common/AppIcon.vue';
+import { useAppContext } from '@app/context';
+import { errorMessage } from '@shared/utils/errors';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 type ColumnKey = 'createdAt' | 'username' | 'module' | 'action' | 'target' | 'ipAddress' | 'detail' | 'userAgent';
 

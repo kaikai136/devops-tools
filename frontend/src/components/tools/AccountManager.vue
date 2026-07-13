@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { useAppContext } from '../../appContext';
+import { useAppContext } from '@app/context';
 import { createHostCredential, deleteHostCredential, updateHostCredential } from '../../services/hostManagement';
 import type { HostCredential } from '../../types';
-import AppIcon from '../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 interface CredentialForm {
   name: string;

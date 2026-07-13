@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 
-import { useAppContext } from '../../appContext';
+import { useAppContext } from '@app/context';
 import { buildReadmeTypingSvgUrl, buildTemplateVariables, renderTemplate } from '../../composables/features/useSiteSettings';
 import { watermarkPageGroups } from '../../composables/features/useWatermarkSettings';
 import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from '../../services/system';
-import AppIcon from '../common/AppIcon.vue';
-import WatermarkOverlay from '../common/WatermarkOverlay.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
+import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
 
 type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'rdp' | 'securityScan' | 'watermark';
 type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image' | 'shield';

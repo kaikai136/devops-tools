@@ -5,7 +5,7 @@ import Guacamole from 'guacamole-common-js';
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import 'asciinema-player/dist/bundle/asciinema-player.css';
 
-import { useAppContext } from '../../appContext';
+import { useAppContext } from '@app/context';
 import {
   listSessionAudits,
   rdpSessionRecordingUrl,
@@ -14,7 +14,7 @@ import {
   type TerminalSessionAudit,
 } from '../../services/sessionAudit';
 import { formatDateTime } from '../../utils/datetime';
-import AppIcon from '../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 interface SessionRecordingDialogState {
   visible: boolean;

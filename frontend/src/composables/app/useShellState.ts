@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue';
 
-import type { IconName } from '../../components/common/AppIcon.vue';
-import { dashboardNavItem, navGroups } from '../../navigation';
+import type { IconName } from '@shared/components/AppIcon.vue';
+import { dashboardNavItem, navGroups } from '@app/navigation';
 import type { ToolKey } from '../../types';
 
 type WorkspaceTheme = 'light' | 'dark';

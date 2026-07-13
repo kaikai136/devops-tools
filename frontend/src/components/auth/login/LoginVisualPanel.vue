@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import { useAppContext } from '../../../appContext';
-import AppIcon from '../../common/AppIcon.vue';
+import { useAppContext } from '@app/context';
+import AppIcon from '@shared/components/AppIcon.vue';
 
 const { siteIdentity, loginContent, renderSystemTemplate } = useAppContext();
 

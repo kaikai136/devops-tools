@@ -6,7 +6,7 @@ import { BarChart, GaugeChart, LineChart, PieChart } from 'echarts/charts';
 import { GraphicComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-import { useAppContext } from '../../../appContext';
+import { useAppContext } from '@app/context';
 
 use([BarChart, GaugeChart, LineChart, PieChart, GraphicComponent, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 

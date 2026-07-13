@@ -1,9 +1,9 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { apiDelete, apiGet, apiPost, apiPut } from '../../api';
-import { useColumnVisibility, type TableColumnOption } from '../useColumnVisibility';
-import { passwordsMismatch, usePasswordStrength } from '../usePasswordStrength';
-import { errorMessage } from '../../utils/errors';
+import { useColumnVisibility, type TableColumnOption } from '@shared/composables/useColumnVisibility';
+import { passwordsMismatch, usePasswordStrength } from '@shared/composables/usePasswordStrength';
+import { errorMessage } from '@shared/utils/errors';
 
 export interface SystemUser {
   id: number;

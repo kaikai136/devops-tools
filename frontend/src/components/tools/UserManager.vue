@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useAppContext } from '../../appContext';
+import { useAppContext } from '@app/context';
 import { useUserManager, userColumnOptions } from '../../composables/features/useUserManager';
-import AppIcon from '../common/AppIcon.vue';
+import AppIcon from '@shared/components/AppIcon.vue';
 import UserAccountDialog from './user/UserAccountDialog.vue';
 import UserDeleteDialog from './user/UserDeleteDialog.vue';
 import UserResetPasswordDialog from './user/UserResetPasswordDialog.vue';

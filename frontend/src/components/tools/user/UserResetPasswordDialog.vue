@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import AppIcon from '../../common/AppIcon.vue';
-import type { PasswordRule, PasswordStrengthLevel } from '../../../composables/usePasswordStrength';
+import AppIcon from '@shared/components/AppIcon.vue';
+import type { PasswordRule, PasswordStrengthLevel } from '@shared/composables/usePasswordStrength';
 
 defineProps<{
   rules: PasswordRule[];
