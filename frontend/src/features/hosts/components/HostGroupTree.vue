@@ -1,4 +1,6 @@
 ﻿<script setup lang="ts">
+import { computed } from 'vue';
+
 import AppIcon from '@shared/components/AppIcon.vue';
 import type { HostGroup } from '@features/hosts/types';
 import type {
@@ -50,9 +52,10 @@ const emit = defineEmits<{
   'delete-group': [group: HostGroupMenuGroup];
 }>();
 
-function updateInlineName(event: Event) {
-  emit('update-inline-name', (event.target as HTMLInputElement).value);
-}
+const inlineName = computed({
+  get: () => props.inlineEdit?.name ?? '',
+  set: (value: string) => emit('update-inline-name', value),
+});
 </script>
 
 <template>
@@ -94,10 +97,9 @@ function updateInlineName(event: Event) {
             ><AppIcon v-if="row.group.children?.length" :name="props.isGroupExpanded(row.group) ? 'chevronDown' : 'chevronRight'" :size="15" /></span>
             <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
             <input
-              :value="props.inlineEdit.name"
+              v-model="inlineName"
               class="host-group-inline-input"
               autofocus
-              @input="updateInlineName"
               @blur="emit('save-inline-edit')"
               @keydown.enter.prevent="emit('save-inline-edit')"
               @keydown.esc.prevent="emit('cancel-inline-edit')"
@@ -147,11 +149,10 @@ function updateInlineName(event: Event) {
           <span class="folder-caret"></span>
           <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
           <input
-            :value="row.editor.name"
+            v-model="inlineName"
             class="host-group-inline-input"
             autofocus
             placeholder="输入分组名称"
-            @input="updateInlineName"
             @blur="emit('save-inline-edit')"
             @keydown.enter.prevent="emit('save-inline-edit')"
             @keydown.esc.prevent="emit('cancel-inline-edit')"

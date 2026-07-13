@@ -252,8 +252,8 @@ function updateHostMoveFormField(field: keyof HostMoveForm, value: number | null
   hostMoveForm.value[field] = value;
 }
 
-function updateHostFormField(field: keyof ManagedHostForm, value: ManagedHostForm[keyof ManagedHostForm]) {
-  (hostForm.value[field] as ManagedHostForm[keyof ManagedHostForm]) = value;
+function updateHostFormField<Key extends keyof ManagedHostForm>(field: Key, value: ManagedHostForm[Key]) {
+  (hostForm.value as ManagedHostForm)[field] = value;
 }
 
 function updateHostGroupInlineName(value: string) {
@@ -567,7 +567,7 @@ function hostPlatformType(value: string | null | undefined) {
 
     <article v-if="canUseHostList" class="panel host-table-panel">
       <HostToolbar
-        :search="hostSearch"
+        v-model:search="hostSearch"
         :status-filter="hostStatusFilter"
         :selected-count="selectedManagedHostCount"
         :more-actions-open="hostMoreActionsOpen"
@@ -587,7 +587,6 @@ function hostPlatformType(value: string | null | undefined) {
         :can-delete="canUsePageAction('hosts', 'delete')"
         :show-more-actions-divider="canUseAnyPageAction('hosts', ['verify', 'filter']) && canUseAnyPageAction('hosts', ['move', 'delete'])"
         :can-export="canUsePageAction('hosts', 'export')"
-        @update:search="hostSearch = $event"
         @create="addManagedHost()"
         @open-quick-commands="openHostQuickCommandManager"
         @toggle-more-actions="toggleHostMoreActions"

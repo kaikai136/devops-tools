@@ -1,4 +1,6 @@
 ﻿<script setup lang="ts">
+import { computed } from 'vue';
+
 import AppIcon from '@shared/components/AppIcon.vue';
 import type { HostStatusFilter } from '@features/hosts/composables/useHostList';
 
@@ -68,14 +70,15 @@ const emit = defineEmits<{
   'toggle-fullscreen': [];
 }>();
 
-function updateSearch(event: Event) {
-  emit('update:search', (event.target as HTMLInputElement).value);
-}
+const searchModel = computed({
+  get: () => props.search,
+  set: (value: string) => emit('update:search', value),
+});
 </script>
 
 <template>
   <div class="host-toolbar">
-    <input :value="props.search" placeholder="输入别名/IP检索" @input="updateSearch" />
+    <input v-model="searchModel" placeholder="输入别名/IP检索" />
     <div class="host-toolbar-actions">
       <button v-if="props.canCreate" class="primary" type="button" @click="emit('create')"><AppIcon name="plus" :size="16" />新建</button>
       <button v-if="props.canManageQuickCommands" class="host-quick-command-trigger" type="button" @click="emit('open-quick-commands')">

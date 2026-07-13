@@ -18,11 +18,15 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  close: [];
-  submit: [];
-  'update-form-field': [field: keyof ManagedHostForm, value: ManagedHostForm[keyof ManagedHostForm]];
-  'apply-credential': [event: Event];
-  'upload-private-key': [event: Event];
+  (event: 'close'): void;
+  (event: 'submit'): void;
+  <Key extends keyof ManagedHostForm>(
+    event: 'update-form-field',
+    field: Key,
+    value: ManagedHostForm[Key],
+  ): void;
+  (event: 'apply-credential', payload: Event): void;
+  (event: 'upload-private-key', payload: Event): void;
 }>();
 
 function fieldModel<Key extends keyof ManagedHostForm>(field: Key) {
