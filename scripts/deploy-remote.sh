@@ -7,7 +7,7 @@ DEPLOY_ROOT="${DEPLOY_ROOT:-/opt}"
 APP_NAME="${APP_NAME:-devops-tools}"
 REPO_URL="${REPO_URL:-https://github.com/kaikai136/devops-tools.git}"
 BRANCH="${BRANCH:-main}"
-APP_PORT="${APP_PORT:-8001}"
+APP_PORT_OVERRIDE="${APP_PORT:-}"
 
 REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 
@@ -16,10 +16,23 @@ quote() {
 }
 
 ssh "$REMOTE" \
-  "DEPLOY_ROOT=$(quote "$DEPLOY_ROOT") APP_NAME=$(quote "$APP_NAME") REPO_URL=$(quote "$REPO_URL") BRANCH=$(quote "$BRANCH") APP_PORT=$(quote "$APP_PORT") DEPLOY_HOST=$(quote "$DEPLOY_HOST") bash -s" <<'REMOTE_SCRIPT'
+  "DEPLOY_ROOT=$(quote "$DEPLOY_ROOT") APP_NAME=$(quote "$APP_NAME") REPO_URL=$(quote "$REPO_URL") BRANCH=$(quote "$BRANCH") APP_PORT_OVERRIDE=$(quote "$APP_PORT_OVERRIDE") bash -s" <<'REMOTE_SCRIPT'
 set -euo pipefail
 
 APP_DIR="${DEPLOY_ROOT%/}/${APP_NAME}"
+ENV_BACKUP=""
+ENV_RESTORED=0
+
+cleanup_env_backup() {
+  if [ -n "$ENV_BACKUP" ] && [ -f "$ENV_BACKUP" ]; then
+    if [ "$ENV_RESTORED" -ne 1 ] && [ -d "$APP_DIR" ]; then
+      cp "$ENV_BACKUP" "$APP_DIR/.env"
+      chmod 600 "$APP_DIR/.env"
+    fi
+    rm -f "$ENV_BACKUP"
+  fi
+}
+trap cleanup_env_backup EXIT HUP INT TERM
 
 command -v git >/dev/null 2>&1 || { echo "git is required on the target host."; exit 1; }
 command -v docker >/dev/null 2>&1 || { echo "docker is required on the target host."; exit 1; }
@@ -40,6 +53,17 @@ if [ -e "$APP_DIR" ] && [ ! -d "$APP_DIR/.git" ]; then
   exit 1
 fi
 
+if [ -d "$APP_DIR/.git" ] && [ -f "$APP_DIR/.env" ]; then
+  ENV_BACKUP="$(mktemp)"
+  cp "$APP_DIR/.env" "$ENV_BACKUP"
+  chmod 600 "$ENV_BACKUP"
+  if git -C "$APP_DIR" ls-files --error-unmatch .env >/dev/null 2>&1; then
+    git -C "$APP_DIR" checkout -- .env
+  else
+    rm -f "$APP_DIR/.env"
+  fi
+fi
+
 if [ ! -d "$APP_DIR/.git" ]; then
   git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 else
@@ -51,20 +75,14 @@ fi
 cd "$APP_DIR"
 mkdir -p data media
 
-if [ ! -f .env ]; then
-  if command -v openssl >/dev/null 2>&1; then
-    SECRET_KEY="$(openssl rand -hex 32)"
-  else
-    SECRET_KEY="$(date +%s | sha256sum | awk '{print $1}')"
-  fi
+if [ -n "$ENV_BACKUP" ]; then
+  cp "$ENV_BACKUP" .env
+  chmod 600 .env
+  ENV_RESTORED=1
+fi
 
-  cat > .env <<EOF
-APP_PORT=${APP_PORT}
-DJANGO_SECRET_KEY=${SECRET_KEY}
-DJANGO_ALLOWED_HOSTS=${DEPLOY_HOST},localhost,127.0.0.1
-DJANGO_CSRF_TRUSTED_ORIGINS=http://${DEPLOY_HOST}:${APP_PORT},http://localhost:${APP_PORT},http://127.0.0.1:${APP_PORT}
-DJANGO_CORS_ALLOW_ALL_ORIGINS=0
-EOF
+if [ -n "$APP_PORT_OVERRIDE" ]; then
+  export APP_PORT="$APP_PORT_OVERRIDE"
 fi
 
 "${COMPOSE[@]}" up -d --build

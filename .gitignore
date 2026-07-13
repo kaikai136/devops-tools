@@ -9,6 +9,7 @@ venv/
 env/
 .env
 .env.*
+!/.env
 
 # Node / Vue
 node_modules/

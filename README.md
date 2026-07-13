@@ -136,45 +136,20 @@ npm run build
 
 - Docker
 - Docker Compose v2，或兼容的 `docker-compose`
-- 服务器开放应用端口，默认容器内端口为 `8001`
+- 服务器开放应用端口，默认宿主机端口和容器端口均为 `8001`
 
-### 环境变量
+### 拉取后直接启动
 
-首次部署前可在项目根目录创建 `.env`：
-
-```env
-APP_PORT=8001
-DJANGO_SECRET_KEY=change-me-to-a-long-random-secret
-DJANGO_ALLOWED_HOSTS=172.16.0.99,localhost,127.0.0.1
-DJANGO_CSRF_TRUSTED_ORIGINS=http://172.16.0.99:8001,http://localhost:8001,http://127.0.0.1:8001
-DJANGO_CORS_ALLOW_ALL_ORIGINS=0
-RDP_RECORDING_RETENTION_DAYS=30
-RDP_RECORDING_DEFAULT_ENABLED=0
-```
-
-常用变量说明：
-
-| 变量 | 说明 | 默认值 |
-| --- | --- | --- |
-| `APP_PORT` | 宿主机暴露端口 | `8001` |
-| `DJANGO_SECRET_KEY` | Django 密钥，生产环境必须设置 | 无 |
-| `DJANGO_ALLOWED_HOSTS` | 允许访问的域名/IP | `172.16.0.99,localhost,127.0.0.1` |
-| `DJANGO_CSRF_TRUSTED_ORIGINS` | CSRF 信任来源 | 按部署地址配置 |
-| `DJANGO_DB_PATH` | 容器内 SQLite 路径 | `/app/data/db.sqlite3` |
-| `DJANGO_MEDIA_ROOT` | 容器内媒体文件路径 | `/app/media` |
-| `GUACD_HOST` | guacd 服务地址 | `guacd` |
-| `GUACD_PORT` | guacd 服务端口 | `4822` |
-| `RDP_RECORDING_RETENTION_DAYS` | RDP 录像保留天数 | `30` |
-| `RDP_RECORDING_DEFAULT_ENABLED` | 是否默认开启 RDP 录像 | `0` |
-
-### 启动服务
+仓库已提供不含真实密钥的默认 `.env`。首次部署不需要手工创建环境文件：
 
 ```bash
+git clone https://github.com/kaikai136/devops-tools.git
+cd devops-tools
 docker compose up -d --build
 docker compose ps
 ```
 
-或使用项目脚本自动生成 `.env` 并启动：
+也可以使用便捷脚本；脚本只负责创建持久化目录并执行 Docker Compose：
 
 ```bash
 bash scripts/compose-up.sh
@@ -183,7 +158,7 @@ bash scripts/compose-up.sh
 部署完成后访问：
 
 ```text
-http://服务器IP:APP_PORT
+http://服务器IP:8001
 ```
 
 健康检查：
@@ -192,25 +167,130 @@ http://服务器IP:APP_PORT
 curl http://127.0.0.1:8001/api/health/
 ```
 
-如果 `.env` 中将 `APP_PORT` 设置为其他端口，请使用对应端口检查，例如：
+预期返回：
 
-```bash
-curl http://127.0.0.1:8003/api/health/
+```json
+{"status":"ok"}
 ```
 
-### 数据持久化
+### 默认 `.env`
 
-Docker Compose 会挂载以下持久化目录：
+根目录 `.env` 会提交到仓库，用于本地、测试和受控内网环境的开箱即用部署。它只包含公开默认值，不包含真实生产密钥：
 
-- `./data:/app/data`：SQLite 数据库。
-- `./media:/app/media`：上传文件、头像、媒体资源。
+```env
+APP_PORT=8001
+IMAGE_NAME=devops-tools:latest
+CONTAINER_NAME=devops-tools
+GUACD_CONTAINER_NAME=devops-tools-guacd
+
+DJANGO_SECRET_KEY=
+DJANGO_ALLOWED_HOSTS=*
+DJANGO_CSRF_TRUSTED_ORIGINS=
+DJANGO_CORS_ALLOW_ALL_ORIGINS=0
+
+GUACD_HOST=guacd
+GUACD_PORT=4822
+RDP_RECORDING_RETENTION_DAYS=30
+RDP_RECORDING_DEFAULT_ENABLED=0
+```
+
+其中 `DJANGO_ALLOWED_HOSTS=*` 只是为了让新部署能够直接访问。**生产环境必须改为实际域名或服务器 IP**，并正确配置 `DJANGO_CSRF_TRUSTED_ORIGINS`。
+
+### Django 密钥自动生成
+
+默认 `.env` 中的 `DJANGO_SECRET_KEY` 为空。容器每次启动时按以下优先级确定密钥：
+
+1. 使用非空的 `DJANGO_SECRET_KEY` 环境变量。
+2. 读取已经存在的 `/app/data/django-secret-key`。
+3. 首次启动时安全生成新密钥并保存到 `/app/data/django-secret-key`。
+
+由于 Compose 将 `./data` 挂载到 `/app/data`，自动生成的密钥在宿主机上的位置是：
+
+```text
+./data/django-secret-key
+```
+
+重新启动容器、重新构建镜像或执行 `docker compose up -d --force-recreate` 都会继续使用同一密钥。密钥内容不会输出到日志。
+
+> 删除 `./data` 会同时删除 SQLite 数据库和自动生成的 Django 密钥。删除、迁移或重装前必须备份整个 `data` 目录。
+
+### 生产环境私有配置
+
+建议从默认配置复制一份不提交到 Git 的私有环境文件：
+
+```bash
+cp .env .env.production
+```
+
+示例：
+
+```env
+APP_PORT=8001
+IMAGE_NAME=devops-tools:latest
+CONTAINER_NAME=devops-tools
+GUACD_CONTAINER_NAME=devops-tools-guacd
+
+# 留空时仍使用 ./data/django-secret-key；也可以由 CI/CD 或 Secret 管理系统注入。
+DJANGO_SECRET_KEY=
+DJANGO_ALLOWED_HOSTS=ops.example.com
+DJANGO_CSRF_TRUSTED_ORIGINS=https://ops.example.com
+DJANGO_CORS_ALLOW_ALL_ORIGINS=0
+
+GUACD_HOST=guacd
+GUACD_PORT=4822
+RDP_RECORDING_RETENTION_DAYS=30
+RDP_RECORDING_DEFAULT_ENABLED=0
+```
+
+使用私有环境文件启动：
+
+```bash
+docker compose --env-file .env.production up -d --build
+```
+
+如果通过反向代理使用 HTTPS，`DJANGO_CSRF_TRUSTED_ORIGINS` 必须填写带协议的外部访问来源，例如 `https://ops.example.com`。多个主机或来源使用英文逗号分隔。
+
+### 环境变量说明
+
+| 变量 | 默认值 | 说明与生产建议 |
+| --- | --- | --- |
+| `APP_PORT` | `8001` | 宿主机暴露端口。修改后健康检查和访问地址也要使用新端口。 |
+| `IMAGE_NAME` | `devops-tools:latest` | 本地构建的镜像名称和标签。 |
+| `CONTAINER_NAME` | `devops-tools` | Django 应用容器名称。 |
+| `GUACD_CONTAINER_NAME` | `devops-tools-guacd` | guacd 容器名称。 |
+| `DJANGO_SECRET_KEY` | 空 | 非空时优先使用；为空时自动读取或生成持久化密钥。不要将真实生产密钥提交到仓库。 |
+| `DJANGO_SECRET_KEY_FILE` | `/app/data/django-secret-key` | 容器内自动密钥文件，可通过容器环境覆盖；通常无需修改。 |
+| `DJANGO_ALLOWED_HOSTS` | `*` | 允许访问的域名/IP。默认值仅为开箱即用，生产环境必须收紧。 |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | 空 | 跨站请求信任来源，必须包含 `http://` 或 `https://` 协议。使用域名、HTTPS 或反向代理时应明确设置。 |
+| `DJANGO_CORS_ALLOW_ALL_ORIGINS` | `0` | 是否允许所有跨域来源。生产环境保持关闭。 |
+| `DJANGO_DB_PATH` | `/app/data/db.sqlite3` | 容器内 SQLite 数据库路径，由 Compose 固定配置。 |
+| `DJANGO_MEDIA_ROOT` | `/app/media` | 容器内上传文件目录，由 Compose 固定配置。 |
+| `GUACD_HOST` | `guacd` | guacd 服务地址。Compose 内默认使用服务名。 |
+| `GUACD_PORT` | `4822` | guacd 服务端口。 |
+| `RDP_RECORDING_RETENTION_DAYS` | `30` | RDP 录像保留天数。 |
+| `RDP_RECORDING_DEFAULT_ENABLED` | `0` | 新建连接时是否默认开启 RDP 录像。 |
+
+### 数据持久化与备份
+
+Docker Compose 会挂载：
+
+- `./data:/app/data`：SQLite 数据库和自动生成的 Django 密钥。
+- `./media:/app/media`：上传文件、头像和媒体资源。
 - `rdp_recordings:/app/rdp_recordings`：RDP 录像数据卷。
 
-升级或重建镜像不会删除以上数据。删除目录或 volume 前请先备份。
+升级或重建镜像不会删除这些数据。重大升级前建议同时备份：
+
+```bash
+cp .env .env.backup
+cp -a data data.backup
+cp -a media media.backup
+```
+
+`.env.production`、`.env.local` 等私有文件默认被 Git 忽略，不要强制提交。
 
 ## 远程部署
 
-项目提供 `scripts/deploy-remote.sh` 用于在远程服务器拉取仓库并通过 Docker Compose 启动。
+项目提供 `scripts/deploy-remote.sh`，用于通过 SSH 在目标服务器拉取仓库并执行 Docker Compose。
 
 ### 默认参数
 
@@ -222,11 +302,9 @@ Docker Compose 会挂载以下持久化目录：
 | `APP_NAME` | `devops-tools` |
 | `REPO_URL` | `https://github.com/kaikai136/devops-tools.git` |
 | `BRANCH` | `main` |
-| `APP_PORT` | `8001` |
+| `APP_PORT` | 未设置 |
 
-### 部署指定版本
-
-远程部署脚本默认按分支部署。如果要部署 `v2.0.0`，建议明确传入 tag 名称：
+示例：
 
 ```bash
 DEPLOY_HOST=172.16.0.99 \
@@ -234,29 +312,45 @@ DEPLOY_USER=root \
 DEPLOY_ROOT=/opt \
 APP_NAME=devops-tools \
 REPO_URL=https://github.com/kaikai136/devops-tools.git \
-BRANCH=v2.0.0 \
-APP_PORT=8001 \
+BRANCH=main \
 bash scripts/deploy-remote.sh
 ```
 
-如果服务器已有 `.env`，脚本不会覆盖已有配置；实际访问端口以远程 `.env` 中的 `APP_PORT` 为准。
+新服务器会使用仓库自带的默认 `.env`。如果远程仓库已经有自定义 `.env`，部署脚本会在 Git 更新前临时备份并在更新后恢复，不会被仓库默认文件覆盖。默认情况下实际访问端口以远程 `.env` 的 `APP_PORT` 为准；只有在执行脚本时显式设置 `APP_PORT`，才会为本次 Compose 部署临时覆盖该值，且不会改写远程 `.env`。
 
-### 手动远程部署流程
-
-也可以直接登录服务器执行：
+### 手动远程部署
 
 ```bash
 cd /opt
 git clone https://github.com/kaikai136/devops-tools.git devops-tools
 cd /opt/devops-tools
-git fetch --tags --force origin
-git checkout --detach refs/tags/v2.0.0
-mkdir -p data media
 docker compose up -d --build
 docker compose ps
+curl http://127.0.0.1:8001/api/health/
 ```
 
-首次部署请先按上文“环境变量”章节创建 `.env`，已存在 `.env` 时不要覆盖生产配置。
+部署指定标签时：
+
+```bash
+cd /opt/devops-tools
+git fetch --tags --force origin
+git checkout --detach refs/tags/v2.0.0
+docker compose up -d --build
+```
+
+### 已有部署升级
+
+升级前保留已有私有环境和持久化数据：
+
+```bash
+cd /opt/devops-tools
+cp .env .env.backup
+cp -a data data.backup
+git pull --ff-only origin main
+docker compose up -d --build
+```
+
+如果手工执行 Git 操作时仓库默认 `.env` 与本地私有 `.env` 冲突，请先将私有文件复制到仓库外，更新后再恢复。使用 `scripts/deploy-remote.sh` 时脚本会自动完成该保护流程。
 
 ### 部署验证
 
@@ -269,13 +363,6 @@ APP_PORT="$(awk -F= '/^APP_PORT=/{print $2; exit}' .env 2>/dev/null || true)"
 APP_PORT="${APP_PORT:-8001}"
 curl http://127.0.0.1:${APP_PORT}/api/health/
 ```
-
-预期健康检查返回：
-
-```json
-{"status":"ok"}
-```
-
 ## 常用运维命令
 
 查看服务状态：
