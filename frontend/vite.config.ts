@@ -1,9 +1,21 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [vue()],
+  test: {
+    include: ['src/**/*.test.ts'],
+  },
+  resolve: {
+    alias: {
+      '@app': fileURLToPath(new URL('./src/app', import.meta.url)),
+      '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
+      '@features': fileURLToPath(new URL('./src/features', import.meta.url)),
+      '@pages': fileURLToPath(new URL('./src/pages', import.meta.url)),
+    },
+  },
   server: {
     port: 5173,
     proxy: {
