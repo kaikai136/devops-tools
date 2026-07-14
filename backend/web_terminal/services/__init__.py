@@ -5,12 +5,10 @@ from .. import services_legacy as _services_legacy
 from . import payloads as _payloads
 from . import recordings as _recordings
 from . import audit as _audit
+from . import commands as _commands
+from . import connections as _connections
 
 from ..services_legacy import (
-    DEFAULT_TERMINAL_COLS,
-    DEFAULT_TERMINAL_ROWS,
-    LiveTerminalConnection,
-    TerminalConnectionError,
     calculate_monitor_cpu_usage,
     create_remote_directory,
     create_remote_file,
@@ -43,7 +41,6 @@ from ..services_legacy import (
     list_remote_directory_with_scp_enhanced,
     list_remote_directory_with_scp_normal,
     list_remote_directory_with_sftp,
-    load_private_key,
     natural_sort_key,
     normalize_remote_download_protocol,
     normalize_remote_file_name,
@@ -53,9 +50,6 @@ from ..services_legacy import (
     normalize_remote_relative_file_path,
     normalize_remote_stat_identity,
     normalize_remote_symlink_target,
-    normalize_terminal_output,
-    open_live_terminal,
-    open_ssh_client,
     parent_remote_entry,
     parent_remote_path,
     parse_guacamole_instruction,
@@ -84,13 +78,8 @@ from ..services_legacy import (
     resolve_remote_identity_names,
     resolve_remote_user_name,
     run_client_command,
-    run_live_terminal_command,
-    run_one_shot_ssh_command,
-    run_one_shot_ssh_upload,
     run_optional_client_command,
     run_remote_file_operation,
-    run_session_command,
-    should_retry_ssh_connect_error,
     split_monitor_sections,
     stream_remote_file_content,
     stream_remote_file_content_with_scp,
@@ -101,6 +90,25 @@ from ..services_legacy import (
     upload_remote_file_with_scp_enhanced,
     upload_remote_file_with_scp_normal,
     upload_remote_file_with_sftp,
+)
+
+from .commands import (
+    run_live_terminal_command,
+    run_one_shot_ssh_command,
+    run_one_shot_ssh_upload,
+    run_session_command,
+)
+
+from .connections import (
+    DEFAULT_TERMINAL_COLS,
+    DEFAULT_TERMINAL_ROWS,
+    LiveTerminalConnection,
+    TerminalConnectionError,
+    load_private_key,
+    normalize_terminal_output,
+    open_live_terminal,
+    open_ssh_client,
+    should_retry_ssh_connect_error,
 )
 
 from .audit import (
@@ -264,6 +272,8 @@ _SERVICE_IMPLEMENTATION_MODULES = (
     _payloads,
     _recordings,
     _audit,
+    _commands,
+    _connections,
 )
 _MISSING = object()
 
