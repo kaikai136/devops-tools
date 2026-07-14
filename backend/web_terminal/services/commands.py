@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.utils import timezone
 
+from host_management.models import ManagedHost
+
 from ..models import TerminalSession
 from .connections import LIVE_TERMINALS, TerminalConnectionError, open_ssh_client
 

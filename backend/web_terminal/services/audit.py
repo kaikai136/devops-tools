@@ -8,12 +8,8 @@ from accounts.models import UserProfile
 from host_management.models import ManagedHost
 
 from ..models import TerminalCommandAudit, TerminalSession
-from ..services_legacy import (
-    LIVE_TERMINALS,
-    TERMINAL_PROTOCOL_RDP,
-    greeting_for,
-    open_live_terminal,
-)
+from ..services_legacy import TERMINAL_PROTOCOL_RDP, greeting_for
+from .connections import LIVE_TERMINALS, open_live_terminal
 from .recordings import (
     append_session_recording_event,
     build_rdp_recording_file,

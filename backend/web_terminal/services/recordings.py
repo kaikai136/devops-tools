@@ -8,10 +8,10 @@ from django.utils import timezone
 from host_management.models import ManagedHost
 
 from ..models import TerminalSession
-from ..services_legacy import (
+from ..services_legacy import TERMINAL_PROTOCOL_RDP
+from .connections import (
     DEFAULT_TERMINAL_COLS,
     DEFAULT_TERMINAL_ROWS,
-    TERMINAL_PROTOCOL_RDP,
     TerminalConnectionError,
 )
 

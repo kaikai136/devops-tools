@@ -12,25 +12,6 @@ from host_management.models import ManagedHost
 
 from .models import TerminalSession
 
-from .services.commands import (
-    run_live_terminal_command,
-    run_one_shot_ssh_command,
-    run_one_shot_ssh_upload,
-    run_session_command,
-)
-from .services.connections import (
-    DEFAULT_TERMINAL_COLS,
-    DEFAULT_TERMINAL_ROWS,
-    LIVE_TERMINALS,
-    LiveTerminalConnection,
-    TerminalConnectionError,
-    load_private_key,
-    normalize_terminal_output,
-    open_live_terminal,
-    open_ssh_client,
-    should_retry_ssh_connect_error,
-)
-
 
 REMOTE_FILE_STREAM_CHUNK_BYTES = 1024 * 1024
 REMOTE_FILE_OWNER_PATTERN = re.compile(r"^[^\s:\x00-\x1f\x7f]+$")
@@ -1125,3 +1106,24 @@ def upload_remote_file_with_scp_normal(host: ManagedHost, path: str, data: bytes
 def encode_remote_download(path: str, data: bytes) -> dict:
     filename = path.rstrip("/").split("/")[-1] or "download"
     return {"filename": filename, "contentBase64": base64.b64encode(data).decode("ascii"), "size": len(data)}
+
+
+# Delayed until legacy definitions exist so either import order remains valid.
+from .services.commands import (
+    run_live_terminal_command,
+    run_one_shot_ssh_command,
+    run_one_shot_ssh_upload,
+    run_session_command,
+)
+from .services.connections import (
+    DEFAULT_TERMINAL_COLS,
+    DEFAULT_TERMINAL_ROWS,
+    LIVE_TERMINALS,
+    LiveTerminalConnection,
+    TerminalConnectionError,
+    load_private_key,
+    normalize_terminal_output,
+    open_live_terminal,
+    open_ssh_client,
+    should_retry_ssh_connect_error,
+)

@@ -1,3 +1,5 @@
+import os
+import subprocess
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -118,6 +120,30 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         with self.assertRaises(services.TerminalConnectionError) as raised:
             connection.send_data("pwd")
         self.assertEqual(str(raised.exception), "SSH \u4f1a\u8bdd\u5df2\u5173\u95ed\uff0c\u8bf7\u91cd\u65b0\u8fde\u63a5\u4e3b\u673a\u3002")
+
+
+    def test_services_legacy_can_be_imported_before_services_package(self):
+        environment = os.environ.copy()
+        environment.setdefault("DJANGO_SETTINGS_MODULE", "ops_tool.settings")
+        probe = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import django; "
+                    "django.setup(); "
+                    "import web_terminal.services_legacy; "
+                    "print('legacy import OK')"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            env=environment,
+            check=False,
+        )
+
+        self.assertEqual(probe.returncode, 0, probe.stderr)
+        self.assertIn("legacy import OK", probe.stdout)
 
     def test_connection_symbols_report_the_new_implementation_module(self):
         for name in (

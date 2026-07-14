@@ -1,7 +1,10 @@
 from types import SimpleNamespace
+from typing import get_type_hints
 from unittest.mock import MagicMock, call, patch
 
 from django.test import SimpleTestCase
+
+from host_management.models import ManagedHost
 
 from .. import services, services_legacy
 
@@ -174,6 +177,15 @@ class TerminalCommandCharacterizationTests(SimpleTestCase):
         session.save.assert_called_once_with(
             update_fields=["last_command_at", "transcript", "recording", "recording_last_event_at"]
         )
+
+
+    def test_one_shot_command_type_hints_resolve_managed_host(self):
+        for function in (
+            services.run_one_shot_ssh_command,
+            services.run_one_shot_ssh_upload,
+        ):
+            with self.subTest(function=function.__name__):
+                self.assertIs(get_type_hints(function)["host"], ManagedHost)
 
     def test_command_symbols_report_the_new_implementation_module(self):
         for name in (
