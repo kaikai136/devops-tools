@@ -8,6 +8,9 @@ import type { IBufferLine, IDisposable } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
 import { ApiUnauthorizedError } from '../../api';
+import { useSshTerminal } from '../../features/terminal/composables/useSshTerminal';
+import { useTerminalResize } from '../../features/terminal/composables/useTerminalResize';
+import { useTerminalTabs } from '../../features/terminal/composables/useTerminalTabs';
 import {
   buildTerminalFileDownloadRawUrl,
   createTerminalFileEntry,
@@ -100,7 +103,6 @@ interface TerminalTab {
   sessionId: string | null;
   mounted: boolean;
   disposables: IDisposable[];
-  resizeObserver: ResizeObserver | null;
   highlightState: TerminalHighlightState;
   suppressInterruptUntil: number;
   hasUnreadOutput: boolean;
@@ -720,8 +722,15 @@ const collapsed = ref<Set<number>>(new Set());
 const rootExpanded = ref(true);
 const rootLabel = ref(readTerminalRootLabel());
 const search = ref('');
-const tabs = ref<TerminalTab[]>([]);
-const activeTabId = ref<string | null>(null);
+const {
+  tabs,
+  activeTabId,
+  activeTab,
+  openTab: addTerminalTab,
+  activateTab: selectTerminalTab,
+  replaceTabs: replaceTerminalTabs,
+  closeTabs: removeTerminalTabs,
+} = useTerminalTabs<TerminalTab>({ disposeTab });
 const isTerminalTabMenuOpen = ref(false);
 const isTerminalSplitMenuOpen = ref(false);
 const isTerminalMultiExecutionEnabled = ref(false);
@@ -764,7 +773,6 @@ const rows = computed(() => {
   });
 });
 
-const activeTab = computed(() => tabs.value.find((tab) => tab.id === activeTabId.value) ?? null);
 const connectedTerminalTabs = computed(() => tabs.value.filter((tab) => tab.status === 'connected'));
 const isTerminalSplitActive = computed(
   () => terminalSplitMode.value !== 'single' && connectedTerminalTabs.value.length >= 2 && activeTab.value?.status === 'connected',
@@ -1245,7 +1253,7 @@ async function toggleTerminalMultiExecution() {
 
 function sendTerminalInput(tab: TerminalTab | null, data: string, options: { focus?: boolean } = {}) {
   if (!data || !isTerminalTabReady(tab)) return false;
-  tab.socket?.send(JSON.stringify({ type: 'input', data }));
+  sshTerminal.send(tab, data);
   if (options.focus) tab.terminal.focus();
   return true;
 }
@@ -3915,6 +3923,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('storage', handleTerminalAuthStorageEvent);
   document.removeEventListener('visibilitychange', syncTerminalMonitorPolling);
   for (const tab of tabs.value) disposeTab(tab);
+  terminalResize.disposeAll();
 });
 
 function closeTerminalFileContextMenuOnEscape(event: KeyboardEvent) {
@@ -3954,9 +3963,7 @@ function toggleGroup(group: TerminalGroup) {
 }
 
 async function openHostTab(host: TerminalHost) {
-  const createdTab = createTerminalTab(host);
-  tabs.value = [...tabs.value, createdTab];
-  activeTabId.value = createdTab.id;
+  const createdTab = addTerminalTab(() => createTerminalTab(host));
   saveTerminalWorkspace();
   await nextTick();
   scrollActiveTerminalTabIntoView();
@@ -3970,7 +3977,7 @@ function toggleRoot() {
 }
 
 async function activateTab(tabId: string) {
-  activeTabId.value = tabId;
+  selectTerminalTab(tabId);
   saveTerminalWorkspace();
   await nextTick();
   scrollActiveTerminalTabIntoView();
@@ -4040,7 +4047,6 @@ function createTerminalTab(
     sessionId: null,
     mounted: false,
     disposables: [],
-    resizeObserver: null,
     highlightState: {
       sgrActive: false,
       pendingControl: '',
@@ -4128,9 +4134,7 @@ function mountTerminal(tab: TerminalTab) {
       container.removeEventListener('dblclick', handleDoubleClick, true);
     },
   });
-  tab.resizeObserver = new ResizeObserver(() => fitTerminal(tab));
-  tab.resizeObserver.observe(container);
-  fitTerminal(tab);
+  terminalResize.observe(tab, container);
   tab.terminal.focus();
 }
 
@@ -4138,9 +4142,7 @@ function mountRdpTerminal(tab: TerminalTab, container: HTMLElement) {
   container.tabIndex = 0;
   container.textContent = '';
   tab.mounted = true;
-  tab.resizeObserver = new ResizeObserver(() => fitTerminal(tab));
-  tab.resizeObserver.observe(container);
-  fitTerminal(tab);
+  terminalResize.observe(tab, container);
   container.focus();
 }
 
@@ -4205,14 +4207,32 @@ function disconnectTerminalTab(tab: TerminalTab) {
   if (!canDisconnectTerminalTab(tab)) return;
   removePendingConnectTab(tab.id);
   finishConnectingTab(tab);
-  if (tab.socket && tab.socket.readyState !== WebSocket.CLOSED) {
-    tab.socket.close();
-  }
-  tab.socket = null;
+  sshTerminal.disconnect(tab);
   cleanupRdpClient(tab);
   tab.status = 'closed';
   showTerminalReconnectHint(tab, '连接已手动断开。');
 }
+
+const sshTerminal = useSshTerminal<TerminalTab>({
+  buildUrl: (tab) => buildWebSocketUrl(tab.host.id),
+  onOpen: fitTerminal,
+  onMessage: handleSocketMessage,
+  onError: (tab) => {
+    if (tab.status !== 'closed') {
+      tab.status = 'error';
+      showTerminalReconnectHint(tab, 'WebSocket 连接失败。');
+    }
+    finishConnectingTab(tab);
+  },
+  onClose: (tab) => {
+    finishConnectingTab(tab);
+    if (tab.status === 'connected' || tab.status === 'connecting') {
+      tab.status = 'closed';
+      showTerminalReconnectHint(tab, '连接已关闭。');
+      void confirmTerminalSessionStillAuthenticated();
+    }
+  },
+});
 
 function connectTab(tab: TerminalTab) {
   if (tab.kind === 'rdp') {
@@ -4221,27 +4241,7 @@ function connectTab(tab: TerminalTab) {
   }
   if (terminalAuthRedirecting) return;
   tab.reconnectHintShown = false;
-  const socket = new WebSocket(buildWebSocketUrl(tab.host.id));
-  tab.socket = socket;
-
-  socket.addEventListener('open', () => fitTerminal(tab));
-  socket.addEventListener('message', (event) => handleSocketMessage(tab, event));
-  socket.addEventListener('error', () => {
-    if (tab.status !== 'closed') {
-      tab.status = 'error';
-      showTerminalReconnectHint(tab, 'WebSocket 连接失败。');
-    }
-    finishConnectingTab(tab);
-  });
-  socket.addEventListener('close', () => {
-    tab.socket = null;
-    finishConnectingTab(tab);
-    if (tab.status === 'connected' || tab.status === 'connecting') {
-      tab.status = 'closed';
-      showTerminalReconnectHint(tab, '连接已关闭。');
-      void confirmTerminalSessionStillAuthenticated();
-    }
-  });
+  sshTerminal.connect(tab);
 }
 
 function connectRdpTab(tab: TerminalTab) {
@@ -4413,20 +4413,13 @@ function isTerminalTabVisible(tab: TerminalTab) {
   return visibleTerminalTabs.value.some((item) => item.id === tab.id);
 }
 
+const terminalResize = useTerminalResize<TerminalTab>({
+  isVisible: isTerminalTabVisible,
+  fitRdp: fitRdpTerminal,
+});
+
 function fitTerminal(tab: TerminalTab) {
-  if (!tab.mounted || !isTerminalTabVisible(tab)) return;
-  if (tab.kind === 'rdp') {
-    fitRdpTerminal(tab);
-    return;
-  }
-  try {
-    tab.fitAddon.fit();
-    if (tab.socket?.readyState === WebSocket.OPEN) {
-      tab.socket.send(JSON.stringify({ type: 'resize', cols: tab.terminal.cols, rows: tab.terminal.rows }));
-    }
-  } catch {
-    // xterm cannot fit until the container has a measurable size.
-  }
+  terminalResize.fit(tab);
 }
 
 function startSidebarResize(event: MouseEvent, options: { alignToPointer?: boolean } = {}) {
@@ -4615,30 +4608,14 @@ async function closeTab(tab: TerminalTab) {
 }
 
 async function closeTerminalTabs(targetTabs: TerminalTab[]) {
-  const closingIds = new Set(targetTabs.map((tab) => tab.id));
-  if (!closingIds.size) return;
+  const { nextActiveId, closedTabs } = removeTerminalTabs(targetTabs);
+  if (!closedTabs.length) return;
 
-  const currentTabs = tabs.value;
-  const firstClosingIndex = currentTabs.findIndex((tab) => closingIds.has(tab.id));
-  const previousActiveId = activeTabId.value;
-  const remainingTabs = currentTabs.filter((tab) => !closingIds.has(tab.id));
-  for (const tab of currentTabs) {
-    if (!closingIds.has(tab.id)) continue;
-    disposeTab(tab);
-    terminalContainers.delete(tab.id);
-  }
-  tabs.value = remainingTabs;
+  for (const tab of closedTabs) terminalContainers.delete(tab.id);
   pruneTerminalMultiExecutionExclusions();
   await nextTick();
 
-  if (previousActiveId && !closingIds.has(previousActiveId) && remainingTabs.some((tab) => tab.id === previousActiveId)) {
-    activeTabId.value = previousActiveId;
-    await activateTab(previousActiveId);
-  } else {
-    const nextTab = remainingTabs[Math.min(Math.max(firstClosingIndex, 0), remainingTabs.length - 1)] ?? null;
-    activeTabId.value = nextTab?.id ?? null;
-    if (nextTab) await activateTab(nextTab.id);
-  }
+  if (nextActiveId) await activateTab(nextActiveId);
   if (!activeTabId.value) closeTerminalMonitorPanel();
   saveTerminalWorkspace();
   syncTerminalTabsScrollStateSoon();
@@ -4660,8 +4637,7 @@ async function restoreTerminalWorkspace() {
     return;
   }
 
-  tabs.value = restoredTabs;
-  activeTabId.value = restoredTabs.some((tab) => tab.id === workspace.activeTabId) ? workspace.activeTabId : restoredTabs[0].id;
+  replaceTerminalTabs(restoredTabs, workspace.activeTabId);
   saveTerminalWorkspace();
 
   await nextTick();
@@ -4733,13 +4709,9 @@ function disposeTab(tab: TerminalTab) {
   tab.status = 'closed';
   removePendingConnectTab(tab.id);
   finishConnectingTab(tab);
-  if (tab.socket && tab.socket.readyState !== WebSocket.CLOSED) {
-    tab.socket.close();
-  }
-  tab.socket = null;
+  sshTerminal.disconnect(tab);
   cleanupRdpClient(tab);
-  tab.resizeObserver?.disconnect();
-  tab.resizeObserver = null;
+  terminalResize.dispose(tab.id);
   for (const disposable of tab.disposables) disposable.dispose();
   tab.disposables = [];
   tab.terminal.dispose();
