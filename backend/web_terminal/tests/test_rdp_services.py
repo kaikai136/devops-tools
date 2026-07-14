@@ -179,11 +179,11 @@ class RdpServiceCharacterizationTests(SimpleTestCase):
         consumer.session = self.make_session()
         args = ["args", "hostname", "port", "username", "password", "width", "height", "missing"]
 
-        with patch("web_terminal.consumers.socket.create_connection", return_value=socket), patch(
-            "web_terminal.consumers.read_guacamole_instruction",
+        with patch("web_terminal.consumers.rdp.socket.create_connection", return_value=socket), patch(
+            "web_terminal.consumers.rdp.read_guacamole_instruction",
             side_effect=["args", "ready"],
         ), patch(
-            "web_terminal.consumers.parse_guacamole_instruction",
+            "web_terminal.consumers.rdp.parse_guacamole_instruction",
             side_effect=[args, ["ready", "connection-id"]],
         ):
             result = consumer._connect_guacd(self.make_host())

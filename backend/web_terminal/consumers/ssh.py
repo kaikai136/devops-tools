@@ -2,161 +2,42 @@ from __future__ import annotations
 
 import json
 import logging
-import socket
 import threading
 import time
 
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
-from django.conf import settings
 from django.utils import timezone
 
 from host_management.models import ManagedHost
 
-from .models import TerminalCommandAudit, TerminalSession
-from .services import (
+from ..models import TerminalCommandAudit, TerminalSession
+from ..services import (
     DEFAULT_TERMINAL_COLS,
     DEFAULT_TERMINAL_ROWS,
     LiveTerminalConnection,
     TerminalConnectionError,
     append_audit_output,
     asciicast_event,
-    build_rdp_connection_parameters,
-    create_rdp_terminal_session,
     create_command_audit,
-    guacamole_instruction,
-    find_guacamole_instruction_end,
     initialize_session_recording,
-    is_guacamole_internal_instruction,
     is_session_audit_enabled,
     open_live_terminal,
-    parse_guacamole_instruction,
-    read_guacamole_instruction,
     save_session_recording,
-    terminal_protocol_for_host,
+)
+from .protocol import (
+    AUDIT_OUTPUT_FLUSH_CHARS,
+    CWD_HOOK_ECHO_OFF,
+    CWD_HOOK_ECHO_ON,
+    CWD_HOOK_INSTALL_SCRIPT,
+    command_buffer_after_input,
+    filter_changed_cwd_paths,
+    strip_cwd_hook_install_echo,
+    strip_cwd_markers_with_pending,
 )
 
 
 logger = logging.getLogger(__name__)
-CWD_MARKER_START = "\x1b]1337;CaptainCwd="
-CWD_MARKER_END = "\x07"
-CWD_HOOK_SCRIPT = (
-    "__captain_last_cwd=\"$PWD\"\n"
-    "__captain_emit_cwd(){\n"
-    "  if [ \"$PWD\" != \"$__captain_last_cwd\" ]; then\n"
-    "    __captain_last_cwd=\"$PWD\"\n"
-    "    printf '\\033]1337;CaptainCwd=%s\\007' \"$PWD\"\n"
-    "  fi\n"
-    "}\n"
-    "if [ -n \"$ZSH_VERSION\" ]; then\n"
-    "  autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook precmd __captain_emit_cwd || precmd_functions+=(__captain_emit_cwd)\n"
-    "else\n"
-    "  case \"$PROMPT_COMMAND\" in\n"
-    "    *__captain_emit_cwd*) ;;\n"
-    "    '') PROMPT_COMMAND='__captain_emit_cwd' ;;\n"
-    "    *) PROMPT_COMMAND=\"__captain_emit_cwd; $PROMPT_COMMAND\" ;;\n"
-    "  esac\n"
-    "fi\n"
-)
-CWD_HOOK_INSTALL_SCRIPT = (
-    "__captain_last_cwd=\"$PWD\"; "
-    "__captain_emit_cwd(){ if [ \"$PWD\" != \"$__captain_last_cwd\" ]; then "
-    "__captain_last_cwd=\"$PWD\"; printf '\\033]1337;CaptainCwd=%s\\007' \"$PWD\"; fi; }; "
-    "if [ -n \"$ZSH_VERSION\" ]; then "
-    "autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook precmd __captain_emit_cwd || precmd_functions+=(__captain_emit_cwd); "
-    "else case \"$PROMPT_COMMAND\" in *__captain_emit_cwd*) ;; '') PROMPT_COMMAND='__captain_emit_cwd' ;; "
-    "*) PROMPT_COMMAND=\"__captain_emit_cwd; $PROMPT_COMMAND\" ;; esac; fi\n"
-)
-CWD_HOOK_ECHO_OFF = "stty -echo 2>/dev/null\n"
-CWD_HOOK_ECHO_ON = "stty echo 2>/dev/null\n"
-CWD_HOOK_ECHO_FRAGMENTS = tuple(
-    fragment
-    for fragment in [CWD_HOOK_ECHO_OFF.strip(), CWD_HOOK_ECHO_ON.strip(), CWD_HOOK_INSTALL_SCRIPT.strip(), *CWD_HOOK_SCRIPT.splitlines()]
-    if fragment
-)
-AUDIT_OUTPUT_FLUSH_CHARS = 65536
-
-
-def strip_cwd_markers(output: str) -> tuple[str, list[str]]:
-    cleaned, paths, pending = strip_cwd_markers_with_pending(output)
-    return cleaned + pending, paths
-
-
-def strip_cwd_markers_with_pending(output: str) -> tuple[str, list[str], str]:
-    cleaned_parts: list[str] = []
-    paths: list[str] = []
-    cursor = 0
-
-    while True:
-        start = output.find(CWD_MARKER_START, cursor)
-        if start < 0:
-            cleaned_parts.append(output[cursor:])
-            break
-
-        cleaned_parts.append(output[cursor:start])
-        path_start = start + len(CWD_MARKER_START)
-        end = output.find(CWD_MARKER_END, path_start)
-        if end < 0:
-            return "".join(cleaned_parts), paths, output[start:]
-
-        path = output[path_start:end].strip()
-        if path:
-            paths.append(path)
-        cursor = end + len(CWD_MARKER_END)
-
-    return "".join(cleaned_parts), paths, ""
-
-
-def filter_changed_cwd_paths(paths: list[str], current_path: str) -> tuple[list[str], str]:
-    changed_paths: list[str] = []
-
-    for path in paths:
-        if path == current_path:
-            continue
-        changed_paths.append(path)
-        current_path = path
-
-    return changed_paths, current_path
-
-
-def strip_cwd_hook_install_echo(output: str) -> str:
-    cleaned = output.replace("\x1b[200~", "").replace("\x1b[201~", "")
-    internal_lines = {fragment.strip() for fragment in CWD_HOOK_ECHO_FRAGMENTS}
-    visible_lines: list[str] = []
-    for line in cleaned.splitlines(keepends=True):
-        if line.strip() in internal_lines:
-            continue
-        visible_lines.append(line)
-    return "".join(visible_lines)
-
-
-def command_buffer_after_input(buffer: str, data: str) -> tuple[str, list[str]]:
-    commands: list[str] = []
-    in_escape = False
-    for char in data:
-        if in_escape:
-            if char.isalpha() or char in "~":
-                in_escape = False
-            continue
-        if char == "\x1b":
-            in_escape = True
-            continue
-        if char in "\r\n":
-            command = buffer.strip()
-            if command:
-                commands.append(command)
-            buffer = ""
-            continue
-        if char in ("\x03", "\x04"):
-            commands.append("^C" if char == "\x03" else "^D")
-            buffer = ""
-            continue
-        if char in ("\x7f", "\b"):
-            buffer = buffer[:-1]
-            continue
-        if char >= " ":
-            buffer += char
-    return buffer, commands
 
 
 class TerminalConsumer(WebsocketConsumer):
@@ -515,161 +396,3 @@ class TerminalConsumer(WebsocketConsumer):
             events = list(self.recording_events)
             self.recording_events.clear()
         save_session_recording(self.session, events, update_fields=update_fields)
-
-
-class RdpTerminalConsumer(WebsocketConsumer):
-    guacd_socket: socket.socket | None = None
-    session: TerminalSession | None = None
-    reader_thread: threading.Thread | None = None
-    stop_reader: threading.Event
-
-    def connect(self):
-        self.stop_reader = threading.Event()
-        self.accept(subprotocol="guacamole")
-
-        if not self._is_authenticated():
-            self.close(code=4401)
-            return
-
-        host_id = self.scope["url_route"]["kwargs"]["host_id"]
-        try:
-            host = ManagedHost.objects.get(id=host_id)
-            if terminal_protocol_for_host(host) != TerminalSession.PROTOCOL_RDP:
-                raise TerminalConnectionError("请选择 Windows 主机使用远程桌面。")
-            self.session = create_rdp_terminal_session(host, user=self.scope["user"])
-            self.guacd_socket = self._connect_guacd(host)
-        except ManagedHost.DoesNotExist:
-            self.close(code=4404)
-            return
-        except TerminalConnectionError as error:
-            self._mark_session_error(str(error))
-            self.close(code=4500)
-            return
-
-        self.send(text_data=guacamole_instruction("", str(self.session.session_id)))
-        self.reader_thread = threading.Thread(target=self._read_guacd_output, name=f"rdp-{self.session.session_id}", daemon=True)
-        self.reader_thread.start()
-
-    def receive(self, text_data=None, bytes_data=None):
-        if not text_data or self.guacd_socket is None:
-            return
-        if is_guacamole_internal_instruction(text_data):
-            self.send(text_data=text_data)
-            return
-        try:
-            self.guacd_socket.sendall(text_data.encode("utf-8"))
-        except OSError as error:
-            self._mark_session_error(str(error))
-            self.close(code=1011)
-
-    def disconnect(self, close_code):
-        self.stop_reader.set()
-        if self.guacd_socket is not None:
-            try:
-                self.guacd_socket.close()
-            except OSError:
-                pass
-            self.guacd_socket = None
-        if self.reader_thread and self.reader_thread.is_alive() and threading.current_thread() is not self.reader_thread:
-            self.reader_thread.join(timeout=1.0)
-        self._close_session(close_code)
-
-    def _is_authenticated(self) -> bool:
-        user = self.scope.get("user")
-        return bool(user and getattr(user, "is_authenticated", False))
-
-    def _connect_guacd(self, host: ManagedHost) -> socket.socket:
-        try:
-            guacd = socket.create_connection((settings.GUACD_HOST, settings.GUACD_PORT), timeout=15)
-        except OSError as error:
-            raise TerminalConnectionError(
-                f"guacd RDP gateway unavailable ({settings.GUACD_HOST}:{settings.GUACD_PORT}): {error}"
-            ) from error
-        guacd.settimeout(15)
-        try:
-            guacd.sendall(guacamole_instruction("select", "rdp").encode("utf-8"))
-            args_instruction = parse_guacamole_instruction(read_guacamole_instruction(guacd))
-            if not args_instruction or args_instruction[0] != "args":
-                raise TerminalConnectionError("guacd 未返回 RDP 参数列表。")
-
-            width, height = self._requested_size()
-            params = build_rdp_connection_parameters(host, self.session, width=width, height=height)
-            guacd.sendall(guacamole_instruction("size", params["width"], params["height"], "96").encode("utf-8"))
-            guacd.sendall(guacamole_instruction("audio").encode("utf-8"))
-            guacd.sendall(guacamole_instruction("video").encode("utf-8"))
-            guacd.sendall(guacamole_instruction("image", "image/png", "image/jpeg").encode("utf-8"))
-            guacd.sendall(guacamole_instruction("connect", *[params.get(name, "") for name in args_instruction[1:]]).encode("utf-8"))
-            ready_instruction = parse_guacamole_instruction(read_guacamole_instruction(guacd))
-            if not ready_instruction or ready_instruction[0] != "ready":
-                raise TerminalConnectionError("guacd RDP 会话未就绪。")
-            guacd.settimeout(1.0)
-            return guacd
-        except Exception:
-            guacd.close()
-            raise
-
-    def _requested_size(self) -> tuple[int, int]:
-        query = self.scope.get("query_string", b"").decode("utf-8", errors="ignore")
-        params = dict(item.split("=", 1) for item in query.split("&") if "=" in item)
-        return self._requested_dimension(params.get("width"), 1280), self._requested_dimension(params.get("height"), 720)
-
-    def _requested_dimension(self, value, default: int) -> int:
-        text = str(value or "").strip().rstrip("?")
-        try:
-            return int(text or default)
-        except ValueError:
-            return default
-
-    def _read_guacd_output(self):
-        assert self.guacd_socket is not None
-        pending = ""
-        while not self.stop_reader.is_set():
-            try:
-                data = self.guacd_socket.recv(65535)
-            except socket.timeout:
-                continue
-            except OSError:
-                break
-            if not data:
-                break
-            pending += data.decode("utf-8", errors="replace")
-            try:
-                messages, pending = self._split_complete_guacamole_messages(pending)
-                for message in messages:
-                    self.send(text_data=message)
-            except Exception:
-                break
-        if pending and not self.stop_reader.is_set():
-            self._mark_session_error("guacd returned an incomplete Guacamole instruction.")
-        if not self.stop_reader.is_set():
-            self.close()
-
-    def _split_complete_guacamole_messages(self, data: str) -> tuple[list[str], str]:
-        messages: list[str] = []
-        while data:
-            terminator = find_guacamole_instruction_end(data)
-            if terminator < 0:
-                break
-            messages.append(data[:terminator])
-            data = data[terminator:]
-        return messages, data
-
-    def _mark_session_error(self, message: str) -> None:
-        if self.session is None:
-            return
-        self.session.status = "error"
-        self.session.error_message = message[:1000]
-        self.session.ended_at = timezone.now()
-        self.session.save(update_fields=["status", "error_message", "ended_at"])
-
-    def _close_session(self, close_code) -> None:
-        if self.session is None:
-            return
-        if self.session.status != "error":
-            self.session.status = "closed"
-        self.session.ended_at = timezone.now()
-        update_fields = ["status", "ended_at"]
-        if close_code not in (None, 1000) and not self.session.error_message:
-            self.session.error_message = f"WebSocket closed with code {close_code}"
-            update_fields.append("error_message")
-        self.session.save(update_fields=update_fields)

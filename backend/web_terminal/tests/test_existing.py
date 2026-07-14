@@ -15,19 +15,18 @@ from system_management.models import SystemSetting
 from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions
 
 from .. import views
-from ..consumers import (
+from ..consumers import RdpTerminalConsumer, TerminalConsumer
+from ..consumers.protocol import (
     CWD_HOOK_ECHO_OFF,
     CWD_HOOK_ECHO_ON,
     CWD_HOOK_INSTALL_SCRIPT,
     CWD_HOOK_SCRIPT,
     CWD_MARKER_END,
     CWD_MARKER_START,
-    RdpTerminalConsumer,
-    TerminalConsumer,
     command_buffer_after_input,
     filter_changed_cwd_paths,
-    strip_cwd_markers,
     strip_cwd_hook_install_echo,
+    strip_cwd_markers,
     strip_cwd_markers_with_pending,
 )
 from ..services import (
@@ -496,7 +495,7 @@ class RdpTerminalServiceTests(TestCase):
         consumer.scope = {"query_string": b"width=1280&height=720"}
         consumer.session = session
 
-        with patch("web_terminal.consumers.socket.create_connection", side_effect=ConnectionRefusedError("refused")):
+        with patch("web_terminal.consumers.rdp.socket.create_connection", side_effect=ConnectionRefusedError("refused")):
             with self.assertRaises(TerminalConnectionError) as raised:
                 consumer._connect_guacd(host)
 
