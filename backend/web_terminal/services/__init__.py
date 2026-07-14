@@ -272,6 +272,8 @@ class _ServiceModule(_ModuleType):
     def __setattr__(self, name, value):
         previous = getattr(self, name, _MISSING)
         super().__setattr__(name, value)
+        if previous is _MISSING:
+            return
         for implementation_module in _SERVICE_IMPLEMENTATION_MODULES:
             if getattr(implementation_module, name, _MISSING) is previous:
                 setattr(implementation_module, name, value)

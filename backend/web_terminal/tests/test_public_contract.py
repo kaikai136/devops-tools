@@ -1,4 +1,5 @@
 from importlib import import_module
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
@@ -133,6 +134,29 @@ class ServiceExportContractTests(SimpleTestCase):
             name for name in EXPECTED_SERVICE_EXPORTS if not hasattr(module, name)
         ]
         self.assertEqual(missing, [])
+
+    def test_temporary_service_attributes_do_not_propagate_to_implementation_modules(self):
+        services = import_module("web_terminal.services")
+        implementation_modules = [
+            import_module("web_terminal.services_legacy"),
+            import_module("web_terminal.services.payloads"),
+            import_module("web_terminal.services.recordings"),
+            import_module("web_terminal.services.audit"),
+        ]
+        attribute_name = "_temporary_service_contract_attribute"
+
+        try:
+            with patch.object(services, attribute_name, object(), create=True):
+                leaked_modules = [
+                    module.__name__
+                    for module in implementation_modules
+                    if hasattr(module, attribute_name)
+                ]
+                self.assertEqual(leaked_modules, [])
+        finally:
+            for module in implementation_modules:
+                if hasattr(module, attribute_name):
+                    delattr(module, attribute_name)
 
     def test_consumer_classes_remain_importable(self):
         module = import_module("web_terminal.consumers")
