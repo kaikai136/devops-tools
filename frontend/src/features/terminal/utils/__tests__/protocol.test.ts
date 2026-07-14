@@ -1,0 +1,55 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  buildRdpConnectionQuery,
+  buildRdpWebSocketUrl,
+  buildTerminalWebSocketUrl,
+  formatTerminalFileSizeValue,
+  parseTerminalHostQuery,
+} from '../protocol';
+
+describe('terminal protocol helpers', () => {
+  it.each([
+    ['', null],
+    ['?host=42', 42],
+    ['?host=0', null],
+    ['?host=-3', -3],
+    ['?host=not-a-number', null],
+    ['?host=7&name=%E6%9C%BA%E5%99%A8%20A', 7],
+  ])('parses terminal host query %s', (search, expected) => {
+    expect(parseTerminalHostQuery(search)).toBe(expected);
+  });
+
+  it.each([
+    ['http:', 'ops.example.test', 7, 'ws://ops.example.test/ws/web-terminal/7/'],
+    ['https:', 'ops.example.test:8443', 8, 'wss://ops.example.test:8443/ws/web-terminal/8/'],
+  ])('builds the SSH websocket URL', (protocol, host, hostId, expected) => {
+    expect(buildTerminalWebSocketUrl(protocol, host, hostId)).toBe(expected);
+  });
+
+  it('builds the unchanged RDP websocket URL', () => {
+    expect(buildRdpWebSocketUrl('https:', 'ops.example.test', 9)).toBe(
+      'wss://ops.example.test/ws/web-terminal/rdp/9/',
+    );
+  });
+
+  it.each([
+    [1280, 720, 'width=1280&height=720'],
+    [100, 80, 'width=320&height=240'],
+    [1440.9, 900.8, 'width=1440&height=900'],
+    [undefined, undefined, 'width=1280&height=720'],
+  ])('clamps and serializes the RDP size', (width, height, expected) => {
+    expect(buildRdpConnectionQuery(width, height)).toBe(expected);
+  });
+
+  it.each([
+    [0, '0 B'],
+    [1023, '1023 B'],
+    [1024, '1 KB'],
+    [1536, '1.50 KB'],
+    [10 * 1024, '10 KB'],
+    ['12.5 MB', '12.5 MB'],
+  ])('keeps file-size formatting for %s', (size, expected) => {
+    expect(formatTerminalFileSizeValue(size)).toBe(expected);
+  });
+});

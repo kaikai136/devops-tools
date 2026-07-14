@@ -7,7 +7,44 @@ import { Terminal } from '@xterm/xterm';
 import type { IBufferLine, IDisposable } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
-import { ApiUnauthorizedError, apiDelete, apiGet, apiPost, apiPut } from '../../api';
+import { ApiUnauthorizedError } from '../../api';
+import {
+  buildTerminalFileDownloadRawUrl,
+  createTerminalFileEntry,
+  createTerminalQuickCommand,
+  deleteTerminalFileEntry,
+  getTerminalFileProperties,
+  getTerminalMonitor,
+  listTerminalDownloadFiles,
+  listTerminalFiles,
+  listTerminalQuickCommands,
+  listTerminalTree,
+  removeTerminalQuickCommand,
+  renameTerminalFileEntry,
+  reorderTerminalQuickCommands,
+  updateTerminalFileProperties,
+  updateTerminalQuickCommand,
+  uploadTerminalFile,
+} from '../../features/terminal/api/terminal';
+import type {
+  TerminalDownloadProtocol,
+  TerminalFileEntry,
+  TerminalFileProperties,
+  TerminalGroup,
+  TerminalHost,
+  TerminalMonitorResponse,
+  TerminalQuickCommand,
+  TerminalStatus,
+  TerminalTabKind,
+} from '../../features/terminal/types';
+import { joinTerminalPath, parentTerminalDirectoryPath } from '../../features/terminal/utils/paths';
+import {
+  buildRdpConnectionQuery as buildRdpConnectionQueryValue,
+  buildRdpWebSocketUrl as buildRdpWebSocketUrlValue,
+  buildTerminalWebSocketUrl,
+  formatTerminalFileSizeValue,
+  parseTerminalHostQuery,
+} from '../../features/terminal/utils/protocol';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
 import {
@@ -21,31 +58,6 @@ import AppIcon from '@shared/components/AppIcon.vue';
 import type { IconName } from '@shared/components/AppIcon.vue';
 import type { AccountUser } from '../../types';
 
-interface TerminalHost {
-  id: number;
-  name: string;
-  group: number;
-  privateIp: string;
-  publicIp: string;
-  port: number;
-  loginUser: string;
-  remark: string;
-  verified: boolean;
-  verifyStatus?: 'unverified' | 'verified' | 'failed';
-  os?: string;
-  platformType?: string;
-  terminalProtocol?: TerminalTabKind;
-}
-
-interface TerminalGroup {
-  id: number;
-  name: string;
-  hosts: TerminalHost[];
-  children: TerminalGroup[];
-}
-
-type TerminalStatus = 'connecting' | 'connected' | 'closed' | 'error';
-type TerminalTabKind = 'ssh' | 'rdp';
 type GuacamoleClientInstance = InstanceType<typeof Guacamole.Client>;
 type GuacamoleWebSocketTunnelInstance = InstanceType<typeof Guacamole.WebSocketTunnel>;
 type GuacamoleMouseInstance = InstanceType<typeof Guacamole.Mouse>;
@@ -54,7 +66,6 @@ type TerminalSidebarMode = 'hosts' | 'files' | 'commands';
 type TerminalSplitMode = 'single' | 'auto' | 'horizontal' | 'vertical';
 type TerminalTransferKind = 'upload' | 'download';
 type TerminalTransferStatus = 'queued' | 'running' | 'success' | 'error' | 'canceled';
-type TerminalDownloadProtocol = 'auto' | 'scp' | 'sftp';
 type TerminalTabColorId =
   | 'red'
   | 'orange'
@@ -147,22 +158,6 @@ interface PersistedTerminalWorkspace {
   activeTabId: string | null;
 }
 
-interface TerminalFileEntry {
-  name: string;
-  type: 'directory' | 'file';
-  modifiedAt: string;
-  path: string;
-  size?: number | string;
-  permissions?: string;
-  owner?: string;
-  group?: string;
-}
-
-interface TerminalFileListResponse {
-  path: string;
-  protocol: string;
-  entries: TerminalFileEntry[];
-}
 
 interface TerminalLocalWritableFile {
   write(data: Blob | Uint8Array): Promise<void>;
@@ -217,55 +212,7 @@ interface TerminalTransferRecord {
   updatedAt: number;
 }
 
-interface TerminalMonitorResponse {
-  system: {
-    hostname: string;
-    arch: string;
-    os: string;
-    kernel: string;
-    uptimeSeconds: number;
-  };
-  cpu: {
-    usagePercent: number;
-    load1: number;
-    load5: number;
-    load15: number;
-    cores: number;
-  };
-  memory: {
-    totalBytes: number;
-    usedBytes: number;
-    availableBytes: number;
-    cacheBytes: number;
-    usagePercent: number;
-  };
-  network: Array<{
-    name: string;
-    rxBytesPerSecond: number;
-    txBytesPerSecond: number;
-  }>;
-  disks: Array<{
-    filesystem: string;
-    type: string;
-    mountpoint: string;
-    totalBytes: number;
-    usedBytes: number;
-    availableBytes: number;
-    usagePercent: number;
-  }>;
-}
 
-interface TerminalQuickCommand {
-  id: number;
-  name: string;
-  category: string;
-  command: string;
-  description: string;
-  enabled: boolean;
-  sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface TerminalQuickCommandDraft {
   name: string;
@@ -285,27 +232,6 @@ interface TerminalQuickCommandDialogState {
   error: string;
 }
 
-interface TerminalFileProperties {
-  name: string;
-  path: string;
-  directory: string;
-  type: 'directory' | 'file';
-  size: number;
-  modifiedAt: string;
-  accessedAt: string;
-  owner: string;
-  group: string;
-  uid: number;
-  gid: number;
-  permissions: string;
-  mode: number;
-  octalMode: string;
-  special: {
-    setuid: boolean;
-    setgid: boolean;
-    sticky: boolean;
-  };
-}
 
 interface TerminalFilePropertiesDraft {
   owner: string;
@@ -1758,7 +1684,7 @@ async function loadTerminalQuickCommands() {
   isTerminalQuickCommandLoading.value = true;
   terminalQuickCommandError.value = '';
   try {
-    terminalQuickCommands.value = await apiGet<TerminalQuickCommand[]>('/api/web-terminal/quick-commands/');
+    terminalQuickCommands.value = await listTerminalQuickCommands();
     if (
       terminalQuickCommandCategory.value !== 'all' &&
       !terminalQuickCommands.value.some((command) => command.category === terminalQuickCommandCategory.value)
@@ -1820,8 +1746,8 @@ async function saveTerminalQuickCommandDialog() {
   try {
     const saved =
       dialog.mode === 'edit' && dialog.commandId
-        ? await apiPut<TerminalQuickCommand>(`/api/web-terminal/quick-commands/${dialog.commandId}/`, payload)
-        : await apiPost<TerminalQuickCommand>('/api/web-terminal/quick-commands/', payload);
+        ? await updateTerminalQuickCommand(dialog.commandId, payload)
+        : await createTerminalQuickCommand(payload);
     const nextCommands =
       dialog.mode === 'edit'
         ? terminalQuickCommands.value.map((command) => (command.id === saved.id ? saved : command))
@@ -1842,7 +1768,7 @@ async function saveTerminalQuickCommandDialog() {
 async function deleteTerminalQuickCommand(command: TerminalQuickCommand) {
   if (!window.confirm(`删除快捷命令“${command.name}”？`)) return;
   try {
-    await apiDelete<{ deleted: boolean }>(`/api/web-terminal/quick-commands/${command.id}/`);
+    await removeTerminalQuickCommand(command.id);
     terminalQuickCommands.value = terminalQuickCommands.value.filter((item) => item.id !== command.id);
   } catch (error) {
     if (handleTerminalAuthExpired(error)) return;
@@ -1852,7 +1778,7 @@ async function deleteTerminalQuickCommand(command: TerminalQuickCommand) {
 
 async function toggleTerminalQuickCommand(command: TerminalQuickCommand) {
   try {
-    const saved = await apiPut<TerminalQuickCommand>(`/api/web-terminal/quick-commands/${command.id}/`, {
+    const saved = await updateTerminalQuickCommand(command.id, {
       ...command,
       enabled: !command.enabled,
     });
@@ -1882,9 +1808,7 @@ async function saveTerminalQuickCommandOrder(nextCommands: TerminalQuickCommand[
   const previousCommands = terminalQuickCommands.value;
   terminalQuickCommands.value = nextCommands.map((command, index) => ({ ...command, sortOrder: (index + 1) * 10 }));
   try {
-    terminalQuickCommands.value = await apiPost<TerminalQuickCommand[]>('/api/web-terminal/quick-commands/reorder/', {
-      ids: terminalQuickCommands.value.map((command) => command.id),
-    });
+    terminalQuickCommands.value = await reorderTerminalQuickCommands(terminalQuickCommands.value.map((command) => command.id));
   } catch (error) {
     if (handleTerminalAuthExpired(error)) return;
     terminalQuickCommands.value = previousCommands;
@@ -2579,10 +2503,7 @@ async function saveTerminalFileRename() {
   }
   terminalFileRename.value = { ...state, saving: true, error: '' };
   try {
-    await apiPost<TerminalFileProperties>(
-      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/rename/`,
-      { path: state.path, newName },
-    );
+    await renameTerminalFileEntry(activeTab.value.host.id, { path: state.path, newName });
     terminalFileRename.value = null;
     await loadTerminalDirectory(terminalFilePath.value);
   } catch (error) {
@@ -2633,10 +2554,7 @@ async function confirmTerminalFileDelete() {
   terminalFileDeleteDialog.value = { ...dialog, deleting: true, error: '' };
   try {
     for (const entry of entries) {
-      await apiPost<{ deleted: boolean }>(
-        `/api/web-terminal/hosts/${activeTab.value.host.id}/files/delete/`,
-        { path: entry.path },
-      );
+      await deleteTerminalFileEntry(activeTab.value.host.id, { path: entry.path });
     }
     terminalFileDeleteDialog.value = { visible: false, entry: null, entries: [], deleting: false, error: '' };
     setTerminalFileSelection([], '');
@@ -2706,7 +2624,7 @@ async function saveTerminalFileCreateDialog() {
         : dialog.mode === 'directory'
           ? { directory: terminalFilePath.value, dirname: name, octalMode: normalizeTerminalFileOctalMode(dialog.octalMode) }
           : { directory: terminalFilePath.value, linkName: name, targetPath: dialog.targetPath.trim() };
-    const created = await apiPost<TerminalFileProperties>(`/api/web-terminal/hosts/${activeTab.value.host.id}/files/${endpoint}/`, payload);
+    const created = await createTerminalFileEntry(activeTab.value.host.id, endpoint, payload);
     terminalFileCreateDialog.value = {
       visible: false,
       mode: 'file',
@@ -2811,10 +2729,7 @@ async function openTerminalFileProperties(entry: TerminalFileEntry) {
   };
   try {
     const properties = mergeTerminalFilePropertiesEntryIdentity(
-      await apiPost<TerminalFileProperties>(
-        `/api/web-terminal/hosts/${activeTab.value.host.id}/files/properties/`,
-        { path: entry.path },
-      ),
+      await getTerminalFileProperties(activeTab.value.host.id, entry.path),
       entry,
     );
     terminalFilePropertiesDialog.value = {
@@ -2858,9 +2773,7 @@ async function saveTerminalFileProperties() {
   if (recursive && !window.confirm('确认要将所有权和权限递归应用到此目录及所有子目录/文件吗？')) return;
   terminalFilePropertiesDialog.value = { ...dialog, saving: true, error: '' };
   try {
-    const properties = await apiPost<TerminalFileProperties>(
-      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/properties/update/`,
-      {
+    const properties = await updateTerminalFileProperties(activeTab.value.host.id, {
         path: dialog.properties.path,
         owner: dialog.draft.owner,
         group: dialog.draft.group,
@@ -2900,10 +2813,7 @@ async function loadTerminalDirectory(path = terminalFilePath.value) {
   terminalFileListError.value = '';
 
   try {
-    const response = await apiPost<TerminalFileListResponse>(
-      `/api/web-terminal/hosts/${activeTab.value.host.id}/files/list/`,
-      { path: targetPath },
-    );
+    const response = await listTerminalFiles(activeTab.value.host.id, { path: targetPath });
     if (requestId !== terminalFileListRequestId) return;
     terminalFilePath.value = response.path;
     terminalFileEntries.value = sortTerminalFileEntries(response.entries);
@@ -2968,23 +2878,7 @@ function getTerminalFileDeleteDialogDescription() {
 function resolveTerminalDirectoryPath(path: string) {
   const value = String(path || '.').trim();
   if (value === '..') return parentTerminalDirectoryPath(terminalFilePath.value);
-  if (value.startsWith('/') || value.startsWith('~') || value === '.') return value;
-  if (terminalFilePath.value === '/' || terminalFilePath.value === '') return `/${value}`;
-  if (terminalFilePath.value === '.') return value;
-  return `${terminalFilePath.value.replace(/\/+$/, '')}/${value}`;
-}
-
-function parentTerminalDirectoryPath(path: string) {
-  const value = String(path || '.').replace(/\/+$/, '');
-  if (!value || value === '.' || value === '~') return '/';
-  if (value === '/') return '/';
-  if (value.startsWith('~/')) {
-    const parent = value.slice(0, value.lastIndexOf('/'));
-    return parent || '/';
-  }
-  if (!value.startsWith('/')) return '/';
-  const parent = value.slice(0, value.lastIndexOf('/'));
-  return parent || '/';
+  return joinTerminalPath(terminalFilePath.value, value);
 }
 
 function isParentDirectoryEntry(entry: TerminalFileEntry | null | undefined) {
@@ -3035,18 +2929,6 @@ function formatTerminalFilePropertiesSize(properties: TerminalFileProperties | n
   return formatTerminalFileSizeValue(properties.size);
 }
 
-function formatTerminalFileSizeValue(size: number | string) {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  if (typeof size === 'string') return size;
-  let valueSize = size;
-  let unitIndex = 0;
-  while (valueSize >= 1024 && unitIndex < units.length - 1) {
-    valueSize /= 1024;
-    unitIndex += 1;
-  }
-  const value = unitIndex === 0 ? String(valueSize) : valueSize.toFixed(valueSize >= 10 ? 1 : 2).replace(/\.0+$/, '');
-  return `${value} ${units[unitIndex]}`;
-}
 
 function terminalFileText(value?: string | number) {
   if (value === undefined || value === null || value === '') return '-';
@@ -3172,13 +3054,9 @@ async function downloadTerminalFiles(entries = getTerminalFileActionEntries()) {
 
 function getTerminalFileDownloadUrl(entry: TerminalFileEntry) {
   if (!activeTab.value) return '';
-  return getTerminalFileDownloadRawUrl(activeTab.value.host.id, entry.path, terminalDownloadProtocol.value);
+  return buildTerminalFileDownloadRawUrl(activeTab.value.host.id, entry.path, terminalDownloadProtocol.value);
 }
 
-function getTerminalFileDownloadRawUrl(hostId: number, path: string, protocol: TerminalDownloadProtocol) {
-  const params = new URLSearchParams({ path, protocol });
-  return `/api/web-terminal/hosts/${hostId}/files/download/raw/?${params.toString()}`;
-}
 
 async function downloadTerminalDirectory(
   entry: TerminalFileEntry,
@@ -3200,11 +3078,7 @@ async function downloadTerminalDirectoryContents(
   record?: TerminalTransferRecord,
 ) {
   throwIfTerminalTransferCanceled(record);
-  const response = await apiPost<TerminalFileListResponse>(
-    `/api/web-terminal/hosts/${hostId}/files/list-download/`,
-    { path },
-    getTerminalTransferRequestOptions(record),
-  );
+  const response = await listTerminalDownloadFiles(hostId, { path }, getTerminalTransferRequestOptions(record));
   const usedNames = new Set<string>();
   const files = response.entries.filter((child) => child.type === 'file' && !isParentDirectoryEntry(child));
   const directories = response.entries.filter((child) => child.type === 'directory' && !isParentDirectoryEntry(child));
@@ -3228,7 +3102,7 @@ async function downloadTerminalFileToDirectory(
 ) {
   throwIfTerminalTransferCanceled(record);
   setTerminalTransferCurrentFile(record, entry.name);
-  const response = await fetch(getTerminalFileDownloadRawUrl(hostId, entry.path, terminalDownloadProtocol.value), {
+  const response = await fetch(buildTerminalFileDownloadRawUrl(hostId, entry.path, terminalDownloadProtocol.value), {
     credentials: 'include',
     ...getTerminalTransferRequestOptions(record),
   });
@@ -3463,8 +3337,8 @@ async function uploadTerminalFiles(items: TerminalFileUploadItem[]) {
           setTerminalTransferCurrentFile(record, item.relativePath || file.name);
           const contentBase64 = await fileToBase64(file);
           throwIfTerminalTransferCanceled(record);
-          await apiPost<{ protocol: string }>(
-            `/api/web-terminal/hosts/${tab.host.id}/files/upload/`,
+          await uploadTerminalFile(
+            tab.host.id,
             { directory: targetDirectory, filename: file.name, relativePath: item.relativePath || '', contentBase64 },
             getTerminalTransferRequestOptions(record),
           );
@@ -3843,7 +3717,7 @@ async function loadTerminalMonitor() {
   const requestId = ++terminalMonitorRequestId;
   isTerminalMonitorLoading.value = true;
   try {
-    const response = await apiPost<TerminalMonitorResponse>(`/api/web-terminal/hosts/${tab.host.id}/monitor/`, {});
+    const response = await getTerminalMonitor(tab.host.id);
     if (requestId !== terminalMonitorRequestId) return;
     terminalMonitorData.value = response;
     terminalMonitorError.value = '';
@@ -4012,8 +3886,7 @@ onMounted(async () => {
     await loadTree();
     if (terminalAuthRedirecting) return;
     await restoreTerminalWorkspace();
-    const params = new URLSearchParams(window.location.search);
-    const hostId = Number(params.get('host'));
+    const hostId = parseTerminalHostQuery(window.location.search);
     if (hostId) {
       const restoredTab = tabs.value.find((tab) => tab.host.id === hostId);
       if (restoredTab) {
@@ -4061,7 +3934,7 @@ async function loadTree() {
   isLoadingTree.value = true;
   treeError.value = '';
   try {
-    groups.value = await apiGet<TerminalGroup[]>('/api/web-terminal/tree/');
+    groups.value = await listTerminalTree();
   } catch (error) {
     if (handleTerminalAuthExpired(error)) return;
     treeError.value = (error as Error).message;
@@ -4890,22 +4763,16 @@ function setTerminalContainer(tabId: string, element: unknown) {
 }
 
 function buildWebSocketUrl(hostId: number) {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/ws/web-terminal/${hostId}/`;
+  return buildTerminalWebSocketUrl(window.location.protocol, window.location.host, hostId);
 }
 
 function buildRdpWebSocketUrl(tab: TerminalTab) {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/ws/web-terminal/rdp/${tab.host.id}/`;
+  return buildRdpWebSocketUrlValue(window.location.protocol, window.location.host, tab.host.id);
 }
 
 function buildRdpConnectionQuery(tab: TerminalTab) {
   const container = terminalContainers.get(tab.id);
-  const params = new URLSearchParams({
-    width: String(Math.max(320, Math.floor(container?.clientWidth || 1280))),
-    height: String(Math.max(240, Math.floor(container?.clientHeight || 720))),
-  });
-  return params.toString();
+  return buildRdpConnectionQueryValue(container?.clientWidth, container?.clientHeight);
 }
 
 function cleanupRdpClient(tab: TerminalTab) {
