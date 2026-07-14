@@ -568,7 +568,7 @@ class TerminalMonitorViewTests(TestCase):
             self.factory.post(f"/api/web-terminal/hosts/{host.id}/monitor/", data={}, content_type="application/json")
         )
 
-        with patch("web_terminal.views.get_remote_resource_monitor", side_effect=TerminalConnectionError("当前主机不支持资源监控")):
+        with patch("web_terminal.api.monitoring.get_remote_resource_monitor", side_effect=TerminalConnectionError("当前主机不支持资源监控")):
             response = views.terminal_monitor(request, host.id)
 
         self.assertEqual(response.status_code, 400)
@@ -597,7 +597,7 @@ class TerminalFileDownloadAttachmentTests(TestCase):
         )
 
         with patch(
-            "web_terminal.views.stream_remote_file_content",
+            "web_terminal.api.files.stream_remote_file_content",
             return_value={"filename": "config.toml", "content": b"port=22"},
         ) as mocked_download:
             response = views.terminal_file_download_attachment(request, host.id)
