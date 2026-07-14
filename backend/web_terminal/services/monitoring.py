@@ -3,7 +3,7 @@ from __future__ import annotations
 from host_management.models import ManagedHost
 
 from .commands import run_one_shot_ssh_command
-from .connections import TerminalConnectionError
+from .errors import TerminalConnectionError
 from .file_parsers import natural_sort_key
 
 

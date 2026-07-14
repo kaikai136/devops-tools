@@ -121,13 +121,13 @@ from .services.connections import (
     DEFAULT_TERMINAL_ROWS,
     LIVE_TERMINALS,
     LiveTerminalConnection,
-    TerminalConnectionError,
     load_private_key,
     normalize_terminal_output,
     open_live_terminal,
     open_ssh_client,
     should_retry_ssh_connect_error,
 )
+from .services.errors import TerminalConnectionError
 from .services.file_parsers import (
     REMOTE_FILE_OWNER_PATTERN,
     REMOTE_FILE_OCTAL_MODE_PATTERN,

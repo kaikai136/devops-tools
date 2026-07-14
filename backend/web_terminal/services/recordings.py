@@ -9,11 +9,8 @@ from host_management.models import ManagedHost
 
 from ..models import TerminalSession
 from ..services_legacy import TERMINAL_PROTOCOL_RDP
-from .connections import (
-    DEFAULT_TERMINAL_COLS,
-    DEFAULT_TERMINAL_ROWS,
-    TerminalConnectionError,
-)
+from .connections import DEFAULT_TERMINAL_COLS, DEFAULT_TERMINAL_ROWS
+from .errors import TerminalConnectionError
 
 
 ASCIICAST_VERSION = 3

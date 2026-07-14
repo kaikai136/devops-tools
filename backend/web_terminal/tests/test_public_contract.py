@@ -144,6 +144,7 @@ class ServiceExportContractTests(SimpleTestCase):
             import_module("web_terminal.services.audit"),
             import_module("web_terminal.services.commands"),
             import_module("web_terminal.services.connections"),
+            import_module("web_terminal.services.errors"),
             import_module("web_terminal.services.file_parsers"),
             import_module("web_terminal.services.files"),
             import_module("web_terminal.services.monitoring"),

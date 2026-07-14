@@ -6,9 +6,7 @@ import time
 
 from host_management.models import ManagedHost
 
-
-class TerminalConnectionError(RuntimeError):
-    pass
+from .errors import TerminalConnectionError
 
 class LiveTerminalConnection:
     def __init__(self, client, channel):

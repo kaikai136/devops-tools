@@ -7,6 +7,7 @@ from . import recordings as _recordings
 from . import audit as _audit
 from . import commands as _commands
 from . import connections as _connections
+from . import errors as _errors
 from . import file_parsers as _file_parsers
 from . import files as _files
 from . import monitoring as _monitoring
@@ -116,13 +117,14 @@ from .connections import (
     DEFAULT_TERMINAL_COLS,
     DEFAULT_TERMINAL_ROWS,
     LiveTerminalConnection,
-    TerminalConnectionError,
     load_private_key,
     normalize_terminal_output,
     open_live_terminal,
     open_ssh_client,
     should_retry_ssh_connect_error,
 )
+
+from .errors import TerminalConnectionError
 
 from .audit import (
     append_audit_output,
@@ -287,6 +289,7 @@ _SERVICE_IMPLEMENTATION_MODULES = (
     _audit,
     _commands,
     _connections,
+    _errors,
     _file_parsers,
     _files,
     _monitoring,

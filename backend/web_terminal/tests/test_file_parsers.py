@@ -1,6 +1,48 @@
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
+
 from django.test import SimpleTestCase
 
 from .. import services
+
+
+class RemoteFileParserIsolationTests(SimpleTestCase):
+    def test_file_parsers_load_without_connection_or_django_model_modules(self):
+        backend_dir = Path(__file__).resolve().parents[2]
+        probe = textwrap.dedent(
+            f"""
+            import importlib
+            import sys
+            from pathlib import Path
+            from types import ModuleType
+
+            backend_dir = Path({str(backend_dir)!r})
+            web_terminal = ModuleType("web_terminal")
+            web_terminal.__path__ = [str(backend_dir / "web_terminal")]
+            services = ModuleType("web_terminal.services")
+            services.__path__ = [str(backend_dir / "web_terminal" / "services")]
+            sys.modules["web_terminal"] = web_terminal
+            sys.modules["web_terminal.services"] = services
+
+            module = importlib.import_module("web_terminal.services.file_parsers")
+            assert module.TerminalConnectionError.__module__ == "web_terminal.services.errors"
+            assert "web_terminal.services.connections" not in sys.modules
+            assert "host_management.models" not in sys.modules
+            print("isolated parser import OK")
+            """
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=backend_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("isolated parser import OK", result.stdout)
 
 
 class RemoteFileParserCharacterizationTests(SimpleTestCase):

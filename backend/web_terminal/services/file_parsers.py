@@ -5,7 +5,7 @@ import shlex
 import stat
 import time
 
-from .connections import TerminalConnectionError
+from .errors import TerminalConnectionError
 
 
 REMOTE_FILE_OWNER_PATTERN = re.compile(r"^[^\s:\x00-\x1f\x7f]+$")

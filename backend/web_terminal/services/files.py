@@ -8,7 +8,8 @@ import time
 from host_management.models import ManagedHost
 
 from .commands import run_one_shot_ssh_command, run_one_shot_ssh_upload
-from .connections import TerminalConnectionError, open_ssh_client
+from .connections import open_ssh_client
+from .errors import TerminalConnectionError
 from .file_parsers import (
     format_remote_timestamp,
     join_remote_path,

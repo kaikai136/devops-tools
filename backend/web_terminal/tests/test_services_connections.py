@@ -146,8 +146,11 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         self.assertIn("legacy import OK", probe.stdout)
 
     def test_connection_symbols_report_the_new_implementation_module(self):
+        self.assertEqual(
+            services.TerminalConnectionError.__module__,
+            "web_terminal.services.errors",
+        )
         for name in (
-            "TerminalConnectionError",
             "LiveTerminalConnection",
             "open_live_terminal",
             "open_ssh_client",
