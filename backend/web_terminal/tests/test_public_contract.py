@@ -142,6 +142,11 @@ class ServiceExportContractTests(SimpleTestCase):
             import_module("web_terminal.services.payloads"),
             import_module("web_terminal.services.recordings"),
             import_module("web_terminal.services.audit"),
+            import_module("web_terminal.services.commands"),
+            import_module("web_terminal.services.connections"),
+            import_module("web_terminal.services.file_parsers"),
+            import_module("web_terminal.services.files"),
+            import_module("web_terminal.services.monitoring"),
         ]
         attribute_name = "_temporary_service_contract_attribute"
 
@@ -157,6 +162,18 @@ class ServiceExportContractTests(SimpleTestCase):
             for module in implementation_modules:
                 if hasattr(module, attribute_name):
                     delattr(module, attribute_name)
+
+    def test_existing_service_patch_propagates_to_owner_and_restores(self):
+        services = import_module("web_terminal.services")
+        owner = import_module("web_terminal.services.file_parsers")
+        original = owner.parse_remote_find_entries
+        replacement = object()
+
+        with patch.object(services, "parse_remote_find_entries", replacement):
+            self.assertIs(owner.parse_remote_find_entries, replacement)
+
+        self.assertIs(services.parse_remote_find_entries, original)
+        self.assertIs(owner.parse_remote_find_entries, original)
 
     def test_consumer_classes_remain_importable(self):
         module = import_module("web_terminal.consumers")
