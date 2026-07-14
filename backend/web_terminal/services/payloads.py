@@ -4,7 +4,7 @@ from host_management.models import HostGroup, ManagedHost
 from host_management.services import build_group_tree
 
 from ..models import TerminalSession
-from ..services_legacy import terminal_protocol_for_host
+from .rdp import terminal_protocol_for_host
 
 
 def host_payload(host: ManagedHost) -> dict:

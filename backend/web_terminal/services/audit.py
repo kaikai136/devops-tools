@@ -8,14 +8,9 @@ from accounts.models import UserProfile
 from host_management.models import ManagedHost
 
 from ..models import TerminalCommandAudit, TerminalSession
-from ..services_legacy import TERMINAL_PROTOCOL_RDP, greeting_for
+from .rdp import greeting_for
 from .connections import LIVE_TERMINALS, open_live_terminal
-from .recordings import (
-    append_session_recording_event,
-    build_rdp_recording_file,
-    initialize_session_recording,
-    is_rdp_recording_enabled,
-)
+from .recordings import append_session_recording_event, initialize_session_recording
 
 
 HIGH_RISK_COMMAND_PATTERN = re.compile(
@@ -103,18 +98,3 @@ def create_terminal_session(host: ManagedHost, user=None) -> tuple[TerminalSessi
         session.save(update_fields=["recording", "recording_last_event_at"])
     LIVE_TERMINALS[str(session.session_id)] = connection
     return session, greeting or greeting_for(host)
-
-
-def create_rdp_terminal_session(host: ManagedHost, user=None) -> TerminalSession:
-    recording_enabled = is_rdp_recording_enabled()
-    session = TerminalSession.objects.create(
-        host=host,
-        protocol=TERMINAL_PROTOCOL_RDP,
-        status="connected",
-        transcript=f"connect-rdp {host.name}\n",
-        recording_enabled=recording_enabled,
-    )
-    if recording_enabled:
-        session.recording_file = build_rdp_recording_file(session)
-        session.save(update_fields=["recording_file"])
-    return session

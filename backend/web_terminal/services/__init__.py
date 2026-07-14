@@ -1,7 +1,8 @@
 import sys as _sys
 from types import ModuleType as _ModuleType
 
-from .. import services_legacy as _services_legacy
+from . import guacamole as _guacamole
+from . import rdp as _rdp
 from . import payloads as _payloads
 from . import recordings as _recordings
 from . import audit as _audit
@@ -12,14 +13,17 @@ from . import file_parsers as _file_parsers
 from . import files as _files
 from . import monitoring as _monitoring
 
-from ..services_legacy import (
+from .guacamole import (
     find_guacamole_instruction_end,
-    greeting_for,
     guacamole_element,
     guacamole_instruction,
     is_guacamole_internal_instruction,
     parse_guacamole_instruction,
     read_guacamole_instruction,
+)
+from .rdp import (
+    create_rdp_terminal_session,
+    greeting_for,
     terminal_protocol_for_host,
 )
 
@@ -131,7 +135,6 @@ from .audit import (
     classify_command_risk,
     command_audit_payload,
     create_command_audit,
-    create_rdp_terminal_session,
     create_terminal_session,
     is_session_audit_enabled,
 )
@@ -150,6 +153,8 @@ from .recordings import (
     initialize_session_recording,
     append_session_recording_event,
     save_session_recording,
+)
+from .rdp import (
     is_rdp_recording_enabled,
     build_rdp_recording_file,
     build_rdp_connection_parameters,
@@ -283,7 +288,8 @@ __all__ = [
 ]
 
 _SERVICE_IMPLEMENTATION_MODULES = (
-    _services_legacy,
+    _guacamole,
+    _rdp,
     _payloads,
     _recordings,
     _audit,

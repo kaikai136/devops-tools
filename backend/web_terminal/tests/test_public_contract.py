@@ -138,7 +138,8 @@ class ServiceExportContractTests(SimpleTestCase):
     def test_temporary_service_attributes_do_not_propagate_to_implementation_modules(self):
         services = import_module("web_terminal.services")
         implementation_modules = [
-            import_module("web_terminal.services_legacy"),
+            import_module("web_terminal.services.rdp"),
+            import_module("web_terminal.services.guacamole"),
             import_module("web_terminal.services.payloads"),
             import_module("web_terminal.services.recordings"),
             import_module("web_terminal.services.audit"),
@@ -175,6 +176,57 @@ class ServiceExportContractTests(SimpleTestCase):
 
         self.assertIs(services.parse_remote_find_entries, original)
         self.assertIs(owner.parse_remote_find_entries, original)
+
+
+    def test_rdp_and_guacamole_symbols_report_their_new_owner_modules(self):
+        services = import_module("web_terminal.services")
+        expected_owners = {
+            "terminal_protocol_for_host": "web_terminal.services.rdp",
+            "greeting_for": "web_terminal.services.rdp",
+            "create_rdp_terminal_session": "web_terminal.services.rdp",
+            "is_rdp_recording_enabled": "web_terminal.services.rdp",
+            "build_rdp_recording_file": "web_terminal.services.rdp",
+            "build_rdp_connection_parameters": "web_terminal.services.rdp",
+            "clamp_rdp_dimension": "web_terminal.services.rdp",
+            "rdp_recording_root": "web_terminal.services.rdp",
+            "safe_recording_relative_path": "web_terminal.services.rdp",
+            "cleanup_expired_rdp_recordings": "web_terminal.services.rdp",
+            "prune_empty_recording_parents": "web_terminal.services.rdp",
+            "guacamole_instruction": "web_terminal.services.guacamole",
+            "guacamole_element": "web_terminal.services.guacamole",
+            "parse_guacamole_instruction": "web_terminal.services.guacamole",
+            "is_guacamole_internal_instruction": "web_terminal.services.guacamole",
+            "read_guacamole_instruction": "web_terminal.services.guacamole",
+            "find_guacamole_instruction_end": "web_terminal.services.guacamole",
+        }
+
+        for name, owner in expected_owners.items():
+            with self.subTest(name=name):
+                self.assertEqual(getattr(services, name).__module__, owner)
+
+    def test_rdp_and_guacamole_facade_patches_propagate_and_restore(self):
+        services = import_module("web_terminal.services")
+        for module_name, symbol_name in (
+            ("web_terminal.services.rdp", "build_rdp_connection_parameters"),
+            ("web_terminal.services.guacamole", "guacamole_instruction"),
+        ):
+            owner = import_module(module_name)
+            original = getattr(owner, symbol_name)
+            replacement = object()
+
+            with self.subTest(symbol_name=symbol_name):
+                with patch.object(services, symbol_name, replacement):
+                    self.assertIs(getattr(owner, symbol_name), replacement)
+                self.assertIs(getattr(services, symbol_name), original)
+                self.assertIs(getattr(owner, symbol_name), original)
+
+
+    def test_terminal_connection_error_has_one_identity_across_service_modules(self):
+        services = import_module("web_terminal.services")
+        error_type = import_module("web_terminal.services.errors").TerminalConnectionError
+        self.assertIs(services.TerminalConnectionError, error_type)
+        self.assertIs(import_module("web_terminal.services.rdp").TerminalConnectionError, error_type)
+        self.assertIs(import_module("web_terminal.services.guacamole").TerminalConnectionError, error_type)
 
     def test_consumer_classes_remain_importable(self):
         module = import_module("web_terminal.consumers")

@@ -6,7 +6,8 @@ from django.test import SimpleTestCase
 
 from host_management.models import ManagedHost
 
-from .. import services, services_legacy
+from .. import services
+from ..services import connections as service_connections
 
 
 class TerminalCommandCharacterizationTests(SimpleTestCase):
@@ -81,7 +82,7 @@ class TerminalCommandCharacterizationTests(SimpleTestCase):
 
     def test_live_command_returns_current_missing_session_tuple(self):
         session = self.make_session()
-        services_legacy.LIVE_TERMINALS.pop(str(session.session_id), None)
+        service_connections.LIVE_TERMINALS.pop(str(session.session_id), None)
 
         self.assertEqual(
             services.run_live_terminal_command(session, "pwd"),
@@ -93,13 +94,13 @@ class TerminalCommandCharacterizationTests(SimpleTestCase):
         connection = MagicMock()
         connection.send_command.return_value = "done\n"
         connection.channel.closed = True
-        services_legacy.LIVE_TERMINALS[str(session.session_id)] = connection
+        service_connections.LIVE_TERMINALS[str(session.session_id)] = connection
 
         result = services.run_live_terminal_command(session, "exit")
 
         self.assertEqual(result, ("done", 0))
         connection.close.assert_called_once_with()
-        self.assertNotIn(str(session.session_id), services_legacy.LIVE_TERMINALS)
+        self.assertNotIn(str(session.session_id), service_connections.LIVE_TERMINALS)
 
     def test_session_command_empty_input_returns_exact_dictionary_without_side_effects(self):
         session = self.make_session()

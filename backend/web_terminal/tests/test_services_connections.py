@@ -122,7 +122,7 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         self.assertEqual(str(raised.exception), "SSH \u4f1a\u8bdd\u5df2\u5173\u95ed\uff0c\u8bf7\u91cd\u65b0\u8fde\u63a5\u4e3b\u673a\u3002")
 
 
-    def test_services_legacy_can_be_imported_before_services_package(self):
+    def test_connections_can_be_imported_before_services_package(self):
         environment = os.environ.copy()
         environment.setdefault("DJANGO_SETTINGS_MODULE", "ops_tool.settings")
         probe = subprocess.run(
@@ -132,8 +132,8 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
                 (
                     "import django; "
                     "django.setup(); "
-                    "import web_terminal.services_legacy; "
-                    "print('legacy import OK')"
+                    "import web_terminal.services.connections; "
+                    "print('connections import OK')"
                 ),
             ],
             capture_output=True,
@@ -143,7 +143,7 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         )
 
         self.assertEqual(probe.returncode, 0, probe.stderr)
-        self.assertIn("legacy import OK", probe.stdout)
+        self.assertIn("connections import OK", probe.stdout)
 
     def test_connection_symbols_report_the_new_implementation_module(self):
         self.assertEqual(
