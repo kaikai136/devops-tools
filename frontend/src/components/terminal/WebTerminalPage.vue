@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch, type ComponentPublicInstance } from 'vue';
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Guacamole from 'guacamole-common-js';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
@@ -11,28 +11,17 @@ import { ApiUnauthorizedError } from '../../api';
 import { useSshTerminal } from '../../features/terminal/composables/useSshTerminal';
 import { useTerminalResize } from '../../features/terminal/composables/useTerminalResize';
 import { useTerminalTabs } from '../../features/terminal/composables/useTerminalTabs';
+import SftpPanel from '../../features/terminal/components/files/SftpPanel.vue';
 import {
-  buildTerminalFileDownloadRawUrl,
-  createTerminalFileEntry,
   createTerminalQuickCommand,
-  deleteTerminalFileEntry,
-  getTerminalFileProperties,
   getTerminalMonitor,
-  listTerminalDownloadFiles,
-  listTerminalFiles,
   listTerminalQuickCommands,
   listTerminalTree,
   removeTerminalQuickCommand,
-  renameTerminalFileEntry,
   reorderTerminalQuickCommands,
-  updateTerminalFileProperties,
   updateTerminalQuickCommand,
-  uploadTerminalFile,
 } from '../../features/terminal/api/terminal';
 import type {
-  TerminalDownloadProtocol,
-  TerminalFileEntry,
-  TerminalFileProperties,
   TerminalGroup,
   TerminalHost,
   TerminalMonitorResponse,
@@ -40,12 +29,10 @@ import type {
   TerminalStatus,
   TerminalTabKind,
 } from '../../features/terminal/types';
-import { joinTerminalPath, parentTerminalDirectoryPath } from '../../features/terminal/utils/paths';
 import {
   buildRdpConnectionQuery as buildRdpConnectionQueryValue,
   buildRdpWebSocketUrl as buildRdpWebSocketUrlValue,
   buildTerminalWebSocketUrl,
-  formatTerminalFileSizeValue,
   parseTerminalHostQuery,
 } from '../../features/terminal/utils/protocol';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
@@ -67,8 +54,6 @@ type GuacamoleMouseInstance = InstanceType<typeof Guacamole.Mouse>;
 type GuacamoleKeyboardInstance = InstanceType<typeof Guacamole.Keyboard>;
 type TerminalSidebarMode = 'hosts' | 'files' | 'commands';
 type TerminalSplitMode = 'single' | 'auto' | 'horizontal' | 'vertical';
-type TerminalTransferKind = 'upload' | 'download';
-type TerminalTransferStatus = 'queued' | 'running' | 'success' | 'error' | 'canceled';
 type TerminalTabColorId =
   | 'red'
   | 'orange'
@@ -161,61 +146,6 @@ interface PersistedTerminalWorkspace {
 }
 
 
-interface TerminalLocalWritableFile {
-  write(data: Blob | Uint8Array): Promise<void>;
-  close(): Promise<void>;
-  abort?: () => Promise<void>;
-}
-
-interface TerminalLocalFileHandle {
-  createWritable(): Promise<TerminalLocalWritableFile>;
-}
-
-interface TerminalLocalDirectoryHandle {
-  getFileHandle(name: string, options?: { create?: boolean }): Promise<TerminalLocalFileHandle>;
-  getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<TerminalLocalDirectoryHandle>;
-}
-
-interface TerminalDirectoryPickerWindow extends Window {
-  showDirectoryPicker?: (options?: { id?: string; mode?: 'read' | 'readwrite' }) => Promise<TerminalLocalDirectoryHandle>;
-}
-
-interface TerminalFileUploadItem {
-  file: File;
-  relativePath?: string;
-}
-
-interface TerminalFileSystemEntry {
-  isFile: boolean;
-  isDirectory: boolean;
-  name: string;
-  file?: (success: (file: File) => void, error?: (error: DOMException) => void) => void;
-  createReader?: () => {
-    readEntries(success: (entries: TerminalFileSystemEntry[]) => void, error?: (error: DOMException) => void): void;
-  };
-}
-
-interface TerminalTransferRecord {
-  id: string;
-  kind: TerminalTransferKind;
-  status: TerminalTransferStatus;
-  name: string;
-  path: string;
-  currentFile: string;
-  currentBytes: number;
-  currentTotalBytes: number;
-  completedFiles: number;
-  totalFiles: number;
-  progress: number;
-  error: string;
-  canceled: boolean;
-  abortController: AbortController;
-  createdAt: number;
-  updatedAt: number;
-}
-
-
-
 interface TerminalQuickCommandDraft {
   name: string;
   category: string;
@@ -234,41 +164,6 @@ interface TerminalQuickCommandDialogState {
   error: string;
 }
 
-
-interface TerminalFilePropertiesDraft {
-  owner: string;
-  group: string;
-  octalMode: string;
-}
-
-interface TerminalFilePropertiesDialogState {
-  visible: boolean;
-  loading: boolean;
-  saving: boolean;
-  error: string;
-  entry: TerminalFileEntry | null;
-  properties: TerminalFileProperties | null;
-  draft: TerminalFilePropertiesDraft;
-  recursive: boolean;
-}
-
-interface TerminalFileContextMenuState {
-  visible: boolean;
-  x: number;
-  y: number;
-  entry: TerminalFileEntry | null;
-}
-
-interface TerminalFileContextMenuItem {
-  id: string;
-  label: string;
-  icon: IconName;
-  enabled: boolean;
-  danger?: boolean;
-  separatorBefore?: boolean;
-  children?: TerminalFileContextMenuItem[];
-  action: () => void | Promise<void>;
-}
 
 interface TerminalContextMenuState {
   visible: boolean;
@@ -317,45 +212,6 @@ interface TerminalSplitModeOption {
   icon: IconName;
 }
 
-interface TerminalFileRenameState {
-  path: string;
-  originalName: string;
-  draftName: string;
-  saving: boolean;
-  error: string;
-}
-
-interface TerminalFileDeleteDialogState {
-  visible: boolean;
-  entry: TerminalFileEntry | null;
-  entries: TerminalFileEntry[];
-  deleting: boolean;
-  error: string;
-}
-
-interface TerminalFileMarqueeState {
-  active: boolean;
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-  additive: boolean;
-  basePaths: string[];
-}
-
-type TerminalFileCreateMode = 'file' | 'directory' | 'symlink';
-
-interface TerminalFileCreateDialogState {
-  visible: boolean;
-  mode: TerminalFileCreateMode;
-  name: string;
-  targetPath: string;
-  octalMode: string;
-  openAfterCreate: boolean;
-  saving: boolean;
-  error: string;
-}
-
 const ANSI_CONTROL_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]/g;
 const ANSI_CONTROL_PREFIX_PATTERN = /^\x1b(?:\[[0-?]*[ -/]*)?$/;
 const CONTROL_C = '\x03';
@@ -370,25 +226,17 @@ const TERMINAL_SPLIT_MODE_STORAGE_KEY = 'ops-tool.web-terminal.split-mode';
 const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
-const TERMINAL_FILE_CONTEXT_MENU_WIDTH = 220;
-const TERMINAL_FILE_CONTEXT_MENU_HEIGHT = 540;
-const TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT = 300;
 const TERMINAL_CONTEXT_MENU_WIDTH = 248;
 const TERMINAL_CONTEXT_MENU_HEIGHT = 560;
 const TERMINAL_TAB_CONTEXT_MENU_WIDTH = 252;
 const TERMINAL_TAB_CONTEXT_MENU_HEIGHT = 560;
 const TERMINAL_TAB_TITLE_MAX_LENGTH = 40;
 const TERMINAL_MONITOR_REFRESH_MS = 5000;
-const TERMINAL_TRANSFER_PANEL_DEFAULT_HEIGHT = 170;
-const TERMINAL_TRANSFER_PANEL_MIN_HEIGHT = 96;
-const TERMINAL_TRANSFER_PANEL_MAX_HEIGHT = 360;
 const TERMINAL_QUICK_COMMAND_PANEL_HEIGHT_STORAGE_KEY = 'ops-tool.web-terminal.quick-command-panel-height';
 const TERMINAL_QUICK_COMMAND_PANEL_COLLAPSED_STORAGE_KEY = 'ops-tool.web-terminal.quick-command-panel-collapsed';
 const TERMINAL_QUICK_COMMAND_PANEL_DEFAULT_HEIGHT = 260;
 const TERMINAL_QUICK_COMMAND_PANEL_MIN_HEIGHT = 160;
 const TERMINAL_QUICK_COMMAND_PANEL_MAX_HEIGHT = 420;
-const TERMINAL_DOWNLOAD_FILE_CONCURRENCY = 1;
-const TERMINAL_DOWNLOAD_DIRECTORY_PICKER_ID = 'terminal-download-directory';
 const TERMINAL_SEARCH_DECORATIONS: NonNullable<ISearchOptions['decorations']> = {
   matchBackground: '#7c3aed',
   matchBorder: '#c084fc',
@@ -397,31 +245,6 @@ const TERMINAL_SEARCH_DECORATIONS: NonNullable<ISearchOptions['decorations']> = 
   activeMatchBorder: '#f0abfc',
   activeMatchColorOverviewRuler: '#d946ef',
 };
-const TERMINAL_LOCAL_FILENAME_RESERVED_CHARS = /[<>:"/\\|?*\x00-\x1f]/g;
-const TERMINAL_LOCAL_FILENAME_RESERVED_NAMES = new Set([
-  'CON',
-  'PRN',
-  'AUX',
-  'NUL',
-  'COM1',
-  'COM2',
-  'COM3',
-  'COM4',
-  'COM5',
-  'COM6',
-  'COM7',
-  'COM8',
-  'COM9',
-  'LPT1',
-  'LPT2',
-  'LPT3',
-  'LPT4',
-  'LPT5',
-  'LPT6',
-  'LPT7',
-  'LPT8',
-  'LPT9',
-]);
 const terminalTabColorOptions: TerminalTabColorOption[] = [
   {
     id: 'red',
@@ -591,47 +414,6 @@ const terminalSplitModeOptions: TerminalSplitModeOption[] = [
   { mode: 'horizontal', label: '水平平铺', icon: 'rows' },
   { mode: 'vertical', label: '垂直平铺', icon: 'panelLeft' },
 ];
-const initialTerminalFileEntries: TerminalFileEntry[] = [
-  { name: '..', type: 'directory', modifiedAt: '', path: '..', permissions: '', owner: '', group: '' },
-  { name: '.ansible', type: 'directory', modifiedAt: '2025/03/11 13:20', path: '~/.ansible', permissions: 'drwx------', owner: 'root', group: 'root' },
-  { name: '.cache', type: 'directory', modifiedAt: '2025/05/07 17:53', path: '~/.cache', permissions: 'drwxr-xr-x', owner: 'root', group: 'root' },
-  { name: '.config', type: 'directory', modifiedAt: '2025/05/07 16:47', path: '~/.config', permissions: 'drwx------', owner: 'root', group: 'root' },
-  { name: '.ctcss', type: 'directory', modifiedAt: '2025/08/01 11:23', path: '~/.ctcss', permissions: 'd---------', owner: 'root', group: 'root' },
-  { name: '.docker', type: 'directory', modifiedAt: '2026/01/20 20:58', path: '~/.docker', permissions: 'drwx------', owner: 'root', group: 'root' },
-  { name: '.ssh', type: 'directory', modifiedAt: '2025/03/11 20:58', path: '~/.ssh', permissions: 'drwx------', owner: 'root', group: 'root' },
-  { name: '.vim', type: 'directory', modifiedAt: '2026/04/10 17:15', path: '~/.vim', permissions: 'drwxr-xr-x', owner: 'root', group: 'root' },
-  { name: 'download_test', type: 'directory', modifiedAt: '2026/01/14 19:03', path: '~/download_test', permissions: 'drwxr-xr-x', owner: 'root', group: 'root' },
-  { name: '.bash_history', type: 'file', modifiedAt: '2026/05/25 11:07', path: '~/.bash_history', size: 39200, permissions: '-rw-------', owner: 'root', group: 'root' },
-  { name: '.bashrc', type: 'file', modifiedAt: '2019/12/05 13:37', path: '~/.bashrc', size: 241, permissions: '-rw-r--r--', owner: 'root', group: 'root' },
-  { name: '.lesshst', type: 'file', modifiedAt: '2025/10/15 16:48', path: '~/.lesshst', size: 1200, permissions: '-rw-------', owner: 'root', group: 'root' },
-];
-
-const initialSelectedTerminalFile = initialTerminalFileEntries.find((entry) => entry.type === 'file') ?? null;
-const terminalFileEntries = ref<TerminalFileEntry[]>(initialTerminalFileEntries);
-const selectedTerminalFile = ref<TerminalFileEntry | null>(initialSelectedTerminalFile);
-const selectedTerminalFilePaths = ref<Set<string>>(new Set(initialSelectedTerminalFile ? [initialSelectedTerminalFile.path] : []));
-const terminalFileSelectionAnchorPath = ref(initialSelectedTerminalFile?.path ?? '');
-const terminalFilePath = ref('.');
-const terminalFileListProtocol = ref('');
-const terminalFileListError = ref('');
-const isTerminalFileFollowingCwd = ref(false);
-const isTerminalFileListLoading = ref(false);
-const terminalFileListRef = ref<HTMLElement | null>(null);
-const terminalFileUploadInput = ref<HTMLInputElement | null>(null);
-const terminalFolderUploadInput = ref<HTMLInputElement | null>(null);
-const terminalFileRenameInput = ref<HTMLInputElement | null>(null);
-const terminalFileBrowserRef = ref<HTMLElement | null>(null);
-const terminalFileContextMenu = ref<TerminalFileContextMenuState>({
-  visible: false,
-  x: 0,
-  y: 0,
-  entry: null,
-});
-const terminalDirectoryContextMenu = ref<Omit<TerminalFileContextMenuState, 'entry'>>({
-  visible: false,
-  x: 0,
-  y: 0,
-});
 const terminalContextMenu = ref<TerminalContextMenuState>({
   visible: false,
   x: 0,
@@ -645,52 +427,6 @@ const terminalTabContextMenu = ref<TerminalTabContextMenuState>({
   y: 0,
   tabId: null,
 });
-const terminalFileRename = ref<TerminalFileRenameState | null>(null);
-const terminalFileDeleteDialog = ref<TerminalFileDeleteDialogState>({
-  visible: false,
-  entry: null,
-  entries: [],
-  deleting: false,
-  error: '',
-});
-const isTerminalFileDragOver = ref(false);
-const terminalFileMarquee = ref<TerminalFileMarqueeState>({
-  active: false,
-  startX: 0,
-  startY: 0,
-  currentX: 0,
-  currentY: 0,
-  additive: false,
-  basePaths: [],
-});
-let shouldSuppressTerminalFileClick = false;
-const terminalTransferRecords = ref<TerminalTransferRecord[]>([]);
-const terminalDownloadProtocol = ref<TerminalDownloadProtocol>('auto');
-const terminalTransferPanelHeight = ref(TERMINAL_TRANSFER_PANEL_DEFAULT_HEIGHT);
-const isTerminalTransferPanelResizing = ref(false);
-let terminalTransferResizeStartY = 0;
-let terminalTransferResizeStartHeight = TERMINAL_TRANSFER_PANEL_DEFAULT_HEIGHT;
-const terminalFileCreateDialog = ref<TerminalFileCreateDialogState>({
-  visible: false,
-  mode: 'file',
-  name: '',
-  targetPath: '',
-  octalMode: '0644',
-  openAfterCreate: false,
-  saving: false,
-  error: '',
-});
-const terminalFilePropertiesDialog = ref<TerminalFilePropertiesDialogState>({
-  visible: false,
-  loading: false,
-  saving: false,
-  error: '',
-  entry: null,
-  properties: null,
-  draft: { owner: '', group: '', octalMode: '0000' },
-  recursive: false,
-});
-let terminalFileListRequestId = 0;
 const terminalMonitorData = ref<TerminalMonitorResponse | null>(null);
 const isTerminalMonitorLoading = ref(false);
 const terminalMonitorError = ref('');
@@ -798,48 +534,7 @@ const terminalScreenStyle = computed<Record<string, string>>(() => {
 });
 const activeTerminalNodeName = computed(() => activeTab.value?.host.name ?? '未选择主机');
 const terminalSidebarToggleLabel = computed(() => (isTerminalSidebarCollapsed.value ? '展开侧栏' : '收起侧栏'));
-const selectedTerminalFiles = computed(() =>
-  terminalFileEntries.value.filter((entry) => selectedTerminalFilePaths.value.has(entry.path) && !isParentDirectoryEntry(entry)),
-);
-const selectedTerminalDownloadableEntries = computed(() => selectedTerminalFiles.value);
-const selectedTerminalFileCount = computed(() => selectedTerminalFiles.value.length);
-const canDownloadSelectedTerminalFiles = computed(() => selectedTerminalDownloadableEntries.value.length > 0);
-const terminalFileSelectionStatusText = computed(() => {
-  const total = terminalFileEntries.value.length;
-  return selectedTerminalFileCount.value > 1 ? `已选 ${selectedTerminalFileCount.value} 项 / 共 ${total} 项` : `共 ${total} 项`;
-});
-const terminalFileMarqueeStyle = computed<Record<string, string>>(() => {
-  const state = terminalFileMarquee.value;
-  if (!state.active) return {} as Record<string, string>;
-  const left = Math.min(state.startX, state.currentX);
-  const top = Math.min(state.startY, state.currentY);
-  return {
-    left: `${left}px`,
-    top: `${top}px`,
-    width: `${Math.abs(state.currentX - state.startX)}px`,
-    height: `${Math.abs(state.currentY - state.startY)}px`,
-  };
-});
-const terminalTransferPanelStyle = computed<Record<string, string>>(() => ({
-  '--terminal-transfer-height': `${terminalTransferPanelHeight.value}px`,
-}));
-const hasRunningTerminalTransfers = computed(() => terminalTransferRecords.value.some((record) => isTerminalTransferActive(record)));
-const hasClearableTerminalTransfers = computed(() => terminalTransferRecords.value.some((record) => !isTerminalTransferActive(record)));
-const terminalFileProtocolLabel = computed(() => formatTerminalFileProtocol(terminalFileListProtocol.value));
-const terminalFileStatus = computed<'idle' | 'loading' | 'success' | 'error'>(() => {
-  if (isTerminalFileListLoading.value) return 'loading';
-  if (terminalFileListError.value) return 'error';
-  if (terminalFileListProtocol.value) return 'success';
-  return 'idle';
-});
-const terminalFileStatusText = computed(() => {
-  if (terminalFileStatus.value === 'loading') return '读取中';
-  if (terminalFileStatus.value === 'error') return '读取失败';
-  if (terminalFileStatus.value === 'success') return terminalFileProtocolLabel.value;
-  return '待加载';
-});
-const terminalFileFollowCwdLabel = computed(() => (isTerminalFileFollowingCwd.value ? '停止跟踪终端目录' : '跟踪终端目录'));
-const terminalMonitorNodeName = computed(() => activeTab.value?.host.name ?? '请选择服务器');
+const terminalMonitorNodeName = computed(() => activeTab.value?.host.name ?? '??????');
 const terminalQuickCommandCategories = computed(() => {
   const categories = terminalQuickCommands.value.map((command) => command.category).filter(Boolean);
   return [...new Set(categories)].sort((left, right) => left.localeCompare(right, 'zh-Hans-CN'));
@@ -891,68 +586,6 @@ const terminalQuickCommandPanelStyle = computed<Record<string, string>>(() => ({
   '--terminal-quick-command-height':
     !shouldShowTerminalQuickCommandPanel.value || isTerminalQuickCommandPanelCollapsed.value ? '0px' : `${terminalQuickCommandPanelHeight.value}px`,
 }));
-const terminalFileContextMenuItems = computed<TerminalFileContextMenuItem[]>(() => {
-  const entry = terminalFileContextMenu.value.entry;
-  const targetEntries = getTerminalFileActionEntries(entry);
-  const isMultiple = targetEntries.length > 1;
-  const isSingle = targetEntries.length === 1;
-  const hasEntry = Boolean(entry);
-  const isParent = isParentDirectoryEntry(entry);
-  const isDirectory = entry?.type === 'directory';
-  const path = entry ? getTerminalFileResolvedPath(entry) : '';
-  const name = entry?.name ?? '';
-  const directoryPath = entry ? getTerminalFileDirectoryPath(entry) : '';
-  const targetPathsText = targetEntries.map((item) => getTerminalFileResolvedPath(item)).join('\n');
-  const targetNamesText = targetEntries.map((item) => item.name).join('\n');
-  const canDownload = targetEntries.length > 0;
-
-  const items: TerminalFileContextMenuItem[] = [
-    { id: 'open', label: '打开', icon: 'folder', enabled: Boolean(isDirectory) && (isSingle || isParent), action: () => { if (entry) openTerminalDirectory(entry); } },
-    { id: 'refresh', label: '刷新', icon: 'refresh', enabled: true, action: () => loadTerminalDirectory() },
-    { id: 'upload', label: '上传到当前文件夹...', icon: 'upload', enabled: hasEntry && !isParent, action: () => openTerminalUpload() },
-    { id: 'download', label: isMultiple ? '下载所选到目录...' : '下载到目录...', icon: 'download', enabled: canDownload, action: () => downloadTerminalFiles(targetEntries) },
-    { id: 'rename', label: '重命名...', icon: 'edit', enabled: false, separatorBefore: true, action: () => undefined },
-    { id: 'move', label: '移动到...', icon: 'moveRight', enabled: false, action: () => undefined },
-    { id: 'delete', label: isMultiple ? '删除所选' : '删除', icon: 'trash', enabled: false, danger: true, action: () => undefined },
-    { id: 'favorite', label: '添加到收藏夹', icon: 'bookmark', enabled: false, separatorBefore: true, action: () => undefined },
-    { id: 'copy-path', label: isMultiple ? '复制所选路径' : '复制路径', icon: 'copy', enabled: targetEntries.length > 0 || hasEntry, separatorBefore: true, action: () => copyTerminalFileText(targetEntries.length > 0 ? targetPathsText : path) },
-    { id: 'copy-name', label: isMultiple ? '复制所选名称' : '复制名称', icon: 'copy', enabled: targetEntries.length > 0, action: () => copyTerminalFileText(isMultiple ? targetNamesText : name) },
-    { id: 'copy-directory', label: '复制目录路径', icon: 'folder', enabled: hasEntry && !isParent, action: () => copyTerminalFileText(directoryPath) },
-    { id: 'send-path', label: isMultiple ? '将所选路径发送到终端' : '将路径发送到终端', icon: 'cornerDownLeft', enabled: targetEntries.length > 0 || hasEntry, separatorBefore: true, action: () => sendTerminalFileTextToActiveTerminal(targetEntries.length > 0 ? targetPathsText : path) },
-    { id: 'send-name', label: isMultiple ? '将所选名称发送到终端' : '将名称发送到终端', icon: 'chevronRight', enabled: targetEntries.length > 0, action: () => sendTerminalFileTextToActiveTerminal(isMultiple ? targetNamesText : name) },
-    { id: 'send-directory', label: '将目录路径发送到终端', icon: 'chevronsRight', enabled: hasEntry && !isParent, action: () => sendTerminalFileTextToActiveTerminal(directoryPath) },
-    { id: 'properties', label: '属性...', icon: 'info', enabled: hasEntry && !isParent && isSingle, separatorBefore: true, action: async () => { if (entry) await openTerminalFileProperties(entry); } },
-  ];
-  return items.map((item) => {
-    if (item.id === 'rename') {
-      return { ...item, enabled: hasEntry && !isParent && isSingle, action: () => { if (entry) startTerminalFileRename(entry); } };
-    }
-    if (item.id === 'delete') {
-      return { ...item, enabled: targetEntries.length > 0, action: () => openTerminalFileDeleteDialog(targetEntries) };
-    }
-    return item;
-  });
-});
-const terminalDirectoryContextMenuItems = computed<TerminalFileContextMenuItem[]>(() => [
-  { id: 'refresh', label: '刷新', icon: 'refresh', enabled: Boolean(activeTab.value), action: () => loadTerminalDirectory() },
-  {
-    id: 'upload',
-    label: '上传到当前文件夹...',
-    icon: 'upload',
-    enabled: Boolean(activeTab.value),
-    action: () => undefined,
-    children: [
-      { id: 'upload-file', label: '上传文件', icon: 'file', enabled: Boolean(activeTab.value), action: () => openTerminalUpload() },
-      { id: 'upload-folder', label: '上传文件夹', icon: 'folder', enabled: Boolean(activeTab.value), action: () => openTerminalFolderUpload() },
-    ],
-  },
-  { id: 'create-file', label: '新建文件', icon: 'file', enabled: Boolean(activeTab.value), separatorBefore: true, action: () => openTerminalFileCreateDialog('file') },
-  { id: 'create-directory', label: '新建文件夹', icon: 'folderPlus', enabled: Boolean(activeTab.value), action: () => openTerminalFileCreateDialog('directory') },
-  { id: 'create-symlink', label: '新建符号链接', icon: 'link', enabled: Boolean(activeTab.value), action: () => openTerminalFileCreateDialog('symlink') },
-  { id: 'copy-directory', label: '复制目录路径', icon: 'copy', enabled: Boolean(activeTab.value), separatorBefore: true, action: () => copyTerminalFileText(terminalFilePath.value) },
-  { id: 'send-directory', label: '将目录路径发送到终端', icon: 'cornerDownLeft', enabled: Boolean(activeTab.value), action: () => sendTerminalFileTextToActiveTerminal(terminalFilePath.value) },
-  { id: 'properties', label: '属性', icon: 'info', enabled: Boolean(activeTab.value), separatorBefore: true, action: () => openTerminalCurrentDirectoryProperties() },
-]);
 const terminalContextMenuItems = computed<TerminalContextMenuItem[]>(() => {
   const tab = getTerminalContextMenuTab();
   const selectedText = terminalContextMenu.value.selectedText.trim();
@@ -1381,228 +1014,13 @@ function getTerminalTabQuickCommandItems(tab: TerminalTab | null): TerminalConte
   return items;
 }
 
-function selectTerminalFile(entry: TerminalFileEntry, event?: MouseEvent | KeyboardEvent) {
-  if (!activeTab.value) return;
-  if (shouldSuppressTerminalFileClick) {
-    shouldSuppressTerminalFileClick = false;
-    return;
-  }
-  if (event?.shiftKey && terminalFileSelectionAnchorPath.value) {
-    selectTerminalFileRange(terminalFileSelectionAnchorPath.value, entry);
-    return;
-  }
-  setTerminalFileSelection([entry], isParentDirectoryEntry(entry) ? '' : entry.path);
-}
-
-function setTerminalFileSelection(entries: TerminalFileEntry[], anchorPath = entries[0]?.path ?? '') {
-  const selectableEntries = entries.filter((entry) => !isParentDirectoryEntry(entry));
-  selectedTerminalFilePaths.value = new Set(selectableEntries.map((entry) => entry.path));
-  selectedTerminalFile.value = selectableEntries[selectableEntries.length - 1] ?? entries[entries.length - 1] ?? null;
-  terminalFileSelectionAnchorPath.value = anchorPath && !isParentDirectoryEntry(entries.find((entry) => entry.path === anchorPath)) ? anchorPath : selectableEntries[0]?.path ?? '';
-}
-
-function selectTerminalFileRange(anchorPath: string, entry: TerminalFileEntry) {
-  const anchorIndex = terminalFileEntries.value.findIndex((item) => item.path === anchorPath);
-  const targetIndex = terminalFileEntries.value.findIndex((item) => item.path === entry.path);
-  if (anchorIndex === -1 || targetIndex === -1) {
-    setTerminalFileSelection([entry], isParentDirectoryEntry(entry) ? '' : entry.path);
-    return;
-  }
-  const start = Math.min(anchorIndex, targetIndex);
-  const end = Math.max(anchorIndex, targetIndex);
-  const range = terminalFileEntries.value.slice(start, end + 1).filter((item) => !isParentDirectoryEntry(item));
-  setTerminalFileSelection(range, anchorPath);
-  selectedTerminalFile.value = isParentDirectoryEntry(entry) ? range[range.length - 1] ?? null : entry;
-}
-
-function startTerminalFileMarquee(event: MouseEvent) {
-  if (!activeTab.value || event.button !== 0 || !terminalFileListRef.value) return;
-  const target = event.target as Element | null;
-  const currentTarget = event.currentTarget as Element | null;
-  const isListBlank = target === currentTarget && currentTarget?.classList.contains('terminal-file-list');
-  const isFileRow = currentTarget?.classList.contains('terminal-file-item') && !target?.closest('input');
-  if (!isListBlank && !isFileRow) return;
-  event.preventDefault();
-  closeTerminalContextMenus();
-  const point = getTerminalFileListPoint(event);
-  terminalFileMarquee.value = {
-    active: true,
-    startX: point.x,
-    startY: point.y,
-    currentX: point.x,
-    currentY: point.y,
-    additive: event.shiftKey || event.ctrlKey || event.metaKey,
-    basePaths: Array.from(selectedTerminalFilePaths.value),
-  };
-  updateTerminalFileMarqueeSelection();
-  window.addEventListener('mousemove', moveTerminalFileMarquee);
-  window.addEventListener('mouseup', stopTerminalFileMarquee);
-}
-
-function moveTerminalFileMarquee(event: MouseEvent) {
-  if (!terminalFileMarquee.value.active) return;
-  const point = getTerminalFileListPoint(event);
-  terminalFileMarquee.value = { ...terminalFileMarquee.value, currentX: point.x, currentY: point.y };
-  updateTerminalFileMarqueeSelection();
-}
-
-function stopTerminalFileMarquee() {
-  if (!terminalFileMarquee.value.active) return;
-  const state = terminalFileMarquee.value;
-  shouldSuppressTerminalFileClick = Math.abs(state.currentX - state.startX) > 4 || Math.abs(state.currentY - state.startY) > 4;
-  updateTerminalFileMarqueeSelection();
-  terminalFileMarquee.value = { ...terminalFileMarquee.value, active: false };
-  window.removeEventListener('mousemove', moveTerminalFileMarquee);
-  window.removeEventListener('mouseup', stopTerminalFileMarquee);
-  window.setTimeout(() => {
-    shouldSuppressTerminalFileClick = false;
-  }, 0);
-}
-
-function getTerminalFileListPoint(event: MouseEvent) {
-  const list = terminalFileListRef.value;
-  if (!list) return { x: 0, y: 0 };
-  const rect = list.getBoundingClientRect();
-  return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top + list.scrollTop,
-  };
-}
-
-function updateTerminalFileMarqueeSelection() {
-  const list = terminalFileListRef.value;
-  if (!list) return;
-  const state = terminalFileMarquee.value;
-  const marquee = {
-    left: Math.min(state.startX, state.currentX),
-    right: Math.max(state.startX, state.currentX),
-    top: Math.min(state.startY, state.currentY),
-    bottom: Math.max(state.startY, state.currentY),
-  };
-  const listRect = list.getBoundingClientRect();
-  const selectedEntries = terminalFileEntries.value.filter((entry) => {
-    if (isParentDirectoryEntry(entry)) return false;
-    const row = list.querySelector<HTMLElement>(`[data-terminal-file-path="${cssEscape(entry.path)}"]`);
-    if (!row) return false;
-    const rowRect = row.getBoundingClientRect();
-    const rowBox = {
-      left: rowRect.left - listRect.left,
-      right: rowRect.right - listRect.left,
-      top: rowRect.top - listRect.top + list.scrollTop,
-      bottom: rowRect.bottom - listRect.top + list.scrollTop,
-    };
-    return boxesIntersect(marquee, rowBox);
-  });
-  const nextPaths = new Set(state.additive ? state.basePaths : []);
-  for (const entry of selectedEntries) nextPaths.add(entry.path);
-  const nextEntries = terminalFileEntries.value.filter((entry) => nextPaths.has(entry.path) && !isParentDirectoryEntry(entry));
-  setTerminalFileSelection(nextEntries, nextEntries[0]?.path ?? '');
-}
-
-function boxesIntersect(
-  first: { left: number; right: number; top: number; bottom: number },
-  second: { left: number; right: number; top: number; bottom: number },
-) {
-  return first.left <= second.right && first.right >= second.left && first.top <= second.bottom && first.bottom >= second.top;
-}
-
 function cssEscape(value: string) {
   const escape = window.CSS?.escape;
   return escape ? escape(value) : value.replace(/["\\]/g, '\\$&');
 }
 
-function syncTerminalFileSelectionAfterEntriesChange(preferredEntry?: TerminalFileEntry | null) {
-  const availablePaths = new Set(terminalFileEntries.value.map((entry) => entry.path));
-  const nextPaths = new Set(Array.from(selectedTerminalFilePaths.value).filter((path) => availablePaths.has(path)));
-  if (preferredEntry && !isParentDirectoryEntry(preferredEntry) && availablePaths.has(preferredEntry.path)) {
-    nextPaths.add(preferredEntry.path);
-  }
-  selectedTerminalFilePaths.value = nextPaths;
-  selectedTerminalFile.value =
-    (preferredEntry && availablePaths.has(preferredEntry.path) ? preferredEntry : null) ??
-    terminalFileEntries.value.find((entry) => nextPaths.has(entry.path)) ??
-    getDefaultSelectedTerminalFile(terminalFileEntries.value);
-  if (selectedTerminalFile.value && !isParentDirectoryEntry(selectedTerminalFile.value)) {
-    terminalFileSelectionAnchorPath.value = selectedTerminalFile.value.path;
-    if (!selectedTerminalFilePaths.value.has(selectedTerminalFile.value.path)) {
-      selectedTerminalFilePaths.value = new Set([selectedTerminalFile.value.path]);
-    }
-  } else {
-    terminalFileSelectionAnchorPath.value = '';
-  }
-}
-
-function isTerminalFileSelected(entry: TerminalFileEntry) {
-  return selectedTerminalFilePaths.value.has(entry.path);
-}
-
-function getTerminalFileActionEntries(entry: TerminalFileEntry | null | undefined = selectedTerminalFile.value) {
-  if (entry && !isParentDirectoryEntry(entry) && selectedTerminalFilePaths.value.has(entry.path)) {
-    return selectedTerminalFiles.value;
-  }
-  if (entry && !isParentDirectoryEntry(entry)) return [entry];
-  return selectedTerminalFiles.value;
-}
-
-function openTerminalFileContextMenu(entry: TerminalFileEntry, event: MouseEvent) {
-  if (!activeTab.value) return;
-  event.preventDefault();
-  event.stopPropagation();
-  if (!isTerminalFileSelected(entry)) {
-    setTerminalFileSelection([entry], isParentDirectoryEntry(entry) ? '' : entry.path);
-  } else {
-    selectedTerminalFile.value = entry;
-  }
-  closeTerminalContextMenu();
-  closeTerminalTabContextMenu();
-  closeTerminalDirectoryContextMenu();
-  closeTerminalTabMenu();
-  closeTerminalSplitMenu();
-  terminalFileContextMenu.value = {
-    visible: true,
-    ...getTerminalFileContextMenuPosition(event),
-    entry,
-  };
-}
-
-function openTerminalDirectoryContextMenu(event: MouseEvent) {
-  if (!activeTab.value) return;
-  const target = event.target as Element | null;
-  if (target?.closest('.terminal-file-item') || target?.closest('.terminal-file-context-menu')) return;
-  event.preventDefault();
-  event.stopPropagation();
-  setTerminalFileSelection([], '');
-  closeTerminalContextMenu();
-  closeTerminalTabContextMenu();
-  closeTerminalFileContextMenu();
-  closeTerminalTabMenu();
-  closeTerminalSplitMenu();
-  terminalDirectoryContextMenu.value = {
-    visible: true,
-    ...getTerminalFileContextMenuPosition(event, TERMINAL_DIRECTORY_CONTEXT_MENU_HEIGHT),
-  };
-}
-
-function getTerminalFileContextMenuPosition(event: MouseEvent, menuHeight = TERMINAL_FILE_CONTEXT_MENU_HEIGHT) {
-  const padding = 8;
-  return {
-    x: Math.max(padding, Math.min(event.clientX, window.innerWidth - TERMINAL_FILE_CONTEXT_MENU_WIDTH - padding)),
-    y: Math.max(padding, Math.min(event.clientY, window.innerHeight - menuHeight - padding)),
-  };
-}
-
-function isTerminalContextSubmenuLeft(x: number, menuWidth = TERMINAL_FILE_CONTEXT_MENU_WIDTH) {
+function isTerminalContextSubmenuLeft(x: number, menuWidth = 220) {
   return x + menuWidth * 2 + 16 > window.innerWidth;
-}
-
-function closeTerminalFileContextMenu() {
-  if (!terminalFileContextMenu.value.visible) return;
-  terminalFileContextMenu.value = { visible: false, x: 0, y: 0, entry: null };
-}
-
-function closeTerminalDirectoryContextMenu() {
-  if (!terminalDirectoryContextMenu.value.visible) return;
-  terminalDirectoryContextMenu.value = { visible: false, x: 0, y: 0 };
 }
 
 function toggleTerminalTabMenu() {
@@ -1879,8 +1297,6 @@ function sendQuickCommandToTerminal(command: TerminalQuickCommand, execute: bool
 function closeTerminalContextMenus() {
   closeTerminalContextMenu();
   closeTerminalTabContextMenu();
-  closeTerminalFileContextMenu();
-  closeTerminalDirectoryContextMenu();
   closeTerminalTabMenu();
   closeTerminalSplitMenu();
 }
@@ -1888,13 +1304,6 @@ function closeTerminalContextMenus() {
 async function selectTerminalTabFromMenu(tab: TerminalTab) {
   closeTerminalTabMenu();
   await activateTab(tab.id);
-}
-
-async function runTerminalFileContextMenuItem(item: TerminalFileContextMenuItem) {
-  if (!item.enabled) return;
-  if (item.children?.length) return;
-  closeTerminalContextMenus();
-  await item.action();
 }
 
 async function runTerminalContextMenuItem(item: TerminalContextMenuItem) {
@@ -1918,8 +1327,6 @@ function openTerminalTabContextMenu(tab: TerminalTab, event: MouseEvent) {
     void activateTab(tab.id);
   }
   closeTerminalContextMenu();
-  closeTerminalFileContextMenu();
-  closeTerminalDirectoryContextMenu();
   closeTerminalTabMenu();
   closeTerminalSplitMenu();
   terminalTabContextMenu.value = {
@@ -1938,8 +1345,6 @@ function openTerminalContextMenu(tab: TerminalTab, event: MouseEvent) {
   }
   const selectedText = tab.kind === 'ssh' && tab.terminal.hasSelection() ? tab.terminal.getSelection() : '';
   closeTerminalTabContextMenu();
-  closeTerminalFileContextMenu();
-  closeTerminalDirectoryContextMenu();
   closeTerminalTabMenu();
   closeTerminalSplitMenu();
   terminalContextMenu.value = {
@@ -2414,6 +1819,12 @@ function getTerminalBufferContextMenu(tab: TerminalTab | null): TerminalContextM
   };
 }
 
+function writeTerminalTextFromSftp(value: string) {
+  if (!value || !activeTab.value) return;
+  activeTab.value.terminal.write(value);
+  activeTab.value.terminal.focus();
+}
+
 function toggleTerminalFilePanel() {
   if (!activeTerminalSupportsSshTools.value) return;
   if (terminalSidebarMode.value === 'files' && !isTerminalSidebarCollapsed.value) {
@@ -2471,1175 +1882,6 @@ function exportTerminalLog(tab: TerminalTab) {
 
 function sanitizeTerminalLogFileName(value: string) {
   return value.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') || 'terminal';
-}
-
-function startTerminalFileRename(entry: TerminalFileEntry) {
-  if (!activeTab.value || isParentDirectoryEntry(entry)) return;
-  setTerminalFileSelection([entry], entry.path);
-  terminalFileRename.value = {
-    path: entry.path,
-    originalName: entry.name,
-    draftName: entry.name,
-    saving: false,
-    error: '',
-  };
-  void nextTick(() => {
-    terminalFileRenameInput.value?.focus();
-    terminalFileRenameInput.value?.select();
-  });
-}
-
-function setTerminalFileRenameInput(element: Element | ComponentPublicInstance | null) {
-  terminalFileRenameInput.value = element instanceof HTMLInputElement ? element : null;
-}
-
-function cancelTerminalFileRename() {
-  terminalFileRename.value = null;
-}
-
-async function saveTerminalFileRename() {
-  const state = terminalFileRename.value;
-  if (!activeTab.value || !state || state.saving) return;
-  const newName = state.draftName.trim();
-  if (!newName) {
-    terminalFileRename.value = { ...state, error: '请输入新名称' };
-    return;
-  }
-  if (newName === state.originalName) {
-    cancelTerminalFileRename();
-    return;
-  }
-  terminalFileRename.value = { ...state, saving: true, error: '' };
-  try {
-    await renameTerminalFileEntry(activeTab.value.host.id, { path: state.path, newName });
-    terminalFileRename.value = null;
-    await loadTerminalDirectory(terminalFilePath.value);
-  } catch (error) {
-    if (handleTerminalAuthExpired(error)) return;
-    terminalFileRename.value = {
-      ...state,
-      saving: false,
-      error: error instanceof Error ? error.message : '重命名失败',
-    };
-    void nextTick(() => terminalFileRenameInput.value?.focus());
-  }
-}
-
-function isTerminalFileRenaming(entry: TerminalFileEntry) {
-  return terminalFileRename.value?.path === entry.path;
-}
-
-function openTerminalFileDeleteDialog(target: TerminalFileEntry | TerminalFileEntry[] | null = getTerminalFileActionEntries()) {
-  if (!activeTab.value) return;
-  const entries = Array.isArray(target) ? target : target ? [target] : [];
-  const deletableEntries = entries.filter((entry) => !isParentDirectoryEntry(entry));
-  if (!deletableEntries.length) return;
-  setTerminalFileSelection(deletableEntries, deletableEntries[0].path);
-  terminalFileDeleteDialog.value = {
-    visible: true,
-    entry: deletableEntries[0],
-    entries: deletableEntries,
-    deleting: false,
-    error: '',
-  };
-}
-
-function closeTerminalFileDeleteDialog() {
-  if (terminalFileDeleteDialog.value.deleting) return;
-  terminalFileDeleteDialog.value = {
-    visible: false,
-    entry: null,
-    entries: [],
-    deleting: false,
-    error: '',
-  };
-}
-
-async function confirmTerminalFileDelete() {
-  const dialog = terminalFileDeleteDialog.value;
-  const entries = dialog.entries.length ? dialog.entries : dialog.entry ? [dialog.entry] : [];
-  if (!activeTab.value || !entries.length || dialog.deleting) return;
-  terminalFileDeleteDialog.value = { ...dialog, deleting: true, error: '' };
-  try {
-    for (const entry of entries) {
-      await deleteTerminalFileEntry(activeTab.value.host.id, { path: entry.path });
-    }
-    terminalFileDeleteDialog.value = { visible: false, entry: null, entries: [], deleting: false, error: '' };
-    setTerminalFileSelection([], '');
-    await loadTerminalDirectory(terminalFilePath.value);
-  } catch (error) {
-    if (handleTerminalAuthExpired(error)) return;
-    terminalFileDeleteDialog.value = {
-      ...dialog,
-      deleting: false,
-      error: error instanceof Error ? error.message : '删除失败',
-    };
-  }
-}
-
-function openTerminalFileCreateDialog(mode: TerminalFileCreateMode) {
-  if (!activeTab.value) return;
-  const isDirectory = mode === 'directory';
-  terminalFileCreateDialog.value = {
-    visible: true,
-    mode,
-    name: mode === 'file' ? 'new-file' : isDirectory ? 'new-folder' : 'new-link',
-    targetPath: '',
-    octalMode: isDirectory ? '0755' : '0644',
-    openAfterCreate: isDirectory,
-    saving: false,
-    error: '',
-  };
-}
-
-function closeTerminalFileCreateDialog() {
-  if (terminalFileCreateDialog.value.saving) return;
-  terminalFileCreateDialog.value = {
-    visible: false,
-    mode: 'file',
-    name: '',
-    targetPath: '',
-    octalMode: '0644',
-    openAfterCreate: false,
-    saving: false,
-    error: '',
-  };
-}
-
-async function saveTerminalFileCreateDialog() {
-  const dialog = terminalFileCreateDialog.value;
-  if (!activeTab.value || !dialog.visible || dialog.saving) return;
-  const name = dialog.name.trim();
-  if (!name) {
-    terminalFileCreateDialog.value = { ...dialog, error: '请输入名称' };
-    return;
-  }
-  if (dialog.mode === 'symlink' && !dialog.targetPath.trim()) {
-    terminalFileCreateDialog.value = { ...dialog, error: '请输入目标路径' };
-    return;
-  }
-  terminalFileCreateDialog.value = { ...dialog, saving: true, error: '' };
-  try {
-    const endpoint =
-      dialog.mode === 'file'
-        ? 'create-file'
-        : dialog.mode === 'directory'
-          ? 'create-directory'
-          : 'create-symlink';
-    const payload =
-      dialog.mode === 'file'
-        ? { directory: terminalFilePath.value, filename: name, octalMode: normalizeTerminalFileOctalMode(dialog.octalMode) }
-        : dialog.mode === 'directory'
-          ? { directory: terminalFilePath.value, dirname: name, octalMode: normalizeTerminalFileOctalMode(dialog.octalMode) }
-          : { directory: terminalFilePath.value, linkName: name, targetPath: dialog.targetPath.trim() };
-    const created = await createTerminalFileEntry(activeTab.value.host.id, endpoint, payload);
-    terminalFileCreateDialog.value = {
-      visible: false,
-      mode: 'file',
-      name: '',
-      targetPath: '',
-      octalMode: '0644',
-      openAfterCreate: false,
-      saving: false,
-      error: '',
-    };
-    if (dialog.mode === 'directory' && dialog.openAfterCreate) {
-      await loadTerminalDirectory(created.path);
-      return;
-    }
-    await loadTerminalDirectory(terminalFilePath.value);
-    const createdEntry = terminalFileEntries.value.find((entry) => entry.path === created.path || entry.name === created.name) ?? null;
-    setTerminalFileSelection(createdEntry ? [createdEntry] : [], createdEntry?.path ?? '');
-  } catch (error) {
-    if (handleTerminalAuthExpired(error)) return;
-    terminalFileCreateDialog.value = {
-      ...dialog,
-      saving: false,
-      error: error instanceof Error ? error.message : '创建失败',
-    };
-  }
-}
-
-function terminalFileCreateTitle() {
-  if (terminalFileCreateDialog.value.mode === 'file') return '新建文件';
-  if (terminalFileCreateDialog.value.mode === 'directory') return '新建文件夹';
-  return '新建符号链接';
-}
-
-function terminalFileCreateNameLabel() {
-  if (terminalFileCreateDialog.value.mode === 'directory') return '目录：';
-  if (terminalFileCreateDialog.value.mode === 'file') return '文件：';
-  return '名称：';
-}
-
-function terminalFileCreateOpenLabel() {
-  return terminalFileCreateDialog.value.mode === 'directory' ? '创建后打开目录' : '创建后打开文件';
-}
-
-function isTerminalFileCreatePermissionChecked(mask: number) {
-  const mode = Number.parseInt(terminalFileCreateDialog.value.octalMode || '0', 8) || 0;
-  return Boolean(mode & mask);
-}
-
-function setTerminalFileCreatePermission(mask: number, checked: boolean) {
-  const current = Number.parseInt(terminalFileCreateDialog.value.octalMode || '0', 8) || 0;
-  const next = checked ? current | mask : current & ~mask;
-  terminalFileCreateDialog.value.octalMode = (next & 0o7777).toString(8).padStart(4, '0');
-}
-
-function setTerminalFileCreatePermissionFromEvent(mask: number, event: Event) {
-  setTerminalFileCreatePermission(mask, (event.target as HTMLInputElement).checked);
-}
-
-function getTerminalFileCreateSpecialOctalDigit() {
-  return normalizeTerminalFileOctalMode(terminalFileCreateDialog.value.octalMode).charAt(0);
-}
-
-function getTerminalFileCreateStandardOctalMode() {
-  return normalizeTerminalFileOctalMode(terminalFileCreateDialog.value.octalMode).slice(1);
-}
-
-function updateTerminalFileCreateOctalMode(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const standardMode = String(input.value || '').replace(/[^0-7]/g, '').slice(-3).padStart(3, '0');
-  terminalFileCreateDialog.value.octalMode = `${getTerminalFileCreateSpecialOctalDigit()}${standardMode}`;
-}
-
-function openTerminalCurrentDirectoryProperties() {
-  if (!activeTab.value) return;
-  void openTerminalFileProperties({
-    name: currentTerminalDirectoryName(),
-    type: 'directory',
-    modifiedAt: '',
-    path: terminalFilePath.value,
-  });
-}
-
-function currentTerminalDirectoryName() {
-  const value = String(terminalFilePath.value || '.').replace(/\/+$/, '');
-  if (!value || value === '.') return '.';
-  if (value === '/') return '/';
-  return value.split('/').filter(Boolean).pop() || value;
-}
-
-async function openTerminalFileProperties(entry: TerminalFileEntry) {
-  if (!activeTab.value || isParentDirectoryEntry(entry)) return;
-  setTerminalFileSelection([entry], entry.path);
-  terminalFilePropertiesDialog.value = {
-    visible: true,
-    loading: true,
-    saving: false,
-    error: '',
-    entry,
-    properties: null,
-    draft: { owner: '', group: '', octalMode: '0000' },
-    recursive: false,
-  };
-  try {
-    const properties = mergeTerminalFilePropertiesEntryIdentity(
-      await getTerminalFileProperties(activeTab.value.host.id, entry.path),
-      entry,
-    );
-    terminalFilePropertiesDialog.value = {
-      ...terminalFilePropertiesDialog.value,
-      loading: false,
-      properties,
-      draft: {
-        owner: getTerminalFileOwnerLabel(properties),
-        group: getTerminalFileGroupLabel(properties),
-        octalMode: normalizeTerminalFileOctalMode(properties.octalMode),
-      },
-    };
-  } catch (error) {
-    if (handleTerminalAuthExpired(error)) return;
-    terminalFilePropertiesDialog.value = {
-      ...terminalFilePropertiesDialog.value,
-      loading: false,
-      error: error instanceof Error ? error.message : '属性读取失败',
-    };
-  }
-}
-
-function closeTerminalFilePropertiesDialog() {
-  if (terminalFilePropertiesDialog.value.saving) return;
-  terminalFilePropertiesDialog.value = {
-    visible: false,
-    loading: false,
-    saving: false,
-    error: '',
-    entry: null,
-    properties: null,
-    draft: { owner: '', group: '', octalMode: '0000' },
-    recursive: false,
-  };
-}
-
-async function saveTerminalFileProperties() {
-  const dialog = terminalFilePropertiesDialog.value;
-  if (!activeTab.value || !dialog.properties || dialog.loading || dialog.saving) return;
-  const recursive = dialog.properties.type === 'directory' && dialog.recursive;
-  if (recursive && !window.confirm('确认要将所有权和权限递归应用到此目录及所有子目录/文件吗？')) return;
-  terminalFilePropertiesDialog.value = { ...dialog, saving: true, error: '' };
-  try {
-    const properties = await updateTerminalFileProperties(activeTab.value.host.id, {
-        path: dialog.properties.path,
-        owner: dialog.draft.owner,
-        group: dialog.draft.group,
-        octalMode: normalizeTerminalFileOctalMode(dialog.draft.octalMode),
-        recursive,
-      },
-    );
-    terminalFilePropertiesDialog.value = {
-      ...terminalFilePropertiesDialog.value,
-      saving: false,
-      properties,
-      draft: {
-        owner: getTerminalFileOwnerLabel(properties),
-        group: getTerminalFileGroupLabel(properties),
-        octalMode: normalizeTerminalFileOctalMode(properties.octalMode),
-      },
-      recursive: false,
-    };
-    closeTerminalFilePropertiesDialog();
-    await loadTerminalDirectory(terminalFilePath.value);
-  } catch (error) {
-    if (handleTerminalAuthExpired(error)) return;
-    terminalFilePropertiesDialog.value = {
-      ...terminalFilePropertiesDialog.value,
-      saving: false,
-      error: error instanceof Error ? error.message : '属性保存失败',
-    };
-  }
-}
-
-async function loadTerminalDirectory(path = terminalFilePath.value) {
-  if (!activeTab.value) return;
-  closeTerminalContextMenus();
-  const targetPath = resolveTerminalDirectoryPath(path);
-  const requestId = ++terminalFileListRequestId;
-  isTerminalFileListLoading.value = true;
-  terminalFileListError.value = '';
-
-  try {
-    const response = await listTerminalFiles(activeTab.value.host.id, { path: targetPath });
-    if (requestId !== terminalFileListRequestId) return;
-    terminalFilePath.value = response.path;
-    terminalFileEntries.value = sortTerminalFileEntries(response.entries);
-    terminalFileListProtocol.value = response.protocol;
-    syncTerminalFileSelectionAfterEntriesChange();
-  } catch (error) {
-    if (handleTerminalAuthExpired(error)) return;
-    if (requestId !== terminalFileListRequestId) return;
-    terminalFileListError.value = error instanceof Error ? error.message : '目录加载失败';
-  } finally {
-    if (requestId === terminalFileListRequestId) {
-      isTerminalFileListLoading.value = false;
-    }
-  }
-}
-
-function openTerminalDirectory(entry: TerminalFileEntry) {
-  if (!activeTab.value || entry.type !== 'directory') return;
-  void loadTerminalDirectory(entry.path);
-}
-
-function openTerminalParentDirectory() {
-  void loadTerminalDirectory(parentTerminalDirectoryPath(terminalFilePath.value));
-}
-
-function toggleTerminalFileCwdFollow() {
-  isTerminalFileFollowingCwd.value = !isTerminalFileFollowingCwd.value;
-  if (isTerminalFileFollowingCwd.value && activeTab.value?.currentCwd) {
-    void loadTerminalDirectory(activeTab.value.currentCwd);
-  }
-}
-
-function getTerminalFileDeleteDialogEntries() {
-  const dialog = terminalFileDeleteDialog.value;
-  return dialog.entries.length ? dialog.entries : dialog.entry ? [dialog.entry] : [];
-}
-
-function getTerminalFileDeleteDialogVisualType() {
-  const entries = getTerminalFileDeleteDialogEntries();
-  if (entries.length === 1) return entries[0].type;
-  return entries.length > 0 && entries.every((entry) => entry.type === 'directory') ? 'directory' : 'file';
-}
-
-function getTerminalFileDeleteDialogTitle() {
-  const entries = getTerminalFileDeleteDialogEntries();
-  if (entries.length > 1) return `确定要删除所选 ${entries.length} 项吗？`;
-  return `确定要删除“${entries[0]?.name ?? ''}”吗？`;
-}
-
-function getTerminalFileDeleteDialogDescription() {
-  const entries = getTerminalFileDeleteDialogEntries();
-  if (entries.length <= 1) {
-    return `此操作会从远端主机删除该${entries[0]?.type === 'directory' ? '目录及其内容' : '文件'}。`;
-  }
-  const directoryCount = entries.filter((entry) => entry.type === 'directory').length;
-  const fileCount = entries.length - directoryCount;
-  if (directoryCount && fileCount) return `此操作会从远端主机删除 ${fileCount} 个文件和 ${directoryCount} 个目录及其内容。`;
-  if (directoryCount) return `此操作会从远端主机删除 ${directoryCount} 个目录及其内容。`;
-  return `此操作会从远端主机删除 ${fileCount} 个文件。`;
-}
-
-function resolveTerminalDirectoryPath(path: string) {
-  const value = String(path || '.').trim();
-  if (value === '..') return parentTerminalDirectoryPath(terminalFilePath.value);
-  return joinTerminalPath(terminalFilePath.value, value);
-}
-
-function isParentDirectoryEntry(entry: TerminalFileEntry | null | undefined) {
-  return entry?.type === 'directory' && entry.name === '..';
-}
-
-function sortTerminalFileEntries(entries: TerminalFileEntry[]) {
-  const parentEntries = entries.filter(isParentDirectoryEntry);
-  const normalEntries = entries.filter((entry) => !isParentDirectoryEntry(entry));
-  normalEntries.sort(compareTerminalFileEntries);
-  return [...parentEntries.slice(0, 1), ...normalEntries];
-}
-
-function compareTerminalFileEntries(left: TerminalFileEntry, right: TerminalFileEntry) {
-  const leftRank = getTerminalFileSortRank(left);
-  const rightRank = getTerminalFileSortRank(right);
-  if (leftRank !== rightRank) return leftRank - rightRank;
-  return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' });
-}
-
-function getTerminalFileSortRank(entry: TerminalFileEntry) {
-  if (entry.name.startsWith('.')) return 0;
-  if (entry.type === 'directory') return 1;
-  return 2;
-}
-
-function getDefaultSelectedTerminalFile(entries: TerminalFileEntry[]) {
-  return entries.find((entry) => entry.type === 'file') ?? entries.find((entry) => entry.type === 'directory' && !isParentDirectoryEntry(entry)) ?? null;
-}
-
-function formatTerminalFileProtocol(protocol: string) {
-  const value = protocol.trim().toLowerCase();
-  if (!value) return '';
-  if (value.includes('sftp')) return 'SFTP';
-  if (value.includes('enhanced')) return 'SCP enhanced';
-  if (value.includes('scp')) return 'SCP normal';
-  return protocol;
-}
-
-function formatTerminalFileSize(entry: TerminalFileEntry) {
-  if (entry.type === 'directory') return '-';
-  if (entry.size === undefined || entry.size === null || entry.size === '') return '-';
-  return formatTerminalFileSizeValue(entry.size);
-}
-
-function formatTerminalFilePropertiesSize(properties: TerminalFileProperties | null) {
-  if (!properties) return '-';
-  return formatTerminalFileSizeValue(properties.size);
-}
-
-
-function terminalFileText(value?: string | number) {
-  if (value === undefined || value === null || value === '') return '-';
-  return String(value);
-}
-
-function getTerminalFileDirectoryPath(entry: TerminalFileEntry) {
-  if (isParentDirectoryEntry(entry)) return parentTerminalDirectoryPath(terminalFilePath.value);
-  if (entry.type === 'directory') return entry.path;
-  return parentTerminalDirectoryPath(entry.path);
-}
-
-function getTerminalFileResolvedPath(entry: TerminalFileEntry) {
-  if (isParentDirectoryEntry(entry)) return parentTerminalDirectoryPath(terminalFilePath.value);
-  return entry.path;
-}
-
-async function copyTerminalFileText(value: string) {
-  if (!value) return;
-  await navigator.clipboard?.writeText(value);
-}
-
-function sendTerminalFileTextToActiveTerminal(value: string) {
-  if (!value || !activeTab.value) return;
-  activeTab.value.terminal.write(value);
-  activeTab.value.terminal.focus();
-}
-
-function getTerminalFilePropertiesTypeLabel(properties: TerminalFileProperties | null) {
-  if (!properties) return '-';
-  return properties.type === 'directory' ? '文件夹' : '文件';
-}
-
-function getTerminalFileOwnerLabel(properties: TerminalFileProperties | null) {
-  if (!properties) return '-';
-  return properties.owner || String(properties.uid);
-}
-
-function mergeTerminalFilePropertiesEntryIdentity(properties: TerminalFileProperties, entry: TerminalFileEntry): TerminalFileProperties {
-  const owner = shouldUseTerminalFileEntryIdentity(properties.owner, properties.uid, entry.owner) ? String(entry.owner) : properties.owner;
-  const group = shouldUseTerminalFileEntryIdentity(properties.group, properties.gid, entry.group) ? String(entry.group) : properties.group;
-  if (owner === properties.owner && group === properties.group) return properties;
-  return { ...properties, owner, group };
-}
-
-function shouldUseTerminalFileEntryIdentity(current: string, numericId: number, entryValue?: string) {
-  const value = String(entryValue || '').trim();
-  return Boolean(value && value !== '-' && value !== String(numericId) && String(current || '').trim() === String(numericId));
-}
-
-function getTerminalFileGroupLabel(properties: TerminalFileProperties | null) {
-  if (!properties) return '-';
-  return properties.group || String(properties.gid);
-}
-
-function normalizeTerminalFileOctalMode(value: string) {
-  const normalized = String(value || '').replace(/[^0-7]/g, '').slice(-4);
-  return normalized.padStart(4, '0');
-}
-
-function updateTerminalFileOctalMode(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const standardMode = String(input.value || '').replace(/[^0-7]/g, '').slice(-3).padStart(3, '0');
-  terminalFilePropertiesDialog.value.draft.octalMode = `${getTerminalFileSpecialOctalDigit()}${standardMode}`;
-}
-
-function isTerminalFilePermissionChecked(mask: number) {
-  const mode = Number.parseInt(terminalFilePropertiesDialog.value.draft.octalMode || '0', 8) || 0;
-  return Boolean(mode & mask);
-}
-
-function setTerminalFilePermission(mask: number, checked: boolean) {
-  const current = Number.parseInt(terminalFilePropertiesDialog.value.draft.octalMode || '0', 8) || 0;
-  const next = checked ? current | mask : current & ~mask;
-  terminalFilePropertiesDialog.value.draft.octalMode = (next & 0o7777).toString(8).padStart(4, '0');
-}
-
-function setTerminalFilePermissionFromEvent(mask: number, event: Event) {
-  setTerminalFilePermission(mask, (event.target as HTMLInputElement).checked);
-}
-
-function getTerminalFileSpecialOctalDigit() {
-  return normalizeTerminalFileOctalMode(terminalFilePropertiesDialog.value.draft.octalMode).charAt(0);
-}
-
-function getTerminalFileStandardOctalMode() {
-  return normalizeTerminalFileOctalMode(terminalFilePropertiesDialog.value.draft.octalMode).slice(1);
-}
-
-async function downloadTerminalFile(entry = selectedTerminalFile.value) {
-  if (!activeTab.value || !entry || isParentDirectoryEntry(entry)) return;
-  await downloadTerminalFiles([entry]);
-}
-
-async function downloadTerminalFiles(entries = getTerminalFileActionEntries()) {
-  const tab = activeTab.value;
-  const downloadableEntries = entries.filter((entry) => !isParentDirectoryEntry(entry));
-  if (!tab || !downloadableEntries.length) return;
-  try {
-    terminalFileListError.value = '';
-    const directoryHandle = await pickTerminalDownloadDirectory();
-    if (!directoryHandle) return;
-    const hostId = tab.host.id;
-    const usedNames = new Set<string>();
-    for (const entry of downloadableEntries) {
-      const record = createTerminalTransferRecord('download', entry.name, entry.path, entry.type === 'file' ? 1 : 0);
-      if (entry.type === 'directory') {
-        await runTerminalTransfer(record, async () => {
-          await downloadTerminalDirectory(entry, directoryHandle, usedNames, hostId, record);
-        });
-        continue;
-      }
-      await runTerminalTransfer(record, async () => {
-        await downloadTerminalFileToDirectory(entry, directoryHandle, usedNames, hostId, record);
-      });
-    }
-  } catch (error) {
-    if (isTerminalDownloadAbortError(error)) return;
-    if (handleTerminalAuthExpired(error)) return;
-    terminalFileListError.value = error instanceof Error ? error.message : '下载失败';
-  }
-}
-
-function getTerminalFileDownloadUrl(entry: TerminalFileEntry) {
-  if (!activeTab.value) return '';
-  return buildTerminalFileDownloadRawUrl(activeTab.value.host.id, entry.path, terminalDownloadProtocol.value);
-}
-
-
-async function downloadTerminalDirectory(
-  entry: TerminalFileEntry,
-  directoryHandle: TerminalLocalDirectoryHandle,
-  usedNames: Set<string>,
-  hostId: number,
-  record?: TerminalTransferRecord,
-) {
-  throwIfTerminalTransferCanceled(record);
-  const directoryName = getUniqueTerminalDownloadFilename(sanitizeTerminalLocalFilename(entry.name || 'download'), usedNames);
-  const childDirectoryHandle = await directoryHandle.getDirectoryHandle(directoryName, { create: true });
-  await downloadTerminalDirectoryContents(entry.path, childDirectoryHandle, hostId, record);
-}
-
-async function downloadTerminalDirectoryContents(
-  path: string,
-  directoryHandle: TerminalLocalDirectoryHandle,
-  hostId: number,
-  record?: TerminalTransferRecord,
-) {
-  throwIfTerminalTransferCanceled(record);
-  const response = await listTerminalDownloadFiles(hostId, { path }, getTerminalTransferRequestOptions(record));
-  const usedNames = new Set<string>();
-  const files = response.entries.filter((child) => child.type === 'file' && !isParentDirectoryEntry(child));
-  const directories = response.entries.filter((child) => child.type === 'directory' && !isParentDirectoryEntry(child));
-  if (record && files.length) incrementTerminalTransferTotal(record, files.length);
-  for (const child of directories) {
-    throwIfTerminalTransferCanceled(record);
-    await downloadTerminalDirectory(child, directoryHandle, usedNames, hostId, record);
-  }
-  await runTerminalTransferPool(files, TERMINAL_DOWNLOAD_FILE_CONCURRENCY, async (child) => {
-    throwIfTerminalTransferCanceled(record);
-    await downloadTerminalFileToDirectory(child, directoryHandle, usedNames, hostId, record);
-  });
-}
-
-async function downloadTerminalFileToDirectory(
-  entry: TerminalFileEntry,
-  directoryHandle: TerminalLocalDirectoryHandle,
-  usedNames: Set<string>,
-  hostId: number,
-  record?: TerminalTransferRecord,
-) {
-  throwIfTerminalTransferCanceled(record);
-  setTerminalTransferCurrentFile(record, entry.name);
-  const response = await fetch(buildTerminalFileDownloadRawUrl(hostId, entry.path, terminalDownloadProtocol.value), {
-    credentials: 'include',
-    ...getTerminalTransferRequestOptions(record),
-  });
-  if (response.status === 401) throw new ApiUnauthorizedError(await readTerminalDownloadError(response));
-  if (!response.ok) throw new Error(await readTerminalDownloadError(response));
-  throwIfTerminalTransferCanceled(record);
-  const filename = getTerminalDownloadFilename(entry, getTerminalDownloadResponseFilename(response), usedNames);
-  await writeTerminalResponseToDirectory(directoryHandle, filename, response, record);
-  completeTerminalTransferFile(record);
-}
-
-async function runTerminalTransferPool<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>) {
-  let cursor = 0;
-  const workerCount = Math.min(Math.max(1, concurrency), items.length);
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (cursor < items.length) {
-        const item = items[cursor];
-        cursor += 1;
-        await worker(item);
-      }
-    }),
-  );
-}
-
-async function pickTerminalDownloadDirectory() {
-  const picker = (window as TerminalDirectoryPickerWindow).showDirectoryPicker;
-  if (!picker) {
-    throw new Error('当前浏览器不支持选择下载目录，请使用新版 Chrome 或 Edge，并通过 HTTPS 或 localhost 打开。');
-  }
-  return picker({ id: TERMINAL_DOWNLOAD_DIRECTORY_PICKER_ID, mode: 'readwrite' });
-}
-
-async function writeTerminalBlobToDirectory(directoryHandle: TerminalLocalDirectoryHandle, filename: string, blob: Blob) {
-  const fileHandle = await directoryHandle.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  try {
-    await writable.write(blob);
-    await writable.close();
-  } catch (error) {
-    await writable.abort?.();
-    throw error;
-  }
-}
-
-async function writeTerminalResponseToDirectory(
-  directoryHandle: TerminalLocalDirectoryHandle,
-  filename: string,
-  response: Response,
-  record?: TerminalTransferRecord,
-) {
-  const fileHandle = await directoryHandle.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  const totalBytes = Number(response.headers.get('Content-Length') || 0);
-  updateTerminalTransferBytes(record, {
-    currentBytes: 0,
-    currentTotalBytes: Number.isFinite(totalBytes) && totalBytes > 0 ? totalBytes : 0,
-  });
-  try {
-    if (!response.body) {
-      const blob = await response.blob();
-      throwIfTerminalTransferCanceled(record);
-      await writable.write(blob);
-      updateTerminalTransferBytes(record, { currentBytes: blob.size });
-      await writable.close();
-      return;
-    }
-    const reader = response.body.getReader();
-    let writtenBytes = 0;
-    while (true) {
-      throwIfTerminalTransferCanceled(record);
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      await writable.write(value);
-      writtenBytes += value.byteLength;
-      updateTerminalTransferBytes(record, { currentBytes: writtenBytes });
-    }
-    throwIfTerminalTransferCanceled(record);
-    await writable.close();
-  } catch (error) {
-    await writable.abort?.();
-    throw error;
-  }
-}
-
-function updateTerminalTransferBytes(record: TerminalTransferRecord | undefined, patch: Pick<Partial<TerminalTransferRecord>, 'currentBytes' | 'currentTotalBytes'>) {
-  if (!record) return;
-  updateTerminalTransferRecord(record, patch);
-}
-
-async function readTerminalDownloadError(response: Response) {
-  const text = await response.text();
-  if (!text) return '下载失败';
-  try {
-    const payload = JSON.parse(text) as { error?: unknown };
-    return typeof payload.error === 'string' && payload.error ? payload.error : '下载失败';
-  } catch {
-    return text;
-  }
-}
-
-function getTerminalDownloadResponseFilename(response: Response) {
-  const disposition = response.headers.get('Content-Disposition') || '';
-  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  if (encoded) {
-    try {
-      return decodeURIComponent(encoded);
-    } catch {
-      return encoded;
-    }
-  }
-  const quoted = disposition.match(/filename="?([^";]+)"?/i)?.[1];
-  return quoted || '';
-}
-
-function getTerminalDownloadFilename(entry: TerminalFileEntry, responseFilename: string, usedNames: Set<string>) {
-  return getUniqueTerminalDownloadFilename(
-    sanitizeTerminalLocalFilename(responseFilename || entry.name || 'download'),
-    usedNames,
-  );
-}
-
-function sanitizeTerminalLocalFilename(filename: string) {
-  const replaced = String(filename || 'download')
-    .replace(TERMINAL_LOCAL_FILENAME_RESERVED_CHARS, '_')
-    .replace(/[. ]+$/g, '')
-    .trim();
-  const safeName = replaced || 'download';
-  return TERMINAL_LOCAL_FILENAME_RESERVED_NAMES.has(safeName.toUpperCase()) ? `${safeName}_` : safeName;
-}
-
-function getUniqueTerminalDownloadFilename(filename: string, usedNames: Set<string>) {
-  if (!usedNames.has(filename.toLowerCase())) {
-    usedNames.add(filename.toLowerCase());
-    return filename;
-  }
-  const extensionIndex = filename.lastIndexOf('.');
-  const hasExtension = extensionIndex > 0;
-  const baseName = hasExtension ? filename.slice(0, extensionIndex) : filename;
-  const extension = hasExtension ? filename.slice(extensionIndex) : '';
-  let index = 2;
-  let nextName = `${baseName} (${index})${extension}`;
-  while (usedNames.has(nextName.toLowerCase())) {
-    index += 1;
-    nextName = `${baseName} (${index})${extension}`;
-  }
-  usedNames.add(nextName.toLowerCase());
-  return nextName;
-}
-
-function isTerminalDownloadAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === 'AbortError';
-}
-
-function startTerminalFileDragDownload(entry: TerminalFileEntry, event: DragEvent) {
-  if (!activeTab.value || entry.type !== 'file' || isParentDirectoryEntry(entry) || !event.dataTransfer) return;
-  if (!isTerminalFileSelected(entry)) setTerminalFileSelection([entry], entry.path);
-  selectedTerminalFile.value = entry;
-  const downloadableEntries = getTerminalFileDragDownloadEntries(entry);
-  if (!downloadableEntries.length) return;
-  const downloadItems = downloadableEntries.map((item) => ({
-    mimeType: 'application/octet-stream',
-    filename: item.name,
-    url: new URL(getTerminalFileDownloadUrl(item), window.location.origin).toString(),
-  }));
-  event.dataTransfer.effectAllowed = 'copy';
-  const firstItem = downloadItems[0];
-  event.dataTransfer.setData('DownloadURL', `${firstItem.mimeType}:${firstItem.filename}:${firstItem.url}`);
-  if (downloadItems.length === 1) {
-    event.dataTransfer.setData('text/uri-list', firstItem.url);
-    event.dataTransfer.setData('text/plain', firstItem.filename);
-    return;
-  }
-  event.dataTransfer.setData('DownloadURL-list', JSON.stringify(downloadItems));
-  event.dataTransfer.setData('text/uri-list', downloadItems.map((item) => item.url).join('\n'));
-  event.dataTransfer.setData('text/plain', downloadItems.map((item) => item.filename).join('\n'));
-}
-
-function getTerminalFileDragDownloadEntries(entry: TerminalFileEntry) {
-  const selectedEntries = selectedTerminalFiles.value.filter((item) => item.type === 'file' && !isParentDirectoryEntry(item));
-  if (isTerminalFileSelected(entry) && selectedEntries.length) return selectedEntries;
-  return entry.type === 'file' && !isParentDirectoryEntry(entry) ? [entry] : [];
-}
-
-function openTerminalUpload() {
-  if (!activeTab.value || isParentDirectoryEntry(selectedTerminalFile.value)) return;
-  closeTerminalContextMenus();
-  terminalFileUploadInput.value?.click();
-}
-
-function openTerminalFolderUpload() {
-  if (!activeTab.value) return;
-  closeTerminalContextMenus();
-  terminalFolderUploadInput.value?.click();
-}
-
-async function uploadTerminalFile(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!activeTab.value || !file) return;
-  await uploadTerminalFiles([{ file }]);
-}
-
-async function uploadTerminalFolder(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files || []);
-  input.value = '';
-  if (!activeTab.value || !files.length) return;
-  await uploadTerminalFiles(
-    files.map((file) => ({
-      file,
-      relativePath: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
-    })),
-  );
-}
-
-async function uploadTerminalFiles(items: TerminalFileUploadItem[]) {
-  const tab = activeTab.value;
-  if (!tab || !items.length) return;
-  const targetDirectory = terminalFilePath.value;
-  try {
-    terminalFileListError.value = '';
-    const groups = groupTerminalUploadItems(items);
-    for (const group of groups) {
-      const record = createTerminalTransferRecord('upload', group.name, targetDirectory, group.items.length);
-      await runTerminalTransfer(record, async () => {
-        for (const item of group.items) {
-          throwIfTerminalTransferCanceled(record);
-          const file = item.file;
-          setTerminalTransferCurrentFile(record, item.relativePath || file.name);
-          const contentBase64 = await fileToBase64(file);
-          throwIfTerminalTransferCanceled(record);
-          await uploadTerminalFile(
-            tab.host.id,
-            { directory: targetDirectory, filename: file.name, relativePath: item.relativePath || '', contentBase64 },
-            getTerminalTransferRequestOptions(record),
-          );
-          completeTerminalTransferFile(record);
-        }
-      });
-    }
-    if (activeTab.value?.id === tab.id && terminalFilePath.value === targetDirectory) {
-      await loadTerminalDirectory(targetDirectory);
-    }
-  } catch (error) {
-    if (isTerminalTransferCancelError(error)) return;
-    if (handleTerminalAuthExpired(error)) return;
-    terminalFileListError.value = error instanceof Error ? error.message : '文件上传失败';
-  } finally {
-    isTerminalFileDragOver.value = false;
-  }
-}
-
-function onTerminalFileDragEnter(event: DragEvent) {
-  if (!activeTab.value || !hasLocalDragFiles(event)) return;
-  event.preventDefault();
-  isTerminalFileDragOver.value = true;
-}
-
-function onTerminalFileDragOver(event: DragEvent) {
-  if (!activeTab.value || !hasLocalDragFiles(event)) return;
-  event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-  isTerminalFileDragOver.value = true;
-}
-
-function onTerminalFileDragLeave(event: DragEvent) {
-  if (!(event.currentTarget instanceof HTMLElement)) return;
-  const nextTarget = event.relatedTarget;
-  if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return;
-  isTerminalFileDragOver.value = false;
-}
-
-async function onTerminalFileDrop(event: DragEvent) {
-  if (!activeTab.value || !hasLocalDragFiles(event)) return;
-  event.preventDefault();
-  isTerminalFileDragOver.value = false;
-  const items = await getDroppedUploadItems(event);
-  if (!items.length) return;
-  await uploadTerminalFiles(items);
-}
-
-function hasLocalDragFiles(event: DragEvent) {
-  return Array.from(event.dataTransfer?.types || []).includes('Files');
-}
-
-async function getDroppedUploadItems(event: DragEvent): Promise<TerminalFileUploadItem[]> {
-  const entries = Array.from(event.dataTransfer?.items || [])
-    .map((item) => getTerminalDroppedFileSystemEntry(item))
-    .filter((entry): entry is TerminalFileSystemEntry => Boolean(entry));
-  if (entries.length) {
-    return (await Promise.all(entries.map((entry) => readTerminalDroppedEntry(entry)))).flat();
-  }
-  return Array.from(event.dataTransfer?.files || []).map((file) => ({ file, relativePath: getDroppedFileRelativePath(file) }));
-}
-
-function getTerminalDroppedFileSystemEntry(item: DataTransferItem): TerminalFileSystemEntry | null {
-  const maybeEntryItem = item as DataTransferItem & { webkitGetAsEntry?: () => TerminalFileSystemEntry | null };
-  return maybeEntryItem.webkitGetAsEntry?.() ?? null;
-}
-
-async function readTerminalDroppedEntry(entry: TerminalFileSystemEntry, parentPath = ''): Promise<TerminalFileUploadItem[]> {
-  const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
-  if (entry.isFile && entry.file) {
-    const file = await readTerminalDroppedFile(entry);
-    return [{ file, relativePath }];
-  }
-  if (!entry.isDirectory || !entry.createReader) return [];
-  const children = await readTerminalDroppedDirectoryEntries(entry);
-  return (await Promise.all(children.map((child) => readTerminalDroppedEntry(child, relativePath)))).flat();
-}
-
-function readTerminalDroppedFile(entry: TerminalFileSystemEntry): Promise<File> {
-  return new Promise((resolve, reject) => {
-    entry.file?.(resolve, reject);
-  });
-}
-
-function readTerminalDroppedDirectoryEntries(entry: TerminalFileSystemEntry): Promise<TerminalFileSystemEntry[]> {
-  const reader = entry.createReader?.();
-  if (!reader) return Promise.resolve([]);
-  const entries: TerminalFileSystemEntry[] = [];
-  return new Promise((resolve, reject) => {
-    const readBatch = () => {
-      reader.readEntries((batch) => {
-        if (!batch.length) {
-          resolve(entries);
-          return;
-        }
-        entries.push(...batch);
-        readBatch();
-      }, reject);
-    };
-    readBatch();
-  });
-}
-
-function getDroppedFileRelativePath(file: File) {
-  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || '';
-}
-
-function groupTerminalUploadItems(items: TerminalFileUploadItem[]) {
-  const groups = new Map<string, TerminalFileUploadItem[]>();
-  for (const item of items) {
-    const key = item.relativePath ? item.relativePath.replace(/\\/g, '/').split('/')[0] || item.file.name : item.file.name;
-    groups.set(key, [...(groups.get(key) ?? []), item]);
-  }
-  return Array.from(groups, ([name, groupItems]) => ({ name, items: groupItems }));
-}
-
-function createTerminalTransferRecord(kind: TerminalTransferKind, name: string, path: string, totalFiles = 0) {
-  const now = Date.now();
-  const record: TerminalTransferRecord = {
-    id: `transfer-${now}-${Math.random().toString(36).slice(2, 8)}`,
-    kind,
-    status: 'queued',
-    name,
-    path,
-    currentFile: '',
-    currentBytes: 0,
-    currentTotalBytes: 0,
-    completedFiles: 0,
-    totalFiles,
-    progress: totalFiles > 0 ? 0 : 0,
-    error: '',
-    canceled: false,
-    abortController: new AbortController(),
-    createdAt: now,
-    updatedAt: now,
-  };
-  terminalTransferRecords.value = [record, ...terminalTransferRecords.value];
-  return record;
-}
-
-async function runTerminalTransfer(record: TerminalTransferRecord, work: () => Promise<void>) {
-  updateTerminalTransferRecord(record, { status: 'running', error: '' });
-  try {
-    await work();
-    if (record.canceled) {
-      updateTerminalTransferRecord(record, { status: 'canceled', progress: record.progress });
-      return;
-    }
-    updateTerminalTransferRecord(record, { status: 'success', progress: 100, currentFile: '' });
-  } catch (error) {
-    if (isTerminalTransferCancelError(error) || record.canceled) {
-      updateTerminalTransferRecord(record, { status: 'canceled' });
-      return;
-    }
-    updateTerminalTransferRecord(record, {
-      status: 'error',
-      error: error instanceof Error ? error.message : '传输失败',
-    });
-    throw error;
-  }
-}
-
-function updateTerminalTransferRecord(record: TerminalTransferRecord, patch: Partial<TerminalTransferRecord>) {
-  Object.assign(record, patch, { updatedAt: Date.now() });
-  terminalTransferRecords.value = [...terminalTransferRecords.value];
-}
-
-function incrementTerminalTransferTotal(record: TerminalTransferRecord | undefined, count: number) {
-  if (!record || count <= 0) return;
-  updateTerminalTransferRecord(record, {
-    totalFiles: record.totalFiles + count,
-    progress: calculateTerminalTransferProgress(record.completedFiles, record.totalFiles + count),
-  });
-}
-
-function setTerminalTransferCurrentFile(record: TerminalTransferRecord | undefined, currentFile: string) {
-  if (!record) return;
-  updateTerminalTransferRecord(record, { currentFile, currentBytes: 0, currentTotalBytes: 0 });
-}
-
-function completeTerminalTransferFile(record: TerminalTransferRecord | undefined) {
-  if (!record) return;
-  const completedFiles = record.completedFiles + 1;
-  const totalFiles = Math.max(record.totalFiles, completedFiles);
-  updateTerminalTransferRecord(record, {
-    completedFiles,
-    totalFiles,
-    progress: calculateTerminalTransferProgress(completedFiles, totalFiles),
-  });
-}
-
-function calculateTerminalTransferProgress(completedFiles: number, totalFiles: number) {
-  if (totalFiles <= 0) return 0;
-  return Math.max(0, Math.min(100, Math.round((completedFiles / totalFiles) * 100)));
-}
-
-function cancelTerminalTransfer(record: TerminalTransferRecord) {
-  if (!isTerminalTransferActive(record)) return;
-  updateTerminalTransferRecord(record, { canceled: true, status: 'canceled' });
-  record.abortController.abort();
-}
-
-function cancelAllTerminalTransfers() {
-  for (const record of terminalTransferRecords.value) {
-    if (isTerminalTransferActive(record)) cancelTerminalTransfer(record);
-  }
-}
-
-function clearTerminalTransferRecords() {
-  terminalTransferRecords.value = terminalTransferRecords.value.filter(isTerminalTransferActive);
-}
-
-function isTerminalTransferActive(record: TerminalTransferRecord) {
-  return record.status === 'queued' || record.status === 'running';
-}
-
-function throwIfTerminalTransferCanceled(record?: TerminalTransferRecord) {
-  if (record?.canceled || record?.abortController.signal.aborted) throw new DOMException('传输已取消', 'AbortError');
-}
-
-function isTerminalTransferCancelError(error: unknown) {
-  return error instanceof DOMException && error.name === 'AbortError';
-}
-
-function getTerminalTransferRequestOptions(record?: TerminalTransferRecord): RequestInit {
-  return record ? { signal: record.abortController.signal } : {};
-}
-
-function getTerminalDownloadProtocolLabel(protocol = terminalDownloadProtocol.value) {
-  if (protocol === 'sftp') return 'SFTP';
-  if (protocol === 'scp') return 'SCP';
-  return '自动';
-}
-
-function getTerminalTransferStatusText(record: TerminalTransferRecord) {
-  if (record.status === 'queued') return '等待中';
-  if (record.status === 'running') {
-    if (!record.currentFile) return '传输中';
-    const bytesText =
-      record.currentTotalBytes > 0
-        ? `（${formatTerminalFileSizeValue(record.currentBytes)} / ${formatTerminalFileSizeValue(record.currentTotalBytes)}）`
-        : record.currentBytes > 0
-          ? `（${formatTerminalFileSizeValue(record.currentBytes)}）`
-          : '';
-    return `传输中：${record.currentFile}${bytesText}`;
-  }
-  if (record.status === 'success') return '已完成';
-  if (record.status === 'canceled') return '已取消';
-  return record.error || '传输失败';
-}
-
-function getTerminalTransferCountText(record: TerminalTransferRecord) {
-  if (!record.totalFiles) return record.status === 'running' ? '扫描中' : '0 / 0';
-  return `${record.completedFiles} / ${record.totalFiles}`;
-}
-
-function getTerminalTransferProgressStyle(record: TerminalTransferRecord): Record<string, string> {
-  return { width: `${Math.max(0, Math.min(100, record.progress))}%` };
-}
-
-function startTerminalTransferPanelResize(event: MouseEvent) {
-  if (event.button !== 0) return;
-  event.preventDefault();
-  isTerminalTransferPanelResizing.value = true;
-  terminalTransferResizeStartY = event.clientY;
-  terminalTransferResizeStartHeight = terminalTransferPanelHeight.value;
-  window.addEventListener('mousemove', resizeTerminalTransferPanel);
-  window.addEventListener('mouseup', stopTerminalTransferPanelResize);
-}
-
-function resizeTerminalTransferPanel(event: MouseEvent) {
-  if (!isTerminalTransferPanelResizing.value) return;
-  const delta = terminalTransferResizeStartY - event.clientY;
-  terminalTransferPanelHeight.value = clampTerminalTransferPanelHeight(terminalTransferResizeStartHeight + delta);
-}
-
-function stopTerminalTransferPanelResize() {
-  if (!isTerminalTransferPanelResizing.value) return;
-  isTerminalTransferPanelResizing.value = false;
-  window.removeEventListener('mousemove', resizeTerminalTransferPanel);
-  window.removeEventListener('mouseup', stopTerminalTransferPanelResize);
-}
-
-function syncTerminalTransferPanelHeight() {
-  const nextHeight = clampTerminalTransferPanelHeight(terminalTransferPanelHeight.value);
-  if (nextHeight !== terminalTransferPanelHeight.value) terminalTransferPanelHeight.value = nextHeight;
-}
-
-function clampTerminalTransferPanelHeight(height: number) {
-  const browserHeight = terminalFileBrowserRef.value?.getBoundingClientRect().height ?? 0;
-  const maxByBrowser = browserHeight ? Math.floor(browserHeight * 0.45) : TERMINAL_TRANSFER_PANEL_MAX_HEIGHT;
-  const maxHeight = Math.max(TERMINAL_TRANSFER_PANEL_MIN_HEIGHT, Math.min(TERMINAL_TRANSFER_PANEL_MAX_HEIGHT, maxByBrowser));
-  return Math.min(Math.max(height, TERMINAL_TRANSFER_PANEL_MIN_HEIGHT), maxHeight);
 }
 
 function toggleTerminalQuickCommandPanel() {
@@ -3828,11 +2070,6 @@ watch([activeTabId, terminalSidebarMode], () => {
   if (!activeTerminalSupportsSshTools.value && (terminalSidebarMode.value === 'files' || terminalSidebarMode.value === 'commands')) {
     terminalSidebarMode.value = 'hosts';
   }
-  if (activeTerminalSupportsSshTools.value && terminalSidebarMode.value === 'files') {
-    terminalFilePath.value = '.';
-    void loadTerminalDirectory('.');
-    void nextTick(syncTerminalTransferPanelHeight);
-  }
   if (
     activeTerminalSupportsSshTools.value &&
     canUseTerminalQuickCommands.value &&
@@ -3881,7 +2118,7 @@ const terminalShellStyle = computed<Record<string, string>>(() => ({
 }));
 onMounted(async () => {
   window.addEventListener('click', closeTerminalContextMenus);
-  window.addEventListener('keydown', closeTerminalFileContextMenuOnEscape);
+  window.addEventListener('keydown', closeTerminalContextMenusOnEscape);
   window.addEventListener('resize', syncTerminalSidebarWidth);
   window.addEventListener('resize', syncTerminalQuickCommandPanelHeight);
   window.addEventListener('resize', syncTerminalTabsScrollStateSoon);
@@ -3912,11 +2149,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopSidebarResize();
-  stopTerminalTransferPanelResize();
   stopTerminalQuickCommandPanelResize();
   stopTerminalMonitorPolling();
   window.removeEventListener('click', closeTerminalContextMenus);
-  window.removeEventListener('keydown', closeTerminalFileContextMenuOnEscape);
+  window.removeEventListener('keydown', closeTerminalContextMenusOnEscape);
   window.removeEventListener('resize', syncTerminalSidebarWidth);
   window.removeEventListener('resize', syncTerminalQuickCommandPanelHeight);
   window.removeEventListener('resize', syncTerminalTabsScrollStateSoon);
@@ -3926,17 +2162,13 @@ onBeforeUnmount(() => {
   terminalResize.disposeAll();
 });
 
-function closeTerminalFileContextMenuOnEscape(event: KeyboardEvent) {
+function closeTerminalContextMenusOnEscape(event: KeyboardEvent) {
   if (event.key !== 'Escape') return;
   if (isTerminalSearchOpen.value) {
     closeTerminalSearch();
     return;
   }
   closeTerminalContextMenus();
-  closeTerminalFileDeleteDialog();
-  closeTerminalFileCreateDialog();
-  cancelTerminalFileRename();
-  closeTerminalFilePropertiesDialog();
 }
 
 async function loadTree() {
@@ -3990,9 +2222,6 @@ async function activateTab(tabId: string) {
       tab.terminal.focus();
     } else {
       tab.guacDisplayElement?.focus();
-    }
-    if (tab.kind === 'ssh' && isTerminalFileFollowingCwd.value && tab.currentCwd) {
-      void loadTerminalDirectory(tab.currentCwd);
     }
   }
 }
@@ -4365,9 +2594,6 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
     const path = String(message.path || '').trim();
     if (!path) return;
     tab.currentCwd = path;
-    if (isTerminalFileFollowingCwd.value && tab.id === activeTabId.value) {
-      void loadTerminalDirectory(path);
-    }
     return;
   }
 
@@ -4457,7 +2683,6 @@ function clampTerminalSidebarWidth(width: number) {
 function syncTerminalSidebarWidth() {
   if (isTerminalSidebarCollapsed.value) {
     fitActiveTerminalSoon();
-    syncTerminalTransferPanelHeight();
     return;
   }
   const nextWidth = clampTerminalSidebarWidth(sidebarWidth.value);
@@ -4465,7 +2690,6 @@ function syncTerminalSidebarWidth() {
     sidebarWidth.value = nextWidth;
     window.localStorage.setItem(TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY, String(nextWidth));
   }
-  syncTerminalTransferPanelHeight();
   fitActiveTerminalSoon();
 }
 
@@ -5019,499 +3243,16 @@ function readTerminalQuickCommandPanelCollapsed() {
             <p v-else-if="!rows.length" class="terminal-tree-empty">没有匹配的主机。</p>
           </div>
         </template>
-        <template v-else-if="terminalSidebarMode === 'files'">
-          <div ref="terminalFileBrowserRef" class="terminal-file-browser" :style="terminalTransferPanelStyle">
-            <header class="terminal-file-title">
-              <strong>文件浏览器</strong>
-              <span class="terminal-file-node">{{ activeTerminalNodeName }}</span>
-            </header>
-            <div class="terminal-file-toolbar">
-              <button type="button" title="新建文件" aria-label="新建文件" @click="openTerminalFileCreateDialog('file')"><AppIcon name="plus" :size="15" /></button>
-              <button type="button" title="新建文件夹" aria-label="新建文件夹" @click="openTerminalFileCreateDialog('directory')"><AppIcon name="folderPlus" :size="15" /></button>
-              <span></span>
-              <button type="button" title="上传" aria-label="上传" @click="openTerminalUpload"><AppIcon name="upload" :size="15" /></button>
-              <button type="button" title="下载" aria-label="下载" :disabled="!canDownloadSelectedTerminalFiles" @click="downloadTerminalFiles()"><AppIcon name="download" :size="15" /></button>
-              <button
-                type="button"
-                title="删除"
-                aria-label="删除"
-                :disabled="!selectedTerminalFileCount"
-                @click="openTerminalFileDeleteDialog()"
-              >
-                <AppIcon name="trash" :size="15" />
-              </button>
-              <span></span>
-              <button type="button" title="返回上级" aria-label="返回上级" @click="openTerminalParentDirectory"><AppIcon name="chevronRight" :size="15" /></button>
-              <button type="button" title="刷新" aria-label="刷新" @click="loadTerminalDirectory()"><AppIcon name="refresh" :size="15" /></button>
-              <span></span>
-              <button type="button" title="搜索" aria-label="搜索"><AppIcon name="search" :size="15" /></button>
-            </div>
-            <div class="terminal-file-path">
-              <span>{{ terminalFilePath }}</span>
-              <button type="button" title="收藏路径" aria-label="收藏路径"><AppIcon name="folder" :size="14" /></button>
-            </div>
-            <div class="terminal-file-table">
-              <div class="terminal-file-table-head">
-                <button type="button">名称 <em>▲</em></button>
-                <span>修改时间</span>
-                <span>大小</span>
-                <span>权限</span>
-                <span>所有者</span>
-                <span>组</span>
-              </div>
-              <div
-                ref="terminalFileListRef"
-                class="terminal-file-list"
-                :class="{ 'drag-over': isTerminalFileDragOver, selecting: terminalFileMarquee.active }"
-                @contextmenu="openTerminalDirectoryContextMenu"
-                @mousedown="startTerminalFileMarquee"
-                @dragenter="onTerminalFileDragEnter"
-                @dragover="onTerminalFileDragOver"
-                @dragleave="onTerminalFileDragLeave"
-                @drop="onTerminalFileDrop"
-              >
-                <div
-                  v-for="entry in terminalFileEntries"
-                  :key="entry.name"
-                  class="terminal-file-item"
-                  :class="{ selected: isTerminalFileSelected(entry), parent: isParentDirectoryEntry(entry) }"
-                  :data-terminal-file-path="entry.path"
-                  :draggable="Boolean(activeTab) && entry.type === 'file' && isTerminalFileSelected(entry)"
-                  role="button"
-                  :tabindex="activeTab ? 0 : -1"
-                  :aria-disabled="!activeTab"
-                  @click="selectTerminalFile(entry, $event)"
-                  @contextmenu="openTerminalFileContextMenu(entry, $event)"
-                  @mousedown="!isTerminalFileSelected(entry) && startTerminalFileMarquee($event)"
-                  @dragstart="startTerminalFileDragDownload(entry, $event)"
-                  @dblclick="!isTerminalFileRenaming(entry) && entry.type === 'directory' && openTerminalDirectory(entry)"
-                  @keydown.enter.prevent="!isTerminalFileRenaming(entry) && entry.type === 'directory' && openTerminalDirectory(entry)"
-                >
-                  <span class="terminal-file-name">
-                    <AppIcon :name="entry.type === 'directory' ? 'folder' : 'settings'" :size="15" />
-                    <input
-                      v-if="isTerminalFileRenaming(entry)"
-                      :ref="setTerminalFileRenameInput"
-                      v-model="terminalFileRename!.draftName"
-                      class="terminal-file-rename-input"
-                      type="text"
-                      :disabled="terminalFileRename?.saving"
-                      @click.stop
-                      @dblclick.stop
-                      @keydown.enter.prevent.stop="saveTerminalFileRename"
-                      @keydown.esc.prevent.stop="cancelTerminalFileRename"
-                      @blur="saveTerminalFileRename"
-                    />
-                    <strong v-else>{{ entry.name }}</strong>
-                  </span>
-                  <time>{{ entry.modifiedAt }}</time>
-                  <span class="terminal-file-size">{{ formatTerminalFileSize(entry) }}</span>
-                  <span class="terminal-file-permissions">{{ terminalFileText(entry.permissions) }}</span>
-                  <span>{{ terminalFileText(entry.owner) }}</span>
-                  <span>{{ terminalFileText(entry.group) }}</span>
-                </div>
-                <p v-if="!activeTab" class="terminal-tree-empty">请选择服务器</p>
-                <p v-else-if="isTerminalFileListLoading" class="terminal-tree-empty">目录加载中...</p>
-                <p v-else-if="terminalFileListError" class="terminal-tree-empty">{{ terminalFileListError }}</p>
-                <div v-if="isTerminalFileDragOver" class="terminal-file-drop-hint">
-                  <AppIcon name="upload" :size="22" />
-                  <strong>释放后上传到当前目录</strong>
-                </div>
-                <div v-if="terminalFileMarquee.active" class="terminal-file-marquee" :style="terminalFileMarqueeStyle"></div>
-              </div>
-            </div>
-            <footer class="terminal-file-status">
-              <span>{{ terminalFileSelectionStatusText }}</span>
-              <span class="terminal-file-protocol" :class="terminalFileStatus">{{ terminalFileStatusText }}</span>
-              <label class="terminal-file-download-protocol" :title="`下载方式：${getTerminalDownloadProtocolLabel()}`">
-                <span>下载</span>
-                <select v-model="terminalDownloadProtocol" aria-label="下载方式">
-                  <option value="auto">自动</option>
-                  <option value="sftp">SFTP</option>
-                  <option value="scp">SCP</option>
-                </select>
-              </label>
-              <div>
-                <button
-                  type="button"
-                  :title="terminalFileFollowCwdLabel"
-                  :aria-label="terminalFileFollowCwdLabel"
-                  :aria-pressed="isTerminalFileFollowingCwd"
-                  :class="{ active: isTerminalFileFollowingCwd }"
-                  @click="toggleTerminalFileCwdFollow"
-                >
-                  <AppIcon name="refresh" :size="15" />
-                </button>
-              </div>
-            </footer>
-            <section class="terminal-transfer-panel" :class="{ resizing: isTerminalTransferPanelResizing }">
-              <button
-                class="terminal-transfer-resizer"
-                type="button"
-                title="调整文件传输栏高度"
-                aria-label="调整文件传输栏高度"
-                @mousedown="startTerminalTransferPanelResize"
-              ></button>
-              <header class="terminal-transfer-header">
-                <strong>文件传输</strong>
-                <div>
-                  <button type="button" title="取消全部" aria-label="取消全部" :disabled="!hasRunningTerminalTransfers" @click="cancelAllTerminalTransfers">
-                    <AppIcon name="x" :size="14" />
-                  </button>
-                  <button type="button" title="清空记录" aria-label="清空记录" :disabled="!hasClearableTerminalTransfers" @click="clearTerminalTransferRecords">
-                    <AppIcon name="trash" :size="14" />
-                  </button>
-                </div>
-              </header>
-              <div class="terminal-transfer-list">
-                <p v-if="!terminalTransferRecords.length" class="terminal-transfer-empty">无传输记录</p>
-                <article
-                  v-for="record in terminalTransferRecords"
-                  :key="record.id"
-                  class="terminal-transfer-item"
-                  :class="[record.kind, record.status]"
-                >
-                  <AppIcon :name="record.kind === 'upload' ? 'upload' : 'download'" :size="15" />
-                  <div class="terminal-transfer-main">
-                    <div class="terminal-transfer-line">
-                      <strong>{{ record.name }}</strong>
-                      <span>{{ getTerminalTransferCountText(record) }}</span>
-                    </div>
-                    <div class="terminal-transfer-progress" aria-hidden="true">
-                      <i :style="getTerminalTransferProgressStyle(record)"></i>
-                    </div>
-                    <p>{{ getTerminalTransferStatusText(record) }}</p>
-                  </div>
-                  <button
-                    type="button"
-                    title="取消"
-                    aria-label="取消"
-                    :disabled="!isTerminalTransferActive(record)"
-                    @click="cancelTerminalTransfer(record)"
-                  >
-                    <AppIcon name="x" :size="13" />
-                  </button>
-                </article>
-              </div>
-            </section>
-            <input ref="terminalFileUploadInput" hidden type="file" @change="uploadTerminalFile" />
-            <input ref="terminalFolderUploadInput" hidden type="file" multiple webkitdirectory @change="uploadTerminalFolder" />
-            <div
-              v-if="terminalFileContextMenu.visible"
-              class="terminal-file-context-menu"
-              :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalFileContextMenu.x) }"
-              :style="{ left: `${terminalFileContextMenu.x}px`, top: `${terminalFileContextMenu.y}px` }"
-              role="menu"
-              @click.stop
-              @contextmenu.prevent.stop
-            >
-              <div
-                v-for="item in terminalFileContextMenuItems"
-                :key="item.id"
-                class="terminal-file-context-menu-row"
-                :class="{ separator: item.separatorBefore }"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="terminal-file-context-menu-item"
-                  :class="{ danger: item.danger }"
-                  :disabled="!item.enabled"
-                  @click="runTerminalFileContextMenuItem(item)"
-                >
-                  <AppIcon :name="item.icon" :size="15" />
-                  <span>{{ item.label }}</span>
-                  <AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
-                </button>
-                <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
-                  <button
-                    v-for="child in item.children"
-                    :key="child.id"
-                    type="button"
-                    role="menuitem"
-                    class="terminal-file-context-menu-item"
-                    :disabled="!child.enabled"
-                    @click="runTerminalFileContextMenuItem(child)"
-                  >
-                    <AppIcon :name="child.icon" :size="15" />
-                    <span>{{ child.label }}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div
-              v-if="terminalDirectoryContextMenu.visible"
-              class="terminal-file-context-menu terminal-file-directory-context-menu"
-              :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalDirectoryContextMenu.x) }"
-              :style="{ left: `${terminalDirectoryContextMenu.x}px`, top: `${terminalDirectoryContextMenu.y}px` }"
-              role="menu"
-              @click.stop
-              @contextmenu.prevent.stop
-            >
-              <div
-                v-for="item in terminalDirectoryContextMenuItems"
-                :key="item.id"
-                class="terminal-file-context-menu-row"
-                :class="{ separator: item.separatorBefore }"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="terminal-file-context-menu-item"
-                  :disabled="!item.enabled"
-                  @click="runTerminalFileContextMenuItem(item)"
-                >
-                  <AppIcon :name="item.icon" :size="15" />
-                  <span>{{ item.label }}</span>
-                  <AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
-                </button>
-                <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
-                  <button
-                    v-for="child in item.children"
-                    :key="child.id"
-                    type="button"
-                    role="menuitem"
-                    class="terminal-file-context-menu-item"
-                    :disabled="!child.enabled"
-                    @click="runTerminalFileContextMenuItem(child)"
-                  >
-                    <AppIcon :name="child.icon" :size="15" />
-                    <span>{{ child.label }}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <Teleport to="body">
-              <div
-                v-if="terminalFileCreateDialog.visible"
-                class="modal-backdrop terminal-file-create-backdrop"
-                @click.self="closeTerminalFileCreateDialog"
-              >
-                <section class="terminal-file-create-modal" role="dialog" aria-modal="true">
-                  <header>
-                    <h2>{{ terminalFileCreateTitle() }}</h2>
-                    <button type="button" aria-label="关闭" :disabled="terminalFileCreateDialog.saving" @click="closeTerminalFileCreateDialog">
-                      <AppIcon name="x" :size="16" />
-                    </button>
-                  </header>
-                  <div class="terminal-file-create-body">
-                    <label class="terminal-file-create-name-row">
-                      <span>{{ terminalFileCreateNameLabel() }}</span>
-                      <input v-model="terminalFileCreateDialog.name" type="text" :disabled="terminalFileCreateDialog.saving" autofocus @keydown.enter.prevent="saveTerminalFileCreateDialog" />
-                    </label>
-                    <label v-if="terminalFileCreateDialog.mode === 'symlink'" class="terminal-file-create-name-row">
-                      <span>目标路径：</span>
-                      <input v-model="terminalFileCreateDialog.targetPath" type="text" :disabled="terminalFileCreateDialog.saving" @keydown.enter.prevent="saveTerminalFileCreateDialog" />
-                    </label>
-                    <div v-if="terminalFileCreateDialog.mode !== 'symlink'" class="terminal-file-create-permissions">
-                      <span class="terminal-file-create-label">权限：</span>
-                      <div class="terminal-file-create-permission-grid" role="group" aria-label="权限">
-                        <span></span>
-                        <span>用户</span>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o400)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o400, $event)" /> R</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o200)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o200, $event)" /> W</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o100)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o100, $event)" /> X</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o4000)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o4000, $event)" /> UID</label>
-                        <span></span>
-                        <span>组</span>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o040)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o040, $event)" /> R</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o020)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o020, $event)" /> W</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o010)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o010, $event)" /> X</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o2000)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o2000, $event)" /> GID</label>
-                        <span></span>
-                        <span>其他</span>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o004)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o004, $event)" /> R</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o002)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o002, $event)" /> W</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o001)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o001, $event)" /> X</label>
-                        <label><input type="checkbox" :checked="isTerminalFileCreatePermissionChecked(0o1000)" :disabled="terminalFileCreateDialog.saving" @change="setTerminalFileCreatePermissionFromEvent(0o1000, $event)" /> 粘性</label>
-                      </div>
-                    </div>
-                    <label v-if="terminalFileCreateDialog.mode !== 'symlink'" class="terminal-file-create-octal-row">
-                      <span>八进制</span>
-                      <em>{{ getTerminalFileCreateSpecialOctalDigit() }}</em>
-                      <input
-                        :value="getTerminalFileCreateStandardOctalMode()"
-                        type="text"
-                        inputmode="numeric"
-                        maxlength="3"
-                        :disabled="terminalFileCreateDialog.saving"
-                        @input="updateTerminalFileCreateOctalMode"
-                        @keydown.enter.prevent="saveTerminalFileCreateDialog"
-                      />
-                    </label>
-                    <p v-if="terminalFileCreateDialog.error" class="terminal-file-create-error">{{ terminalFileCreateDialog.error }}</p>
-                  </div>
-                  <footer>
-                    <label v-if="terminalFileCreateDialog.mode !== 'symlink'" class="terminal-file-create-open-after">
-                      <input v-model="terminalFileCreateDialog.openAfterCreate" type="checkbox" :disabled="terminalFileCreateDialog.saving" />
-                      <span>{{ terminalFileCreateOpenLabel() }}</span>
-                    </label>
-                    <div>
-                      <button type="button" :disabled="terminalFileCreateDialog.saving" @click="closeTerminalFileCreateDialog">取消</button>
-                      <button class="primary" type="button" :disabled="terminalFileCreateDialog.saving" @click="saveTerminalFileCreateDialog">
-                        {{ terminalFileCreateDialog.saving ? '创建中...' : '确定' }}
-                      </button>
-                    </div>
-                  </footer>
-                </section>
-              </div>
-            </Teleport>
-            <Teleport to="body">
-              <div
-                v-if="terminalFileDeleteDialog.visible"
-                class="modal-backdrop terminal-file-delete-backdrop"
-                @click.self="closeTerminalFileDeleteDialog"
-              >
-                <section class="terminal-file-delete-modal" role="dialog" aria-modal="true">
-                  <div class="terminal-file-delete-visual" :class="getTerminalFileDeleteDialogVisualType()">
-                    <span class="terminal-file-delete-visual-card">
-                      <AppIcon :name="getTerminalFileDeleteDialogVisualType() === 'directory' ? 'folder' : 'file'" :size="34" />
-                    </span>
-                    <span class="terminal-file-delete-alert"><AppIcon name="alert" :size="18" /></span>
-                  </div>
-                  <h2>{{ getTerminalFileDeleteDialogTitle() }}</h2>
-                  <p>{{ getTerminalFileDeleteDialogDescription() }}</p>
-                  <p v-if="terminalFileDeleteDialog.error" class="terminal-file-delete-error">{{ terminalFileDeleteDialog.error }}</p>
-                  <div class="terminal-file-delete-actions">
-                    <button type="button" :disabled="terminalFileDeleteDialog.deleting" @click="closeTerminalFileDeleteDialog">取消</button>
-                    <button class="danger" type="button" :disabled="terminalFileDeleteDialog.deleting" @click="confirmTerminalFileDelete">
-                      {{ terminalFileDeleteDialog.deleting ? '删除中...' : '删除' }}
-                    </button>
-                  </div>
-                </section>
-              </div>
-            </Teleport>
-            <Teleport to="body">
-              <div
-                v-if="terminalFilePropertiesDialog.visible"
-                class="modal-backdrop terminal-file-properties-backdrop"
-                @click.self="closeTerminalFilePropertiesDialog"
-              >
-                <section class="terminal-file-properties-modal" role="dialog" aria-modal="true">
-                  <header class="terminal-file-properties-head">
-                    <span class="terminal-file-properties-icon" :class="terminalFilePropertiesDialog.properties?.type || terminalFilePropertiesDialog.entry?.type">
-                      <AppIcon :name="(terminalFilePropertiesDialog.properties?.type || terminalFilePropertiesDialog.entry?.type) === 'directory' ? 'folder' : 'file'" :size="18" />
-                    </span>
-                    <h2>{{ terminalFilePropertiesDialog.entry?.name || terminalFilePropertiesDialog.properties?.name || '文件' }} 的属性</h2>
-                    <button
-                      class="terminal-file-properties-close"
-                      type="button"
-                      aria-label="关闭"
-                      :disabled="terminalFilePropertiesDialog.saving"
-                      @click="closeTerminalFilePropertiesDialog"
-                    >
-                      <AppIcon name="x" :size="16" />
-                    </button>
-                  </header>
-
-                <div v-if="terminalFilePropertiesDialog.loading" class="terminal-file-properties-empty">属性读取中...</div>
-                <div v-else-if="terminalFilePropertiesDialog.properties" class="terminal-file-properties-body">
-                  <p v-if="terminalFilePropertiesDialog.error" class="terminal-file-properties-error">{{ terminalFilePropertiesDialog.error }}</p>
-
-                  <section class="terminal-file-properties-section">
-                    <h3>常规</h3>
-                    <dl class="terminal-file-properties-details">
-                      <dt>类型：</dt>
-                      <dd>{{ getTerminalFilePropertiesTypeLabel(terminalFilePropertiesDialog.properties) }}</dd>
-                      <dt>位置：</dt>
-                      <dd>{{ terminalFilePropertiesDialog.properties.directory }}</dd>
-                      <dt>大小：</dt>
-                      <dd>{{ formatTerminalFilePropertiesSize(terminalFilePropertiesDialog.properties) }}</dd>
-                      <dt>修改时间：</dt>
-                      <dd>{{ terminalFilePropertiesDialog.properties.modifiedAt }}</dd>
-                      <dt>访问时间：</dt>
-                      <dd>{{ terminalFilePropertiesDialog.properties.accessedAt }}</dd>
-                      <dt>所有者：</dt>
-                      <dd>{{ getTerminalFileOwnerLabel(terminalFilePropertiesDialog.properties) }} [{{ terminalFilePropertiesDialog.properties.uid }}]</dd>
-                      <dt>组：</dt>
-                      <dd>{{ getTerminalFileGroupLabel(terminalFilePropertiesDialog.properties) }} [{{ terminalFilePropertiesDialog.properties.gid }}]</dd>
-                    </dl>
-                  </section>
-
-                  <section class="terminal-file-properties-section">
-                    <h3>所有权</h3>
-                    <label class="terminal-file-properties-field">
-                      <span>所有者：</span>
-                      <input v-model="terminalFilePropertiesDialog.draft.owner" type="text" :disabled="terminalFilePropertiesDialog.saving" />
-                    </label>
-                    <label class="terminal-file-properties-field">
-                      <span>组：</span>
-                      <input v-model="terminalFilePropertiesDialog.draft.group" type="text" :disabled="terminalFilePropertiesDialog.saving" />
-                    </label>
-                  </section>
-
-                  <section class="terminal-file-properties-section">
-                    <h3>权限</h3>
-                    <table class="terminal-file-permission-table">
-                      <thead>
-                        <tr>
-                          <th></th>
-                          <th>R</th>
-                          <th>W</th>
-                          <th>X</th>
-                          <th>特殊</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <th>用户</th>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o400)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o400, $event)" /></td>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o200)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o200, $event)" /></td>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o100)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o100, $event)" /></td>
-                          <td><label><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o4000)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o4000, $event)" /> UID</label></td>
-                        </tr>
-                        <tr>
-                          <th>组</th>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o040)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o040, $event)" /></td>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o020)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o020, $event)" /></td>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o010)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o010, $event)" /></td>
-                          <td><label><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o2000)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o2000, $event)" /> GID</label></td>
-                        </tr>
-                        <tr>
-                          <th>其他</th>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o004)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o004, $event)" /></td>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o002)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o002, $event)" /></td>
-                          <td><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o001)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o001, $event)" /></td>
-                          <td><label><input type="checkbox" :checked="isTerminalFilePermissionChecked(0o1000)" :disabled="terminalFilePropertiesDialog.saving" @change="setTerminalFilePermissionFromEvent(0o1000, $event)" /> 粘性</label></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <label class="terminal-file-octal-field">
-                      <span>八进制：</span>
-                      <em>{{ getTerminalFileSpecialOctalDigit() }}</em>
-                      <input
-                        :value="getTerminalFileStandardOctalMode()"
-                        type="text"
-                        inputmode="numeric"
-                        maxlength="3"
-                        :disabled="terminalFilePropertiesDialog.saving"
-                        @input="updateTerminalFileOctalMode"
-                      />
-                    </label>
-                    <label v-if="terminalFilePropertiesDialog.properties.type === 'directory'" class="terminal-file-recursive-field">
-                      <input v-model="terminalFilePropertiesDialog.recursive" type="checkbox" :disabled="terminalFilePropertiesDialog.saving" />
-                      <span>应用到此目录及所有子目录/文件</span>
-                    </label>
-                  </section>
-                </div>
-                <div v-else class="terminal-file-properties-empty error">{{ terminalFilePropertiesDialog.error || '属性读取失败' }}</div>
-
-                <footer class="terminal-file-properties-actions">
-                  <button type="button" :disabled="terminalFilePropertiesDialog.saving" @click="closeTerminalFilePropertiesDialog">取消</button>
-                  <button
-                    class="primary"
-                    type="button"
-                    :disabled="terminalFilePropertiesDialog.loading || terminalFilePropertiesDialog.saving || !terminalFilePropertiesDialog.properties"
-                    @click="saveTerminalFileProperties"
-                  >
-                    {{ terminalFilePropertiesDialog.saving ? '保存中...' : '保存' }}
-                  </button>
-                </footer>
-                </section>
-              </div>
-            </Teleport>
-          </div>
-        </template>
+        <SftpPanel
+          :visible="terminalSidebarMode === 'files'"
+          :active="activeTerminalSupportsSshTools"
+          :session-key="activeTab?.id ?? null"
+          :host-id="activeTab?.host.id ?? null"
+          :current-cwd="activeTab?.currentCwd ?? ''"
+          :node-name="activeTerminalNodeName"
+          :handle-unauthorized="handleTerminalAuthExpired"
+          @write-terminal="writeTerminalTextFromSftp"
+        />
       </div>
     </aside>
     <div
