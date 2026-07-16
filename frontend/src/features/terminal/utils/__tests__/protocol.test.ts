@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  calculateRdpDisplayScale,
   buildRdpConnectionQuery,
   buildRdpWebSocketUrl,
   buildTerminalWebSocketUrl,
@@ -40,6 +41,23 @@ describe('terminal protocol helpers', () => {
     [undefined, undefined, 'width=1280&height=720'],
   ])('clamps and serializes the RDP size', (width, height, expected) => {
     expect(buildRdpConnectionQuery(width, height)).toBe(expected);
+  });
+
+  it.each([
+    [1280, 720, 1280, 720, 1],
+    [960, 540, 1920, 1080, 0.5],
+    [1200, 600, 1600, 1200, 0.5],
+  ])('calculates the RDP display scale for %s x %s inside %s x %s', (viewportWidth, viewportHeight, displayWidth, displayHeight, expected) => {
+    expect(calculateRdpDisplayScale(viewportWidth, viewportHeight, displayWidth, displayHeight)).toBe(expected);
+  });
+
+  it.each([
+    [1280, 720, 0, 720],
+    [1280, 720, 1280, 0],
+    [0, 720, 1280, 720],
+    [1280, Number.NaN, 1280, 720],
+  ])('does not scale an RDP display before both viewport and display are measurable', (viewportWidth, viewportHeight, displayWidth, displayHeight) => {
+    expect(calculateRdpDisplayScale(viewportWidth, viewportHeight, displayWidth, displayHeight)).toBeNull();
   });
 
   it.each([

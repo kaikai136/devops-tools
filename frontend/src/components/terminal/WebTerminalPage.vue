@@ -30,6 +30,7 @@ import type {
   TerminalTabKind,
 } from '../../features/terminal/types';
 import {
+  calculateRdpDisplayScale,
   buildRdpConnectionQuery as buildRdpConnectionQueryValue,
   buildRdpWebSocketUrl as buildRdpWebSocketUrlValue,
   buildTerminalWebSocketUrl,
@@ -2484,7 +2485,9 @@ function connectRdpTab(tab: TerminalTab) {
   tab.guacClient = client;
 
   const container = terminalContainers.get(tab.id);
-  const displayElement = client.getDisplay().getElement();
+  const display = client.getDisplay();
+  display.onresize = () => fitTerminal(tab);
+  const displayElement = display.getElement();
   displayElement.classList.add('terminal-rdp-display');
   displayElement.tabIndex = 0;
   if (container) {
@@ -2755,10 +2758,10 @@ function fitRdpTerminal(tab: TerminalTab) {
   const width = Math.max(320, Math.floor(container.clientWidth || 1280));
   const height = Math.max(240, Math.floor(container.clientHeight || 720));
   try {
-    client.sendSize(width, height);
     const display = client.getDisplay();
-    const scale = Math.min(width / Math.max(display.getWidth(), 1), height / Math.max(display.getHeight(), 1));
-    display.scale(Number.isFinite(scale) && scale > 0 ? scale : 1);
+    client.sendSize(width, height);
+    const scale = calculateRdpDisplayScale(width, height, display.getWidth(), display.getHeight());
+    if (scale !== null) display.scale(scale);
   } catch {
     // The Guacamole display may not be ready until the RDP handshake completes.
   }
@@ -2975,6 +2978,12 @@ function cleanupRdpClient(tab: TerminalTab) {
   if (tab.guacKeyboard) {
     tab.guacKeyboard.onkeydown = null;
     tab.guacKeyboard.onkeyup = null;
+  }
+  try {
+    const display = tab.guacClient?.getDisplay();
+    if (display) display.onresize = null;
+  } catch {
+    // The display may already be torn down during reconnect races.
   }
   try {
     tab.guacClient?.disconnect();

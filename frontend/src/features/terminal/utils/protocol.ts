@@ -20,6 +20,29 @@ export function buildRdpConnectionQuery(width?: number, height?: number) {
   }).toString();
 }
 
+export function calculateRdpDisplayScale(
+  viewportWidth: number,
+  viewportHeight: number,
+  displayWidth: number,
+  displayHeight: number,
+) {
+  if (
+    !Number.isFinite(viewportWidth) ||
+    !Number.isFinite(viewportHeight) ||
+    !Number.isFinite(displayWidth) ||
+    !Number.isFinite(displayHeight) ||
+    viewportWidth <= 0 ||
+    viewportHeight <= 0 ||
+    displayWidth <= 0 ||
+    displayHeight <= 0
+  ) {
+    return null;
+  }
+
+  const scale = Math.min(viewportWidth / displayWidth, viewportHeight / displayHeight);
+  return Number.isFinite(scale) && scale > 0 ? scale : null;
+}
+
 export function formatTerminalFileSizeValue(size: number | string) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (typeof size === 'string') return size;

@@ -15,3 +15,8 @@ test('rdp tunnel passes width and height through Guacamole connect data', () => 
   assert.match(source, /client\.connect\(buildRdpConnectionQuery\(tab\)\)/);
   assert.doesNotMatch(source, /rdp\/\$\{tab\.host\.id\}\/\?\$\{params\.toString\(\)\}/);
 });
+
+test('rdp display resize refits after the first remote frame reports dimensions', () => {
+  assert.match(source, /display\.onresize = \(\) => fitTerminal\(tab\)/);
+  assert.match(source, /display\.onresize = null/);
+});
