@@ -381,8 +381,8 @@ function openHostQuickCommandDialog(command: QuickCommand | null = null) {
   };
 }
 
-function closeHostQuickCommandDialog() {
-  if (hostQuickCommandDialog.value.saving) return;
+function closeHostQuickCommandDialog(options: { force?: boolean } = {}) {
+  if (hostQuickCommandDialog.value.saving && !options.force) return;
   hostQuickCommandDialog.value = {
     visible: false,
     mode: 'create',
@@ -425,7 +425,7 @@ async function saveHostQuickCommandDialog() {
         : [...hostQuickCommands.value, saved];
     hostQuickCommands.value = sortHostQuickCommands(nextCommands);
     hostQuickCommandCategory.value = saved.category;
-    closeHostQuickCommandDialog();
+    closeHostQuickCommandDialog({ force: true });
     showToast('保存成功', `快捷命令「${saved.name}」已保存。`);
   } catch (error) {
     hostQuickCommandDialog.value = {
@@ -655,8 +655,13 @@ function hostPlatformType(value: string | null | undefined) {
       <article class="host-quick-command-modal" @click.stop>
         <header class="host-quick-command-head">
           <div>
-            <strong><AppIcon name="zap" :size="16" />快捷命令</strong>
-            <span>管理 Web 终端中可用的快捷命令模板</span>
+            <span class="host-quick-command-head-icon" aria-hidden="true">
+              <AppIcon name="zap" :size="17" />
+            </span>
+            <span>
+              <strong>快捷命令</strong>
+              <small>管理 Web 终端中可用的快捷命令模板</small>
+            </span>
           </div>
           <button type="button" title="关闭" aria-label="关闭" @click="closeHostQuickCommandManager">
             <AppIcon name="x" :size="16" />
@@ -664,6 +669,10 @@ function hostPlatformType(value: string | null | undefined) {
         </header>
         <div class="host-quick-command-layout">
           <aside class="host-quick-command-categories">
+            <div class="host-quick-command-category-title">
+              <span>分类</span>
+              <em>{{ hostQuickCommandCategories.length + 1 }} 组</em>
+            </div>
             <button
               type="button"
               :class="{ active: hostQuickCommandCategory === 'all' }"
@@ -689,7 +698,7 @@ function hostPlatformType(value: string | null | undefined) {
                 <AppIcon name="search" :size="14" />
                 <input v-model="hostQuickCommandSearch" type="search" placeholder="搜索名称、分类或命令" />
               </label>
-              <span>{{ filteredHostQuickCommands.length }} 条</span>
+              <span class="host-quick-command-count">{{ filteredHostQuickCommands.length }} 条</span>
               <button type="button" title="刷新" aria-label="刷新" :disabled="isHostQuickCommandLoading" @click="loadHostQuickCommands">
                 <AppIcon name="refresh" :size="15" />
               </button>
@@ -701,7 +710,15 @@ function hostPlatformType(value: string | null | undefined) {
             <p v-if="hostQuickCommandError" class="host-quick-command-error">{{ hostQuickCommandError }}</p>
             <div class="host-quick-command-list">
               <p v-if="isHostQuickCommandLoading" class="host-quick-command-empty">加载中...</p>
-              <p v-else-if="!filteredHostQuickCommands.length" class="host-quick-command-empty">暂无快捷命令</p>
+              <div v-else-if="!filteredHostQuickCommands.length" class="host-quick-command-empty">
+                <span class="host-quick-command-empty-glyph" aria-hidden="true">&gt;_</span>
+                <strong>{{ hostQuickCommands.length ? '没有匹配的命令' : '暂无快捷命令' }}</strong>
+                <p>{{ hostQuickCommands.length ? '换个关键词或分类再试。' : '这里还没有命令模板。' }}</p>
+                <button class="host-quick-command-empty-action" type="button" @click="openHostQuickCommandDialog()">
+                  <AppIcon name="plus" :size="15" />
+                  新增命令
+                </button>
+              </div>
               <template v-else>
                 <article
                   v-for="(command, index) in filteredHostQuickCommands"
@@ -710,10 +727,10 @@ function hostPlatformType(value: string | null | undefined) {
                   :class="{ disabled: !command.enabled }"
                 >
                   <div class="host-quick-command-info">
-                    <div>
+                    <div class="host-quick-command-meta">
                       <strong>{{ command.name }}</strong>
                       <span>{{ command.category }}</span>
-                      <em>{{ command.enabled ? '启用' : '禁用' }}</em>
+                      <span class="host-quick-command-state">{{ command.enabled ? '启用' : '禁用' }}</span>
                     </div>
                     <code>{{ command.command }}</code>
                     <p v-if="command.description">{{ command.description }}</p>

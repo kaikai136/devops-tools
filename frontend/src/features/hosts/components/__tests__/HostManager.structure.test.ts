@@ -1,5 +1,7 @@
 import { ElementTypes, NodeTypes, parse as parseTemplate, type RootNode } from '@vue/compiler-dom';
 import { parse as parseSfc } from '@vue/compiler-sfc';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { Component } from 'vue';
 
@@ -98,6 +100,13 @@ function readSfc(relativePath: string) {
   const parsed = parseSfc(source, { filename: relativePath });
   expect(parsed.errors).toEqual([]);
   return parsed.descriptor;
+}
+
+function readStyle(relativePath: string) {
+  const sourceUrl = relativePath === 'src/styles/tools/host/layout-groups.css'
+    ? new URL('../../../../styles/tools/host/layout-groups.css', import.meta.url)
+    : new URL(relativePath, import.meta.url);
+  return readFileSync(fileURLToPath(sourceUrl), 'utf8');
 }
 
 function templateRoot(relativePath: string) {
@@ -386,6 +395,38 @@ describe('HostManager component structure', () => {
       submit: 'saveMoveManagedHost',
       'update-form-field': 'updateHostMoveFormField',
     });
+  });
+
+  it('keeps the quick command manager as a polished command library surface', () => {
+    const root = templateRoot('src/features/hosts/components/HostManager.vue');
+
+    expect(findByClass(root, 'span', 'host-quick-command-head-icon')).toHaveLength(1);
+    expect(findByClass(root, 'div', 'host-quick-command-category-title')).toHaveLength(1);
+    expect(findByClass(root, 'span', 'host-quick-command-count')).toHaveLength(1);
+    expect(findByClass(root, 'div', 'host-quick-command-empty')).toHaveLength(1);
+    expect(findByClass(root, 'span', 'host-quick-command-empty-glyph')).toHaveLength(1);
+    expect(findByClass(root, 'button', 'host-quick-command-empty-action')).toHaveLength(1);
+    expect(findByClass(root, 'div', 'host-quick-command-meta')).toHaveLength(1);
+    expect(findByClass(root, 'span', 'host-quick-command-state')).toHaveLength(1);
+
+    const emptyAction = findByClass(root, 'button', 'host-quick-command-empty-action')[0];
+    expectDirective(emptyAction, 'on', 'click', 'openHostQuickCommandDialog()');
+  });
+
+  it('keeps the host group sidebar compact without letting long names distort the row', () => {
+    const styles = readStyle('src/styles/tools/host/layout-groups.css');
+
+    expect(styles).toMatch(/\.host-manager-page\s*\{[\s\S]*grid-template-columns:\s*minmax\(220px,\s*270px\)\s*minmax\(680px,\s*1fr\);/);
+    expect(styles).toMatch(/\.host-groups-panel\s*\{[\s\S]*padding:\s*16px;/);
+    expect(styles).toMatch(/\.host-group-row strong\s*\{[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/);
+  });
+
+  it('lets successful quick command saves close the saving dialog while blocking manual closes', () => {
+    const script = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
+
+    expect(script).toMatch(/function closeHostQuickCommandDialog\(options: \{ force\?: boolean \} = \{\}\)/);
+    expect(script).toMatch(/if \(hostQuickCommandDialog\.value\.saving && !options\.force\) return;/);
+    expect(script).toMatch(/closeHostQuickCommandDialog\(\{ force: true \}\)/);
   });
 
   it('preserves stop/self/key modifiers plus group pointer and drag payload order', () => {

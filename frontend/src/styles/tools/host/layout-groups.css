@@ -2,7 +2,7 @@
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 340px) minmax(680px, 1fr);
+  grid-template-columns: minmax(220px, 270px) minmax(680px, 1fr);
   gap: 14px;
   margin: 14px;
   overflow: hidden;
@@ -26,7 +26,7 @@
 
 .host-groups-panel {
   position: relative;
-  padding: 22px;
+  padding: 16px;
 }
 
 .host-table-panel {
@@ -81,7 +81,7 @@
 }
 
 .host-subgroup-list {
-  margin: 6px 0 0 30px;
+  margin: 6px 0 0 22px;
 }
 
 .host-group-row {
@@ -99,10 +99,15 @@
 
 .host-group-row strong {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .host-group-row em {
+  flex: 0 0 auto;
   color: inherit;
   font-style: normal;
   font-weight: 900;
