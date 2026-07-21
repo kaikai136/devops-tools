@@ -73,7 +73,10 @@ const initial = computed(() => getAvatarInitial(props));
 }
 
 .user-avatar-initial {
-  display: block;
-  transform: translateY(-0.02em);
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1;
 }
 </style>

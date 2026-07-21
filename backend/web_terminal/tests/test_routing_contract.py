@@ -28,6 +28,13 @@ EXPECTED_HTTP_ROUTES = [
         "view",
     ),
     ("web-terminal/session-audits/", None, "session_audits", "view"),
+    ("web-terminal/file-audits/", None, "terminal_file_audits", "view"),
+    (
+        "web-terminal/ssh-gateway/connection-info/",
+        None,
+        "ssh_gateway_connection_info",
+        "view",
+    ),
     (
         "web-terminal/quick-commands/",
         None,

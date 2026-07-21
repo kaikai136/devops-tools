@@ -40,7 +40,7 @@ DEFAULT_DASHBOARD_HERO = {
     "line1Template": "{greeting}，{displayName}",
     "line2Template": "一路向前，莫问前程！！！",
     "descriptionTemplate": "这里汇总系统账号、资产与网络出口状态，帮助你快速判断今天的运维态势。",
-    "font": "Fira Code",
+    "font": "Noto Sans SC",
     "fontSize": 24,
     "fontWeight": 900,
     "letterSpacing": "normal",
@@ -71,6 +71,7 @@ DEFAULT_LOGIN_CONTENT = {
     "copyrightTemplate": "© {year} {appName} Team",
 }
 DEFAULT_WATERMARK_TEXT = "{username}"
+DASHBOARD_HERO_FONT_CHOICES = {"Noto Sans SC", "Noto Serif SC", "Noto Sans TC", "Noto Serif TC"}
 FONT_WEIGHT_CHOICES = {400, 500, 600, 700, 800, 900}
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 WATERMARK_ALLOWED_PAGES = {
@@ -396,6 +397,13 @@ def _clean_color(value, fallback: str) -> str:
     return color.upper()
 
 
+def _clean_dashboard_font(value, fallback: str) -> str:
+    font = _clean_text(value, fallback, 80)
+    if font not in DASHBOARD_HERO_FONT_CHOICES:
+        raise serializers.ValidationError({"value": "字体仅支持 Noto Sans SC / Noto Serif SC / Noto Sans TC / Noto Serif TC"})
+    return font
+
+
 def _clean_svg_color(value, fallback: str, *, allow_alpha: bool = False) -> str:
     color = str(value if value is not None else "").strip()
     if not color:
@@ -455,7 +463,7 @@ def validate_dashboard_hero_value(value):
         "line1Template": _clean_text(raw.get("line1Template"), defaults["line1Template"], 160),
         "line2Template": _clean_text(raw.get("line2Template"), defaults["line2Template"], 160),
         "descriptionTemplate": _clean_text(raw.get("descriptionTemplate"), defaults["descriptionTemplate"], 260),
-        "font": _clean_text(raw.get("font"), defaults["font"], 80),
+        "font": _clean_dashboard_font(raw.get("font"), defaults["font"]),
         "fontSize": _clean_int(raw.get("fontSize"), defaults["fontSize"], minimum=16, maximum=36, field_label="动态文字字号"),
         "fontWeight": _clean_font_weight(raw.get("fontWeight"), defaults["fontWeight"]),
         "letterSpacing": _clean_letter_spacing(raw.get("letterSpacing"), defaults["letterSpacing"]),

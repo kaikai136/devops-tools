@@ -14,6 +14,7 @@ from .files import (
 )
 from .monitoring import terminal_monitor
 from .recordings import terminal_rdp_recording, terminal_session_recording
+from .gateway import ssh_gateway_connection_info, terminal_file_audits
 from .sessions import (
     session_audits,
     terminal_commands,
@@ -26,6 +27,7 @@ from .sessions import (
 
 __all__ = [
     "session_audits",
+    "ssh_gateway_connection_info",
     "terminal_commands",
     "terminal_file_create_directory",
     "terminal_file_create_file",
@@ -39,6 +41,7 @@ __all__ = [
     "terminal_file_properties_update",
     "terminal_file_rename",
     "terminal_file_upload",
+    "terminal_file_audits",
     "terminal_monitor",
     "terminal_quick_command_detail",
     "terminal_quick_commands",

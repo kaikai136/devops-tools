@@ -42,6 +42,51 @@ export interface TerminalFileListResponse {
   entries: TerminalFileEntry[];
 }
 
+export interface SshGatewayConnectionInfo {
+  enabled: boolean;
+  listen: {
+    host: string;
+    port: number;
+  };
+  public: {
+    host: string;
+    port: number;
+  };
+  hostKeyPath: string;
+  commands: {
+    sshMenu: string;
+    sshDirect: string;
+    sftpMenu: string;
+    sftpDirect: string;
+    scpUpload: string;
+    scpDownload: string;
+  };
+  host?: TerminalHost;
+}
+
+export interface TerminalFileAudit {
+  id: number;
+  username: string;
+  protocol: string;
+  operation: 'list' | 'read' | 'write' | 'mkdir' | 'remove' | 'rename' | 'stat';
+  path: string;
+  targetPath: string;
+  size: number;
+  status: 'success' | 'failed';
+  errorMessage: string;
+  assetName: string;
+  hostId: number;
+  sessionId: string;
+  createdAt: string;
+}
+
+export interface TerminalFileAuditListResponse {
+  count: number;
+  page: number;
+  pageSize: number;
+  results: TerminalFileAudit[];
+}
+
 export interface TerminalQuickCommand {
   id: number;
   name: string;

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import TerminalCommandAudit, TerminalQuickCommand
+from .models import TerminalCommandAudit, TerminalFileAudit, TerminalQuickCommand
 
 
 class TerminalQuickCommandSerializer(serializers.ModelSerializer):
@@ -83,3 +83,33 @@ class TerminalCommandAuditSerializer(serializers.ModelSerializer):
     def get_hasRdpRecording(self, obj):
         session = obj.session
         return bool(session and session.protocol == session.PROTOCOL_RDP and session.recording_enabled and session.recording_file)
+
+
+class TerminalFileAuditSerializer(serializers.ModelSerializer):
+    hostId = serializers.IntegerField(source="host_id")
+    assetName = serializers.CharField(source="host.name")
+    sessionId = serializers.SerializerMethodField()
+    targetPath = serializers.CharField(source="target_path")
+    errorMessage = serializers.CharField(source="error_message")
+    createdAt = serializers.DateTimeField(source="created_at")
+
+    class Meta:
+        model = TerminalFileAudit
+        fields = [
+            "id",
+            "username",
+            "protocol",
+            "operation",
+            "path",
+            "targetPath",
+            "size",
+            "status",
+            "errorMessage",
+            "assetName",
+            "hostId",
+            "sessionId",
+            "createdAt",
+        ]
+
+    def get_sessionId(self, obj):
+        return str(obj.session.session_id) if obj.session_id and obj.session else ""

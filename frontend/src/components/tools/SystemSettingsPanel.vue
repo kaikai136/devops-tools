@@ -2,7 +2,13 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { useAppContext } from '@app/context';
-import { buildReadmeTypingSvgUrl, buildTemplateVariables, renderTemplate } from '../../composables/features/useSiteSettings';
+import {
+  buildReadmeTypingSvgUrl,
+  buildTemplateVariables,
+  dashboardHeroFontOptions,
+  dashboardHeroLetterSpacingOptions,
+  renderTemplate,
+} from '../../composables/features/useSiteSettings';
 import { watermarkPageGroups } from '../../composables/features/useWatermarkSettings';
 import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from '../../services/system';
 import AppIcon from '@shared/components/AppIcon.vue';
@@ -347,7 +353,7 @@ onMounted(() => {
             <h3>仪表盘动态文字</h3>
             <span>动态 SVG 参数</span>
           </header>
-          <div class="settings-field-grid">
+          <div class="settings-field-grid dashboard-hero-field-grid">
             <label>
               <span>徽标模板</span>
               <input v-model="dashboardHeroDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
@@ -360,13 +366,15 @@ onMounted(() => {
               <span>第二行动画</span>
               <input v-model="dashboardHeroDraft.line2Template" :disabled="!canSave" maxlength="160" />
             </label>
-            <label class="span-2">
+            <label class="span-4">
               <span>说明文案</span>
               <textarea v-model="dashboardHeroDraft.descriptionTemplate" :disabled="!canSave" maxlength="260"></textarea>
             </label>
             <label>
               <span>字体</span>
-              <input v-model="dashboardHeroDraft.font" :disabled="!canSave" maxlength="80" />
+              <select v-model="dashboardHeroDraft.font" :disabled="!canSave">
+                <option v-for="font in dashboardHeroFontOptions" :key="font" :value="font">{{ font }}</option>
+              </select>
             </label>
             <label>
               <span>字号</span>
@@ -379,13 +387,15 @@ onMounted(() => {
                 <option :value="500">中等 500</option>
                 <option :value="600">半粗 600</option>
                 <option :value="700">加粗 700</option>
-                <option :value="800">特粗 800</option>
+                <option :value="800">超粗 800</option>
                 <option :value="900">最粗 900</option>
               </select>
             </label>
             <label>
               <span>字间距</span>
-              <input v-model="dashboardHeroDraft.letterSpacing" :disabled="!canSave" maxlength="40" />
+              <select v-model="dashboardHeroDraft.letterSpacing" :disabled="!canSave">
+                <option v-for="spacing in dashboardHeroLetterSpacingOptions" :key="spacing.value" :value="spacing.value">{{ spacing.label }}</option>
+              </select>
             </label>
             <label>
               <span>每行持续时间 ms</span>

@@ -17,6 +17,16 @@ export const LAYOUT_FOOTER_SETTING_KEY = 'layout_footer';
 export const LOGIN_CONTENT_SETTING_KEY = 'login_content';
 export const README_TYPING_SVG_URL = 'https://readme-typing-svg.demolab.com';
 
+export const dashboardHeroFontOptions = ['Noto Sans SC', 'Noto Serif SC', 'Noto Sans TC', 'Noto Serif TC'];
+export const dashboardHeroLetterSpacingOptions = [
+  { value: 'normal', label: '常规 normal' },
+  { value: '0.02em', label: '微宽 0.02em' },
+  { value: '0.04em', label: '宽松 0.04em' },
+  { value: '0.08em', label: '加宽 0.08em' },
+  { value: '1px', label: '轻微 1px' },
+  { value: '2px', label: '明显 2px' },
+];
+
 export const defaultSiteIdentity: SiteIdentityConfig = {
   appName: '运维船长',
   appShortName: 'CAPTAIN',
@@ -33,7 +43,7 @@ export const defaultDashboardHero: DashboardHeroConfig = {
   line1Template: '{greeting}，{displayName}',
   line2Template: '一路向前，莫问前程！！！',
   descriptionTemplate: '这里汇总系统账号、资产与网络出口状态，帮助你快速判断今天的运维态势。',
-  font: 'Fira Code',
+  font: 'Noto Sans SC',
   fontSize: 24,
   fontWeight: 900,
   letterSpacing: 'normal',
@@ -66,7 +76,9 @@ export const defaultLoginContent: LoginContentConfig = {
   copyrightTemplate: '© {year} {appName} Team',
 };
 
+const fontChoices = new Set<string>(dashboardHeroFontOptions);
 const fontWeightChoices = new Set([400, 500, 600, 700, 800, 900]);
+const letterSpacingChoices = new Set<string>(dashboardHeroLetterSpacingOptions.map((option) => option.value));
 
 interface SiteSettingsFeedback {
   showToast?: (title: string, message?: string, tone?: 'success' | 'error' | 'info') => void;
@@ -115,6 +127,11 @@ function cleanColor(value: unknown, fallback: string) {
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toUpperCase() : fallback;
 }
 
+function cleanFont(value: unknown, fallback: string) {
+  const font = cleanText(value, fallback, 80);
+  return fontChoices.has(font) ? font : fallback;
+}
+
 function cleanSvgColor(value: unknown, fallback: string, allowAlpha = false) {
   const color = String(value ?? '').trim();
   const pattern = allowAlpha ? /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/ : /^#[0-9a-fA-F]{6}$/;
@@ -122,8 +139,8 @@ function cleanSvgColor(value: unknown, fallback: string, allowAlpha = false) {
 }
 
 function cleanLetterSpacing(value: unknown, fallback: string) {
-  const spacing = String(value ?? '').trim();
-  return /^[A-Za-z0-9 ._%+-]{1,40}$/.test(spacing) ? spacing : fallback;
+  const spacing = String(value ?? '').trim() || fallback;
+  return letterSpacingChoices.has(spacing) ? spacing : fallback;
 }
 
 function cleanInt(value: unknown, fallback: number, min: number, max: number) {
@@ -158,7 +175,7 @@ export function normalizeDashboardHero(value: unknown): DashboardHeroConfig {
     line1Template: cleanText(raw.line1Template, defaultDashboardHero.line1Template, 160),
     line2Template: cleanText(raw.line2Template, defaultDashboardHero.line2Template, 160),
     descriptionTemplate: cleanText(raw.descriptionTemplate, defaultDashboardHero.descriptionTemplate, 260),
-    font: cleanText(raw.font, defaultDashboardHero.font, 80),
+    font: cleanFont(raw.font, defaultDashboardHero.font),
     fontSize: cleanInt(raw.fontSize, defaultDashboardHero.fontSize, 16, 36),
     fontWeight: cleanFontWeight(raw.fontWeight, defaultDashboardHero.fontWeight),
     letterSpacing: cleanLetterSpacing(raw.letterSpacing, defaultDashboardHero.letterSpacing),

@@ -36,7 +36,7 @@ COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh \
     && mkdir -p /app/data /app/media /app/staticfiles
 
-EXPOSE 8001
+EXPOSE 8001 2222
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8001", "ops_tool.asgi:application"]

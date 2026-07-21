@@ -21,6 +21,7 @@ from .api.files import (
 )
 from .api.monitoring import terminal_monitor
 from .api.recordings import terminal_rdp_recording, terminal_session_recording
+from .api.gateway import ssh_gateway_connection_info, terminal_file_audits
 from .api.sessions import (
     next_quick_command_sort_order,
     quick_command_queryset,
@@ -54,6 +55,7 @@ __all__ = [
     "terminal_file_properties_update",
     "terminal_file_rename",
     "terminal_file_upload",
+    "terminal_file_audits",
     "terminal_login_required",
     "terminal_monitor",
     "terminal_quick_command_detail",
@@ -62,5 +64,6 @@ __all__ = [
     "terminal_rdp_recording",
     "terminal_session_recording",
     "terminal_sessions",
+    "ssh_gateway_connection_info",
     "terminal_tree",
 ]

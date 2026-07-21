@@ -873,7 +873,7 @@ class SystemSettingsApiTests(TestCase):
         self.assertEqual(payload["logoImageUrl"], "/brand.png")
         self.assertEqual(payload["iconUrl"], "https://example.com/icon.png")
 
-    def test_display_setting_validation_rejects_invalid_url_color_and_size(self):
+    def test_display_setting_validation_rejects_invalid_url_color_size_weight_and_font(self):
         invalid_url = self.client.post(
             "/api/system/settings/",
             data={"key": "site_identity", "value": {"logoImageUrl": "javascript:alert(1)"}},
@@ -889,10 +889,22 @@ class SystemSettingsApiTests(TestCase):
             data={"key": "dashboard_hero", "value": {"fontSize": 72}},
             content_type="application/json",
         )
+        invalid_weight = self.client.post(
+            "/api/system/settings/",
+            data={"key": "dashboard_hero", "value": {"fontWeight": 950}},
+            content_type="application/json",
+        )
+        invalid_font = self.client.post(
+            "/api/system/settings/",
+            data={"key": "dashboard_hero", "value": {"font": "Poppins"}},
+            content_type="application/json",
+        )
 
         self.assertEqual(invalid_url.status_code, 400)
         self.assertEqual(invalid_color.status_code, 400)
         self.assertEqual(invalid_size.status_code, 400)
+        self.assertEqual(invalid_weight.status_code, 400)
+        self.assertEqual(invalid_font.status_code, 400)
 
     def test_anonymous_user_cannot_read_watermark(self):
         SystemSetting.objects.create(key="watermark", value={"enabled": True, "text": "CAPTAIN", "pages": ["ip"]})

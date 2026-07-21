@@ -1,17 +1,33 @@
 import { apiDelete, apiGet, apiPost, apiPut } from '../../../api';
 import type {
   TerminalDownloadProtocol,
+  TerminalFileAuditListResponse,
   TerminalFileListResponse,
   TerminalFileProperties,
   TerminalGroup,
   TerminalMonitorResponse,
   TerminalQuickCommand,
+  SshGatewayConnectionInfo,
 } from '../types';
 
 const terminalBaseUrl = '/api/web-terminal';
 
 export function listTerminalTree() {
   return apiGet<TerminalGroup[]>(`${terminalBaseUrl}/tree/`);
+}
+
+export function getSshGatewayConnectionInfo(hostId?: number) {
+  const query = hostId ? `?${new URLSearchParams({ host: String(hostId) }).toString()}` : '';
+  return apiGet<SshGatewayConnectionInfo>(`${terminalBaseUrl}/ssh-gateway/connection-info/${query}`);
+}
+
+export function listTerminalFileAudits(params: Record<string, string | number | undefined> = {}) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return apiGet<TerminalFileAuditListResponse>(`${terminalBaseUrl}/file-audits/${suffix}`);
 }
 
 export function listTerminalQuickCommands() {
