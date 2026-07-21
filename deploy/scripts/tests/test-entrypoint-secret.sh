@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENTRYPOINT="$REPO_ROOT/docker/entrypoint.sh"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ENTRYPOINT="$REPO_ROOT/deploy/docker/entrypoint.sh"
 TEST_ROOT="$(mktemp -d)"
+CONFIG_FILE="$TEST_ROOT/app.conf"
 SECRET_FILE="$TEST_ROOT/data/django-secret-key"
 FIRST_LOG="$TEST_ROOT/first.log"
 SECOND_LOG="$TEST_ROOT/second.log"
@@ -11,8 +12,18 @@ EXPLICIT_LOG="$TEST_ROOT/explicit.log"
 EXPLICIT_SECRET="explicit-test-secret"
 
 cleanup() {
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    for log_file in "$FIRST_LOG" "$SECOND_LOG" "$EXPLICIT_LOG"; do
+      if [ -f "$log_file" ]; then
+        printf '%s\n' "--- $log_file ---" >&2
+        cat "$log_file" >&2
+      fi
+    done
+  fi
   rm -rf "$TEST_ROOT"
   rmdir /app/staticfiles /app/media /app/data /app 2>/dev/null || true
+  exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -26,14 +37,23 @@ if len(sys.argv) < 2 or sys.argv[1] not in {"migrate", "collectstatic"}:
     raise SystemExit(f"unexpected manage.py invocation: {sys.argv!r}")
 PY
 
-assert_persisted_command='import os; from pathlib import Path; path=Path(os.environ["DJANGO_SECRET_KEY_FILE"]); persisted=path.read_text(encoding="utf-8").strip(); assert persisted; assert os.environ["DJANGO_SECRET_KEY"] == persisted'
-assert_explicit_command='import os; from pathlib import Path; path=Path(os.environ["DJANGO_SECRET_KEY_FILE"]); persisted=path.read_text(encoding="utf-8").strip(); assert os.environ["DJANGO_SECRET_KEY"] == "explicit-test-secret"; assert persisted != os.environ["DJANGO_SECRET_KEY"]'
+write_config() {
+  local secret="$1"
+  {
+    printf 'DJANGO_SECRET_KEY=%s\n' "$secret"
+    printf 'DJANGO_SECRET_KEY_FILE=%s\n' "$SECRET_FILE"
+  } > "$CONFIG_FILE"
+}
 
+assert_persisted_command='import os; from pathlib import Path; path=Path("'"$SECRET_FILE"'"); persisted=path.read_text(encoding="utf-8").strip(); assert persisted; assert not os.environ.get("DJANGO_SECRET_KEY")'
+assert_explicit_command='import os; assert not os.environ.get("DJANGO_SECRET_KEY")'
+
+write_config ""
 (
   cd "$TEST_ROOT/work"
-  env -u DJANGO_SECRET_KEY \
+  env -u DJANGO_SECRET_KEY -u DJANGO_SECRET_KEY_FILE \
     PATH="$TEST_ROOT/bin:$PATH" \
-    DJANGO_SECRET_KEY_FILE="$SECRET_FILE" \
+    APP_CONFIG_FILE="$CONFIG_FILE" \
     "$ENTRYPOINT" python -c "$assert_persisted_command"
 ) >"$FIRST_LOG" 2>&1
 
@@ -49,9 +69,9 @@ fi
 
 (
   cd "$TEST_ROOT/work"
-  env -u DJANGO_SECRET_KEY \
+  env -u DJANGO_SECRET_KEY -u DJANGO_SECRET_KEY_FILE \
     PATH="$TEST_ROOT/bin:$PATH" \
-    DJANGO_SECRET_KEY_FILE="$SECRET_FILE" \
+    APP_CONFIG_FILE="$CONFIG_FILE" \
     "$ENTRYPOINT" python -c "$assert_persisted_command"
 ) >"$SECOND_LOG" 2>&1
 
@@ -63,17 +83,18 @@ if grep -Fq "$secret" "$SECOND_LOG"; then
   exit 1
 fi
 
+write_config "$EXPLICIT_SECRET"
 (
   cd "$TEST_ROOT/work"
-  PATH="$TEST_ROOT/bin:$PATH" \
-    DJANGO_SECRET_KEY_FILE="$SECRET_FILE" \
-    DJANGO_SECRET_KEY="$EXPLICIT_SECRET" \
+  env -u DJANGO_SECRET_KEY -u DJANGO_SECRET_KEY_FILE \
+    PATH="$TEST_ROOT/bin:$PATH" \
+    APP_CONFIG_FILE="$CONFIG_FILE" \
     "$ENTRYPOINT" python -c "$assert_explicit_command"
 ) >"$EXPLICIT_LOG" 2>&1
 
 final_hash="$(sha256sum "$SECRET_FILE" | awk '{print $1}')"
-[ "$final_hash" = "$first_hash" ] || { echo 'Explicit override modified the persisted secret.' >&2; exit 1; }
-grep -q 'Using DJANGO_SECRET_KEY from the environment.' "$EXPLICIT_LOG"
+[ "$final_hash" = "$first_hash" ] || { echo 'Explicit config secret modified the persisted secret.' >&2; exit 1; }
+grep -q 'Using DJANGO_SECRET_KEY from the config file.' "$EXPLICIT_LOG"
 if grep -Fq "$EXPLICIT_SECRET" "$EXPLICIT_LOG"; then
   echo 'Explicit secret leaked into entrypoint logs.' >&2
   exit 1

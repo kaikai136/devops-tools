@@ -4,16 +4,60 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-def env_bool(name: str, default: bool = False) -> bool:
-    value = os.environ.get(name)
-    if value is None:
+def load_config_file(path: str | Path) -> dict[str, str]:
+    config_path = Path(path)
+    if not config_path.is_file():
+        return {}
+
+    config: dict[str, str] = {}
+    for raw_line in config_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, separator, value = line.partition("=")
+        if not separator:
+            continue
+        key = key.strip()
+        if not key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        config[key] = value
+    return config
+
+
+def config_file_path() -> Path:
+    explicit_path = os.environ.get("APP_CONFIG_FILE", "").strip()
+    if explicit_path:
+        return Path(explicit_path)
+
+    container_path = Path("/app/config/app.conf")
+    if container_path.is_file():
+        return container_path
+
+    return container_path
+
+
+APP_CONFIG_FILE = config_file_path()
+APP_CONFIG = load_config_file(APP_CONFIG_FILE)
+
+
+def config_value(name: str, default: str = "", *, config: dict[str, str] | None = None) -> str:
+    source = APP_CONFIG if config is None else config
+    return source.get(name, default)
+
+
+def config_bool(name: str, default: bool = False, *, config: dict[str, str] | None = None) -> bool:
+    value = config_value(name, "", config=config)
+    if not value:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def env_int(name: str, default: int) -> int:
-    value = os.environ.get(name)
-    if value is None or not value.strip():
+def config_int(name: str, default: int, *, config: dict[str, str] | None = None) -> int:
+    value = config_value(name, "", config=config)
+    if not value.strip():
         return default
     try:
         return int(value)
@@ -21,21 +65,37 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
-def env_list(name: str, default: list[str] | None = None) -> list[str]:
-    value = os.environ.get(name)
-    if value is None or not value.strip():
+def config_list(name: str, default: list[str] | None = None, *, config: dict[str, str] | None = None) -> list[str]:
+    value = config_value(name, "", config=config)
+    if not value.strip():
         return default or []
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def env_path(name: str, default: Path) -> Path:
-    return Path(os.environ.get(name, str(default)))
+def config_path(name: str, default: Path, *, config: dict[str, str] | None = None) -> Path:
+    value = config_value(name, "", config=config)
+    if not value.strip():
+        return default
+    return Path(value)
 
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-vue-dev-secret-key")
-DEBUG = env_bool("DJANGO_DEBUG", True)
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", ["*"])
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+def django_secret_key() -> str:
+    configured_secret = config_value("DJANGO_SECRET_KEY", "")
+    if configured_secret.strip():
+        return configured_secret
+
+    secret_file = config_path("DJANGO_SECRET_KEY_FILE", Path("/app/data/django-secret-key"))
+    try:
+        persisted_secret = secret_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        persisted_secret = ""
+    return persisted_secret or "django-vue-dev-secret-key"
+
+
+SECRET_KEY = django_secret_key()
+DEBUG = config_bool("DJANGO_DEBUG", True)
+ALLOWED_HOSTS = config_list("DJANGO_ALLOWED_HOSTS", ["*"])
+CSRF_TRUSTED_ORIGINS = config_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
     "daphne",
@@ -95,39 +155,39 @@ ASGI_APPLICATION = "ops_tool.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": env_path("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3"),
+        "NAME": config_path("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3"),
     }
 }
 
 LANGUAGE_CODE = "zh-hans"
-TIME_ZONE = "Asia/Shanghai"
+TIME_ZONE = config_value("TZ", "Asia/Shanghai")
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = os.environ.get("DJANGO_STATIC_URL", "/static/")
-STATIC_ROOT = env_path("DJANGO_STATIC_ROOT", BASE_DIR / "staticfiles")
-FRONTEND_DIST_DIR = env_path("DJANGO_FRONTEND_DIST_DIR", BASE_DIR / "frontend_dist")
+STATIC_URL = config_value("DJANGO_STATIC_URL", "/static/")
+STATIC_ROOT = config_path("DJANGO_STATIC_ROOT", BASE_DIR / "staticfiles")
+FRONTEND_DIST_DIR = config_path("DJANGO_FRONTEND_DIST_DIR", BASE_DIR / "frontend_dist")
 STATICFILES_DIRS = [FRONTEND_DIST_DIR] if FRONTEND_DIST_DIR.exists() else []
-MEDIA_URL = os.environ.get("DJANGO_MEDIA_URL", "/media/")
-MEDIA_ROOT = env_path("DJANGO_MEDIA_ROOT", BASE_DIR / "media")
-SERVE_MEDIA_FILES = env_bool("DJANGO_SERVE_MEDIA_FILES", DEBUG)
-GUACD_HOST = os.environ.get("GUACD_HOST", "127.0.0.1")
-GUACD_PORT = env_int("GUACD_PORT", 4822)
-RDP_RECORDING_ROOT = env_path("RDP_RECORDING_ROOT", BASE_DIR / "rdp_recordings")
-RDP_RECORDING_RETENTION_DAYS = env_int("RDP_RECORDING_RETENTION_DAYS", 30)
-RDP_RECORDING_DEFAULT_ENABLED = env_bool("RDP_RECORDING_DEFAULT_ENABLED", False)
-SSH_GATEWAY_ENABLED = env_bool("SSH_GATEWAY_ENABLED", True)
-SSH_GATEWAY_BIND_HOST = os.environ.get("SSH_GATEWAY_BIND_HOST", "0.0.0.0")
-SSH_GATEWAY_PORT = env_int("SSH_GATEWAY_PORT", 2222)
-SSH_GATEWAY_PUBLIC_HOST = os.environ.get("SSH_GATEWAY_PUBLIC_HOST", "")
-SSH_GATEWAY_PUBLIC_PORT = env_int("SSH_GATEWAY_PUBLIC_PORT", SSH_GATEWAY_PORT)
-SSH_GATEWAY_HOST_KEY_PATH = env_path("SSH_GATEWAY_HOST_KEY_PATH", BASE_DIR / "data" / "ssh-gateway-host-key")
-WHITENOISE_AUTOREFRESH = env_bool("WHITENOISE_AUTOREFRESH", DEBUG)
-WHITENOISE_USE_FINDERS = env_bool("WHITENOISE_USE_FINDERS", DEBUG)
+MEDIA_URL = config_value("DJANGO_MEDIA_URL", "/media/")
+MEDIA_ROOT = config_path("DJANGO_MEDIA_ROOT", BASE_DIR / "media")
+SERVE_MEDIA_FILES = config_bool("DJANGO_SERVE_MEDIA_FILES", DEBUG)
+GUACD_HOST = config_value("GUACD_HOST", "127.0.0.1")
+GUACD_PORT = config_int("GUACD_PORT", 4822)
+RDP_RECORDING_ROOT = config_path("RDP_RECORDING_ROOT", BASE_DIR / "rdp_recordings")
+RDP_RECORDING_RETENTION_DAYS = config_int("RDP_RECORDING_RETENTION_DAYS", 30)
+RDP_RECORDING_DEFAULT_ENABLED = config_bool("RDP_RECORDING_DEFAULT_ENABLED", False)
+SSH_GATEWAY_ENABLED = config_bool("SSH_GATEWAY_ENABLED", True)
+SSH_GATEWAY_BIND_HOST = config_value("SSH_GATEWAY_BIND_HOST", "0.0.0.0")
+SSH_GATEWAY_PORT = config_int("SSH_GATEWAY_PORT", 2222)
+SSH_GATEWAY_PUBLIC_HOST = config_value("SSH_GATEWAY_PUBLIC_HOST", "")
+SSH_GATEWAY_PUBLIC_PORT = config_int("SSH_GATEWAY_PUBLIC_PORT", SSH_GATEWAY_PORT)
+SSH_GATEWAY_HOST_KEY_PATH = config_path("SSH_GATEWAY_HOST_KEY_PATH", BASE_DIR / "data" / "ssh-gateway-host-key")
+WHITENOISE_AUTOREFRESH = config_bool("WHITENOISE_AUTOREFRESH", DEBUG)
+WHITENOISE_USE_FINDERS = config_bool("WHITENOISE_USE_FINDERS", DEBUG)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOW_ALL_ORIGINS = env_bool("DJANGO_CORS_ALLOW_ALL_ORIGINS", DEBUG)
-CORS_ALLOWED_ORIGINS = env_list("DJANGO_CORS_ALLOWED_ORIGINS")
+CORS_ALLOW_ALL_ORIGINS = config_bool("DJANGO_CORS_ALLOW_ALL_ORIGINS", DEBUG)
+CORS_ALLOWED_ORIGINS = config_list("DJANGO_CORS_ALLOWED_ORIGINS")
 
 STORAGES = {
     "default": {

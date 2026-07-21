@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-tools-app
+  namespace: default
+  labels:
+    app: devops-tools
+    component: app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 32751
+      targetPort: 32751
+      protocol: TCP
+      name: http
+  selector:
+    app: devops-tools
+    component: app
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-tools-ssh-gateway
+  namespace: default
+  labels:
+    app: devops-tools
+    component: ssh-gateway
+spec:
+  type: NodePort
+  ports:
+    - port: 22022
+      targetPort: 2222
+      protocol: TCP
+      name: ssh
+      nodePort: 30222  # 外部访问端口，范围 30000-32767
+  selector:
+    app: devops-tools
+    component: ssh-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guacd
+  namespace: default
+  labels:
+    app: devops-tools
+    component: guacd
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4822
+      targetPort: 4822
+      protocol: TCP
+      name: guacd
+  selector:
+    app: devops-tools
+    component: guacd

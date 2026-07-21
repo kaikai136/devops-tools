@@ -17,12 +17,11 @@
   - 审计层：复用现有 `TerminalSession`、asciicast 录像和命令风险识别，并新增文件传输审计。
 
 - 配置与部署：
-  - 新增环境变量：`SSH_GATEWAY_ENABLED=1`、`SSH_GATEWAY_BIND_HOST=0.0.0.0`、`SSH_GATEWAY_PORT=2222`、`SSH_GATEWAY_PUBLIC_HOST`、`SSH_GATEWAY_PUBLIC_PORT=2222`、`SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key`。
-  - `docker-compose.yml` 使用 `${SSH_GATEWAY_PUBLIC_PORT:-2222}:${SSH_GATEWAY_PORT:-2222}`，部署时可在 `.env` 或私有 env 文件中改端口。
-  - 示例：`SSH_GATEWAY_PUBLIC_PORT=22022 SSH_GATEWAY_PORT=2222` 表示宿主机暴露 `22022`，容器内仍监听 `2222`。
-  - 示例：`SSH_GATEWAY_PUBLIC_PORT=22022 SSH_GATEWAY_PORT=22022` 表示宿主机和容器都使用 `22022`。
+  - 新增配置项：`SSH_GATEWAY_ENABLED=1`、`SSH_GATEWAY_BIND_HOST=0.0.0.0`、`SSH_GATEWAY_PORT=2222`、`SSH_GATEWAY_PUBLIC_HOST`、`SSH_GATEWAY_PUBLIC_PORT=2222`、`SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key`。
+  - `deploy/docker-compose.yml` 通过 `volumes` 将 `deploy/config/app.conf` 只读挂载到容器内 `/app/config/app.conf`，应用直接读取该配置文件。
+  - 默认宿主机和容器内 SSH 网关端口均为 `2222`；如需调整端口映射，修改 `deploy/docker-compose.yml`，并同步调整 `deploy/config/app.conf` 中的 `SSH_GATEWAY_PORT` / `SSH_GATEWAY_PUBLIC_PORT`。
   - 新增 management command：`python manage.py run_ssh_gateway`。
-  - `Dockerfile` 增加 `EXPOSE 2222`，但实际端口以环境变量为准。
+  - `deploy/Dockerfile` 增加 `EXPOSE 2222`，实际端口以 Compose 和配置文件为准。
 
 - 数据模型扩展：
   - `TerminalSession` 增加 `user`、`username`、`entrypoint`、`client_ip`、`remote_username`、`direct_mode`。
@@ -51,6 +50,6 @@
 ## Assumptions
 
 - 第一版不支持 Telnet、端口转发、命令阻断 ACL、多远程账号授权。
-- 默认端口是 `2222`，部署时必须能通过环境变量修改公开端口和监听端口。
+- 默认端口是 `2222`，部署时通过 `deploy/docker-compose.yml` 和 `deploy/config/app.conf` 修改公开端口和监听端口。
 - 资产权限沿用当前项目能力：通过 `hosts.terminal` 控制是否可使用 SSH 网关。
 - 参考 KoKo 的接入层、处理层、代理层、会话层、目标连接层分层，但实现形态适配 Django/Vue 项目。

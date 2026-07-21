@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devops-tools-config
+  namespace: default
+data:
+  TZ: "Asia/Shanghai"
+  DJANGO_DEBUG: "0"
+  DJANGO_ALLOWED_HOSTS: "*"
+  DJANGO_CORS_ALLOW_ALL_ORIGINS: "0"
+  DJANGO_DB_PATH: "/app/data/db.sqlite3"
+  DJANGO_MEDIA_ROOT: "/app/media"
+  DJANGO_SERVE_MEDIA_FILES: "1"
+  GUACD_HOST: "guacd"
+  GUACD_PORT: "4822"
+  RDP_RECORDING_ROOT: "/app/rdp_recordings"
+  RDP_RECORDING_RETENTION_DAYS: "30"
+  RDP_RECORDING_DEFAULT_ENABLED: "0"
+  SSH_GATEWAY_ENABLED: "1"
+  SSH_GATEWAY_BIND_HOST: "0.0.0.0"
+  SSH_GATEWAY_PORT: "2222"
+  SSH_GATEWAY_PUBLIC_PORT: "22022"
+  SSH_GATEWAY_PUBLIC_HOST: "172.16.0.99"
+  SSH_GATEWAY_HOST_KEY_PATH: "/app/data/ssh-gateway-host-key"
+  APP_PORT: "32751"

@@ -1,0 +1,200 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guacd
+  namespace: default
+  labels:
+    app: devops-tools
+    component: guacd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devops-tools
+      component: guacd
+  template:
+    metadata:
+      labels:
+        app: devops-tools
+        component: guacd
+    spec:
+      containers:
+        - name: guacd
+          image: guacamole/guacd:1.5.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4822
+              protocol: TCP
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+          livenessProbe:
+            tcpSocket:
+              port: 4822
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 4822
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-tools-app
+  namespace: default
+  labels:
+    app: devops-tools
+    component: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devops-tools
+      component: app
+  template:
+    metadata:
+      labels:
+        app: devops-tools
+        component: app
+    spec:
+      containers:
+        - name: app
+          image: devops-tools:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 32751
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: devops-tools-config
+            - secretRef:
+                name: devops-tools-secret
+          env:
+            # 如果 DJANGO_SECRET_KEY 为空，让 Django 自动生成（但重启会变化）
+            # 建议在 Secret 中设置固定值
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: devops-tools-secret
+                  key: DJANGO_SECRET_KEY
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: media
+              mountPath: /app/media
+            - name: recordings
+              mountPath: /app/rdp_recordings
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/health/
+              port: 32751
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health/
+              port: 32751
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: devops-tools-data-pvc
+        - name: media
+          persistentVolumeClaim:
+            claimName: devops-tools-media-pvc
+        - name: recordings
+          persistentVolumeClaim:
+            claimName: devops-tools-recordings-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-tools-ssh-gateway
+  namespace: default
+  labels:
+    app: devops-tools
+    component: ssh-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: devops-tools
+      component: ssh-gateway
+  template:
+    metadata:
+      labels:
+        app: devops-tools
+        component: ssh-gateway
+    spec:
+      containers:
+        - name: ssh-gateway
+          image: devops-tools:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "manage.py", "run_ssh_gateway"]
+          ports:
+            - containerPort: 2222
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: devops-tools-config
+            - secretRef:
+                name: devops-tools-secret
+          env:
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: devops-tools-secret
+                  key: DJANGO_SECRET_KEY
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: media
+              mountPath: /app/media
+            - name: recordings
+              mountPath: /app/rdp_recordings
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+          livenessProbe:
+            tcpSocket:
+              port: 2222
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 2222
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: devops-tools-data-pvc
+        - name: media
+          persistentVolumeClaim:
+            claimName: devops-tools-media-pvc
+        - name: recordings
+          persistentVolumeClaim:
+            claimName: devops-tools-recordings-pvc

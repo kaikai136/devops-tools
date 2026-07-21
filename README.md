@@ -78,10 +78,13 @@ django-vue/
 │   ├── src/composables/     # 页面状态和功能逻辑
 │   ├── src/services/        # API 请求封装
 │   └── src/styles/          # 全局样式和功能模块样式
-├── docker/                  # 容器启动脚本
-├── scripts/                 # 本地/远程部署脚本
-├── Dockerfile               # 前后端多阶段构建镜像
-└── docker-compose.yml       # app + guacd 服务编排
+└── deploy/                  # Docker Compose、Dockerfile、启动脚本和 K8s 部署文件
+    ├── config/app.conf      # Compose 通过 volumes 挂载到 /app/config/app.conf 的默认配置
+    ├── docker/              # 容器启动脚本
+    ├── k8s/                 # Kubernetes 部署清单
+    ├── scripts/             # 本地/远程部署脚本
+    ├── Dockerfile           # 前后端多阶段构建镜像
+    └── docker-compose.yml   # app + guacd 服务编排
 ```
 
 ## 本地开发
@@ -140,19 +143,19 @@ npm run build
 
 ### 拉取后直接启动
 
-仓库已提供不含真实密钥的默认 `.env`。首次部署不需要手工创建环境文件：
+仓库已提供不含真实密钥的默认 `deploy/config/app.conf`。Compose 会通过 `volumes` 把它只读挂载到容器内的 `/app/config/app.conf`，应用直接从该文件读取部署配置：
 
 ```bash
 git clone https://github.com/kaikai136/devops-tools.git
 cd devops-tools
-docker compose up -d --build
-docker compose ps
+docker compose -f deploy/docker-compose.yml up -d --build
+docker compose -f deploy/docker-compose.yml ps
 ```
 
 也可以使用便捷脚本；脚本只负责创建持久化目录并执行 Docker Compose：
 
 ```bash
-bash scripts/compose-up.sh
+bash deploy/scripts/compose-up.sh
 ```
 
 部署完成后访问：
@@ -173,124 +176,119 @@ curl http://127.0.0.1:8001/api/health/
 {"status":"ok"}
 ```
 
-### 默认 `.env`
+### 默认配置文件
 
-根目录 `.env` 会提交到仓库，用于本地、测试和受控内网环境的开箱即用部署。它只包含公开默认值，不包含真实生产密钥：
+`deploy/config/app.conf` 会提交到仓库，用于本地、测试和受控内网环境的开箱即用部署。它只包含公开默认值，不包含真实生产密钥：
 
-```env
-APP_PORT=8001
-IMAGE_NAME=devops-tools:latest
-CONTAINER_NAME=devops-tools
-GUACD_CONTAINER_NAME=devops-tools-guacd
-
+```conf
+TZ=Asia/Shanghai
 DJANGO_SECRET_KEY=
+DJANGO_SECRET_KEY_FILE=/app/data/django-secret-key
+DJANGO_DEBUG=0
 DJANGO_ALLOWED_HOSTS=*
 DJANGO_CSRF_TRUSTED_ORIGINS=
 DJANGO_CORS_ALLOW_ALL_ORIGINS=0
+DJANGO_DB_PATH=/app/data/db.sqlite3
+DJANGO_MEDIA_ROOT=/app/media
+DJANGO_SERVE_MEDIA_FILES=1
 
 GUACD_HOST=guacd
 GUACD_PORT=4822
+RDP_RECORDING_ROOT=/app/rdp_recordings
 RDP_RECORDING_RETENTION_DAYS=30
 RDP_RECORDING_DEFAULT_ENABLED=0
+
+SSH_GATEWAY_ENABLED=1
+SSH_GATEWAY_BIND_HOST=0.0.0.0
+SSH_GATEWAY_PORT=2222
+SSH_GATEWAY_PUBLIC_HOST=
+SSH_GATEWAY_PUBLIC_PORT=2222
+SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key
 ```
 
 其中 `DJANGO_ALLOWED_HOSTS=*` 只是为了让新部署能够直接访问。**生产环境必须改为实际域名或服务器 IP**，并正确配置 `DJANGO_CSRF_TRUSTED_ORIGINS`。
 
 ### Django 密钥自动生成
 
-默认 `.env` 中的 `DJANGO_SECRET_KEY` 为空。容器每次启动时按以下优先级确定密钥：
+默认 `deploy/config/app.conf` 中的 `DJANGO_SECRET_KEY` 为空。容器每次启动时按以下优先级确定密钥：
 
-1. 使用非空的 `DJANGO_SECRET_KEY` 环境变量。
+1. 使用 `deploy/config/app.conf` 中非空的 `DJANGO_SECRET_KEY`。
 2. 读取已经存在的 `/app/data/django-secret-key`。
 3. 首次启动时安全生成新密钥并保存到 `/app/data/django-secret-key`。
 
-由于 Compose 将 `./data` 挂载到 `/app/data`，自动生成的密钥在宿主机上的位置是：
+由于 `deploy/docker-compose.yml` 将 `../data` 挂载到 `/app/data`，自动生成的密钥在宿主机上的位置是：
 
 ```text
 ./data/django-secret-key
 ```
 
-重新启动容器、重新构建镜像或执行 `docker compose up -d --force-recreate` 都会继续使用同一密钥。密钥内容不会输出到日志。
+重新启动容器、重新构建镜像或执行 `docker compose -f deploy/docker-compose.yml up -d --force-recreate` 都会继续使用同一密钥。密钥内容不会输出到日志。
 
 > 删除 `./data` 会同时删除 SQLite 数据库和自动生成的 Django 密钥。删除、迁移或重装前必须备份整个 `data` 目录。
 
 ### 生产环境私有配置
 
-建议从默认配置复制一份不提交到 Git 的私有环境文件：
+可以直接编辑远端服务器上的 `deploy/config/app.conf`。远程部署脚本会在 Git 更新前临时备份这个文件，并在更新后恢复，避免仓库默认配置覆盖私有配置。
+
+如果需要在本地保留一份私有模板，可以复制为 Git 忽略的本地文件：
 
 ```bash
-cp .env .env.production
+cp deploy/config/app.conf deploy/config/app.local.conf
 ```
 
 示例：
 
-```env
-APP_PORT=8001
-IMAGE_NAME=devops-tools:latest
-CONTAINER_NAME=devops-tools
-GUACD_CONTAINER_NAME=devops-tools-guacd
-
-# 留空时仍使用 ./data/django-secret-key；也可以由 CI/CD 或 Secret 管理系统注入。
-DJANGO_SECRET_KEY=
+```conf
+DJANGO_SECRET_KEY=请替换为强随机密钥
 DJANGO_ALLOWED_HOSTS=ops.example.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://ops.example.com
 DJANGO_CORS_ALLOW_ALL_ORIGINS=0
-
-GUACD_HOST=guacd
-GUACD_PORT=4822
-RDP_RECORDING_RETENTION_DAYS=30
-RDP_RECORDING_DEFAULT_ENABLED=0
-```
-
-使用私有环境文件启动：
-
-```bash
-docker compose --env-file .env.production up -d --build
+SSH_GATEWAY_PUBLIC_HOST=ops.example.com
 ```
 
 如果通过反向代理使用 HTTPS，`DJANGO_CSRF_TRUSTED_ORIGINS` 必须填写带协议的外部访问来源，例如 `https://ops.example.com`。多个主机或来源使用英文逗号分隔。
 
-### 环境变量说明
+### 配置项说明
 
-| 变量 | 默认值 | 说明与生产建议 |
+| 配置项 | 默认值 | 说明与生产建议 |
 | --- | --- | --- |
-| `APP_PORT` | `8001` | 宿主机暴露端口。修改后健康检查和访问地址也要使用新端口。 |
-| `IMAGE_NAME` | `devops-tools:latest` | 本地构建的镜像名称和标签。 |
-| `CONTAINER_NAME` | `devops-tools` | Django 应用容器名称。 |
-| `GUACD_CONTAINER_NAME` | `devops-tools-guacd` | guacd 容器名称。 |
 | `DJANGO_SECRET_KEY` | 空 | 非空时优先使用；为空时自动读取或生成持久化密钥。不要将真实生产密钥提交到仓库。 |
-| `DJANGO_SECRET_KEY_FILE` | `/app/data/django-secret-key` | 容器内自动密钥文件，可通过容器环境覆盖；通常无需修改。 |
+| `DJANGO_SECRET_KEY_FILE` | `/app/data/django-secret-key` | 容器内自动密钥文件，通常无需修改。 |
 | `DJANGO_ALLOWED_HOSTS` | `*` | 允许访问的域名/IP。默认值仅为开箱即用，生产环境必须收紧。 |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | 空 | 跨站请求信任来源，必须包含 `http://` 或 `https://` 协议。使用域名、HTTPS 或反向代理时应明确设置。 |
 | `DJANGO_CORS_ALLOW_ALL_ORIGINS` | `0` | 是否允许所有跨域来源。生产环境保持关闭。 |
-| `DJANGO_DB_PATH` | `/app/data/db.sqlite3` | 容器内 SQLite 数据库路径，由 Compose 固定配置。 |
-| `DJANGO_MEDIA_ROOT` | `/app/media` | 容器内上传文件目录，由 Compose 固定配置。 |
+| `DJANGO_DB_PATH` | `/app/data/db.sqlite3` | 容器内 SQLite 数据库路径。 |
+| `DJANGO_MEDIA_ROOT` | `/app/media` | 容器内上传文件目录。 |
 | `GUACD_HOST` | `guacd` | guacd 服务地址。Compose 内默认使用服务名。 |
 | `GUACD_PORT` | `4822` | guacd 服务端口。 |
 | `RDP_RECORDING_RETENTION_DAYS` | `30` | RDP 录像保留天数。 |
 | `RDP_RECORDING_DEFAULT_ENABLED` | `0` | 新建连接时是否默认开启 RDP 录像。 |
+| `SSH_GATEWAY_PUBLIC_HOST` | 空 | 外部 SSH/SFTP/SCP 示例命令展示的网关地址。 |
+| `SSH_GATEWAY_PUBLIC_PORT` | `2222` | 外部 SSH 网关端口。 |
+
+Compose 层的镜像名、容器名和宿主机端口已固定在 `deploy/docker-compose.yml` 中；如需改变端口映射或镜像标签，请直接修改该 Compose 文件，或用 `bash deploy/scripts/build-image.sh <image:tag>` 单独构建镜像。
 
 ### 数据持久化与备份
 
 Docker Compose 会挂载：
 
-- `./data:/app/data`：SQLite 数据库和自动生成的 Django 密钥。
-- `./media:/app/media`：上传文件、头像和媒体资源。
+- `../data:/app/data`：SQLite 数据库和自动生成的 Django 密钥。
+- `../media:/app/media`：上传文件、头像和媒体资源。
 - `rdp_recordings:/app/rdp_recordings`：RDP 录像数据卷。
 
 升级或重建镜像不会删除这些数据。重大升级前建议同时备份：
 
 ```bash
-cp .env .env.backup
+cp deploy/config/app.conf deploy/config/app.conf.backup
 cp -a data data.backup
 cp -a media media.backup
 ```
 
-`.env.production`、`.env.local` 等私有文件默认被 Git 忽略，不要强制提交。
+`deploy/config/*.local.conf`、`.env`、`.env.*` 等私有文件默认被 Git 忽略，不要强制提交。
 
 ## 远程部署
 
-项目提供 `scripts/deploy-remote.sh`，用于通过 SSH 在目标服务器拉取仓库并执行 Docker Compose。
+项目提供 `deploy/scripts/deploy-remote.sh`，用于通过 SSH 在目标服务器拉取仓库并执行 Docker Compose。
 
 ### 默认参数
 
@@ -302,7 +300,6 @@ cp -a media media.backup
 | `APP_NAME` | `devops-tools` |
 | `REPO_URL` | `https://github.com/kaikai136/devops-tools.git` |
 | `BRANCH` | `main` |
-| `APP_PORT` | 未设置 |
 
 示例：
 
@@ -313,10 +310,10 @@ DEPLOY_ROOT=/opt \
 APP_NAME=devops-tools \
 REPO_URL=https://github.com/kaikai136/devops-tools.git \
 BRANCH=main \
-bash scripts/deploy-remote.sh
+bash deploy/scripts/deploy-remote.sh
 ```
 
-新服务器会使用仓库自带的默认 `.env`。如果远程仓库已经有自定义 `.env`，部署脚本会在 Git 更新前临时备份并在更新后恢复，不会被仓库默认文件覆盖。默认情况下实际访问端口以远程 `.env` 的 `APP_PORT` 为准；只有在执行脚本时显式设置 `APP_PORT`，才会为本次 Compose 部署临时覆盖该值，且不会改写远程 `.env`。
+新服务器会使用仓库自带的默认 `deploy/config/app.conf`。如果远程仓库已经有自定义 `deploy/config/app.conf`，部署脚本会在 Git 更新前临时备份并在更新后恢复，不会被仓库默认文件覆盖。
 
 ### 手动远程部署
 
@@ -324,8 +321,8 @@ bash scripts/deploy-remote.sh
 cd /opt
 git clone https://github.com/kaikai136/devops-tools.git devops-tools
 cd /opt/devops-tools
-docker compose up -d --build
-docker compose ps
+docker compose -f deploy/docker-compose.yml up -d --build
+docker compose -f deploy/docker-compose.yml ps
 curl http://127.0.0.1:8001/api/health/
 ```
 
@@ -335,22 +332,22 @@ curl http://127.0.0.1:8001/api/health/
 cd /opt/devops-tools
 git fetch --tags --force origin
 git checkout --detach refs/tags/v2.0.0
-docker compose up -d --build
+docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
 ### 已有部署升级
 
-升级前保留已有私有环境和持久化数据：
+升级前保留已有私有配置和持久化数据：
 
 ```bash
 cd /opt/devops-tools
-cp .env .env.backup
+cp deploy/config/app.conf deploy/config/app.conf.backup
 cp -a data data.backup
 git pull --ff-only origin main
-docker compose up -d --build
+docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
-如果手工执行 Git 操作时仓库默认 `.env` 与本地私有 `.env` 冲突，请先将私有文件复制到仓库外，更新后再恢复。使用 `scripts/deploy-remote.sh` 时脚本会自动完成该保护流程。
+如果手工执行 Git 操作时仓库默认 `deploy/config/app.conf` 与远端私有配置冲突，请先将私有文件复制到仓库外，更新后再恢复。使用 `deploy/scripts/deploy-remote.sh` 时脚本会自动完成该保护流程。
 
 ### 部署验证
 
@@ -358,67 +355,65 @@ docker compose up -d --build
 cd /opt/devops-tools
 git describe --tags --always --dirty
 git rev-parse HEAD
-docker compose ps
-APP_PORT="$(awk -F= '/^APP_PORT=/{print $2; exit}' .env 2>/dev/null || true)"
-APP_PORT="${APP_PORT:-8001}"
-curl http://127.0.0.1:${APP_PORT}/api/health/
+docker compose -f deploy/docker-compose.yml ps
+curl http://127.0.0.1:8001/api/health/
 ```
 ## 常用运维命令
 
 查看服务状态：
 
 ```bash
-docker compose ps
+docker compose -f deploy/docker-compose.yml ps
 ```
 
 查看应用日志：
 
 ```bash
-docker compose logs -f app
+docker compose -f deploy/docker-compose.yml logs -f app
 ```
 
 查看 guacd 日志：
 
 ```bash
-docker compose logs -f guacd
+docker compose -f deploy/docker-compose.yml logs -f guacd
 ```
 
 重启服务：
 
 ```bash
-docker compose restart
+docker compose -f deploy/docker-compose.yml restart
 ```
 
 重建并滚动启动：
 
 ```bash
-docker compose up -d --build
+docker compose -f deploy/docker-compose.yml up -d --build
 ```
 
 执行数据库迁移：
 
 ```bash
-docker compose exec app python manage.py migrate
+docker compose -f deploy/docker-compose.yml exec app python manage.py migrate
 ```
 
 清理过期 RDP 录像：
 
 ```bash
-docker compose exec app python manage.py cleanup_rdp_recordings
+docker compose -f deploy/docker-compose.yml exec app python manage.py cleanup_rdp_recordings
 ```
 
 进入 Django shell：
 
 ```bash
-docker compose exec app python manage.py shell
+docker compose -f deploy/docker-compose.yml exec app python manage.py shell
 ```
 
 ## 默认访问入口
 
-- Web 应用：`http://服务器IP:APP_PORT`
-- 管理后台：`http://服务器IP:APP_PORT/admin/`
-- 健康检查：`http://服务器IP:APP_PORT/api/health/`
-- 终端页面：`http://服务器IP:APP_PORT/terminal.html`
+- Web 应用：`http://服务器IP:8001`
+- 管理后台：`http://服务器IP:8001/admin/`
+- 健康检查：`http://服务器IP:8001/api/health/`
+- 终端页面：`http://服务器IP:8001/terminal.html`
 
 ## 注意事项
 

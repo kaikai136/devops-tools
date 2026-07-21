@@ -62,3 +62,31 @@ class FrontendServingTests(SimpleTestCase):
             response = self.client.get("/")
 
         self.assertEqual(response.status_code, 404)
+
+
+class ConfigFileTests(SimpleTestCase):
+    def test_load_config_file_parses_deployment_config(self):
+        with TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "app.conf"
+            config_file.write_text(
+                "\n".join(
+                    [
+                        "# comment",
+                        "DJANGO_ALLOWED_HOSTS=ops.example.com,172.16.0.99",
+                        "DJANGO_DEBUG=0",
+                        "GUACD_PORT=4822",
+                        "DJANGO_SECRET_KEY=",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            from ops_tool import settings
+
+            config = settings.load_config_file(config_file)
+
+        self.assertEqual(config["DJANGO_ALLOWED_HOSTS"], "ops.example.com,172.16.0.99")
+        self.assertEqual(config["DJANGO_SECRET_KEY"], "")
+        self.assertFalse(settings.config_bool("DJANGO_DEBUG", True, config=config))
+        self.assertEqual(settings.config_int("GUACD_PORT", 1, config=config), 4822)
+        self.assertEqual(settings.config_list("DJANGO_ALLOWED_HOSTS", config=config), ["ops.example.com", "172.16.0.99"])

@@ -31,10 +31,10 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend/ /app/
 COPY --from=frontend-build /app/frontend/dist/ /app/frontend_dist/
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY deploy/docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh \
-    && mkdir -p /app/data /app/media /app/staticfiles
+    && mkdir -p /app/config /app/data /app/media /app/staticfiles
 
 EXPOSE 8001 2222
 

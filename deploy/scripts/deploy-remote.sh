@@ -7,7 +7,6 @@ DEPLOY_ROOT="${DEPLOY_ROOT:-/opt}"
 APP_NAME="${APP_NAME:-devops-tools}"
 REPO_URL="${REPO_URL:-https://github.com/kaikai136/devops-tools.git}"
 BRANCH="${BRANCH:-main}"
-APP_PORT_OVERRIDE="${APP_PORT:-}"
 
 REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 
@@ -16,23 +15,25 @@ quote() {
 }
 
 ssh "$REMOTE" \
-  "DEPLOY_ROOT=$(quote "$DEPLOY_ROOT") APP_NAME=$(quote "$APP_NAME") REPO_URL=$(quote "$REPO_URL") BRANCH=$(quote "$BRANCH") APP_PORT_OVERRIDE=$(quote "$APP_PORT_OVERRIDE") bash -s" <<'REMOTE_SCRIPT'
+  "DEPLOY_ROOT=$(quote "$DEPLOY_ROOT") APP_NAME=$(quote "$APP_NAME") REPO_URL=$(quote "$REPO_URL") BRANCH=$(quote "$BRANCH") bash -s" <<'REMOTE_SCRIPT'
 set -euo pipefail
 
 APP_DIR="${DEPLOY_ROOT%/}/${APP_NAME}"
-ENV_BACKUP=""
-ENV_RESTORED=0
+CONFIG_PATH="deploy/config/app.conf"
+CONFIG_BACKUP=""
+CONFIG_RESTORED=0
 
-cleanup_env_backup() {
-  if [ -n "$ENV_BACKUP" ] && [ -f "$ENV_BACKUP" ]; then
-    if [ "$ENV_RESTORED" -ne 1 ] && [ -d "$APP_DIR" ]; then
-      cp "$ENV_BACKUP" "$APP_DIR/.env"
-      chmod 600 "$APP_DIR/.env"
+cleanup_config_backup() {
+  if [ -n "$CONFIG_BACKUP" ] && [ -f "$CONFIG_BACKUP" ]; then
+    if [ "$CONFIG_RESTORED" -ne 1 ] && [ -d "$APP_DIR" ]; then
+      mkdir -p "$(dirname "$APP_DIR/$CONFIG_PATH")"
+      cp "$CONFIG_BACKUP" "$APP_DIR/$CONFIG_PATH"
+      chmod 600 "$APP_DIR/$CONFIG_PATH"
     fi
-    rm -f "$ENV_BACKUP"
+    rm -f "$CONFIG_BACKUP"
   fi
 }
-trap cleanup_env_backup EXIT HUP INT TERM
+trap cleanup_config_backup EXIT HUP INT TERM
 
 command -v git >/dev/null 2>&1 || { echo "git is required on the target host."; exit 1; }
 command -v docker >/dev/null 2>&1 || { echo "docker is required on the target host."; exit 1; }
@@ -53,14 +54,14 @@ if [ -e "$APP_DIR" ] && [ ! -d "$APP_DIR/.git" ]; then
   exit 1
 fi
 
-if [ -d "$APP_DIR/.git" ] && [ -f "$APP_DIR/.env" ]; then
-  ENV_BACKUP="$(mktemp)"
-  cp "$APP_DIR/.env" "$ENV_BACKUP"
-  chmod 600 "$ENV_BACKUP"
-  if git -C "$APP_DIR" ls-files --error-unmatch .env >/dev/null 2>&1; then
-    git -C "$APP_DIR" checkout -- .env
+if [ -d "$APP_DIR/.git" ] && [ -f "$APP_DIR/$CONFIG_PATH" ]; then
+  CONFIG_BACKUP="$(mktemp)"
+  cp "$APP_DIR/$CONFIG_PATH" "$CONFIG_BACKUP"
+  chmod 600 "$CONFIG_BACKUP"
+  if git -C "$APP_DIR" ls-files --error-unmatch "$CONFIG_PATH" >/dev/null 2>&1; then
+    git -C "$APP_DIR" checkout -- "$CONFIG_PATH"
   else
-    rm -f "$APP_DIR/.env"
+    rm -f "$APP_DIR/$CONFIG_PATH"
   fi
 fi
 
@@ -73,18 +74,14 @@ else
 fi
 
 cd "$APP_DIR"
-mkdir -p data media
+mkdir -p data media deploy/config
 
-if [ -n "$ENV_BACKUP" ]; then
-  cp "$ENV_BACKUP" .env
-  chmod 600 .env
-  ENV_RESTORED=1
+if [ -n "$CONFIG_BACKUP" ]; then
+  cp "$CONFIG_BACKUP" "$CONFIG_PATH"
+  chmod 600 "$CONFIG_PATH"
+  CONFIG_RESTORED=1
 fi
 
-if [ -n "$APP_PORT_OVERRIDE" ]; then
-  export APP_PORT="$APP_PORT_OVERRIDE"
-fi
-
-"${COMPOSE[@]}" up -d --build
-"${COMPOSE[@]}" ps
+"${COMPOSE[@]}" -f deploy/docker-compose.yml up -d --build
+"${COMPOSE[@]}" -f deploy/docker-compose.yml ps
 REMOTE_SCRIPT

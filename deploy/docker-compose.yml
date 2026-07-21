@@ -1,0 +1,49 @@
+services:
+  guacd:
+    image: guacamole/guacd:1.5.5
+    container_name: devops-tools-guacd
+    restart: unless-stopped
+    init: true
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: devops-tools:latest
+    container_name: devops-tools
+    restart: unless-stopped
+    init: true
+    ports:
+      - "8001:8001"
+    depends_on:
+      - guacd
+    volumes:
+      - ./config/app.conf:/app/config/app.conf:ro
+      - ../data:/app/data
+      - ../media:/app/media
+      - rdp_recordings:/app/rdp_recordings
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8001/api/health/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ssh-gateway:
+    image: devops-tools:latest
+    container_name: devops-tools-ssh-gateway
+    restart: unless-stopped
+    init: true
+    command: ["python", "manage.py", "run_ssh_gateway"]
+    ports:
+      - "2222:2222"
+    depends_on:
+      - app
+    volumes:
+      - ./config/app.conf:/app/config/app.conf:ro
+      - ../data:/app/data
+      - ../media:/app/media
+      - rdp_recordings:/app/rdp_recordings
+
+volumes:
+  rdp_recordings:

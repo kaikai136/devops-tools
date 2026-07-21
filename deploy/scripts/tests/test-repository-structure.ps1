@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
-$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$root = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 
 function Assert-PathExists {
     param([string]$RelativePath, [string]$Message)
@@ -34,12 +34,25 @@ $forbiddenTracked = @(
     'login-implemented.png',
     'login-prototype.png',
     'prototype-home.png',
-    'restored-login.png'
+    'restored-login.png',
+    'docker-compose.yml',
+    'Dockerfile',
+    '.env',
+    'docker/entrypoint.sh',
+    'scripts/compose-up.sh',
+    'scripts/build-image.sh',
+    'scripts/deploy-remote.sh'
 )
 $required = @(
     'frontend/public/captain-banner.png',
     'frontend/public/ops-captain-icon.png',
-    '.env'
+    'deploy/config/app.conf',
+    'deploy/docker-compose.yml',
+    'deploy/Dockerfile',
+    'deploy/docker/entrypoint.sh',
+    'deploy/scripts/compose-up.sh',
+    'deploy/scripts/build-image.sh',
+    'deploy/scripts/deploy-remote.sh'
 )
 
 foreach ($relative in $forbiddenTracked) {
@@ -64,6 +77,9 @@ Assert-Match $ignore '(?m)^\s*\.codex-logs/?\s*$' '.gitignore missing tracked ru
 
 foreach ($ignoredPath in @(
     'scratch.log',
+    '.env',
+    '.env.production',
+    'deploy/config/app.local.conf',
     'backend/db.sqlite3',
     'backend/media/upload.bin',
     'data/runtime.bin',
