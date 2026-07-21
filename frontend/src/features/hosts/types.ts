@@ -6,6 +6,7 @@ export type ExportRow = Record<string, string | number | boolean | null>;
 
 export interface HostManagementExport {
   version: number;
+  importMode?: 'host-table';
   groups: ExportRow[];
   hosts: ExportRow[];
   credentials: ExportRow[];
@@ -16,6 +17,9 @@ export interface HostManagementImportResponse {
     groups: number;
     hosts: number;
     credentials: number;
+  };
+  skipped?: {
+    hosts: number;
   };
 }
 

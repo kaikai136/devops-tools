@@ -50,6 +50,7 @@ const props = defineProps<{
   canMove: boolean;
   canDelete: boolean;
   showMoreActionsDivider: boolean;
+  canImport: boolean;
   canExport: boolean;
 }>();
 
@@ -62,6 +63,7 @@ const emit = defineEmits<{
   'verify-selected': [];
   'move-selected': [];
   'delete-selected': [];
+  import: [];
   export: [];
   refresh: [];
   'toggle-column-settings': [];
@@ -120,6 +122,7 @@ const searchModel = computed({
           </button>
         </div>
       </div>
+      <button v-if="props.canImport" class="icon-only" type="button" title="导入" aria-label="导入" @click="emit('import')"><AppIcon name="upload" :size="16" /></button>
       <button v-if="props.canExport" class="icon-only" type="button" title="导出" aria-label="导出" @click="emit('export')"><AppIcon name="download" :size="16" /></button>
       <button class="icon-only" type="button" title="刷新" aria-label="刷新" @click="emit('refresh')"><AppIcon name="refresh" :size="16" /></button>
       <div class="host-column-settings" @click.stop>

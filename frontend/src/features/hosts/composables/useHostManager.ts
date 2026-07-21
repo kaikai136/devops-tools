@@ -5,7 +5,7 @@ import { useHostImportExport } from './useHostImportExport';
 import { useHostList, type HostManagerConfirm } from './useHostList';
 import { useHostVerification } from './useHostVerification';
 
-export { hostExportColumnOptions } from './useHostImportExport';
+export { hostExportColumnOptions, hostImportTemplateColumns } from './useHostImportExport';
 export type {
   HostExportColumnKey,
   HostExportColumnOption,
@@ -162,6 +162,7 @@ export function useHostManager({
 
   const {
     backupHostManagement,
+    downloadHostImportTemplate,
     exportHostManagement,
     importHostManagement,
   } = useHostImportExport({
@@ -209,6 +210,7 @@ export function useHostManager({
     replaceHostCredential,
     removeHostCredential,
     backupHostManagement,
+    downloadHostImportTemplate,
     exportHostManagement,
     importHostManagement,
     selectManagedGroup,

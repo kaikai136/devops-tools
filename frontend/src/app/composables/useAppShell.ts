@@ -9,6 +9,8 @@ import { setupClickWords, setupPointerTrail } from '../../utils/effects';
 
 type HostManager = ReturnType<typeof useHostManager>;
 
+const xlsxMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 type UseAppShellOptions = {
   activeTool: Ref<ToolKey>;
   currentUser: Ref<AccountUser | null>;
@@ -17,6 +19,7 @@ type UseAppShellOptions = {
   loadCurrentUser: () => Promise<void>;
   loadAuthEntries: () => Promise<void>;
   cleanupPageState: () => void;
+  downloadHostImportTemplate: HostManager['downloadHostImportTemplate'];
   exportHostManagement: HostManager['exportHostManagement'];
   importHostManagement: HostManager['importHostManagement'];
 };
@@ -29,6 +32,7 @@ export function useAppShell({
   loadCurrentUser,
   loadAuthEntries,
   cleanupPageState,
+  downloadHostImportTemplate,
   exportHostManagement,
   importHostManagement,
 }: UseAppShellOptions) {
@@ -58,7 +62,9 @@ export function useAppShell({
 
   const siteSettings = useSiteSettings({ showToast });
   const { siteIdentity, loadPublicSiteSettings } = siteSettings;
-  const hostImportAccept = computed(() => 'application/json,.json,.enc.json');
+  const hostImportAccept = computed(() =>
+    hostTransferFormat.value === 'excel' ? `${xlsxMimeType},.xlsx` : 'application/json,.json,.enc.json',
+  );
 
   async function loadLocalIp() {
     try {
@@ -84,7 +90,7 @@ export function useAppShell({
 
   function openHostTransferDialog(mode: 'import' | 'export') {
     hostTransferDialog.value = mode;
-    hostTransferFormat.value = mode === 'export' ? 'excel' : 'json';
+    hostTransferFormat.value = 'excel';
   }
 
   function closeHostTransferDialog() {
@@ -104,6 +110,7 @@ export function useAppShell({
   }
 
   function triggerHostImportFile() {
+    hostTransferFormat.value = 'excel';
     hostImportFile.value?.click();
   }
 
@@ -170,6 +177,7 @@ export function useAppShell({
     openHostTransferDialog,
     closeHostTransferDialog,
     confirmHostTransfer,
+    downloadHostImportTemplate,
     importHostManagement: importSelectedHostManagement,
     imageInput,
     selectedHost,

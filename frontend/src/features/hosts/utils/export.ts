@@ -25,6 +25,22 @@ export const hostExportColumnOptions: readonly HostExportColumnOption[] = [
   { field: 'status', label: '状态', width: 14 },
 ] as const;
 
+export const hostImportTemplateColumns: readonly ExportColumn[] = [
+  { field: 'groupPath', label: '主机分组', width: 18 },
+  { field: 'name', label: '节点', width: 22 },
+  { field: 'privateIp', label: 'IP地址', width: 18 },
+  { field: 'platformType', label: '平台类型', width: 14 },
+  { field: 'port', label: '端口', width: 10 },
+  { field: 'remark', label: '备注', width: 28 },
+] as const;
+
+export const hostImportTemplateDefaults = {
+  groupPath: 'default',
+  platformType: 'linux',
+  port: 22,
+  remark: '',
+} as const;
+
 export function buildHostExportPayload(
   hosts: ManagedHost[],
   columns: readonly HostExportColumnOption[],
@@ -74,12 +90,206 @@ const exportSheets: Array<{ key: keyof HostManagementExport; title: string; colu
 ];
 
 export function buildXlsxWorkbook(payload: HostManagementExport, hostColumns: readonly ExportColumn[] = exportSheets[0].columns) {
-  const rows = payload.hosts;
+  return buildXlsxWorkbookFromRows(payload.hosts, hostColumns, '主机清单');
+}
+
+export function buildHostImportTemplateWorkbook() {
+  return buildXlsxWorkbookFromRows(
+    [
+      {
+        groupPath: hostImportTemplateDefaults.groupPath,
+        name: 'host-01',
+        privateIp: '192.168.1.10',
+        platformType: hostImportTemplateDefaults.platformType,
+        port: hostImportTemplateDefaults.port,
+        remark: hostImportTemplateDefaults.remark,
+      },
+    ],
+    hostImportTemplateColumns,
+    '主机导入模板',
+  );
+}
+
+export async function parseHostImportWorkbook(content: ArrayBuffer | Uint8Array): Promise<HostManagementExport> {
+  const entries = await readZipTextEntries(toUint8Array(content));
+  const worksheet = entries.get('xl/worksheets/sheet1.xml') ?? [...entries.entries()]
+    .find(([name]) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(name))?.[1];
+  if (!worksheet) throw new Error('导入模板中未找到工作表。');
+  return buildHostTableImportPayload(parseXlsxWorksheetRows(worksheet, parseSharedStrings(entries.get('xl/sharedStrings.xml'))));
+}
+
+export function buildHostTableImportPayload(rows: ExportRow[]): HostManagementExport {
+  return {
+    version: 1,
+    importMode: 'host-table',
+    groups: [],
+    credentials: [],
+    hosts: rows
+      .filter((row) => Object.values(row).some((value) => normalizeImportText(value) !== ''))
+      .map((row) => ({
+        groupPath: normalizeImportText(hostImportRowValue(row, 'groupPath')) || hostImportTemplateDefaults.groupPath,
+        name: normalizeImportText(hostImportRowValue(row, 'name')),
+        privateIp: normalizeImportText(hostImportRowValue(row, 'privateIp')),
+        platformType: normalizeHostImportPlatform(hostImportRowValue(row, 'platformType')),
+        port: normalizeHostImportPort(hostImportRowValue(row, 'port')),
+        remark: normalizeImportText(hostImportRowValue(row, 'remark')),
+      })),
+  };
+}
+
+function parseXlsxWorksheetRows(worksheetXml: string, sharedStrings: string[]): ExportRow[] {
+  const rows: string[][] = [];
+  for (const rowMatch of worksheetXml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+    const cells: string[] = [];
+    let nextCellIndex = 0;
+    for (const cellMatch of rowMatch[1].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+      const columnMatch = cellMatch[1].match(/\br="([A-Z]+)\d+"/i);
+      const cellIndex = columnMatch ? columnLettersToIndex(columnMatch[1]) - 1 : nextCellIndex;
+      cells[cellIndex] = parseXlsxCellValue(cellMatch[1], cellMatch[2], sharedStrings);
+      nextCellIndex = cellIndex + 1;
+    }
+    if (cells.some((value) => normalizeImportText(value) !== '')) rows.push(cells);
+  }
+
+  const headers = (rows.shift() ?? []).map(resolveHostImportField);
+  if (!headers.some(Boolean)) return [];
+  return rows
+    .map((cells) =>
+      headers.reduce<ExportRow>((row, field, index) => {
+        if (field) row[field] = normalizeImportText(cells[index]);
+        return row;
+      }, {}),
+    )
+    .filter((row) => Object.values(row).some((value) => normalizeImportText(value) !== ''));
+}
+
+function parseXlsxCellValue(attrs: string, content: string, sharedStrings: string[]) {
+  const type = attrs.match(/\bt="([^"]+)"/)?.[1] ?? '';
+  const rawValue = content.match(/<v\b[^>]*>([\s\S]*?)<\/v>/)?.[1] ?? '';
+  if (type === 's') return sharedStrings[Number.parseInt(rawValue || '0', 10)] ?? '';
+  const inlineText = extractXmlText(content);
+  return inlineText || decodeXml(rawValue);
+}
+
+function parseSharedStrings(xml: string | undefined) {
+  if (!xml) return [];
+  return [...xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((match) => extractXmlText(match[1]));
+}
+
+function extractXmlText(xml: string) {
+  return [...xml.matchAll(/<t\b[^>]*>([\s\S]*?)<\/t>/g)].map((match) => decodeXml(match[1])).join('');
+}
+
+function resolveHostImportField(value: string) {
+  const normalized = normalizeCell(value);
+  return hostImportHeaderAliases[normalized] ?? hostImportTemplateColumns.find((column) => column.field === normalized || column.label === normalized)?.field ?? '';
+}
+
+const hostImportHeaderAliases: Record<string, string> = {
+  主机分组: 'groupPath',
+  分组: 'groupPath',
+  分组路径: 'groupPath',
+  节点: 'name',
+  名称: 'name',
+  IP地址: 'privateIp',
+  IP: 'privateIp',
+  内网IP: 'privateIp',
+  '内网 IP': 'privateIp',
+  平台类型: 'platformType',
+  平台: 'platformType',
+  端口: 'port',
+  备注: 'remark',
+};
+
+function hostImportRowValue(row: ExportRow, field: string) {
+  if (field in row) return row[field];
+  const column = hostImportTemplateColumns.find((item) => item.field === field);
+  if (column && column.label in row) return row[column.label];
+  return Object.entries(row).find(([key]) => resolveHostImportField(key) === field)?.[1] ?? '';
+}
+
+function normalizeHostImportPlatform(value: string | number | boolean | null | undefined) {
+  return normalizeImportText(value).toLowerCase() === 'windows' ? 'windows' : hostImportTemplateDefaults.platformType;
+}
+
+function normalizeHostImportPort(value: string | number | boolean | null | undefined) {
+  const port = Number.parseInt(normalizeImportText(value), 10);
+  return Number.isFinite(port) && port > 0 ? port : hostImportTemplateDefaults.port;
+}
+
+function normalizeImportText(value: string | number | boolean | null | undefined) {
+  return normalizeCell(value === null || value === undefined ? '' : String(value));
+}
+
+async function readZipTextEntries(bytes: Uint8Array) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const decoder = new TextDecoder();
+  const endOffset = findEndOfCentralDirectory(bytes, view);
+  const centralDirectorySize = view.getUint32(endOffset + 12, true);
+  const centralDirectoryOffset = view.getUint32(endOffset + 16, true);
+  const entries = new Map<string, string>();
+
+  let offset = centralDirectoryOffset;
+  const end = centralDirectoryOffset + centralDirectorySize;
+  while (offset < end) {
+    if (view.getUint32(offset, true) !== 0x02014b50) throw new Error('xlsx 文件结构不正确。');
+    const compressionMethod = view.getUint16(offset + 10, true);
+    const compressedSize = view.getUint32(offset + 20, true);
+    const fileNameLength = view.getUint16(offset + 28, true);
+    const extraLength = view.getUint16(offset + 30, true);
+    const commentLength = view.getUint16(offset + 32, true);
+    const localHeaderOffset = view.getUint32(offset + 42, true);
+    const fileName = decoder.decode(bytes.subarray(offset + 46, offset + 46 + fileNameLength));
+
+    if (view.getUint32(localHeaderOffset, true) !== 0x04034b50) throw new Error('xlsx 文件结构不正确。');
+    const localNameLength = view.getUint16(localHeaderOffset + 26, true);
+    const localExtraLength = view.getUint16(localHeaderOffset + 28, true);
+    const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+    const compressed = bytes.subarray(dataStart, dataStart + compressedSize);
+    const content = compressionMethod === 0
+      ? compressed
+      : compressionMethod === 8
+        ? await inflateRaw(compressed)
+        : null;
+    if (content) entries.set(fileName, decoder.decode(content));
+    offset += 46 + fileNameLength + extraLength + commentLength;
+  }
+
+  return entries;
+}
+
+function findEndOfCentralDirectory(bytes: Uint8Array, view: DataView) {
+  const minOffset = Math.max(0, bytes.length - 0xffff - 22);
+  for (let offset = bytes.length - 22; offset >= minOffset; offset -= 1) {
+    if (view.getUint32(offset, true) === 0x06054b50) return offset;
+  }
+  throw new Error('请选择有效的 xlsx 导入文件。');
+}
+
+async function inflateRaw(bytes: Uint8Array) {
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('当前浏览器不支持读取压缩 xlsx，请使用系统下载的导入模板。');
+  }
+  const compressed = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(compressed).set(bytes);
+  const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('deflate-raw' as CompressionFormat));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function toUint8Array(content: ArrayBuffer | Uint8Array) {
+  return content instanceof Uint8Array ? content : new Uint8Array(content);
+}
+
+function columnLettersToIndex(value: string) {
+  return value.toUpperCase().split('').reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0);
+}
+
+function buildXlsxWorkbookFromRows(rows: ExportRow[], hostColumns: readonly ExportColumn[], sheetName: string) {
   const worksheet = buildXlsxWorksheet(rows, hostColumns);
   return createZip([
     { name: '[Content_Types].xml', content: stringToBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`) },
     { name: '_rels/.rels', content: stringToBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`) },
-    { name: 'xl/workbook.xml', content: stringToBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="主机清单" sheetId="1" r:id="rId1"/></sheets></workbook>`) },
+    { name: 'xl/workbook.xml', content: stringToBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`) },
     { name: 'xl/_rels/workbook.xml.rels', content: stringToBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`) },
     { name: 'xl/styles.xml', content: stringToBytes(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Microsoft YaHei"/></font><font><b/><sz val="11"/><name val="Microsoft YaHei"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="49" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="49" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`) },
     { name: 'xl/worksheets/sheet1.xml', content: stringToBytes(worksheet) },
@@ -290,8 +500,10 @@ const excelHeaderAliases: Record<string, string> = {
   上级路径: 'parentPath',
   排序: 'sortOrder',
   主机分组: 'groupPath',
+  IP地址: 'privateIp',
   '公网 IP': 'publicIp',
   '内网 IP': 'privateIp',
+  平台类型: 'platformType',
   端口: 'port',
   机器名称: 'machineName',
   CPU: 'cpu',
@@ -324,5 +536,18 @@ function escapeXml(value: string) {
     if (char === '"') return '&quot;';
     if (char === "'") return '&apos;';
     return '';
+  });
+}
+
+function decodeXml(value: string) {
+  return value.replace(/&(#x?[0-9a-f]+|amp|lt|gt|quot|apos);/gi, (match, entity: string) => {
+    if (entity === 'amp') return '&';
+    if (entity === 'lt') return '<';
+    if (entity === 'gt') return '>';
+    if (entity === 'quot') return '"';
+    if (entity === 'apos') return "'";
+    if (entity.startsWith('#x')) return String.fromCodePoint(Number.parseInt(entity.slice(2), 16));
+    if (entity.startsWith('#')) return String.fromCodePoint(Number.parseInt(entity.slice(1), 10));
+    return match;
   });
 }

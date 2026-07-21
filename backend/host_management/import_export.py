@@ -5,6 +5,9 @@ from django.utils.dateparse import parse_datetime
 from .models import HostCredential, HostGroup, ManagedHost
 from .services import next_group_sort_order, resolve_creator
 
+HOST_TABLE_IMPORT_MODE = "host-table"
+HOST_TABLE_DEFAULT_GROUP_NAME = "default"
+
 DEFAULT_GROUP_NAME = "默认分组"
 
 
@@ -106,7 +109,10 @@ def ensure_group_by_path(path: str) -> HostGroup:
     return group
 
 
-def import_host_management_payload(payload: dict) -> dict[str, int]:
+def import_host_management_payload(payload: dict) -> dict:
+    if payload.get("importMode") == HOST_TABLE_IMPORT_MODE:
+        return import_host_table_payload(payload)
+
     groups = payload.get("groups", [])
     hosts = payload.get("hosts", [])
     credentials = payload.get("credentials", [])
@@ -141,6 +147,67 @@ def group_import_depth(value) -> int:
     if not isinstance(value, dict):
         return 0
     return len(str(value.get("path", value.get("name", ""))).split("/"))
+
+
+def import_host_table_payload(payload: dict) -> dict[str, dict[str, int]]:
+    hosts = payload.get("hosts", [])
+    if not isinstance(hosts, list):
+        raise ValueError("导入文件格式不正确")
+
+    imported = {"groups": 0, "hosts": 0, "credentials": 0}
+    skipped = {"hosts": 0}
+    with transaction.atomic():
+        for item in hosts:
+            if not isinstance(item, dict):
+                skipped["hosts"] += 1
+                continue
+            normalized = normalize_host_table_item(item)
+            if normalized is None:
+                skipped["hosts"] += 1
+                continue
+            group = ensure_group_by_path(normalized["groupPath"])
+            if ManagedHost.objects.filter(group=group, name=normalized["name"], private_ip=normalized["privateIp"]).exists():
+                skipped["hosts"] += 1
+                continue
+            ManagedHost.objects.create(
+                name=normalized["name"],
+                group=group,
+                private_ip=normalized["privateIp"],
+                port=normalized["port"],
+                remark=normalized["remark"],
+                os=host_table_os_from_platform(normalized["platformType"]),
+                verified=False,
+                verify_status="unverified",
+            )
+            imported["hosts"] += 1
+    return {"imported": imported, "skipped": skipped}
+
+
+def normalize_host_table_item(item: dict) -> dict | None:
+    name = str(item.get("name", "")).strip()
+    private_ip = str(item.get("privateIp") or item.get("ip") or "").strip()
+    if not name or not private_ip:
+        return None
+    return {
+        "groupPath": str(item.get("groupPath") or item.get("group") or HOST_TABLE_DEFAULT_GROUP_NAME).strip() or HOST_TABLE_DEFAULT_GROUP_NAME,
+        "name": name,
+        "privateIp": private_ip,
+        "platformType": str(item.get("platformType") or "linux").strip().lower() or "linux",
+        "port": normalize_host_table_port(item.get("port")),
+        "remark": str(item.get("remark") or ""),
+    }
+
+
+def normalize_host_table_port(value) -> int:
+    try:
+        port = int(value or 22)
+    except (TypeError, ValueError):
+        return 22
+    return port if port > 0 else 22
+
+
+def host_table_os_from_platform(platform_type: str) -> str:
+    return "windows" if platform_type.lower() == "windows" else "centos"
 
 
 def import_credentials(credentials: list, imported: dict[str, int]) -> None:

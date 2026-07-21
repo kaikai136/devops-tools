@@ -61,6 +61,7 @@ export function useAppState() {
     loadCurrentUser: session.state.loadCurrentUser,
     loadAuthEntries: () => authenticator.loadAuthEntries(),
     cleanupPageState: pages.cleanup,
+    downloadHostImportTemplate: () => hostManager.downloadHostImportTemplate(),
     exportHostManagement: (format) => hostManager.exportHostManagement(format),
     importHostManagement: (event, format) => hostManager.importHostManagement(event, format),
   });

@@ -102,6 +102,7 @@ const {
   openHostTransferDialog,
   closeHostTransferDialog,
   confirmHostTransfer,
+  downloadHostImportTemplate,
   backupHostManagement,
   exportHostManagement,
   importHostManagement,
@@ -490,9 +491,9 @@ async function lockCurrentSession() {
     />
     <HostImportDialog
       v-else-if="hostTransferDialog === 'import'"
-      v-model:format="hostTransferFormat"
       @close="closeHostTransferDialog"
       @confirm="confirmHostTransfer"
+      @download-template="downloadHostImportTemplate"
     />
 
     <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = null">

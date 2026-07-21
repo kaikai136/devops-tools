@@ -14,6 +14,7 @@ const expectedHostManagerKeys = [
   'deleteManagedHost',
   'deleteManagedHostsInGroup',
   'deleteSelectedManagedHosts',
+  'downloadHostImportTemplate',
   'draggedHostGroupId',
   'dropHostGroup',
   'editManagedHost',
@@ -104,7 +105,7 @@ describe('useHostManager facade contract', () => {
     )!;
 
     expect(Object.keys(manager).sort()).toEqual(expectedHostManagerKeys);
-    expect(expectedHostManagerKeys).toHaveLength(75);
+    expect(expectedHostManagerKeys).toHaveLength(76);
     expect(manager.hostSearch.value).toBe('');
     expect(manager.selectedHostGroup.value).toBeNull();
     expect(manager.hostStatusFilter.value).toBe('all');
@@ -128,6 +129,7 @@ describe('useHostManager facade contract', () => {
 
     expect(manager.loadHostManagement).toBeTypeOf('function');
     expect(manager.backupHostManagement).toBeTypeOf('function');
+    expect(manager.downloadHostImportTemplate).toBeTypeOf('function');
     expect(manager.importHostManagement).toBeTypeOf('function');
     expect(manager.openWebTerminal).toBeTypeOf('function');
     expect(manager.saveManagedHost).toBeTypeOf('function');

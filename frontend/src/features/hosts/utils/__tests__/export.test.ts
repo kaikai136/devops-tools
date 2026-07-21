@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import type { ManagedHost } from '../../types';
 import {
+  buildHostTableImportPayload,
+  buildHostImportTemplateWorkbook,
   buildHostExportPayload,
   formatExportCell,
   formatHostExportValue,
   hostExportColumnOptions,
+  hostImportTemplateColumns,
+  parseHostImportWorkbook,
   parseExportCell,
 } from '../export';
 
@@ -61,6 +65,87 @@ const failedHost = {
 const groupName = (groupId: number) => ({ 10: '生产环境 / 应用节点' })[groupId] ?? '未分组';
 
 describe('host export pure utilities', () => {
+  it('keeps the host import template limited to editable table fields', () => {
+    expect(hostImportTemplateColumns).toEqual([
+      { field: 'groupPath', label: '主机分组', width: 18 },
+      { field: 'name', label: '节点', width: 22 },
+      { field: 'privateIp', label: 'IP地址', width: 18 },
+      { field: 'platformType', label: '平台类型', width: 14 },
+      { field: 'port', label: '端口', width: 10 },
+      { field: 'remark', label: '备注', width: 28 },
+    ]);
+  });
+
+  it('builds an xlsx import template with the expected sheet name and defaults', () => {
+    const workbook = new TextDecoder().decode(buildHostImportTemplateWorkbook());
+
+    expect(workbook).toContain('主机导入模板');
+    expect(workbook).toContain('主机分组');
+    expect(workbook).toContain('节点');
+    expect(workbook).toContain('IP地址');
+    expect(workbook).toContain('平台类型');
+    expect(workbook).toContain('端口');
+    expect(workbook).toContain('备注');
+    expect(workbook).toContain('default');
+    expect(workbook).toContain('linux');
+    expect(workbook).toContain('22');
+    expect(workbook).not.toContain('机器名称');
+    expect(workbook).not.toContain('系统架构');
+    expect(workbook).not.toContain('配置');
+    expect(workbook).not.toContain('状态');
+  });
+
+  it('parses xlsx table import rows into the host-table payload contract', async () => {
+    const payload = await parseHostImportWorkbook(buildHostImportTemplateWorkbook());
+
+    expect(payload).toEqual({
+      version: 1,
+      importMode: 'host-table',
+      groups: [],
+      credentials: [],
+      hosts: [
+        {
+          groupPath: 'default',
+          name: 'host-01',
+          privateIp: '192.168.1.10',
+          platformType: 'linux',
+          port: 22,
+          remark: '',
+        },
+      ],
+    });
+  });
+
+  it('normalizes manual table import rows without generated verification fields', () => {
+    const payload = buildHostTableImportPayload([
+      {
+        主机分组: '',
+        节点: ' host-02 ',
+        IP地址: ' 10.0.0.12 ',
+        平台类型: '',
+        端口: '',
+        备注: ' rack a ',
+        机器名称: 'must-not-import',
+        验证状态: '已验证',
+        CPU: 16,
+      },
+    ]);
+
+    expect(payload.hosts).toEqual([
+      {
+        groupPath: 'default',
+        name: 'host-02',
+        privateIp: '10.0.0.12',
+        platformType: 'linux',
+        port: 22,
+        remark: 'rack a',
+      },
+    ]);
+    expect(payload.hosts[0]).not.toHaveProperty('机器名称');
+    expect(payload.hosts[0]).not.toHaveProperty('验证状态');
+    expect(payload.hosts[0]).not.toHaveProperty('CPU');
+  });
+
   it('preserves the exact host export field, header, and width order', () => {
     expect(hostExportColumnOptions).toEqual([
       { field: 'group', label: '主机分组', width: 18 },

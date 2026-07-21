@@ -64,8 +64,8 @@ const componentContracts: Record<string, { props: string[]; emits: string[] }> =
     emits: ['select-group', 'toggle-root', 'toggle-group', 'open-menu', 'update-inline-name', 'save-inline-edit'],
   },
   'HostImportDialog.vue': {
-    props: ['format'],
-    emits: ['close', 'confirm', 'update:format'],
+    props: [],
+    emits: ['close', 'confirm', 'download-template'],
   },
   'HostMoveDialog.vue': {
     props: ['open', 'mode', 'form', 'hosts', 'root', 'groups', 'selectedCount'],
@@ -77,7 +77,7 @@ const componentContracts: Record<string, { props: string[]; emits: string[] }> =
   },
   'HostToolbar.vue': {
     props: ['search', 'statusFilter', 'selectedCount', 'moreActionsOpen', 'columnSettingsOpen', 'fullscreen'],
-    emits: ['update:search', 'create', 'open-quick-commands', 'toggle-more-actions', 'status-filter', 'export', 'refresh'],
+    emits: ['update:search', 'create', 'open-quick-commands', 'toggle-more-actions', 'status-filter', 'import', 'export', 'refresh'],
   },
 };
 
@@ -300,6 +300,7 @@ describe('HostManager component structure', () => {
       'column-visibility': 'hostColumnVisibility',
       'can-create': "canUsePageAction('hosts', 'create')",
       'can-manage-quick-commands': "canUsePageAction('hosts', 'quick_commands')",
+      'can-import': "canUsePageAction('hosts', 'import')",
       'can-export': "canUsePageAction('hosts', 'export')",
     });
     expectEvents(toolbar, {
@@ -308,6 +309,7 @@ describe('HostManager component structure', () => {
       'status-filter': 'setHostStatusFilter',
       'toggle-all-columns': 'toggleAllHostColumns',
       'update-column': 'updateHostColumnVisibility',
+      import: "openHostTransferDialog('import')",
       export: "openHostTransferDialog('export')",
       refresh: 'loadHostManagement',
     });
@@ -534,6 +536,22 @@ describe('HostManager component structure', () => {
     expectDirective(addHostButton!, 'on', 'click', "emit('add-host', props.menu.group.key ?? undefined)");
   });
 
+  it('exposes table import controls with direct import and template download actions', () => {
+    const toolbarRoot = templateRoot('src/features/hosts/components/HostToolbar.vue');
+    const importButton = findElements(toolbarRoot, 'button').find((button) => staticAttribute(button, 'title') === '导入');
+    expect(importButton).toBeTruthy();
+    expectDirective(importButton!, 'on', 'click', "emit('import')");
+
+    const importRoot = templateRoot('src/features/hosts/components/HostImportDialog.vue');
+    expect(findByClass(importRoot, 'article', 'host-import-modal')).toHaveLength(1);
+    expect(findByClass(importRoot, 'table', 'host-import-template-preview')).toHaveLength(1);
+    const headers = findElements(importRoot, 'th').map((header) => header.children[0]?.type === NodeTypes.TEXT ? header.children[0].content : '');
+    expect(headers).toEqual(['主机分组', '节点', 'IP地址', '平台类型', '端口', '备注']);
+    const buttons = findElements(importRoot, 'button');
+    expect(buttons.some((button) => directiveExpression(button, 'on', 'click') === "emit('confirm')")).toBe(true);
+    expect(buttons.some((button) => directiveExpression(button, 'on', 'click') === "emit('download-template')")).toBe(true);
+  });
+
   it('connects App import/export dialogs with exact models and event handlers', () => {
     const root = templateRoot('src/App.vue');
     const exportDialog = findElements(root, 'HostExportDialog')[0];
@@ -547,10 +565,10 @@ describe('HostManager component structure', () => {
     });
 
     const importDialog = findElements(root, 'HostImportDialog')[0];
-    expectDirective(importDialog, 'model', 'format', 'hostTransferFormat');
     expectEvents(importDialog, {
       close: 'closeHostTransferDialog',
       confirm: 'confirmHostTransfer',
+      'download-template': 'downloadHostImportTemplate',
     });
     expect(findByClass(root, 'article', 'host-transfer-modal')).toHaveLength(0);
   });

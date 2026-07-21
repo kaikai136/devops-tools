@@ -9,14 +9,19 @@ import type {
   ManagedHost,
 } from '@features/hosts/types';
 import {
+  buildHostImportTemplateWorkbook,
+  buildHostTableImportPayload,
   buildHostExportPayload,
   buildXlsxWorkbook,
   hostExportColumnOptions,
+  parseHostImportWorkbook,
   parseExcelWorkbook,
 } from '@features/hosts/utils/export';
-import { readFileText } from '../../../utils/files';
+import { readFileBuffer, readFileText } from '../../../utils/files';
 
-export { hostExportColumnOptions } from '@features/hosts/utils/export';
+const xlsxMimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export { hostExportColumnOptions, hostImportTemplateColumns } from '@features/hosts/utils/export';
 export type {
   HostExportColumnKey,
   HostExportColumnOption,
@@ -57,7 +62,7 @@ export function useHostImportExport({
       const payload = buildHostExportPayload(sourceHosts, columns, hostGroupName);
       const date = new Date().toISOString().slice(0, 10);
       if (format === 'excel') {
-        downloadFile(buildXlsxWorkbook(payload, columns), `host-management-${date}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        downloadFile(buildXlsxWorkbook(payload, columns), `host-management-${date}.xlsx`, xlsxMimeType);
       } else {
         downloadFile(JSON.stringify(payload, null, 2), `host-management-${date}.json`, 'application/json;charset=utf-8');
       }
@@ -83,28 +88,59 @@ export function useHostImportExport({
     }
   }
 
+  function downloadHostImportTemplate() {
+    try {
+      downloadFile(buildHostImportTemplateWorkbook(), 'host-import-template.xlsx', xlsxMimeType);
+      showToast('模板已下载', '请按模板填写主机分组、节点、IP地址、平台类型、端口和备注。');
+      return true;
+    } catch (error) {
+      showToast('模板下载失败', (error as Error).message);
+      return false;
+    }
+  }
+
   async function importHostManagement(event: Event, format: HostTransferFormat = 'json') {
     try {
-      const text = await readFileText(event);
-      if (!text) return;
-      const parsed = format === 'excel' ? parseExcelWorkbook(text) : JSON.parse(text);
-      const payload = isEncryptedHostBackup(parsed) ? await decryptHostBackup(parsed) : parsed;
+      const payload = format === 'excel' ? await readHostTableImportFile(event) : await readHostRestoreFile(event);
+      if (!payload) return;
       const result = await hostApi.importHostManagementBackup(payload);
       await loadHostManagement();
-      showToast(
-        '恢复成功',
-        `已处理 ${result.imported.hosts} 台主机、${result.imported.groups} 个分组、${result.imported.credentials} 个账号。`,
-      );
+      if (payload.importMode === 'host-table') {
+        showToast('导入完成', `已导入 ${result.imported.hosts} 台主机，跳过 ${result.skipped?.hosts ?? 0} 台。`);
+      } else {
+        showToast(
+          '恢复成功',
+          `已处理 ${result.imported.hosts} 台主机、${result.imported.groups} 个分组、${result.imported.credentials} 个账号。`,
+        );
+      }
     } catch (error) {
-      showToast('恢复失败', (error as Error).message);
+      showToast(format === 'excel' ? '导入失败' : '恢复失败', (error as Error).message);
     }
   }
 
   return {
     backupHostManagement,
+    downloadHostImportTemplate,
     exportHostManagement,
     importHostManagement,
   };
+}
+
+async function readHostTableImportFile(event: Event) {
+  const buffer = await readFileBuffer(event);
+  if (!buffer) return null;
+  const bytes = new Uint8Array(buffer);
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+    return parseHostImportWorkbook(bytes);
+  }
+  return buildHostTableImportPayload(parseExcelWorkbook(new TextDecoder().decode(bytes)).hosts);
+}
+
+async function readHostRestoreFile(event: Event) {
+  const text = await readFileText(event);
+  if (!text) return null;
+  const parsed = JSON.parse(text);
+  return isEncryptedHostBackup(parsed) ? decryptHostBackup(parsed) : parsed;
 }
 
 function downloadFile(content: BlobPart, filename: string, type: string) {
@@ -116,7 +152,7 @@ function downloadFile(content: BlobPart, filename: string, type: string) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 const hostBackupKeyMaterial = 'django-vue.host-management.backup.v1';

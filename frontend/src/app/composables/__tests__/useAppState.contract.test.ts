@@ -63,6 +63,7 @@ describe('useAppState facade contract', () => {
       'deleteManagedHostsInGroup',
       'deletePassword',
       'deleteSelectedManagedHosts',
+      'downloadHostImportTemplate',
       'draggedHostGroupId',
       'dropHostGroup',
       'editAuth',

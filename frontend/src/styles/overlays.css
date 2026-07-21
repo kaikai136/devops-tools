@@ -305,6 +305,54 @@
   padding: 12px 18px;
 }
 
+.host-import-modal {
+  width: min(760px, calc(100vw - 32px));
+  overflow: hidden;
+}
+
+.host-import-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px 24px 22px;
+}
+
+.host-import-body p {
+  margin: 0;
+  color: #5f6f84;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.host-import-template-preview {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: #26384f;
+  font-size: 12px;
+}
+
+.host-import-template-preview th,
+.host-import-template-preview td {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #dbe4ef;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-import-template-preview th {
+  background: #f4f8fd;
+  color: #33445a;
+  font-weight: 800;
+}
+
+.host-import-template-preview td {
+  background: #fff;
+  font-weight: 700;
+}
+
 .host-transfer-body {
   display: grid;
   gap: 28px;

@@ -152,18 +152,20 @@ def host_management_import(request):
     payload = request.data if isinstance(request.data, dict) else {}
 
     try:
-        imported = import_host_management_payload(payload)
+        import_result = import_host_management_payload(payload)
     except (TypeError, ValueError, IntegrityError) as error:
         return bad_request(str(error))
 
+    imported = import_result.get("imported", import_result)
     hosts = ManagedHost.objects.select_related("group", "created_by").all()
-    return Response(
-        {
-            "imported": imported,
-            "groups": groups_payload(),
-            "hosts": ManagedHostSerializer(hosts, many=True).data,
-        }
-    )
+    response_payload = {
+        "imported": imported,
+        "groups": groups_payload(),
+        "hosts": ManagedHostSerializer(hosts, many=True).data,
+    }
+    if "skipped" in import_result:
+        response_payload["skipped"] = import_result["skipped"]
+    return Response(response_payload)
 
 
 @api_view(["PUT", "DELETE"])
