@@ -405,10 +405,10 @@
 
 .settings-preview-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   border: 1px solid rgba(199, 226, 224, 0.86);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 14px 34px rgba(44, 62, 86, 0.08);
 }
 
@@ -431,8 +431,7 @@
 .settings-preview-body {
   display: grid;
   gap: 14px;
-  min-height: 0;
-  overflow: auto;
+  overflow: visible;
   padding: 20px 24px 24px;
 }
 
@@ -476,12 +475,21 @@
 .settings-preview-brand strong,
 .settings-preview-login strong,
 .settings-preview-meta strong {
-  overflow: hidden;
   color: #0f2742;
   font-size: 16px;
   font-weight: 900;
+}
+
+.settings-preview-brand strong,
+.settings-preview-meta strong {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.settings-preview-login strong {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .workspace-dark .settings-preview-brand strong,
@@ -542,10 +550,12 @@
 
 .settings-preview-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 10px;
   min-height: 48px;
+  overflow-wrap: anywhere;
   text-align: center;
   font-weight: 900;
 }
