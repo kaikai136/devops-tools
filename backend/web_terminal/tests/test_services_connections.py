@@ -4,8 +4,9 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
+from host_management.models import HostCredential, HostGroup, ManagedHost
 from .. import services
 
 
@@ -160,3 +161,102 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         ):
             with self.subTest(name=name):
                 self.assertEqual(getattr(services, name).__module__, "web_terminal.services.connections")
+
+
+class TerminalCredentialPollingTests(TestCase):
+    def setUp(self):
+        self.group = HostGroup.objects.create(name="credential-polling")
+
+    def fake_paramiko(self, client_factory):
+        return SimpleNamespace(
+            SSHClient=client_factory,
+            AutoAddPolicy=MagicMock(return_value="auto-add-policy"),
+            RSAKey=MagicMock(),
+            Ed25519Key=MagicMock(),
+            ECDSAKey=MagicMock(),
+            DSSKey=MagicMock(),
+        )
+
+    def test_open_ssh_client_polls_host_credentials_and_saves_successful_login(self):
+        HostCredential.objects.create(name="wrong", username="root", password="wrong")
+        HostCredential.objects.create(name="correct", username="ops", password="secret")
+        host = ManagedHost.objects.create(
+            name="api-01",
+            group=self.group,
+            private_ip="10.0.0.8",
+            login_user="bad",
+            login_password="bad-password",
+        )
+        attempts = []
+        clients = [MagicMock(), MagicMock(), MagicMock()]
+
+        def connect_side_effect(*, username, password, **_kwargs):
+            attempts.append((username, password))
+            if username == "ops" and password == "secret":
+                return None
+            raise RuntimeError("authentication failed")
+
+        for client in clients:
+            client.connect.side_effect = connect_side_effect
+        paramiko = self.fake_paramiko(MagicMock(side_effect=clients))
+
+        with patch.dict(sys.modules, {"paramiko": paramiko}):
+            result = services.open_ssh_client(host)
+
+        self.assertIs(result, clients[-1])
+        self.assertEqual(attempts, [("bad", "bad-password"), ("root", "wrong"), ("ops", "secret")])
+        host.refresh_from_db()
+        self.assertEqual(host.login_user, "ops")
+        self.assertEqual(host.login_password, "secret")
+
+    def test_open_ssh_client_keeps_existing_login_when_it_connects(self):
+        HostCredential.objects.create(name="other", username="ops", password="secret")
+        host = ManagedHost.objects.create(
+            name="api-01",
+            group=self.group,
+            private_ip="10.0.0.8",
+            login_user="root",
+            login_password="current",
+        )
+        client = MagicMock()
+        paramiko = self.fake_paramiko(MagicMock(return_value=client))
+
+        with patch.dict(sys.modules, {"paramiko": paramiko}):
+            result = services.open_ssh_client(host)
+
+        self.assertIs(result, client)
+        client.connect.assert_called_once()
+        host.refresh_from_db()
+        self.assertEqual(host.login_user, "root")
+        self.assertEqual(host.login_password, "current")
+
+    def test_open_ssh_client_stops_credential_polling_after_connectivity_timeout(self):
+        HostCredential.objects.create(name="other", username="ops", password="secret")
+        host = ManagedHost.objects.create(
+            name="api-01",
+            group=self.group,
+            private_ip="10.0.0.8",
+            login_user="root",
+            login_password="bad-network",
+        )
+        attempts = []
+        clients = [MagicMock(), MagicMock(), MagicMock(), MagicMock()]
+
+        def connect_side_effect(*, username, password, **_kwargs):
+            attempts.append((username, password))
+            if username == "ops":
+                return None
+            raise TimeoutError("timed out")
+
+        for client in clients:
+            client.connect.side_effect = connect_side_effect
+        paramiko = self.fake_paramiko(MagicMock(side_effect=clients))
+
+        with patch.dict(sys.modules, {"paramiko": paramiko}), patch("time.sleep"):
+            with self.assertRaises(services.TerminalConnectionError):
+                services.open_ssh_client(host)
+
+        self.assertEqual(attempts, [("root", "bad-network"), ("root", "bad-network"), ("root", "bad-network")])
+        host.refresh_from_db()
+        self.assertEqual(host.login_user, "root")
+        self.assertEqual(host.login_password, "bad-network")

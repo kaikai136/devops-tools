@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import io
 import threading
 import time
 
-from host_management.models import ManagedHost
+from django.utils import timezone
+
+from host_management.models import HostCredential, ManagedHost
 
 from .errors import TerminalConnectionError
 
@@ -74,6 +77,31 @@ SSH_CONNECT_TIMEOUT = 15
 SSH_BANNER_TIMEOUT = 30
 SSH_AUTH_TIMEOUT = 20
 SSH_RETRY_DELAY_SECONDS = 0.8
+SSH_CREDENTIAL_POLL_ATTEMPTS = 1
+SSH_RETRY_ERROR_MARKERS = (
+    "error reading ssh protocol banner",
+    "error reading protocol banner",
+    "timed out",
+    "timeout",
+    "connection reset",
+    "connection aborted",
+    "temporarily unavailable",
+)
+SSH_CONNECTIVITY_FAILURE_MARKERS = SSH_RETRY_ERROR_MARKERS + (
+    "connection refused",
+    "no route to host",
+    "network is unreachable",
+    "unable to connect",
+)
+
+
+@dataclass(frozen=True)
+class SshLoginCandidate:
+    username: str
+    password: str = ""
+    private_key_name: str = ""
+    private_key: str = ""
+    persist_to_host: bool = False
 
 
 def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> LiveTerminalConnection:
@@ -88,6 +116,145 @@ def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> Li
 
 
 def open_ssh_client(host: ManagedHost):
+    current_candidate = current_host_login_candidate(host)
+    errors: list[str] = []
+    stop_credential_polling = False
+
+    if current_candidate is not None:
+        try:
+            return connect_ssh_candidate(host, current_candidate)
+        except TerminalConnectionError as error:
+            message = str(error)
+            errors.append(message)
+            stop_credential_polling = is_connectivity_ssh_failure_message(message)
+
+    if should_poll_host_credentials(host) and not stop_credential_polling:
+        seen = {candidate_identity(current_candidate)} if current_candidate is not None else set()
+        for candidate in host_credential_login_candidates(seen):
+            try:
+                client = connect_ssh_candidate(host, candidate, attempts=SSH_CREDENTIAL_POLL_ATTEMPTS)
+            except TerminalConnectionError as error:
+                message = str(error)
+                errors.append(message)
+                if is_connectivity_ssh_failure_message(message):
+                    break
+                continue
+            persist_login_candidate_to_host(host, candidate)
+            return client
+
+    if not errors and current_candidate is None:
+        raise TerminalConnectionError("主机未配置登录用户，请先在主机管理中补充用户或选择账号。")
+
+    last_error = errors[-1] if errors else "unknown error"
+    if last_error.startswith("SSH 连接失败："):
+        raise TerminalConnectionError(last_error)
+    raise TerminalConnectionError(f"SSH 连接失败：{last_error}")
+
+
+def current_host_login_candidate(host: ManagedHost) -> SshLoginCandidate | None:
+    username = str(getattr(host, "login_user", "") or "").strip()
+    if not username:
+        return None
+    return SshLoginCandidate(
+        username=username,
+        password=str(getattr(host, "login_password", "") or ""),
+        private_key_name=str(getattr(host, "private_key_name", "") or ""),
+        private_key=str(getattr(host, "private_key", "") or ""),
+    )
+
+
+def should_poll_host_credentials(host: ManagedHost) -> bool:
+    return isinstance(host, ManagedHost) and bool(getattr(host, "pk", None))
+
+
+def host_credential_login_candidates(seen: set[tuple[str, str, str]]) -> list[SshLoginCandidate]:
+    candidates: list[SshLoginCandidate] = []
+    for credential in HostCredential.objects.order_by("id"):
+        username = str(credential.username or "").strip()
+        if not username:
+            continue
+        candidate = SshLoginCandidate(
+            username=username,
+            password=credential.password or "",
+            private_key_name=credential.private_key_name or "",
+            private_key=credential.private_key or "",
+            persist_to_host=True,
+        )
+        identity = candidate_identity(candidate)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        candidates.append(candidate)
+    return candidates
+
+
+def candidate_identity(candidate: SshLoginCandidate | None) -> tuple[str, str, str]:
+    if candidate is None:
+        return ("", "", "")
+    return (candidate.username, candidate.password, candidate.private_key)
+
+
+def persist_login_candidate_to_host(host: ManagedHost, candidate: SshLoginCandidate) -> None:
+    if not candidate.persist_to_host:
+        return
+    host.login_user = candidate.username
+    host.login_password = candidate.password
+    host.private_key_name = candidate.private_key_name
+    host.private_key = candidate.private_key
+    host.updated_at = timezone.now()
+    host.save(update_fields=["login_user", "login_password", "private_key_name", "private_key", "updated_at"])
+
+
+def connect_ssh_candidate(host: ManagedHost, candidate: SshLoginCandidate, attempts: int = SSH_CONNECT_ATTEMPTS):
+    if not candidate.username:
+        raise TerminalConnectionError("主机未配置登录用户，请先在主机管理中补充用户或选择账号。")
+
+    try:
+        import paramiko
+    except ImportError:
+        raise TerminalConnectionError("后端未安装 paramiko，无法建立 SSH 连接。请安装 requirements.txt 后重启后端。")
+
+    target = str(host.public_ip or host.private_ip)
+    try:
+        pkey = load_private_key(paramiko, candidate.private_key)
+    except ValueError as error:
+        raise TerminalConnectionError(str(error))
+
+    errors: list[str] = []
+    max_attempts = max(1, attempts)
+    for attempt in range(1, max_attempts + 1):
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        try:
+            client.connect(
+                hostname=target,
+                port=host.port,
+                username=candidate.username,
+                password=candidate.password or None,
+                pkey=pkey,
+                timeout=SSH_CONNECT_TIMEOUT,
+                banner_timeout=SSH_BANNER_TIMEOUT,
+                auth_timeout=SSH_AUTH_TIMEOUT,
+                look_for_keys=False,
+                allow_agent=False,
+            )
+            transport = client.get_transport()
+            if transport is not None:
+                transport.set_keepalive(30)
+            return client
+        except Exception as error:
+            errors.append(str(error))
+            client.close()
+            if attempt >= max_attempts or not should_retry_ssh_connect_error(error):
+                break
+            time.sleep(SSH_RETRY_DELAY_SECONDS * attempt)
+
+    last_error = errors[-1] if errors else "unknown error"
+    raise TerminalConnectionError(f"SSH 连接失败：{last_error}")
+
+
+def _open_ssh_client_with_host_fields(host: ManagedHost):
     if not host.login_user:
         raise TerminalConnectionError("主机未配置登录用户，请先在主机管理中补充用户或选择账号。")
 
@@ -137,16 +304,12 @@ def open_ssh_client(host: ManagedHost):
 
 def should_retry_ssh_connect_error(error: Exception) -> bool:
     message = str(error).lower()
-    retry_markers = (
-        "error reading ssh protocol banner",
-        "error reading protocol banner",
-        "timed out",
-        "timeout",
-        "connection reset",
-        "connection aborted",
-        "temporarily unavailable",
-    )
-    return any(marker in message for marker in retry_markers)
+    return any(marker in message for marker in SSH_RETRY_ERROR_MARKERS)
+
+
+def is_connectivity_ssh_failure_message(message: str) -> bool:
+    normalized = message.lower()
+    return any(marker in normalized for marker in SSH_CONNECTIVITY_FAILURE_MARKERS)
 
 
 def load_private_key(paramiko, private_key: str):

@@ -215,6 +215,9 @@ const canUseHostRowActions = computed(() =>
 );
 const hostPageStart = computed(() => (visibleManagedHosts.value.length ? (hostPage.value - 1) * hostPageSize.value + 1 : 0));
 const hostPageEnd = computed(() => Math.min(hostPage.value * hostPageSize.value, visibleManagedHosts.value.length));
+const selectedManagedHostVerifyingCount = computed(() =>
+  [...selectedManagedHostIds.value].filter((hostId) => verifyingHostIds.value.has(hostId)).length,
+);
 const hostPageNumbers = computed(() => {
   const total = hostTotalPages.value;
   const current = hostPage.value;
@@ -578,6 +581,7 @@ function hostPlatformType(value: string | null | undefined) {
         :all-columns-visible="allHostColumnsVisible"
         :some-columns-visible="someHostColumnsVisible"
         :is-only-visible-column="isOnlyVisibleHostColumn"
+        :selected-verifying-count="selectedManagedHostVerifyingCount"
         :can-create="canUsePageAction('hosts', 'create')"
         :can-manage-quick-commands="canUsePageAction('hosts', 'quick_commands')"
         :can-use-more-actions="canUseHostMoreActions"
@@ -619,6 +623,7 @@ function hostPlatformType(value: string | null | undefined) {
         :page-start="hostPageStart"
         :page-end="hostPageEnd"
         :selected-count="selectedManagedHostCount"
+        :selected-verifying-count="selectedManagedHostVerifyingCount"
         :stats="managedHostStats"
         :loading="isLoadingHosts"
         :verifying-ids="verifyingHostIds"

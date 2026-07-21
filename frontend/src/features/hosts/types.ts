@@ -23,6 +23,7 @@ export interface HostVerifyResponse {
   host: ManagedHost;
   verified: boolean;
   error: string | null;
+  credentialSaved: boolean;
 }
 
 export interface HostGroupMutationResponse {

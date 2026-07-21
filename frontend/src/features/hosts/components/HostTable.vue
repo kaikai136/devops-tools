@@ -21,6 +21,7 @@ const props = defineProps<{
   pageStart: number;
   pageEnd: number;
   selectedCount: number;
+  selectedVerifyingCount: number;
   stats: { total: number; verified: number; unverified: number };
   loading: boolean;
   verifyingIds: Set<number>;
@@ -200,7 +201,15 @@ function updatePageSize(event: Event) {
     </div>
     <div class="host-bulk-action-buttons">
       <button class="host-bulk-button host-bulk-button-cancel" type="button" @click="emit('clear-selection')">取消选中</button>
-      <button v-if="props.canVerify" class="host-bulk-button host-bulk-button-verify" type="button" @click="emit('verify-selected')">验证所选</button>
+      <button
+        v-if="props.canVerify"
+        class="host-bulk-button host-bulk-button-verify"
+        type="button"
+        :disabled="props.selectedVerifyingCount > 0"
+        @click="emit('verify-selected')"
+      >
+        {{ props.selectedVerifyingCount > 0 ? '验证中' : '验证所选' }}
+      </button>
       <button v-if="props.canMove" class="host-bulk-button host-bulk-button-update" type="button" @click="emit('move-selected')">更新所选</button>
       <button v-if="props.canDelete" class="host-bulk-button host-bulk-button-delete" type="button" @click="emit('delete-selected')">删除所选</button>
     </div>

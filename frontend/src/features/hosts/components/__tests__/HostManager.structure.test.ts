@@ -296,6 +296,7 @@ describe('HostManager component structure', () => {
     expectBindings(toolbar, {
       'status-filter': 'hostStatusFilter',
       'selected-count': 'selectedManagedHostCount',
+      'selected-verifying-count': 'selectedManagedHostVerifyingCount',
       'column-visibility': 'hostColumnVisibility',
       'can-create': "canUsePageAction('hosts', 'create')",
       'can-manage-quick-commands': "canUsePageAction('hosts', 'quick_commands')",
@@ -346,6 +347,7 @@ describe('HostManager component structure', () => {
       page: 'hostPage',
       'page-size': 'hostPageSize',
       'total-pages': 'hostTotalPages',
+      'selected-verifying-count': 'selectedManagedHostVerifyingCount',
       'can-open-terminal': "canUsePageAction('hosts', 'terminal')",
       'can-edit': "canUsePageAction('hosts', 'edit')",
       'can-verify': "canUsePageAction('hosts', 'verify')",

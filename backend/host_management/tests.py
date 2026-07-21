@@ -76,6 +76,78 @@ class HostVerifyTests(TestCase):
         self.assertEqual(updated.cpu, 0)
         self.assertEqual(updated.memory, 0)
 
+    def test_verify_host_polls_credentials_and_saves_successful_login(self):
+        HostCredential.objects.create(name="wrong", username="root", password="wrong")
+        HostCredential.objects.create(name="correct", username="ops", password="secret")
+        host = ManagedHost.objects.create(
+            name="credential-host",
+            group=self.group,
+            private_ip="10.10.10.14",
+            login_user="bad",
+            login_password="bad-password",
+            verified=False,
+        )
+        attempted_logins = []
+
+        def fake_connect(_host, candidate, attempts=1):
+            attempted_logins.append((candidate.username, candidate.password))
+            if candidate.username == "ops" and candidate.password == "secret":
+                return object()
+            raise TerminalConnectionError("authentication failed")
+
+        from unittest.mock import patch
+        from web_terminal.services import open_ssh_client
+
+        def fake_probe_host_info(current_host):
+            client = open_ssh_client(current_host)
+            self.assertIsNotNone(client)
+            return {
+                "machine_name": "api-01",
+                "cpu": 4,
+                "memory": 8,
+                "os": "ubuntu",
+                "system_arch": "x86_64",
+                "system_type": "ubuntu",
+            }
+
+        with patch("web_terminal.services.connections.connect_ssh_candidate", side_effect=fake_connect), patch(
+            "host_management.probe.probe_host_info", side_effect=fake_probe_host_info
+        ):
+            updated, error = verify_host(host)
+
+        self.assertIsNone(error)
+        self.assertEqual(attempted_logins, [("bad", "bad-password"), ("root", "wrong"), ("ops", "secret")])
+        self.assertTrue(updated.verified)
+        self.assertEqual(updated.verify_status, "verified")
+        self.assertEqual(updated.login_user, "ops")
+        self.assertEqual(updated.login_password, "secret")
+        updated.refresh_from_db()
+        self.assertEqual(updated.login_user, "ops")
+        self.assertEqual(updated.login_password, "secret")
+
+    def test_managed_host_verify_reports_when_login_was_auto_saved(self):
+        host = ManagedHost.objects.create(
+            name="api-host",
+            group=self.group,
+            private_ip="10.10.10.15",
+            login_user="root",
+            login_password="old",
+            verified=False,
+        )
+        saved_host = ManagedHost.objects.get(id=host.id)
+        saved_host.login_user = "ops"
+        saved_host.login_password = "secret"
+
+        from unittest.mock import patch
+
+        with patch("host_management.views.verify_host", return_value=(saved_host, None)):
+            response = self.client.post(f"/api/host-management/hosts/{host.id}/verify/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["credentialSaved"])
+        self.assertEqual(payload["host"]["loginUser"], "ops")
+
     def test_verify_windows_host_only_checks_port_connectivity(self):
         host = ManagedHost.objects.create(
             name="win-host",

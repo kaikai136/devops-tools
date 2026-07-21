@@ -194,8 +194,17 @@ def managed_host_verify(_request, host_id: int):
     except ManagedHost.DoesNotExist:
         return not_found("主机不存在")
 
+    original_login = (host.login_user, host.login_password, host.private_key_name, host.private_key)
     host, error = verify_host(host)
-    return Response({"host": host_payload(host), "verified": host.verified, "error": error})
+    credential_saved = original_login != (host.login_user, host.login_password, host.private_key_name, host.private_key)
+    return Response(
+        {
+            "host": host_payload(host),
+            "verified": host.verified,
+            "error": error,
+            "credentialSaved": credential_saved,
+        }
+    )
 
 
 @api_view(["GET", "POST"])

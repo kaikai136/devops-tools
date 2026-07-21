@@ -28,7 +28,8 @@ export function useHostVerification({
       const result = await hostApi.verifyManagedHost(host.id);
       replaceHost(result.host);
       if (result.verified) {
-        showToast('验证完成', `${result.host.name} 已获取机器配置。`);
+        const credentialMessage = result.credentialSaved ? '已保存登录信息。' : '';
+        showToast('验证完成', `${result.host.name} 已获取机器配置。${credentialMessage}`);
       } else {
         showToast('验证失败', `${result.host.name} 连接失败，配置信息已清空。${result.error ? ` ${result.error}` : ''}`);
       }
@@ -45,9 +46,7 @@ export function useHostVerification({
 
   async function verifyVisibleManagedHosts() {
     const hosts = [...visibleManagedHosts.value];
-    for (const host of hosts) {
-      await verifyManagedHost(host);
-    }
+    await Promise.all(hosts.map((host) => verifyManagedHost(host)));
   }
 
   async function verifySelectedManagedHosts() {
@@ -56,9 +55,7 @@ export function useHostVerification({
       showToast('验证失败', '请先选择需要验证的主机。');
       return;
     }
-    for (const host of hosts) {
-      await verifyManagedHost(host);
-    }
+    await Promise.all(hosts.map((host) => verifyManagedHost(host)));
   }
 
   function setHostVerifying(hostId: number, active: boolean) {

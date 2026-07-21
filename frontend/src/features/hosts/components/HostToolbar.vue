@@ -33,6 +33,7 @@ const props = defineProps<{
   search: string;
   statusFilter: HostStatusFilter;
   selectedCount: number;
+  selectedVerifyingCount: number;
   moreActionsOpen: boolean;
   columnSettingsOpen: boolean;
   fullscreen: boolean;
@@ -96,9 +97,9 @@ const searchModel = computed({
           <AppIcon name="chevronDown" :size="14" />
         </button>
         <div v-if="props.moreActionsOpen" class="host-more-menu">
-          <button v-if="props.canVerify" type="button" :disabled="!props.selectedCount" @click="emit('verify-selected')">
+          <button v-if="props.canVerify" type="button" :disabled="!props.selectedCount || props.selectedVerifyingCount > 0" @click="emit('verify-selected')">
             <AppIcon name="shield" :size="15" />
-            <span>验证所选</span>
+            <span>{{ props.selectedVerifyingCount > 0 ? '验证中' : '验证所选' }}</span>
           </button>
           <button v-if="props.canFilter" type="button" :class="{ active: props.statusFilter === 'all' }" @click="emit('status-filter', 'all')">
             <AppIcon name="search" :size="15" />
