@@ -41,7 +41,11 @@ $forbiddenTracked = @(
     'docker/entrypoint.sh',
     'scripts/compose-up.sh',
     'scripts/build-image.sh',
-    'scripts/deploy-remote.sh'
+    'scripts/deploy-remote.sh',
+    'deploy/docker-compose.mysql.yml',
+    'deploy/mysql',
+    'deploy/k8s/secret.yaml',
+    'deploy/k8s/secret-init-job.yaml'
 )
 $required = @(
     'frontend/public/captain-banner.png',

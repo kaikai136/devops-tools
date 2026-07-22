@@ -92,6 +92,28 @@ def django_secret_key() -> str:
     return persisted_secret or "django-vue-dev-secret-key"
 
 
+def database_config(config: dict[str, str] | None = None) -> dict:
+    engine = config_value("DATABASE_ENGINE", "sqlite", config=config).strip().lower()
+    if engine == "mysql":
+        import pymysql
+
+        pymysql.install_as_MySQLdb()
+        return {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": config_value("DATABASE_NAME", "devops_tools", config=config),
+            "USER": config_value("DATABASE_USER", "devops_tools", config=config),
+            "PASSWORD": config_value("DATABASE_PASSWORD", "", config=config),
+            "HOST": config_value("DATABASE_HOST", "127.0.0.1", config=config),
+            "PORT": config_value("DATABASE_PORT", "3306", config=config),
+            "OPTIONS": {"charset": "utf8mb4"},
+        }
+
+    return {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": config_path("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3", config=config),
+    }
+
+
 SECRET_KEY = django_secret_key()
 DEBUG = config_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = config_list("DJANGO_ALLOWED_HOSTS", ["*"])
@@ -152,12 +174,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "ops_tool.wsgi.application"
 ASGI_APPLICATION = "ops_tool.asgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": config_path("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3"),
-    }
-}
+DATABASES = {"default": database_config()}
 
 LANGUAGE_CODE = "zh-hans"
 TIME_ZONE = config_value("TZ", "Asia/Shanghai")

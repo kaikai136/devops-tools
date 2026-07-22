@@ -42,6 +42,7 @@ cat > "$CUSTOM_CONFIG" <<'CONF'
 DJANGO_SECRET_KEY=private-existing-secret
 DJANGO_ALLOWED_HOSTS=ops.example.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://ops.example.com
+DATABASE_ENGINE=mysql
 CONF
 cp "$CUSTOM_CONFIG" "$APP_DIR/$CONFIG_PATH"
 
@@ -49,6 +50,7 @@ cat > "$SOURCE_REPO/$CONFIG_PATH" <<'CONF'
 DJANGO_SECRET_KEY=
 DJANGO_SECRET_KEY_FILE=/app/data/django-secret-key
 DJANGO_ALLOWED_HOSTS=*
+DATABASE_ENGINE=mysql
 CONF
 git -C "$SOURCE_REPO" add "$CONFIG_PATH"
 git -C "$SOURCE_REPO" commit --quiet -m 'track safe default config'
@@ -68,12 +70,30 @@ set -euo pipefail
 if [ "$#" -ge 2 ] && [ "$1" = 'compose' ] && [ "$2" = 'version' ]; then
   exit 0
 fi
-if [ "$#" -ge 4 ] && [ "$1" = 'compose' ] && [ "$2" = '-f' ] && [ "$3" = 'deploy/docker-compose.yml' ] && [ "$4" = 'up' ]; then
-  printf 'compose-file=%s\n' "$3" >> "$DOCKER_LOG"
-  exit 0
-fi
-if [ "$#" -ge 4 ] && [ "$1" = 'compose' ] && [ "$2" = '-f' ] && [ "$3" = 'deploy/docker-compose.yml' ] && [ "$4" = 'ps' ]; then
-  exit 0
+if [ "$#" -ge 4 ] && [ "$1" = 'compose' ]; then
+  action=''
+  files=''
+  index=2
+  while [ "$index" -le "$#" ]; do
+    eval "arg=\${$index}"
+    if [ "$arg" = '-f' ]; then
+      index=$((index + 1))
+      eval "file=\${$index}"
+      files="${files}${files:+,}${file}"
+    elif [ "$arg" = 'up' ] || [ "$arg" = 'ps' ]; then
+      action="$arg"
+      break
+    fi
+    index=$((index + 1))
+  done
+  if [ "$action" = 'up' ]; then
+    printf 'compose-files=%s\n' "$files" >> "$DOCKER_LOG"
+    exit 0
+  fi
+  if [ "$action" = 'ps' ]; then
+    printf 'compose-ps-files=%s\n' "$files" >> "$DOCKER_LOG"
+    exit 0
+  fi
 fi
 printf 'unexpected docker invocation: %s\n' "$*" >&2
 exit 1
@@ -97,7 +117,7 @@ run_deploy >"$TEST_ROOT/first.log" 2>&1
 cmp -s "$CUSTOM_CONFIG" "$APP_DIR/$CONFIG_PATH" || { echo 'Existing remote config was not preserved during the tracked-file transition.' >&2; exit 1; }
 [ "$(git -C "$APP_DIR" rev-parse HEAD)" = "$expected_head" ] || { echo 'Remote repository did not update to the expected commit.' >&2; exit 1; }
 [ "$(stat -c '%a' "$APP_DIR/$CONFIG_PATH")" = '600' ] || { echo 'Restored remote config mode is not 600.' >&2; exit 1; }
-grep -qx 'compose-file=deploy/docker-compose.yml' "$DOCKER_LOG" || { echo 'Remote deployment did not use deploy/docker-compose.yml.' >&2; exit 1; }
+grep -qx 'compose-files=deploy/docker-compose.yml' "$DOCKER_LOG" || { echo 'Remote MySQL deployment should use only the base Compose file.' >&2; exit 1; }
 
 printf '%s\n' 'local dirty change' > "$APP_DIR/README.md"
 printf '%s\n' 'upstream change' > "$SOURCE_REPO/README.md"

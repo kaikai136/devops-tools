@@ -90,3 +90,40 @@ class ConfigFileTests(SimpleTestCase):
         self.assertFalse(settings.config_bool("DJANGO_DEBUG", True, config=config))
         self.assertEqual(settings.config_int("GUACD_PORT", 1, config=config), 4822)
         self.assertEqual(settings.config_list("DJANGO_ALLOWED_HOSTS", config=config), ["ops.example.com", "172.16.0.99"])
+
+    def test_database_config_uses_mysql_when_configured(self):
+        from ops_tool import settings
+
+        database = settings.database_config(
+            {
+                "DATABASE_ENGINE": "mysql",
+                "DATABASE_NAME": "devops_tools",
+                "DATABASE_USER": "devops_tools",
+                "DATABASE_PASSWORD": "secret-password",
+                "DATABASE_HOST": "mysql.example.com",
+                "DATABASE_PORT": "3306",
+            }
+        )
+
+        self.assertEqual(database["ENGINE"], "django.db.backends.mysql")
+        self.assertEqual(database["NAME"], "devops_tools")
+        self.assertEqual(database["USER"], "devops_tools")
+        self.assertEqual(database["PASSWORD"], "secret-password")
+        self.assertEqual(database["HOST"], "mysql.example.com")
+        self.assertEqual(database["PORT"], "3306")
+        self.assertEqual(database["OPTIONS"], {"charset": "utf8mb4"})
+
+    def test_database_config_mysql_default_host_is_not_compose_service(self):
+        from ops_tool import settings
+
+        database = settings.database_config({"DATABASE_ENGINE": "mysql"})
+
+        self.assertEqual(database["HOST"], "127.0.0.1")
+
+    def test_database_config_keeps_sqlite_default(self):
+        from ops_tool import settings
+
+        database = settings.database_config({"DATABASE_ENGINE": "sqlite", "DJANGO_DB_PATH": "/tmp/app.sqlite3"})
+
+        self.assertEqual(database["ENGINE"], "django.db.backends.sqlite3")
+        self.assertEqual(database["NAME"], Path("/tmp/app.sqlite3"))

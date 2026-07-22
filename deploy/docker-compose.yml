@@ -16,7 +16,8 @@ services:
     ports:
       - "8001:8001"
     depends_on:
-      - guacd
+      guacd:
+        condition: service_started
     volumes:
       - ./config/app.conf:/app/config/app.conf:ro
       - ../data:/app/data
@@ -38,7 +39,8 @@ services:
     ports:
       - "2222:2222"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     volumes:
       - ./config/app.conf:/app/config/app.conf:ro
       - ../data:/app/data

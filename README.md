@@ -56,8 +56,8 @@
 - 前端：Vue 3、Vite、TypeScript、ECharts、xterm.js、Guacamole Common JS。
 - 终端能力：SSH 连接依赖 Paramiko，RDP 连接依赖 guacamole/guacd。
 - 静态资源：前端构建后由 Django + WhiteNoise 提供。
-- 数据存储：默认使用 SQLite，数据文件通过 Docker volume/挂载目录持久化。
-- 部署方式：Docker 多阶段构建，Docker Compose 编排 app 与 guacd 服务。
+- 数据存储：支持远程 MySQL 或 SQLite，上传文件和密钥通过挂载目录持久化。
+- 部署方式：Docker 多阶段构建，Docker Compose 编排 app 与 guacd 服务，数据库由 `deploy/config/app.conf` 指定。
 
 ## 目录结构
 
@@ -84,7 +84,7 @@ django-vue/
     ├── k8s/                 # Kubernetes 部署清单
     ├── scripts/             # 本地/远程部署脚本
     ├── Dockerfile           # 前后端多阶段构建镜像
-    └── docker-compose.yml   # app + guacd 服务编排
+    └── docker-compose.yml   # app + guacd 基础服务编排
 ```
 
 ## 本地开发
@@ -141,22 +141,27 @@ npm run build
 - Docker Compose v2，或兼容的 `docker-compose`
 - 服务器开放应用端口，默认宿主机端口和容器端口均为 `8001`
 
-### 拉取后直接启动
+### 拉取后配置并启动
 
 仓库已提供不含真实密钥的默认 `deploy/config/app.conf`。Compose 会通过 `volumes` 把它只读挂载到容器内的 `/app/config/app.conf`，应用直接从该文件读取部署配置：
 
 ```bash
 git clone https://github.com/kaikai136/devops-tools.git
 cd devops-tools
+vim deploy/config/app.conf
+bash deploy/scripts/compose-up.sh
+```
+
+`deploy/config/app.conf` 中的 `DATABASE_ENGINE` 决定应用使用远程 MySQL 还是 SQLite。Compose 只启动 app、ssh-gateway 和 guacd，不部署本地 MySQL。
+
+如果手动执行 Docker Compose，MySQL 和 SQLite 模式都使用同一个基础 Compose 文件：
+
+```bash
 docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml ps
 ```
 
-也可以使用便捷脚本；脚本只负责创建持久化目录并执行 Docker Compose：
-
-```bash
-bash deploy/scripts/compose-up.sh
-```
+使用远程 MySQL 时，将 `DATABASE_ENGINE=mysql`，并把 `DATABASE_HOST`、`DATABASE_PORT`、`DATABASE_NAME`、`DATABASE_USER`、`DATABASE_PASSWORD` 改成远程 MySQL 的真实连接信息。使用 SQLite 时，将 `DATABASE_ENGINE=sqlite`，并按需调整 `DJANGO_DB_PATH`。
 
 部署完成后访问：
 
@@ -188,9 +193,16 @@ DJANGO_DEBUG=0
 DJANGO_ALLOWED_HOSTS=*
 DJANGO_CSRF_TRUSTED_ORIGINS=
 DJANGO_CORS_ALLOW_ALL_ORIGINS=0
-DJANGO_DB_PATH=/app/data/db.sqlite3
 DJANGO_MEDIA_ROOT=/app/media
 DJANGO_SERVE_MEDIA_FILES=1
+
+DATABASE_ENGINE=mysql
+DATABASE_HOST=mysql.example.com
+DATABASE_PORT=3306
+DATABASE_NAME=devops_tools
+DATABASE_USER=devops_tools
+DATABASE_PASSWORD=devops-tools-password
+DJANGO_DB_PATH=/app/data/db.sqlite3
 
 GUACD_HOST=guacd
 GUACD_PORT=4822
@@ -224,7 +236,7 @@ SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key
 
 重新启动容器、重新构建镜像或执行 `docker compose -f deploy/docker-compose.yml up -d --force-recreate` 都会继续使用同一密钥。密钥内容不会输出到日志。
 
-> 删除 `./data` 会同时删除 SQLite 数据库和自动生成的 Django 密钥。删除、迁移或重装前必须备份整个 `data` 目录。
+> 删除 `./data` 会删除自动生成的 Django 密钥和其他本地数据文件。删除、迁移或重装前必须备份 `data`、`media`；如果使用远程 MySQL，还需要按远程数据库的备份策略单独备份数据库。
 
 ### 生产环境私有配置
 
@@ -243,6 +255,12 @@ DJANGO_SECRET_KEY=请替换为强随机密钥
 DJANGO_ALLOWED_HOSTS=ops.example.com
 DJANGO_CSRF_TRUSTED_ORIGINS=https://ops.example.com
 DJANGO_CORS_ALLOW_ALL_ORIGINS=0
+DATABASE_ENGINE=mysql
+DATABASE_HOST=mysql.example.com
+DATABASE_PORT=3306
+DATABASE_NAME=devops_tools
+DATABASE_USER=devops_tools
+DATABASE_PASSWORD=请替换为强随机数据库密码
 SSH_GATEWAY_PUBLIC_HOST=ops.example.com
 ```
 
@@ -257,7 +275,13 @@ SSH_GATEWAY_PUBLIC_HOST=ops.example.com
 | `DJANGO_ALLOWED_HOSTS` | `*` | 允许访问的域名/IP。默认值仅为开箱即用，生产环境必须收紧。 |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | 空 | 跨站请求信任来源，必须包含 `http://` 或 `https://` 协议。使用域名、HTTPS 或反向代理时应明确设置。 |
 | `DJANGO_CORS_ALLOW_ALL_ORIGINS` | `0` | 是否允许所有跨域来源。生产环境保持关闭。 |
-| `DJANGO_DB_PATH` | `/app/data/db.sqlite3` | 容器内 SQLite 数据库路径。 |
+| `DATABASE_ENGINE` | `mysql` | 数据库类型。`mysql` 连接远程 MySQL；`sqlite` 使用本地 SQLite 文件。 |
+| `DATABASE_HOST` | `mysql.example.com` | 远程 MySQL 服务地址，生产环境必须改为真实主机名或 IP。 |
+| `DATABASE_PORT` | `3306` | 远程 MySQL 服务端口。 |
+| `DATABASE_NAME` | `devops_tools` | 远程 MySQL 数据库名称。 |
+| `DATABASE_USER` | `devops_tools` | 远程 MySQL 应用用户。 |
+| `DATABASE_PASSWORD` | `devops-tools-password` | 远程 MySQL 应用用户密码，生产环境必须修改。 |
+| `DJANGO_DB_PATH` | `/app/data/db.sqlite3` | SQLite 数据库路径，仅 `DATABASE_ENGINE=sqlite` 时使用。 |
 | `DJANGO_MEDIA_ROOT` | `/app/media` | 容器内上传文件目录。 |
 | `GUACD_HOST` | `guacd` | guacd 服务地址。Compose 内默认使用服务名。 |
 | `GUACD_PORT` | `4822` | guacd 服务端口。 |
@@ -272,11 +296,11 @@ Compose 层的镜像名、容器名和宿主机端口已固定在 `deploy/docker
 
 Docker Compose 会挂载：
 
-- `../data:/app/data`：SQLite 数据库和自动生成的 Django 密钥。
+- `../data:/app/data`：自动生成的 Django 密钥和容器本地数据文件。
 - `../media:/app/media`：上传文件、头像和媒体资源。
 - `rdp_recordings:/app/rdp_recordings`：RDP 录像数据卷。
 
-升级或重建镜像不会删除这些数据。重大升级前建议同时备份：
+升级或重建镜像不会删除这些本地挂载数据。重大升级前建议同时备份：
 
 ```bash
 cp deploy/config/app.conf deploy/config/app.conf.backup
@@ -284,7 +308,37 @@ cp -a data data.backup
 cp -a media media.backup
 ```
 
+如果使用远程 MySQL，请在数据库服务器或托管数据库平台上单独执行备份。
+
 `deploy/config/*.local.conf`、`.env`、`.env.*` 等私有文件默认被 Git 忽略，不要强制提交。
+
+## Kubernetes 部署
+
+`deploy/k8s/` 的清单已按 Docker Compose 的运行方式整理：应用不再通过 `env` / `envFrom` 读取部署变量，而是把 ConfigMap 中的 `app.conf` 只读挂载到容器内 `/app/config/app.conf`。k8s 同样只部署 app、ssh-gateway 和 guacd；MySQL 通过 `app.conf` 中的远程连接信息访问，不在集群内创建本地 MySQL。
+
+部署前先编辑 `deploy/k8s/configmap.yaml` 里的 `app.conf`：
+
+- 使用远程 MySQL：保留 `DATABASE_ENGINE=mysql`，修改 `DATABASE_HOST`、`DATABASE_PORT`、`DATABASE_NAME`、`DATABASE_USER`、`DATABASE_PASSWORD`。
+- 使用 SQLite：改为 `DATABASE_ENGINE=sqlite`，并确认 `DJANGO_DB_PATH=/app/data/db.sqlite3`。
+- 通过 NodePort 暴露时，默认 Web 端口是 `30001`，SSH 网关端口是 `30222`；如需调整，同时修改 `deploy/k8s/service.yaml` 和 `SSH_GATEWAY_PUBLIC_PORT`。
+
+应用清单：
+
+```bash
+kubectl apply -f deploy/k8s/pvc.yaml
+kubectl apply -f deploy/k8s/configmap.yaml
+kubectl apply -f deploy/k8s/deployment.yaml
+kubectl apply -f deploy/k8s/service.yaml
+```
+
+访问入口：
+
+```text
+Web: http://节点IP:30001
+SSH: ssh <平台用户>@节点IP -p 30222
+```
+
+`data`、`media` 和 `recordings` PVC 会同时被 app 与 ssh-gateway Pod 挂载，默认使用 `ReadWriteMany`。如果你的集群存储类不支持 RWX，需要改用支持共享挂载的存储，或根据集群拓扑调整 Pod 调度与 PVC 策略。
 
 ## 远程部署
 
@@ -321,8 +375,7 @@ bash deploy/scripts/deploy-remote.sh
 cd /opt
 git clone https://github.com/kaikai136/devops-tools.git devops-tools
 cd /opt/devops-tools
-docker compose -f deploy/docker-compose.yml up -d --build
-docker compose -f deploy/docker-compose.yml ps
+bash deploy/scripts/compose-up.sh
 curl http://127.0.0.1:8001/api/health/
 ```
 
@@ -332,7 +385,7 @@ curl http://127.0.0.1:8001/api/health/
 cd /opt/devops-tools
 git fetch --tags --force origin
 git checkout --detach refs/tags/v2.0.0
-docker compose -f deploy/docker-compose.yml up -d --build
+bash deploy/scripts/compose-up.sh
 ```
 
 ### 已有部署升级
@@ -344,7 +397,7 @@ cd /opt/devops-tools
 cp deploy/config/app.conf deploy/config/app.conf.backup
 cp -a data data.backup
 git pull --ff-only origin main
-docker compose -f deploy/docker-compose.yml up -d --build
+bash deploy/scripts/compose-up.sh
 ```
 
 如果手工执行 Git 操作时仓库默认 `deploy/config/app.conf` 与远端私有配置冲突，请先将私有文件复制到仓库外，更新后再恢复。使用 `deploy/scripts/deploy-remote.sh` 时脚本会自动完成该保护流程。
@@ -359,6 +412,8 @@ docker compose -f deploy/docker-compose.yml ps
 curl http://127.0.0.1:8001/api/health/
 ```
 ## 常用运维命令
+
+以下命令对远程 MySQL 和 SQLite 模式都适用，数据库选择由 `deploy/config/app.conf` 控制。
 
 查看服务状态：
 
@@ -387,7 +442,7 @@ docker compose -f deploy/docker-compose.yml restart
 重建并滚动启动：
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d --build
+bash deploy/scripts/compose-up.sh
 ```
 
 执行数据库迁移：
@@ -418,8 +473,8 @@ docker compose -f deploy/docker-compose.yml exec app python manage.py shell
 ## 注意事项
 
 - 生产环境必须设置强随机 `DJANGO_SECRET_KEY`。
+- 如果使用远程 MySQL，生产环境必须修改 `DATABASE_HOST`、`DATABASE_USER` 和 `DATABASE_PASSWORD`，确保它们指向可访问的远程数据库。
 - `DJANGO_ALLOWED_HOSTS` 和 `DJANGO_CSRF_TRUSTED_ORIGINS` 需要按实际域名/IP/端口配置。
 - Web RDP 功能依赖 `guacamole/guacd:1.5.5` 容器，请确认 guacd 服务正常启动。
 - SSH 终端依赖目标主机网络可达，并需要正确的登录账号、密码或密钥配置。
-- SQLite 适合轻量部署；如果用户量、审计数据或并发规模较大，建议评估迁移到独立数据库。
-- 升级前建议备份 `data/`、`media/` 和 RDP 录像 volume。
+- 升级前建议备份 `data/`、`media/` 和 RDP 录像 volume；如果使用远程 MySQL，还要单独备份远程数据库。

@@ -33,6 +33,42 @@ read_config_value() {
   ' "$file"
 }
 
+wait_for_database() {
+  database_engine="$(read_config_value DATABASE_ENGINE)"
+  database_engine="$(printf '%s' "$database_engine" | tr '[:upper:]' '[:lower:]')"
+  if [ "$database_engine" != "mysql" ]; then
+    return 0
+  fi
+
+  database_host="$(read_config_value DATABASE_HOST)"
+  database_port="$(read_config_value DATABASE_PORT)"
+  if [ -z "$database_host" ]; then
+    database_host="127.0.0.1"
+  fi
+  if [ -z "$database_port" ]; then
+    database_port="3306"
+  fi
+
+  echo "Waiting for MySQL at ${database_host}:${database_port}."
+  python - "$database_host" "$database_port" <<'PY'
+import socket
+import sys
+import time
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+deadline = time.monotonic() + 60
+while True:
+    try:
+        with socket.create_connection((host, port), timeout=3):
+            raise SystemExit(0)
+    except OSError:
+        if time.monotonic() >= deadline:
+            raise
+        time.sleep(2)
+PY
+}
+
 SECRET_KEY_FILE="$(read_config_value DJANGO_SECRET_KEY_FILE)"
 if [ -z "$SECRET_KEY_FILE" ]; then
   SECRET_KEY_FILE="/app/data/django-secret-key"
@@ -62,6 +98,8 @@ if [ -z "$CONFIG_SECRET_KEY" ] && [ -z "$PERSISTED_SECRET" ]; then
   trap - EXIT HUP INT TERM
   echo "Generated and persisted a new Django secret key."
 fi
+
+wait_for_database
 
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput

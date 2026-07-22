@@ -23,7 +23,8 @@ spec:
           image: guacamole/guacd:1.5.5
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 4822
+            - name: guacd
+              containerPort: 4822
               protocol: TCP
           resources:
             requests:
@@ -34,12 +35,12 @@ spec:
               cpu: "200m"
           livenessProbe:
             tcpSocket:
-              port: 4822
+              port: guacd
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             tcpSocket:
-              port: 4822
+              port: guacd
             initialDelaySeconds: 5
             periodSeconds: 5
 ---
@@ -68,23 +69,14 @@ spec:
           image: devops-tools:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 32751
+            - name: http
+              containerPort: 8001
               protocol: TCP
-          envFrom:
-            - configMapRef:
-                name: devops-tools-config
-            - secretRef:
-                name: devops-tools-secret
-          env:
-            # 如果 DJANGO_SECRET_KEY 为空，让 Django 自动生成（但重启会变化）
-            # 建议在 Secret 中设置固定值
-            - name: DJANGO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: devops-tools-secret
-                  key: DJANGO_SECRET_KEY
-                  optional: true
           volumeMounts:
+            - name: app-config
+              mountPath: /app/config/app.conf
+              subPath: app.conf
+              readOnly: true
             - name: data
               mountPath: /app/data
             - name: media
@@ -101,7 +93,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /api/health/
-              port: 32751
+              port: http
             initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 5
@@ -109,11 +101,17 @@ spec:
           readinessProbe:
             httpGet:
               path: /api/health/
-              port: 32751
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
       volumes:
+        - name: app-config
+          configMap:
+            name: devops-tools-config
+            items:
+              - key: app.conf
+                path: app.conf
         - name: data
           persistentVolumeClaim:
             claimName: devops-tools-data-pvc
@@ -148,23 +146,16 @@ spec:
         - name: ssh-gateway
           image: devops-tools:latest
           imagePullPolicy: IfNotPresent
-          command: ["python", "manage.py", "run_ssh_gateway"]
+          args: ["python", "manage.py", "run_ssh_gateway"]
           ports:
-            - containerPort: 2222
+            - name: ssh
+              containerPort: 2222
               protocol: TCP
-          envFrom:
-            - configMapRef:
-                name: devops-tools-config
-            - secretRef:
-                name: devops-tools-secret
-          env:
-            - name: DJANGO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: devops-tools-secret
-                  key: DJANGO_SECRET_KEY
-                  optional: true
           volumeMounts:
+            - name: app-config
+              mountPath: /app/config/app.conf
+              subPath: app.conf
+              readOnly: true
             - name: data
               mountPath: /app/data
             - name: media
@@ -180,15 +171,21 @@ spec:
               cpu: "200m"
           livenessProbe:
             tcpSocket:
-              port: 2222
+              port: ssh
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             tcpSocket:
-              port: 2222
+              port: ssh
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
+        - name: app-config
+          configMap:
+            name: devops-tools-config
+            items:
+              - key: app.conf
+                path: app.conf
         - name: data
           persistentVolumeClaim:
             claimName: devops-tools-data-pvc

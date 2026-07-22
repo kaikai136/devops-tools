@@ -7,12 +7,13 @@ metadata:
     app: devops-tools
     component: app
 spec:
-  type: ClusterIP
+  type: NodePort
   ports:
-    - port: 32751
-      targetPort: 32751
+    - name: http
+      port: 8001
+      targetPort: http
       protocol: TCP
-      name: http
+      nodePort: 30001
   selector:
     app: devops-tools
     component: app
@@ -28,11 +29,11 @@ metadata:
 spec:
   type: NodePort
   ports:
-    - port: 22022
-      targetPort: 2222
+    - name: ssh
+      port: 2222
+      targetPort: ssh
       protocol: TCP
-      name: ssh
-      nodePort: 30222  # 外部访问端口，范围 30000-32767
+      nodePort: 30222
   selector:
     app: devops-tools
     component: ssh-gateway
@@ -48,10 +49,10 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 4822
-      targetPort: 4822
+    - name: guacd
+      port: 4822
+      targetPort: guacd
       protocol: TCP
-      name: guacd
   selector:
     app: devops-tools
     component: guacd
