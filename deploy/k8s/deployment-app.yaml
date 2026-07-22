@@ -21,24 +21,18 @@ spec:
         app: devops-tools
         component: app
     spec:
-      # Pin to k8svip-161: the sole worker (k8svip-164) suffers periodic
-      # node-level (system) OOM that SIGKILLs containers regardless of their
-      # own limits. 161 has stable free memory and no scheduling taint.
-      nodeSelector:
-        kubernetes.io/hostname: k8svip-161
-      tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
-        - key: node-role.kubernetes.io/master
-          operator: Exists
-          effect: NoSchedule
+      # nodeSelector:
+      #   kubernetes.io/hostname: k8svip-161
+      # tolerations:
+      #   - key: node-role.kubernetes.io/control-plane
+      #     operator: Exists
+      #     effect: NoSchedule
+      #   - key: node-role.kubernetes.io/master
+      #     operator: Exists
+      #     effect: NoSchedule
       imagePullSecrets:
         - name: my-harbor
       initContainers:
-        # Create runtime dirs on the shared volume and apply DB migrations once.
-        # `command` overrides the image ENTRYPOINT, so collectstatic does NOT run
-        # here (static files are already baked into the image at build time).
         - name: migrate
           image: harbor.xunsiya.com:7891/devops/devops-tools:latest
           imagePullPolicy: IfNotPresent
@@ -67,13 +61,26 @@ spec:
         - name: app
           image: harbor.xunsiya.com:7891/devops/devops-tools:latest
           imagePullPolicy: IfNotPresent
-          # Migrations run in the initContainer; static files are baked into the
-          # image. The app container only serves traffic.
           env:
             - name: RUN_MIGRATE
               value: "0"
             - name: RUN_COLLECTSTATIC
               value: "0"
+
+
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+
+            - name: DJANGO_CSRF_TRUSTED_ORIGINS
+              value: "http://$(NODE_IP):300271"
+
+            - name: SSH_GATEWAY_PUBLIC_HOST
+              value: "$(NODE_IP)"
+
+
+
           ports:
             - name: http
               containerPort: 8001
@@ -113,7 +120,13 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
+
       volumes:
+
+        # - name: runtime
+        #   hostPath:
+        #     path: /data/devops-tools
+        #     type: DirectoryOrCreate
         - name: runtime
           persistentVolumeClaim:
             claimName: devops-tools-runtime-pvc

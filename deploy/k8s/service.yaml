@@ -13,7 +13,7 @@ spec:
       port: 8001
       targetPort: http
       protocol: TCP
-      nodePort: 30001
+      nodePort: 30271
   selector:
     app: devops-tools
     component: app

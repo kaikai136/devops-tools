@@ -21,15 +21,15 @@ spec:
         component: ssh-gateway
     spec:
       # Co-locate with the app on the stable node (see deployment-app.yaml).
-      nodeSelector:
-        kubernetes.io/hostname: k8svip-161
-      tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
-        - key: node-role.kubernetes.io/master
-          operator: Exists
-          effect: NoSchedule
+      # nodeSelector:
+      #   kubernetes.io/hostname: k8svip-161
+      # tolerations:
+      #   - key: node-role.kubernetes.io/control-plane
+      #     operator: Exists
+      #     effect: NoSchedule
+      #   - key: node-role.kubernetes.io/master
+      #     operator: Exists
+      #     effect: NoSchedule
       imagePullSecrets:
         - name: my-harbor
       initContainers:
@@ -63,6 +63,21 @@ spec:
               value: "0"
             - name: RUN_COLLECTSTATIC
               value: "0"
+
+
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+
+            - name: DJANGO_CSRF_TRUSTED_ORIGINS
+              value: "http://$(NODE_IP):300271"
+
+            - name: SSH_GATEWAY_PUBLIC_HOST
+              value: "$(NODE_IP)"
+
+
+
           ports:
             - name: ssh
               containerPort: 2222
@@ -92,6 +107,12 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
+
+        # - name: runtime
+        #   hostPath:
+        #     path: /data/devops-tools
+        #     type: DirectoryOrCreate
+
         - name: runtime
           persistentVolumeClaim:
             claimName: devops-tools-runtime-pvc
