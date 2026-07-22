@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-tools-app
+  namespace: default
+  labels:
+    app: devops-tools
+    component: app
+spec:
+  # InMemoryChannelLayer + SQLite => single writer. Do not scale beyond 1.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: devops-tools
+      component: app
+  template:
+    metadata:
+      labels:
+        app: devops-tools
+        component: app
+    spec:
+      # Pin to k8svip-161: the sole worker (k8svip-164) suffers periodic
+      # node-level (system) OOM that SIGKILLs containers regardless of their
+      # own limits. 161 has stable free memory and no scheduling taint.
+      nodeSelector:
+        kubernetes.io/hostname: k8svip-161
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      imagePullSecrets:
+        - name: my-harbor
+      initContainers:
+        # Create runtime dirs on the shared volume and apply DB migrations once.
+        # `command` overrides the image ENTRYPOINT, so collectstatic does NOT run
+        # here (static files are already baked into the image at build time).
+        - name: migrate
+          image: harbor.xunsiya.com:7891/devops/devops-tools:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /app/config /app/data /app/media /app/recordings
+              python manage.py migrate --noinput
+          volumeMounts:
+            - name: runtime
+              mountPath: /app
+            - name: app-config
+              mountPath: /app/config/app.conf
+              subPath: app.conf
+              readOnly: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+      containers:
+        - name: app
+          image: harbor.xunsiya.com:7891/devops/devops-tools:latest
+          imagePullPolicy: IfNotPresent
+          # Migrations run in the initContainer; static files are baked into the
+          # image. The app container only serves traffic.
+          env:
+            - name: RUN_MIGRATE
+              value: "0"
+            - name: RUN_COLLECTSTATIC
+              value: "0"
+          ports:
+            - name: http
+              containerPort: 8001
+              protocol: TCP
+          volumeMounts:
+            - name: runtime
+              mountPath: /app
+            - name: app-config
+              mountPath: /app/config/app.conf
+              subPath: app.conf
+              readOnly: true
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          startupProbe:
+            httpGet:
+              path: /api/health/
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /api/health/
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /api/health/
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: runtime
+          persistentVolumeClaim:
+            claimName: devops-tools-runtime-pvc
+        - name: app-config
+          configMap:
+            name: devops-tools-config
+            items:
+              - key: app.conf
+                path: app.conf

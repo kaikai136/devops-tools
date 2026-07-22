@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM node:20-alpine AS frontend-build
 
 WORKDIR /app/frontend
@@ -35,6 +33,11 @@ COPY deploy/docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh \
     && mkdir -p /app/config /app/data /app/media /app/recordings /opt/devops-tools/staticfiles
+
+# Bake static files into the image so runtime containers never need to run the
+# memory-heavy collectstatic/whitenoise compression step. Settings fall back to
+# safe defaults when /app/config/app.conf is absent (as it is during build).
+RUN python manage.py collectstatic --noinput
 
 EXPOSE 8001 2222
 

@@ -107,7 +107,23 @@ fi
 
 wait_for_database
 
-python manage.py migrate --noinput
-python manage.py collectstatic --noinput
+# RUN_MIGRATE / RUN_COLLECTSTATIC let callers skip these steps.
+# Defaults keep the docker-compose flow unchanged (both run). In Kubernetes
+# migrations run in a dedicated initContainer and static files are baked into
+# the image, so the app/gateway containers set both to 0.
+RUN_MIGRATE="${RUN_MIGRATE:-1}"
+RUN_COLLECTSTATIC="${RUN_COLLECTSTATIC:-1}"
+
+if [ "$RUN_MIGRATE" = "1" ]; then
+  python manage.py migrate --noinput
+else
+  echo "Skipping migrations (RUN_MIGRATE=$RUN_MIGRATE)."
+fi
+
+if [ "$RUN_COLLECTSTATIC" = "1" ]; then
+  python manage.py collectstatic --noinput
+else
+  echo "Skipping collectstatic (RUN_COLLECTSTATIC=$RUN_COLLECTSTATIC)."
+fi
 
 exec "$@"

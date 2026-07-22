@@ -1,0 +1,19 @@
+# Apply everything with:  kubectl apply -k deploy/k8s
+#
+# The image tag lives ONLY here — bump newTag after each rebuild/push and
+# re-apply, instead of editing every Deployment.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: default
+
+resources:
+  - pvc.yaml
+  - configmap.yaml
+  - deployment-app.yaml
+  - deployment-ssh-gateway.yaml
+  - service.yaml
+
+images:
+  - name: harbor.xunsiya.com:7891/devops/devops-tools
+    newTag: bd1a608-2

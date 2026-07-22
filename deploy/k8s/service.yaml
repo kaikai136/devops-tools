@@ -37,22 +37,3 @@ spec:
   selector:
     app: devops-tools
     component: ssh-gateway
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: guacd
-  namespace: default
-  labels:
-    app: devops-tools
-    component: guacd
-spec:
-  type: ClusterIP
-  ports:
-    - name: guacd
-      port: 4822
-      targetPort: guacd
-      protocol: TCP
-  selector:
-    app: devops-tools
-    component: guacd

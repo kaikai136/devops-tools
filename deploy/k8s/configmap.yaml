@@ -5,28 +5,20 @@ metadata:
   namespace: default
 data:
   app.conf: |
-    # Safe defaults for Kubernetes deployments.
-    # Replace DATABASE_* values before using DATABASE_ENGINE=mysql in production.
+    # Kubernetes deployment config (SQLite backend, single-node app).
     TZ=Asia/Shanghai
 
-    DJANGO_SECRET_KEY=
+    DJANGO_SECRET_KEY=bSQdcS0sfvIHsPJehV1cxEkDE9h-rJ8uDBR6CUZJdLRVmWpDgXXcX5yLItLNdnR6__D9l_SbeyhGXDmcGD71FA
     DJANGO_SECRET_KEY_FILE=/app/data/django-secret-key
     DJANGO_DEBUG=0
     DJANGO_ALLOWED_HOSTS=*
-    DJANGO_CSRF_TRUSTED_ORIGINS=
+    DJANGO_CSRF_TRUSTED_ORIGINS=http://172.16.0.161:30001,http://172.16.0.162:30001,http://172.16.0.163:30001,http://172.16.0.164:30001
     DJANGO_CORS_ALLOW_ALL_ORIGINS=0
     DJANGO_CORS_ALLOWED_ORIGINS=
     DJANGO_MEDIA_ROOT=/app/media
     DJANGO_SERVE_MEDIA_FILES=1
 
-    DATABASE_ENGINE=mysql
-    DATABASE_HOST=mysql.example.com
-    DATABASE_PORT=3306
-    DATABASE_NAME=devops_tools
-    DATABASE_USER=devops_tools
-    DATABASE_PASSWORD=devops-tools-password
-
-    # Used only when DATABASE_ENGINE=sqlite.
+    DATABASE_ENGINE=sqlite
     DJANGO_DB_PATH=/app/data/db.sqlite3
 
     GUACD_HOST=guacd
@@ -39,6 +31,6 @@ data:
     SSH_GATEWAY_ENABLED=1
     SSH_GATEWAY_BIND_HOST=0.0.0.0
     SSH_GATEWAY_PORT=2222
-    SSH_GATEWAY_PUBLIC_HOST=
+    SSH_GATEWAY_PUBLIC_HOST=172.16.0.161
     SSH_GATEWAY_PUBLIC_PORT=30222
     SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key
