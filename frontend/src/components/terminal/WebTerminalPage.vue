@@ -816,6 +816,10 @@ function getTerminalTabLabel(tab: TerminalTab) {
   return tab.customTitle || tab.host.name;
 }
 
+function getTerminalHostTooltip(host: TerminalHost) {
+  return host.privateIp || host.publicIp || host.name;
+}
+
 function getTerminalMultiExecutionStatusText() {
   const total = tabs.value.filter((tab) => isTerminalTabReady(tab)).length;
   const targetCount = terminalMultiExecutionTargetCount.value;
@@ -3222,6 +3226,7 @@ function readTerminalQuickCommandPanelCollapsed() {
               class="terminal-tree-row"
               :class="{ root: row.kind === 'root', host: row.kind === 'host', active: row.kind === 'host' && activeTab?.host.id === row.host.id }"
               :style="{ paddingLeft: `${12 + row.level * 24}px` }"
+              :title="row.kind === 'host' ? getTerminalHostTooltip(row.host) : undefined"
               type="button"
               @click="row.kind === 'root' ? toggleRoot() : row.kind === 'group' && toggleGroup(row.group)"
               @dblclick="row.kind === 'host' && openHostTab(row.host)"
