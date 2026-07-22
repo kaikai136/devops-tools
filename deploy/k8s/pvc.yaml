@@ -4,8 +4,9 @@ metadata:
   name: devops-tools-runtime-pvc
   namespace: default
 spec:
+  storageClassName: storage
   accessModes:
     - ReadWriteMany
   resources:
     requests:
-      storage: 80Gi
+      storage: 10Gi
