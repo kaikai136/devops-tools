@@ -32,7 +32,7 @@ data:
     GUACD_HOST=guacd
     GUACD_PORT=4822
 
-    RDP_RECORDING_ROOT=/app/rdp_recordings
+    RDP_RECORDING_ROOT=/app/recordings
     RDP_RECORDING_RETENTION_DAYS=30
     RDP_RECORDING_DEFAULT_ENABLED=0
 

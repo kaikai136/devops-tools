@@ -16,7 +16,7 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-WORKDIR /app
+WORKDIR /opt/devops-tools
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -26,15 +26,15 @@ RUN apt-get update \
         openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY backend/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-COPY backend/ /app/
-COPY --from=frontend-build /app/frontend/dist/ /app/frontend_dist/
+COPY backend/ /opt/devops-tools/
+COPY --from=frontend-build /app/frontend/dist/ /opt/devops-tools/frontend_dist/
 COPY deploy/docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh \
-    && mkdir -p /app/config /app/data /app/media /app/staticfiles
+    && mkdir -p /app/config /app/data /app/media /app/recordings /opt/devops-tools/staticfiles
 
 EXPOSE 8001 2222
 

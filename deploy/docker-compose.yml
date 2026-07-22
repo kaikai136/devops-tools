@@ -19,10 +19,7 @@ services:
       guacd:
         condition: service_started
     volumes:
-      - ./config/app.conf:/app/config/app.conf:ro
-      - ../data:/app/data
-      - ../media:/app/media
-      - rdp_recordings:/app/rdp_recordings
+      - ../data:/app
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8001/api/health/ >/dev/null || exit 1"]
       interval: 30s
@@ -42,10 +39,4 @@ services:
       app:
         condition: service_healthy
     volumes:
-      - ./config/app.conf:/app/config/app.conf:ro
-      - ../data:/app/data
-      - ../media:/app/media
-      - rdp_recordings:/app/rdp_recordings
-
-volumes:
-  rdp_recordings:
+      - ../data:/app

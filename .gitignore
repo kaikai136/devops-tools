@@ -26,6 +26,7 @@ pnpm-debug.log*
 /data/
 /backend/data/
 /media/
+/rdp_recordings/
 .worktrees/
 
 # Editor / OS

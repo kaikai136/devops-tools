@@ -1,9 +1,15 @@
 #!/usr/bin/env sh
 set -eu
 
-mkdir -p /app/config /app/data /app/media /app/staticfiles
+mkdir -p /app/config /app/data /app/media /app/recordings
 
 APP_CONFIG_FILE="${APP_CONFIG_FILE:-/app/config/app.conf}"
+
+if [ ! -f "$APP_CONFIG_FILE" ]; then
+  echo "Missing config file: $APP_CONFIG_FILE" >&2
+  echo "Create data/config/app.conf on the host before starting the container." >&2
+  exit 1
+fi
 
 read_config_value() {
   key="$1"

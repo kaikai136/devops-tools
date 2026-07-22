@@ -68,7 +68,7 @@ foreach ($relative in $required) {
 
 $tracked = & git -C $root ls-files
 if ($LASTEXITCODE -ne 0) { throw 'Unable to list tracked files.' }
-$forbiddenTrackedPatterns = @('(^|/)db\.sqlite3$', '(^|/)(media|data)/', '\.log$', '^frontend/dist/')
+$forbiddenTrackedPatterns = @('(^|/)db\.sqlite3$', '(^|/)(media|data|rdp_recordings)/', '\.log$', '^frontend/dist/')
 foreach ($path in $tracked) {
     foreach ($pattern in $forbiddenTrackedPatterns) {
         if ($path -match $pattern) { throw "Generated/local file is tracked: $path" }
@@ -87,7 +87,8 @@ foreach ($ignoredPath in @(
     'backend/db.sqlite3',
     'backend/media/upload.bin',
     'data/runtime.bin',
-    'media/runtime.bin',
+    'data/media/runtime.bin',
+    'data/recordings/session.cast',
     'frontend/dist/app.js',
     'backend/__pycache__/module.pyc',
     'frontend/node_modules/package/index.js'

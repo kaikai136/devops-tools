@@ -19,7 +19,7 @@ ssh "$REMOTE" \
 set -euo pipefail
 
 APP_DIR="${DEPLOY_ROOT%/}/${APP_NAME}"
-CONFIG_PATH="deploy/config/app.conf"
+CONFIG_PATH="data/config/app.conf"
 CONFIG_BACKUP=""
 CONFIG_RESTORED=0
 
@@ -58,11 +58,6 @@ if [ -d "$APP_DIR/.git" ] && [ -f "$APP_DIR/$CONFIG_PATH" ]; then
   CONFIG_BACKUP="$(mktemp)"
   cp "$APP_DIR/$CONFIG_PATH" "$CONFIG_BACKUP"
   chmod 600 "$CONFIG_BACKUP"
-  if git -C "$APP_DIR" ls-files --error-unmatch "$CONFIG_PATH" >/dev/null 2>&1; then
-    git -C "$APP_DIR" checkout -- "$CONFIG_PATH"
-  else
-    rm -f "$APP_DIR/$CONFIG_PATH"
-  fi
 fi
 
 if [ ! -d "$APP_DIR/.git" ]; then
@@ -74,12 +69,15 @@ else
 fi
 
 cd "$APP_DIR"
-mkdir -p data media deploy/config
+mkdir -p data/config data/data data/media data/recordings
 
 if [ -n "$CONFIG_BACKUP" ]; then
   cp "$CONFIG_BACKUP" "$CONFIG_PATH"
   chmod 600 "$CONFIG_PATH"
   CONFIG_RESTORED=1
+elif [ ! -f "$CONFIG_PATH" ]; then
+  cp deploy/config/app.conf "$CONFIG_PATH"
+  chmod 600 "$CONFIG_PATH"
 fi
 
 "${COMPOSE[@]}" -f deploy/docker-compose.yml up -d --build

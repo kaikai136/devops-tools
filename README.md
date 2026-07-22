@@ -57,7 +57,7 @@
 - 终端能力：SSH 连接依赖 Paramiko，RDP 连接依赖 guacamole/guacd。
 - 静态资源：前端构建后由 Django + WhiteNoise 提供。
 - 数据存储：支持远程 MySQL 或 SQLite，上传文件和密钥通过挂载目录持久化。
-- 部署方式：Docker 多阶段构建，Docker Compose 编排 app 与 guacd 服务，数据库由 `deploy/config/app.conf` 指定。
+- 部署方式：Docker 多阶段构建，Docker Compose 编排 app 与 guacd 服务，数据库由运行时 `data/config/app.conf` 指定。
 
 ## 目录结构
 
@@ -79,7 +79,7 @@ django-vue/
 │   ├── src/services/        # API 请求封装
 │   └── src/styles/          # 全局样式和功能模块样式
 └── deploy/                  # Docker Compose、Dockerfile、启动脚本和 K8s 部署文件
-    ├── config/app.conf      # Compose 通过 volumes 挂载到 /app/config/app.conf 的默认配置
+    ├── config/app.conf      # 运行时 data/config/app.conf 的默认模板
     ├── docker/              # 容器启动脚本
     ├── k8s/                 # Kubernetes 部署清单
     ├── scripts/             # 本地/远程部署脚本
@@ -143,16 +143,16 @@ npm run build
 
 ### 拉取后配置并启动
 
-仓库已提供不含真实密钥的默认 `deploy/config/app.conf`。Compose 会通过 `volumes` 把它只读挂载到容器内的 `/app/config/app.conf`，应用直接从该文件读取部署配置：
+仓库已提供不含真实密钥的默认 `deploy/config/app.conf` 模板。启动脚本会在首次运行时复制到 `data/config/app.conf`，Compose 会把外部 `data` 目录挂载到容器内 `/app`，应用直接从 `/app/config/app.conf` 读取部署配置：
 
 ```bash
 git clone https://github.com/kaikai136/devops-tools.git
 cd devops-tools
-vim deploy/config/app.conf
+vim data/config/app.conf
 bash deploy/scripts/compose-up.sh
 ```
 
-`deploy/config/app.conf` 中的 `DATABASE_ENGINE` 决定应用使用远程 MySQL 还是 SQLite。Compose 只启动 app、ssh-gateway 和 guacd，不部署本地 MySQL。
+`data/config/app.conf` 中的 `DATABASE_ENGINE` 决定应用使用远程 MySQL 还是 SQLite。Compose 只启动 app、ssh-gateway 和 guacd，不部署本地 MySQL。
 
 如果手动执行 Docker Compose，MySQL 和 SQLite 模式都使用同一个基础 Compose 文件：
 
@@ -206,7 +206,7 @@ DJANGO_DB_PATH=/app/data/db.sqlite3
 
 GUACD_HOST=guacd
 GUACD_PORT=4822
-RDP_RECORDING_ROOT=/app/rdp_recordings
+RDP_RECORDING_ROOT=/app/recordings
 RDP_RECORDING_RETENTION_DAYS=30
 RDP_RECORDING_DEFAULT_ENABLED=0
 
@@ -222,13 +222,13 @@ SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key
 
 ### Django 密钥自动生成
 
-默认 `deploy/config/app.conf` 中的 `DJANGO_SECRET_KEY` 为空。容器每次启动时按以下优先级确定密钥：
+默认 `data/config/app.conf` 中的 `DJANGO_SECRET_KEY` 为空。容器每次启动时按以下优先级确定密钥：
 
-1. 使用 `deploy/config/app.conf` 中非空的 `DJANGO_SECRET_KEY`。
+1. 使用 `data/config/app.conf` 中非空的 `DJANGO_SECRET_KEY`。
 2. 读取已经存在的 `/app/data/django-secret-key`。
 3. 首次启动时安全生成新密钥并保存到 `/app/data/django-secret-key`。
 
-由于 `deploy/docker-compose.yml` 将 `../data` 挂载到 `/app/data`，自动生成的密钥在宿主机上的位置是：
+由于 `deploy/docker-compose.yml` 将外部 `data` 目录挂载到容器 `/app`，自动生成的密钥在宿主机上的位置是：
 
 ```text
 ./data/django-secret-key
@@ -240,12 +240,12 @@ SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key
 
 ### 生产环境私有配置
 
-可以直接编辑远端服务器上的 `deploy/config/app.conf`。远程部署脚本会在 Git 更新前临时备份这个文件，并在更新后恢复，避免仓库默认配置覆盖私有配置。
+可以直接编辑远端服务器上的 `data/config/app.conf`。远程部署脚本会在 Git 更新前临时备份这个文件，并在更新后恢复，避免仓库默认模板覆盖私有配置。
 
 如果需要在本地保留一份私有模板，可以复制为 Git 忽略的本地文件：
 
 ```bash
-cp deploy/config/app.conf deploy/config/app.local.conf
+cp deploy/config/app.conf data/config/app.conf
 ```
 
 示例：
@@ -294,23 +294,31 @@ Compose 层的镜像名、容器名和宿主机端口已固定在 `deploy/docker
 
 ### 数据持久化与备份
 
-Docker Compose 会挂载：
+Docker Compose 会用一个外部目录挂载全部运行时文件：
 
-- `../data:/app/data`：自动生成的 Django 密钥和容器本地数据文件。
-- `../media:/app/media`：上传文件、头像和媒体资源。
-- `rdp_recordings:/app/rdp_recordings`：RDP 录像数据卷。
+- `../data:/app`：外部运行时根目录，容器读取 `/app/config/app.conf`，并使用 `/app/data`、`/app/media`、`/app/recordings`。
+
+目录结构如下，其中 `config/app.conf` 需要手动确认或编辑，其他目录启动时自动创建：
+
+```text
+data/
+├── config/
+│   └── app.conf
+├── data/
+├── media/
+└── recordings/
+```
 
 升级或重建镜像不会删除这些本地挂载数据。重大升级前建议同时备份：
 
 ```bash
-cp deploy/config/app.conf deploy/config/app.conf.backup
+cp data/config/app.conf data/config/app.conf.backup
 cp -a data data.backup
-cp -a media media.backup
 ```
 
 如果使用远程 MySQL，请在数据库服务器或托管数据库平台上单独执行备份。
 
-`deploy/config/*.local.conf`、`.env`、`.env.*` 等私有文件默认被 Git 忽略，不要强制提交。
+`data/`、`deploy/config/*.local.conf`、`.env`、`.env.*` 等私有文件默认被 Git 忽略，不要强制提交。
 
 ## Kubernetes 部署
 
@@ -338,7 +346,7 @@ Web: http://节点IP:30001
 SSH: ssh <平台用户>@节点IP -p 30222
 ```
 
-`data`、`media` 和 `recordings` PVC 会同时被 app 与 ssh-gateway Pod 挂载，默认使用 `ReadWriteMany`。如果你的集群存储类不支持 RWX，需要改用支持共享挂载的存储，或根据集群拓扑调整 Pod 调度与 PVC 策略。
+`devops-tools-runtime-pvc` 会挂载到容器 `/app`，其中包含 `config/app.conf`、`data/`、`media/` 和 `recordings/`，默认使用 `ReadWriteMany`。如果你的集群存储类不支持 RWX，需要改用支持共享挂载的存储，或根据集群拓扑调整 Pod 调度与 PVC 策略。
 
 ## 远程部署
 
@@ -367,7 +375,7 @@ BRANCH=main \
 bash deploy/scripts/deploy-remote.sh
 ```
 
-新服务器会使用仓库自带的默认 `deploy/config/app.conf`。如果远程仓库已经有自定义 `deploy/config/app.conf`，部署脚本会在 Git 更新前临时备份并在更新后恢复，不会被仓库默认文件覆盖。
+新服务器会使用仓库自带的默认 `deploy/config/app.conf` 初始化 `data/config/app.conf`。如果远程服务器已经有自定义 `data/config/app.conf`，部署脚本会在 Git 更新前临时备份并在更新后恢复，不会被仓库默认模板覆盖。
 
 ### 手动远程部署
 
@@ -394,13 +402,13 @@ bash deploy/scripts/compose-up.sh
 
 ```bash
 cd /opt/devops-tools
-cp deploy/config/app.conf deploy/config/app.conf.backup
+cp data/config/app.conf data/config/app.conf.backup
 cp -a data data.backup
 git pull --ff-only origin main
 bash deploy/scripts/compose-up.sh
 ```
 
-如果手工执行 Git 操作时仓库默认 `deploy/config/app.conf` 与远端私有配置冲突，请先将私有文件复制到仓库外，更新后再恢复。使用 `deploy/scripts/deploy-remote.sh` 时脚本会自动完成该保护流程。
+如果手工执行 Git 操作时担心运行时配置受影响，请先备份 `data/config/app.conf`。使用 `deploy/scripts/deploy-remote.sh` 时脚本会自动完成该保护流程。
 
 ### 部署验证
 
@@ -413,7 +421,7 @@ curl http://127.0.0.1:8001/api/health/
 ```
 ## 常用运维命令
 
-以下命令对远程 MySQL 和 SQLite 模式都适用，数据库选择由 `deploy/config/app.conf` 控制。
+以下命令对远程 MySQL 和 SQLite 模式都适用，数据库选择由 `data/config/app.conf` 控制。
 
 查看服务状态：
 
@@ -477,4 +485,4 @@ docker compose -f deploy/docker-compose.yml exec app python manage.py shell
 - `DJANGO_ALLOWED_HOSTS` 和 `DJANGO_CSRF_TRUSTED_ORIGINS` 需要按实际域名/IP/端口配置。
 - Web RDP 功能依赖 `guacamole/guacd:1.5.5` 容器，请确认 guacd 服务正常启动。
 - SSH 终端依赖目标主机网络可达，并需要正确的登录账号、密码或密钥配置。
-- 升级前建议备份 `data/`、`media/` 和 RDP 录像 volume；如果使用远程 MySQL，还要单独备份远程数据库。
+- 升级前建议备份整个 `data/` 目录；如果使用远程 MySQL，还要单独备份远程数据库。

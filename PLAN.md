@@ -18,9 +18,9 @@
 
 - 配置与部署：
   - 新增配置项：`SSH_GATEWAY_ENABLED=1`、`SSH_GATEWAY_BIND_HOST=0.0.0.0`、`SSH_GATEWAY_PORT=2222`、`SSH_GATEWAY_PUBLIC_HOST`、`SSH_GATEWAY_PUBLIC_PORT=2222`、`SSH_GATEWAY_HOST_KEY_PATH=/app/data/ssh-gateway-host-key`。
-  - `deploy/docker-compose.yml` 通过 `volumes` 将 `deploy/config/app.conf` 只读挂载到容器内 `/app/config/app.conf`，应用直接读取该配置文件。
+  - `deploy/docker-compose.yml` 通过 `volumes` 将外部 `data` 目录挂载到容器 `/app`，运行时目录包含 `config/app.conf`、`data/`、`media/`、`recordings/`；除 `config/app.conf` 需要人工确认外，其余目录启动时自动创建。
   - Docker Compose 不再部署本地 MySQL；`DATABASE_ENGINE=mysql` 时应用读取 `deploy/config/app.conf` 中的远程 MySQL 地址、端口和账号信息进行连接，`DATABASE_ENGINE=sqlite` 时使用本地 SQLite 文件。
-  - Kubernetes 清单与 Compose 保持同一部署模型：ConfigMap 提供 `app.conf` 文件挂载到 `/app/config/app.conf`，Deployment 不使用 `env` / `envFrom` 注入应用配置，也不部署本地 MySQL。
+  - Kubernetes 清单与 Compose 保持同一部署模型：一个 runtime PVC 挂载到 `/app`，ConfigMap 提供 `app.conf` 文件挂载到 `/app/config/app.conf`，Deployment 不使用 `env` / `envFrom` 注入应用配置，也不部署本地 MySQL。
   - 默认宿主机和容器内 SSH 网关端口均为 `2222`；如需调整端口映射，修改 `deploy/docker-compose.yml`，并同步调整 `deploy/config/app.conf` 中的 `SSH_GATEWAY_PORT` / `SSH_GATEWAY_PUBLIC_PORT`。
   - 新增 management command：`python manage.py run_ssh_gateway`。
   - `deploy/Dockerfile` 增加 `EXPOSE 2222`，实际端口以 Compose 和配置文件为准。
@@ -52,6 +52,6 @@
 ## Assumptions
 
 - 第一版不支持 Telnet、端口转发、命令阻断 ACL、多远程账号授权。
-- 默认端口是 `2222`，部署时通过 `deploy/docker-compose.yml` 和 `deploy/config/app.conf` 修改公开端口和监听端口。
+- 默认端口是 `2222`，部署时通过 `deploy/docker-compose.yml` 和 `data/config/app.conf` 修改公开端口和监听端口。
 - 资产权限沿用当前项目能力：通过 `hosts.terminal` 控制是否可使用 SSH 网关。
 - 参考 KoKo 的接入层、处理层、代理层、会话层、目标连接层分层，但实现形态适配 Django/Vue 项目。

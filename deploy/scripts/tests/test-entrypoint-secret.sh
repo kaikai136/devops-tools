@@ -22,7 +22,7 @@ cleanup() {
     done
   fi
   rm -rf "$TEST_ROOT"
-  rmdir /app/staticfiles /app/media /app/data /app 2>/dev/null || true
+  rmdir /app/recordings /app/media /app/data /app/config /app 2>/dev/null || true
   exit "$status"
 }
 trap cleanup EXIT HUP INT TERM
