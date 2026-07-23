@@ -25,7 +25,7 @@ from .common import (
     parse_positive_int,
     quick_command_permission_required,
     session_audit_permission_required,
-    terminal_login_required,
+    terminal_permission_required,
 )
 
 
@@ -101,13 +101,13 @@ def terminal_quick_commands_reorder(request):
 
 
 @api_view(["GET"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_tree(request):
     return Response(terminal_tree_payload())
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_sessions(request):
     host_id = request.data.get("host")
     try:
@@ -124,7 +124,7 @@ def terminal_sessions(request):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_commands(request, session_id: UUID):
     try:
         session = TerminalSession.objects.select_related("host").get(session_id=session_id)

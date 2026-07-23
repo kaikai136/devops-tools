@@ -68,8 +68,9 @@ class TerminalConsumerContractTests(SimpleTestCase):
         consumer = TerminalConsumer()
         session = Mock(session_key="session-key")
         session.exists.return_value = True
+        user = SimpleNamespace(is_authenticated=authenticated, is_staff=authenticated, is_superuser=False)
         consumer.scope = {
-            "user": SimpleNamespace(is_authenticated=authenticated),
+            "user": user,
             "session": session,
             "url_route": {"kwargs": {"host_id": 7}},
         }
@@ -87,6 +88,19 @@ class TerminalConsumerContractTests(SimpleTestCase):
         consumer.close.assert_called_once_with()
         payload = json.loads(consumer.send.call_args.kwargs["text_data"])
         self.assertEqual(payload, {"type": "error", "message": "请先登录"})
+
+    @patch("web_terminal.consumers.ssh.has_feature_permission", return_value=False)
+    @patch("web_terminal.consumers.ssh.ManagedHost.objects.get")
+    def test_connect_rejects_user_without_terminal_permission(self, get_host, has_permission):
+        consumer = self._consumer()
+
+        consumer.connect()
+
+        has_permission.assert_called_once_with(consumer.scope["user"], "hosts", "terminal")
+        get_host.assert_not_called()
+        consumer.close.assert_called_once_with(code=4403)
+        payload = json.loads(consumer.send.call_args.kwargs["text_data"])
+        self.assertEqual(payload, {"type": "error", "message": "没有 Web 终端权限"})
 
     @patch("web_terminal.consumers.ssh.threading.Thread")
     @patch("web_terminal.consumers.ssh.open_live_terminal")
@@ -151,8 +165,12 @@ class TerminalConsumerContractTests(SimpleTestCase):
 class RdpTerminalConsumerContractTests(SimpleTestCase):
     def _consumer(self, *, authenticated: bool = True) -> RdpTerminalConsumer:
         consumer = RdpTerminalConsumer()
+        session = Mock(session_key="session-key")
+        session.exists.return_value = True
+        user = SimpleNamespace(is_authenticated=authenticated, is_staff=authenticated, is_superuser=False)
         consumer.scope = {
-            "user": SimpleNamespace(is_authenticated=authenticated),
+            "user": user,
+            "session": session,
             "url_route": {"kwargs": {"host_id": 9}},
             "query_string": b"width=1440&height=900",
         }
@@ -168,6 +186,17 @@ class RdpTerminalConsumerContractTests(SimpleTestCase):
 
         consumer.accept.assert_called_once_with(subprotocol="guacamole")
         consumer.close.assert_called_once_with(code=4401)
+
+    @patch("web_terminal.consumers.rdp.has_feature_permission", return_value=False)
+    @patch("web_terminal.consumers.rdp.ManagedHost.objects.get")
+    def test_connect_rejects_user_without_terminal_permission(self, get_host, has_permission):
+        consumer = self._consumer()
+
+        consumer.connect()
+
+        has_permission.assert_called_once_with(consumer.scope["user"], "hosts", "terminal")
+        get_host.assert_not_called()
+        consumer.close.assert_called_once_with(code=4403)
 
     @patch("web_terminal.consumers.rdp.create_rdp_terminal_session")
     @patch("web_terminal.consumers.rdp.terminal_protocol_for_host")

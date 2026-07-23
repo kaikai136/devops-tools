@@ -32,6 +32,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         terminal: resolve(__dirname, 'terminal.html'),
+        hostTerminal: resolve(__dirname, 'host-terminal.html'),
       },
       output: {
         manualChunks(id) {

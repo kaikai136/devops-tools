@@ -44,6 +44,7 @@ const emit = defineEmits<{
   'toggle-host': [hostId: number, event: Event];
   sort: [key: HostSortKey];
   'open-terminal': [host: ManagedHost];
+  'open-simple-terminal': [host: ManagedHost];
   edit: [host: ManagedHost];
   verify: [host: ManagedHost];
   delete: [host: ManagedHost];
@@ -147,11 +148,27 @@ function updatePageSize(event: Event) {
           </span>
         </div>
         <div v-if="props.isColumnVisible('actions')" class="host-actions host-sticky-cell host-actions-cell">
-          <button v-if="props.canEdit" type="button" @click="emit('edit', host)">编辑</button>
-          <button v-if="props.canVerify" type="button" :disabled="props.verifyingIds.has(host.id)" @click="emit('verify', host)">
-            {{ props.verifyingIds.has(host.id) ? '验证中' : '验证' }}
+          <button v-if="props.canEdit" type="button" class="host-action-icon" title="编辑" aria-label="编辑" @click="emit('edit', host)">
+            <AppIcon name="edit" :size="16" />
           </button>
-          <button v-if="props.canDelete" class="danger" type="button" @click="emit('delete', host)">删除</button>
+          <button
+            v-if="props.canVerify"
+            type="button"
+            class="host-action-icon"
+            :class="{ 'is-verifying': props.verifyingIds.has(host.id) }"
+            :disabled="props.verifyingIds.has(host.id)"
+            :title="props.verifyingIds.has(host.id) ? '验证中' : '验证'"
+            :aria-label="props.verifyingIds.has(host.id) ? '验证中' : '验证'"
+            @click="emit('verify', host)"
+          >
+            <AppIcon name="rotate" :size="16" />
+          </button>
+          <button v-if="props.canOpenTerminal" type="button" class="host-action-icon" title="终端" aria-label="终端" @click="emit('open-simple-terminal', host)">
+            <AppIcon name="terminal" :size="16" />
+          </button>
+          <button v-if="props.canDelete" class="host-action-icon danger" type="button" title="删除" aria-label="删除" @click="emit('delete', host)">
+            <AppIcon name="trash" :size="16" />
+          </button>
           <span v-if="!props.canUseRowActions" class="host-action-placeholder">-</span>
         </div>
       </div>

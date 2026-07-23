@@ -34,6 +34,7 @@ import {
   buildRdpConnectionQuery as buildRdpConnectionQueryValue,
   buildRdpWebSocketUrl as buildRdpWebSocketUrlValue,
   buildTerminalWebSocketUrl,
+  formatRdpConnectionErrorMessage,
   parseTerminalHostQuery,
 } from '../../features/terminal/utils/protocol';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
@@ -2539,10 +2540,7 @@ function connectRdpTab(tab: TerminalTab) {
 }
 
 function getRdpConnectionErrorMessage(status?: unknown) {
-  const message = typeof (status as { message?: unknown } | undefined)?.message === 'string'
-    ? (status as { message: string }).message.trim()
-    : '';
-  return message || 'guacd RDP gateway unavailable or Windows remote desktop connection failed.';
+  return formatRdpConnectionErrorMessage(status);
 }
 
 function attachRdpInputHandlers(tab: TerminalTab, client: GuacamoleClientInstance, displayElement: HTMLElement) {

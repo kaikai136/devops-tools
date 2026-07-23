@@ -7,6 +7,7 @@ from channels.generic.websocket import WebsocketConsumer
 from django.conf import settings
 from django.utils import timezone
 
+from accounts.permissions import has_feature_permission
 from host_management.models import ManagedHost
 
 from ..models import TerminalSession
@@ -35,6 +36,9 @@ class RdpTerminalConsumer(WebsocketConsumer):
 
         if not self._is_authenticated():
             self.close(code=4401)
+            return
+        if not self._has_terminal_permission():
+            self.close(code=4403)
             return
 
         host_id = self.scope["url_route"]["kwargs"]["host_id"]
@@ -82,7 +86,21 @@ class RdpTerminalConsumer(WebsocketConsumer):
 
     def _is_authenticated(self) -> bool:
         user = self.scope.get("user")
-        return bool(user and getattr(user, "is_authenticated", False))
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+
+        session = self.scope.get("session")
+        session_key = getattr(session, "session_key", None)
+        if not session_key:
+            return False
+
+        try:
+            return bool(session.exists(session_key))
+        except Exception:
+            return False
+
+    def _has_terminal_permission(self) -> bool:
+        return has_feature_permission(self.scope.get("user"), "hosts", "terminal")
 
     def _connect_guacd(self, host: ManagedHost) -> socket.socket:
         try:

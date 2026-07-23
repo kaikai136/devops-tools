@@ -539,8 +539,15 @@ class RdpTerminalServiceTests(TestCase):
 
 class TerminalMonitorViewTests(TestCase):
     def setUp(self):
+        ensure_feature_permissions()
         self.factory = RequestFactory()
         self.user = get_user_model().objects.create_user(username="monitor-operator", password="pass")
+        role = Group.objects.create(name="monitor-terminal-operator")
+        role.permissions.add(
+            Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["hosts"]),
+            Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "terminal")]),
+        )
+        self.user.groups.add(role)
         self.group = HostGroup.objects.create(name="monitor-tests")
 
     def authenticated_request(self, request):
@@ -577,8 +584,15 @@ class TerminalMonitorViewTests(TestCase):
 
 class TerminalFileDownloadAttachmentTests(TestCase):
     def setUp(self):
+        ensure_feature_permissions()
         self.factory = RequestFactory()
         self.user = get_user_model().objects.create_user(username="download-operator", password="pass")
+        role = Group.objects.create(name="download-terminal-operator")
+        role.permissions.add(
+            Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["hosts"]),
+            Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "terminal")]),
+        )
+        self.user.groups.add(role)
         self.group = HostGroup.objects.create(name="download-tests")
 
     def authenticated_request(self, request):
@@ -622,6 +636,7 @@ class TerminalSessionAuditTests(TestCase):
         role = Group.objects.create(name="session-audit-operator")
         role.permissions.add(
             Permission.objects.get(codename=FEATURE_PERMISSION_CODE_BY_KEY["hosts"]),
+            Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "terminal")]),
             Permission.objects.get(codename=PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "session_audit")]),
         )
         self.user.groups.add(role)

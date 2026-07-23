@@ -73,7 +73,7 @@ const componentContracts: Record<string, { props: string[]; emits: string[] }> =
   },
   'HostTable.vue': {
     props: ['hosts', 'visibleHostCount', 'selectedIds', 'visibleIds', 'tableStyle', 'page', 'pageSize', 'totalPages'],
-    emits: ['toggle-all-visible', 'toggle-host', 'sort', 'page-change', 'page-size-change', 'clear-selection'],
+    emits: ['toggle-all-visible', 'toggle-host', 'sort', 'open-simple-terminal', 'page-change', 'page-size-change', 'clear-selection'],
   },
   'HostToolbar.vue': {
     props: ['search', 'statusFilter', 'selectedCount', 'moreActionsOpen', 'columnSettingsOpen', 'fullscreen'],
@@ -361,6 +361,7 @@ describe('HostManager component structure', () => {
       'toggle-host': 'toggleHostSelected',
       sort: 'setHostSort',
       'open-terminal': 'openWebTerminal',
+      'open-simple-terminal': 'openSimpleHostTerminal',
       edit: 'editManagedHost',
       verify: 'verifyManagedHost',
       delete: 'deleteManagedHost',
@@ -368,6 +369,10 @@ describe('HostManager component structure', () => {
       'page-size-change': 'hostPageSize = $event',
       'clear-selection': 'clearSelectedManagedHosts',
     });
+
+    const script = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
+    const rowActions = script.match(/const canUseHostRowActions = computed\(\(\) =>([\s\S]*?)\);/);
+    expect(rowActions?.[1]).toContain("canUsePageAction('hosts', 'terminal')");
 
     const editor = findElements(root, 'HostEditorDialog')[0];
     expectBindings(editor, {
@@ -496,6 +501,50 @@ describe('HostManager component structure', () => {
     expectDirective(perColumn, 'bind', 'checked', 'props.columnVisibility[column.key]');
     expectDirective(perColumn, 'bind', 'disabled', 'props.isOnlyVisibleColumn(column.key)');
     expectDirective(perColumn, 'on', 'change', "emit('update-column', column.key, $event)");
+  });
+
+  it('uses icon row actions in edit, verify, terminal, delete order', () => {
+    const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
+    const actionButtons = findElements(tableRoot, 'button').filter((button) => hasStaticClass(button, 'host-action-icon'));
+
+    expect(actionButtons).toHaveLength(4);
+    expect(directiveExpression(actionButtons[0], 'on', 'click')).toBe("emit('edit', host)");
+    expect(directiveExpression(actionButtons[1], 'on', 'click')).toBe("emit('verify', host)");
+    expect(directiveExpression(actionButtons[2], 'on', 'click')).toBe("emit('open-simple-terminal', host)");
+    expect(directiveExpression(actionButtons[3], 'on', 'click')).toBe("emit('delete', host)");
+    expectDirective(actionButtons[2], 'if', undefined, 'props.canOpenTerminal');
+    expect(staticAttribute(actionButtons[2], 'title')).toBe('终端');
+    expect(staticAttribute(actionButtons[2], 'aria-label')).toBe('终端');
+
+    const terminalIcon = findElements({ ...tableRoot, children: actionButtons[2].children } as RootNode, 'AppIcon')[0];
+    expect(terminalIcon).toBeTruthy();
+    expect(staticAttribute(terminalIcon, 'name')).toBe('terminal');
+  });
+
+  it('uses the single-arrow rotate icon for the row verify action in every state', () => {
+    const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
+    const verifyButton = findElements(tableRoot, 'button').find(
+      (button) => directiveExpression(button, 'on', 'click') === "emit('verify', host)",
+    );
+
+    expect(verifyButton).toBeTruthy();
+    const verifyIcon = findElements({ ...tableRoot, children: verifyButton!.children } as RootNode, 'AppIcon')[0];
+    expect(verifyIcon).toBeTruthy();
+    expect(staticAttribute(verifyIcon, 'name')).toBe('rotate');
+    expectNoDirective(verifyIcon, 'bind', 'name');
+  });
+
+  it('rotates the row verify icon while verification is active', () => {
+    const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
+    const verifyButton = findElements(tableRoot, 'button').find(
+      (button) => directiveExpression(button, 'on', 'click') === "emit('verify', host)",
+    );
+    const styles = readStyle('../../../../styles/tools/host/table.css');
+
+    expect(verifyButton).toBeTruthy();
+    expectDirective(verifyButton!, 'bind', 'class', "{ 'is-verifying': props.verifyingIds.has(host.id) }");
+    expect(styles).toMatch(/\.host-action-icon\.is-verifying\s+\.app-icon\s*\{[\s\S]*animation:\s*host-action-spin\s+0\.9s\s+linear\s+infinite;/);
+    expect(styles).toMatch(/@keyframes\s+host-action-spin\s*\{[\s\S]*transform:\s*rotate\(360deg\);/);
   });
 
   it('keeps CredentialSelector model update before change and preserves editor forwarding order', () => {

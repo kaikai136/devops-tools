@@ -6,11 +6,11 @@ from host_management.models import ManagedHost
 from operations.responses import bad_request
 
 from ..services import TerminalConnectionError, get_remote_resource_monitor
-from .common import terminal_login_required
+from .common import terminal_permission_required
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_monitor(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)

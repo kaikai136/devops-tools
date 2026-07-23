@@ -18,6 +18,17 @@ def terminal_login_required(view_func):
     return wrapped
 
 
+def terminal_permission_required(view_func):
+    @wraps(view_func)
+    def wrapped(request, *args, **kwargs):
+        permission_error = require_feature_permission(request, "hosts", "terminal", "没有 Web 终端权限")
+        if permission_error:
+            return permission_error
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
+
 def quick_command_permission_required(view_func):
     @wraps(view_func)
     def wrapped(request, *args, **kwargs):

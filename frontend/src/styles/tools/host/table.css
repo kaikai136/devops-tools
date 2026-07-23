@@ -254,7 +254,7 @@
 }
 
 .host-actions {
-  gap: 12px;
+  gap: 8px;
 }
 
 .host-actions button {
@@ -266,6 +266,20 @@
   font-size: 13px;
 }
 
+.host-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.host-action-icon:hover:not(:disabled) {
+  background: rgba(7, 85, 216, 0.1);
+}
+
 .host-actions button:disabled {
   color: #8a9ab0;
   cursor: wait;
@@ -273,6 +287,20 @@
 
 .host-actions .danger {
   color: #ff3f55;
+}
+
+.host-action-icon.danger:hover:not(:disabled) {
+  background: rgba(255, 63, 85, 0.1);
+}
+
+.host-action-icon.is-verifying .app-icon {
+  animation: host-action-spin 0.9s linear infinite;
+}
+
+@keyframes host-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .host-action-placeholder {

@@ -9,6 +9,7 @@ from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 from django.utils import timezone
 
+from accounts.permissions import has_feature_permission
 from host_management.models import ManagedHost
 
 from ..models import TerminalCommandAudit, TerminalSession
@@ -74,6 +75,9 @@ class TerminalConsumer(WebsocketConsumer):
 
         if not self._is_authenticated():
             self._close_for_unauthenticated()
+            return
+        if not self._has_terminal_permission():
+            self._close_for_forbidden()
             return
 
         host_id = self.scope["url_route"]["kwargs"]["host_id"]
@@ -218,6 +222,10 @@ class TerminalConsumer(WebsocketConsumer):
         self._send_error("请先登录")
         self.close()
 
+    def _close_for_forbidden(self):
+        self._send_error("没有 Web 终端权限")
+        self.close(code=4403)
+
     def _create_audit_session(self, host: ManagedHost):
         if not is_session_audit_enabled(self.scope.get("user")):
             self.session = None
@@ -255,6 +263,9 @@ class TerminalConsumer(WebsocketConsumer):
             return bool(session.exists(session_key))
         except Exception:
             return False
+
+    def _has_terminal_permission(self) -> bool:
+        return has_feature_permission(self.scope.get("user"), "hosts", "terminal")
 
     def _send_initial_output(self):
         if self.connection is None:

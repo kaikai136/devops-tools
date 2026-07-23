@@ -117,6 +117,29 @@ export function useHostEditor({
     }
   }
 
+  function openSimpleHostTerminal(host: ManagedHost) {
+    const params = new URLSearchParams({ host: String(host.id) });
+    const width = 980;
+    const height = 720;
+    const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+    const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+    const features = [
+      'popup=yes',
+      'noopener',
+      'noreferrer',
+      `width=${width}`,
+      `height=${height}`,
+      `left=${left}`,
+      `top=${top}`,
+      'resizable=yes',
+      'scrollbars=no',
+    ].join(',');
+    const target = window.open(`/host-terminal.html?${params.toString()}`, `host-terminal-${host.id}`, features);
+    if (!target) {
+      showToast('Web 终端', '浏览器阻止了新窗口，请允许弹窗后重试。');
+    }
+  }
+
   async function addManagedHost(group: number | null = selectedHostGroup.value ?? flatHostGroups.value[0]?.key ?? null) {
     closeHostGroupMenu();
     try {
@@ -314,6 +337,7 @@ export function useHostEditor({
     hostMoveForm,
     groupMoveHosts,
     openWebTerminal,
+    openSimpleHostTerminal,
     addManagedHost,
     editManagedHost,
     saveManagedHost,

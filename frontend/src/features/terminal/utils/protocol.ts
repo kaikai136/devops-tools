@@ -43,6 +43,16 @@ export function calculateRdpDisplayScale(
   return Number.isFinite(scale) && scale > 0 ? scale : null;
 }
 
+export function formatRdpConnectionErrorMessage(error?: unknown) {
+  const message = typeof (error as { message?: unknown } | undefined)?.message === 'string'
+    ? (error as { message: string }).message.trim()
+    : '';
+  if (/wrong security type/i.test(message)) {
+    return 'RDP 安全协商失败，请确认目标端口是 RDP 服务、远程桌面已开启，并检查 Windows 安全层/NLA 配置。';
+  }
+  return message || 'RDP 连接失败，请检查远程桌面服务。';
+}
+
 export function formatTerminalFileSizeValue(size: number | string) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   if (typeof size === 'string') return size;

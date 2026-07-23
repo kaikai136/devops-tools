@@ -109,6 +109,7 @@ const {
   saveRootHostGroup,
   cancelHostGroupInlineEdit,
   openWebTerminal,
+  openSimpleHostTerminal,
   addManagedHost,
   verifyManagedHost,
   verifyVisibleManagedHosts,
@@ -216,6 +217,7 @@ const canUseHostMoreActions = computed(() =>
 const canUseHostRowActions = computed(() =>
   canUsePageAction('hosts', 'edit') ||
   canUsePageAction('hosts', 'verify') ||
+  canUsePageAction('hosts', 'terminal') ||
   canUsePageAction('hosts', 'delete')
 );
 const hostPageStart = computed(() => (visibleManagedHosts.value.length ? (hostPage.value - 1) * hostPageSize.value + 1 : 0));
@@ -680,6 +682,7 @@ function hostPlatformType(value: string | null | undefined) {
         @toggle-host="toggleHostSelected"
         @sort="setHostSort"
         @open-terminal="openWebTerminal"
+        @open-simple-terminal="openSimpleHostTerminal"
         @edit="editManagedHost"
         @verify="verifyManagedHost"
         @delete="deleteManagedHost"

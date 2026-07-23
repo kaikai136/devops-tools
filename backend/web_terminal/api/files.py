@@ -22,11 +22,11 @@ from ..services import (
     update_remote_file_properties,
     upload_remote_file,
 )
-from .common import terminal_login_required
+from .common import terminal_permission_required
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_list(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -40,7 +40,7 @@ def terminal_file_list(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_download_list(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -54,7 +54,7 @@ def terminal_file_download_list(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_download(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -68,7 +68,7 @@ def terminal_file_download(request, host_id: int):
 
 
 @api_view(["GET"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_download_attachment(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -99,7 +99,7 @@ def terminal_file_download_attachment(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_upload(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -121,7 +121,7 @@ def terminal_file_upload(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_create_file(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -142,7 +142,7 @@ def terminal_file_create_file(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_create_directory(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -163,7 +163,7 @@ def terminal_file_create_directory(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_create_symlink(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -184,7 +184,7 @@ def terminal_file_create_symlink(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_rename(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -198,7 +198,7 @@ def terminal_file_rename(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_delete(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -212,7 +212,7 @@ def terminal_file_delete(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_properties(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)
@@ -226,7 +226,7 @@ def terminal_file_properties(request, host_id: int):
 
 
 @api_view(["POST"])
-@terminal_login_required
+@terminal_permission_required
 def terminal_file_properties_update(request, host_id: int):
     try:
         host = ManagedHost.objects.get(id=host_id)

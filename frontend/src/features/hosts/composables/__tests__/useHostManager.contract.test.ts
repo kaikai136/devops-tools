@@ -55,6 +55,7 @@ const expectedHostManagerKeys = [
   'openMoveHostDialog',
   'openMoveSelectedHostsDialog',
   'openRenameHostGroup',
+  'openSimpleHostTerminal',
   'openWebTerminal',
   'removeHostCredential',
   'replaceHostCredential',
@@ -105,7 +106,7 @@ describe('useHostManager facade contract', () => {
     )!;
 
     expect(Object.keys(manager).sort()).toEqual(expectedHostManagerKeys);
-    expect(expectedHostManagerKeys).toHaveLength(76);
+    expect(expectedHostManagerKeys).toHaveLength(77);
     expect(manager.hostSearch.value).toBe('');
     expect(manager.selectedHostGroup.value).toBeNull();
     expect(manager.hostStatusFilter.value).toBe('all');
@@ -131,6 +132,7 @@ describe('useHostManager facade contract', () => {
     expect(manager.backupHostManagement).toBeTypeOf('function');
     expect(manager.downloadHostImportTemplate).toBeTypeOf('function');
     expect(manager.importHostManagement).toBeTypeOf('function');
+    expect(manager.openSimpleHostTerminal).toBeTypeOf('function');
     expect(manager.openWebTerminal).toBeTypeOf('function');
     expect(manager.saveManagedHost).toBeTypeOf('function');
     expect(manager.verifyManagedHost).toBeTypeOf('function');
@@ -163,6 +165,42 @@ describe('useHostManager facade contract', () => {
     manager.removeHostCredential(1);
     expect(manager.hostCredentials.value).toEqual([]);
     expect(getItem).toHaveBeenCalledWith('ops-tool.host-manager.root-label');
+
+    manager.openSimpleHostTerminal({
+      id: 7,
+      name: 'terminal-host',
+      group: 1,
+      privateIp: '10.0.0.7',
+      publicIp: '',
+      port: 22,
+      loginUser: 'root',
+      loginPassword: '',
+      privateKeyName: '',
+      privateKey: '',
+      remark: '',
+      cpu: 2,
+      memory: 4,
+      os: 'centos',
+      systemArch: '',
+      systemType: '',
+      platformType: 'linux',
+      verified: true,
+      verifyStatus: 'verified',
+      machineName: '',
+      createdAt: '',
+      updatedAt: '',
+      creator: '',
+    });
+    expect(window.open).toHaveBeenCalledWith(
+      '/host-terminal.html?host=7',
+      'host-terminal-7',
+      expect.stringContaining('popup=yes'),
+    );
+    expect(window.open).toHaveBeenCalledWith(
+      '/host-terminal.html?host=7',
+      'host-terminal-7',
+      expect.stringContaining('width=980'),
+    );
 
     scope.stop();
   });

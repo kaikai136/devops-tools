@@ -5,6 +5,7 @@ import {
   buildRdpConnectionQuery,
   buildRdpWebSocketUrl,
   buildTerminalWebSocketUrl,
+  formatRdpConnectionErrorMessage,
   formatTerminalFileSizeValue,
   parseTerminalHostQuery,
 } from '../protocol';
@@ -69,5 +70,16 @@ describe('terminal protocol helpers', () => {
     ['12.5 MB', '12.5 MB'],
   ])('keeps file-size formatting for %s', (size, expected) => {
     expect(formatTerminalFileSizeValue(size)).toBe(expected);
+  });
+
+  it('formats RDP security negotiation failures with a Chinese actionable message', () => {
+    expect(formatRdpConnectionErrorMessage(new Error('Server refused connection (wrong security type?)'))).toBe(
+      'RDP 安全协商失败，请确认目标端口是 RDP 服务、远程桌面已开启，并检查 Windows 安全层/NLA 配置。',
+    );
+  });
+
+  it('keeps explicit RDP error messages and falls back when none is available', () => {
+    expect(formatRdpConnectionErrorMessage({ message: 'Authentication failed' })).toBe('Authentication failed');
+    expect(formatRdpConnectionErrorMessage()).toBe('RDP 连接失败，请检查远程桌面服务。');
   });
 });
