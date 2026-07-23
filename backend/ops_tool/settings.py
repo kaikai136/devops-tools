@@ -136,6 +136,7 @@ INSTALLED_APPS = [
     "host_management",
     "web_terminal",
     "security_scanner",
+    "bulk_execution",
     "operations",
     "system_management",
 ]
@@ -199,6 +200,10 @@ SSH_GATEWAY_PORT = config_int("SSH_GATEWAY_PORT", 2222)
 SSH_GATEWAY_PUBLIC_HOST = config_value("SSH_GATEWAY_PUBLIC_HOST", "")
 SSH_GATEWAY_PUBLIC_PORT = config_int("SSH_GATEWAY_PUBLIC_PORT", SSH_GATEWAY_PORT)
 SSH_GATEWAY_HOST_KEY_PATH = config_path("SSH_GATEWAY_HOST_KEY_PATH", BASE_DIR / "data" / "ssh-gateway-host-key")
+BULK_EXECUTION_MAX_TARGETS = config_int("BULK_EXECUTION_MAX_TARGETS", 50)
+BULK_EXECUTION_FORKS = config_int("BULK_EXECUTION_FORKS", 10)
+BULK_EXECUTION_TIMEOUT_SECONDS = config_int("BULK_EXECUTION_TIMEOUT_SECONDS", 300)
+BULK_EXECUTION_RUN_ASYNC = config_bool("BULK_EXECUTION_RUN_ASYNC", True)
 WHITENOISE_AUTOREFRESH = config_bool("WHITENOISE_AUTOREFRESH", DEBUG)
 WHITENOISE_USE_FINDERS = config_bool("WHITENOISE_USE_FINDERS", DEBUG)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

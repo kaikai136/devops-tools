@@ -4,6 +4,7 @@ import type { ToolKey } from '../../types';
 
 export type ConfirmAction = () => Promise<void>;
 export type ConfirmFn = (title: string, message: string, actionText: string, action: ConfirmAction) => void;
+export type ToastTone = 'success' | 'error' | 'warning' | 'info';
 
 export interface ToastState {
   title: string;
@@ -11,6 +12,7 @@ export interface ToastState {
   visible: boolean;
   leaving: boolean;
   scope: ToolKey;
+  tone?: ToastTone;
 }
 
 export interface ConfirmDialogState {
@@ -28,6 +30,7 @@ export function useFeedback(activeTool: Ref<ToolKey>) {
 
   const scopedToastVisible = computed(() => toast.value?.visible && toast.value.scope === activeTool.value);
   const toastTone = computed(() => {
+    if (toast.value?.tone) return toast.value.tone;
     const title = toast.value?.title || '';
     if (/(失败|错误|异常)/.test(title)) return 'error';
     if (/(无法|警告|跳过|已经)/.test(title)) return 'warning';
@@ -35,10 +38,10 @@ export function useFeedback(activeTool: Ref<ToolKey>) {
     return 'info';
   });
 
-  function showToast(title: string, message = '') {
+  function showToast(title: string, message = '', tone?: ToastTone) {
     window.clearTimeout(toastTimer);
     window.clearTimeout(toastLeaveTimer);
-    toast.value = { title, message, visible: true, leaving: false, scope: activeTool.value };
+    toast.value = { title, message, visible: true, leaving: false, scope: activeTool.value, tone };
     toastTimer = window.setTimeout(() => {
       if (!toast.value) return;
       toast.value.leaving = true;

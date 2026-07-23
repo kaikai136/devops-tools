@@ -30,6 +30,7 @@ const props = defineProps<{
   canVerify: boolean;
   canMove: boolean;
   canDelete: boolean;
+  canBulkExecute: boolean;
   canUseRowActions: boolean;
   isColumnVisible: (key: HostColumnKey) => boolean;
   groupName: (groupId: number) => string;
@@ -50,6 +51,7 @@ const emit = defineEmits<{
   'page-size-change': [pageSize: number];
   'clear-selection': [];
   'verify-selected': [];
+  'bulk-execute-selected': [];
   'move-selected': [];
   'delete-selected': [];
 }>();
@@ -209,6 +211,10 @@ function updatePageSize(event: Event) {
         @click="emit('verify-selected')"
       >
         {{ props.selectedVerifyingCount > 0 ? '验证中' : '验证所选' }}
+      </button>
+      <button v-if="props.canBulkExecute" class="host-bulk-button host-bulk-button-execute" type="button" @click="emit('bulk-execute-selected')">
+        <AppIcon name="terminal" :size="14" />
+        批量执行
       </button>
       <button v-if="props.canMove" class="host-bulk-button host-bulk-button-update" type="button" @click="emit('move-selected')">更新所选</button>
       <button v-if="props.canDelete" class="host-bulk-button host-bulk-button-delete" type="button" @click="emit('delete-selected')">删除所选</button>

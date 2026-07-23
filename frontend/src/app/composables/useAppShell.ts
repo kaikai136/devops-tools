@@ -183,6 +183,7 @@ export function useAppShell({
     selectedHost,
     copyText,
     confirmDialog,
+    requestConfirm,
     runConfirmAction,
   };
 

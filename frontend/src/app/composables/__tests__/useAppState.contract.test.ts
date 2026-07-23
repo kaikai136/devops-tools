@@ -187,6 +187,7 @@ describe('useAppState facade contract', () => {
       'removeHostCredential',
       'renderSystemTemplate',
       'replaceHostCredential',
+      'requestConfirm',
       'resetAuthForm',
       'resetDashboardHeroDraft',
       'resetLayoutFooterDraft',

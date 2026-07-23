@@ -45,6 +45,7 @@ AUDIT_RULES = [
     AuditRule("/api/web-terminal/quick-commands/", "Web 终端"),
     AuditRule("/api/web-terminal/hosts/", "Web 终端"),
     AuditRule("/api/security-scans/tasks/", "安全扫描", {"POST": "开始扫描", "DELETE": "删除任务"}),
+    AuditRule("/api/bulk-execution/tasks/", "批量执行", {"POST": "创建任务", "DELETE": "删除任务"}),
 ]
 
 EXCLUDED_PREFIXES = [
@@ -121,6 +122,8 @@ class OperationLogMiddleware:
             return "取消扫描"
         if path.startswith("/api/security-scans/tasks/") and "/retry-failed/" in path:
             return "重试失败主机"
+        if path.startswith("/api/bulk-execution/tasks/") and "/cancel/" in path:
+            return "取消任务"
         if "/files/upload/" in path:
             return "上传文件"
         if "/files/create-file/" in path:

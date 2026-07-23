@@ -92,6 +92,7 @@ function navItemIcon(key: ToolKey): IconName {
     ip: 'network',
     hosts: 'server',
     sessionAudits: 'scan',
+    bulkExecution: 'terminal',
     accounts: 'users',
     ports: 'gauge',
     subnet: 'globe',

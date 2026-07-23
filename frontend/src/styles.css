@@ -11,6 +11,7 @@
 @import "./styles/tools/authenticator.css";
 @import "./styles/tools/password-generator.css";
 @import "./styles/tools/security-scan.css";
+@import "./styles/tools/bulk-execution.css";
 @import "./styles/tools/user-manager.css";
 @import "./styles/tools/login-log-manager.css";
 @import "./styles/tools/role-manager.css";

@@ -27,6 +27,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { key: 'hosts' as const, label: '主机管理', desc: '分组资产、验证状态与终端入口' },
       { key: 'sessionAudits' as const, label: '会话审计', desc: 'Web 终端命令审计与操作录像' },
+      { key: 'bulkExecution' as const, label: '批量执行', desc: '对已验证 Linux SSH 主机并发执行命令' },
       { key: 'accounts' as const, label: '账号管理', desc: '用户账号、状态与权限管理' },
     ],
   },

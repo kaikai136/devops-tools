@@ -3,6 +3,7 @@ export type ToolKey =
   | 'ip'
   | 'hosts'
   | 'sessionAudits'
+  | 'bulkExecution'
   | 'accounts'
   | 'ports'
   | 'subnet'

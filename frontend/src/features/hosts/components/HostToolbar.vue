@@ -49,6 +49,7 @@ const props = defineProps<{
   canFilter: boolean;
   canMove: boolean;
   canDelete: boolean;
+  canBulkExecute: boolean;
   showMoreActionsDivider: boolean;
   canImport: boolean;
   canExport: boolean;
@@ -61,6 +62,7 @@ const emit = defineEmits<{
   'toggle-more-actions': [];
   'status-filter': [filter: 'all' | 'unverified'];
   'verify-selected': [];
+  'bulk-execute-selected': [];
   'move-selected': [];
   'delete-selected': [];
   import: [];
@@ -102,6 +104,10 @@ const searchModel = computed({
           <button v-if="props.canVerify" type="button" :disabled="!props.selectedCount || props.selectedVerifyingCount > 0" @click="emit('verify-selected')">
             <AppIcon name="shield" :size="15" />
             <span>{{ props.selectedVerifyingCount > 0 ? '验证中' : '验证所选' }}</span>
+          </button>
+          <button v-if="props.canBulkExecute" type="button" :disabled="!props.selectedCount" @click="emit('bulk-execute-selected')">
+            <AppIcon name="terminal" :size="15" />
+            <span>批量执行</span>
           </button>
           <button v-if="props.canFilter" type="button" :class="{ active: props.statusFilter === 'all' }" @click="emit('status-filter', 'all')">
             <AppIcon name="search" :size="15" />

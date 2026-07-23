@@ -22,6 +22,7 @@ RUN apt-get update \
         curl \
         iputils-ping \
         openssh-client \
+        sshpass \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /tmp/requirements.txt

@@ -50,6 +50,7 @@ const hostColumnOptions = [
 ] as const;
 
 const hostColumnStorageKey = 'ops-tool.host-manager.columns.v3';
+const bulkExecutionDraftTargetIdsKey = 'ops-tool.bulk-execution.draft-target-ids';
 const fallbackHostColumnKey: HostColumnKey = 'name';
 
 const {
@@ -71,6 +72,7 @@ const {
   hostSortDirection,
   hostCredentials,
   managedHostStats,
+  managedHosts,
   visibleManagedHosts,
   groupMoveHosts,
   isLoadingHosts,
@@ -122,6 +124,7 @@ const {
   deleteSelectedManagedHosts,
   deleteManagedHostsInGroup,
   deleteHostGroup,
+  setActiveTool,
   canUsePageAction,
   canUseAnyPageAction,
   showToast,
@@ -157,7 +160,8 @@ const canUseHostList = computed(() =>
   canUsePageAction('hosts', 'import') ||
   canUsePageAction('hosts', 'export') ||
   canUsePageAction('hosts', 'terminal') ||
-  canUsePageAction('hosts', 'quick_commands')
+  canUsePageAction('hosts', 'quick_commands') ||
+  canUsePageAction('bulkExecution', 'execute')
 );
 const {
   visibility: hostColumnVisibility,
@@ -204,6 +208,7 @@ const selectedManagedHostCount = computed(() => selectedManagedHostIds.value.siz
 const canUseHostAnyAction = computed(() => canUseHostList.value);
 const canUseHostMoreActions = computed(() =>
   canUsePageAction('hosts', 'verify') ||
+  canUsePageAction('bulkExecution', 'execute') ||
   canUsePageAction('hosts', 'filter') ||
   canUsePageAction('hosts', 'move') ||
   canUsePageAction('hosts', 'delete')
@@ -517,6 +522,34 @@ function runDeleteSelectedHosts() {
   deleteSelectedManagedHosts();
 }
 
+function openBulkExecutionForSelectedHosts() {
+  closeHostMoreActions();
+  if (!canUsePageAction('bulkExecution', 'execute')) {
+    showToast('无权限', '当前账号不能发起批量执行任务。');
+    return;
+  }
+  const selectedIds = selectedManagedHostIds.value;
+  if (!selectedIds.size) {
+    showToast('请选择主机', '请先在主机管理列表中选择需要执行命令的主机。');
+    return;
+  }
+
+  const executableIds = managedHosts.value
+    .filter((host) => selectedIds.has(host.id))
+    .filter((host) => host.verified && hostPlatformType(host.platformType) === 'linux' && Boolean(host.loginUser))
+    .map((host) => host.id);
+  if (!executableIds.length) {
+    showToast('没有可执行主机', '所选主机中没有已验证的 Linux SSH 主机。');
+    return;
+  }
+
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem(bulkExecutionDraftTargetIdsKey, JSON.stringify(executableIds));
+  }
+  setActiveTool('bulkExecution');
+  showToast('已进入批量执行', `已带入 ${executableIds.length} 台可执行主机。`);
+}
+
 function formatHostDate(value: string | null | undefined) {
   return formatDateTime(value, '-');
 }
@@ -589,6 +622,7 @@ function hostPlatformType(value: string | null | undefined) {
         :can-filter="canUsePageAction('hosts', 'filter')"
         :can-move="canUsePageAction('hosts', 'move')"
         :can-delete="canUsePageAction('hosts', 'delete')"
+        :can-bulk-execute="canUsePageAction('bulkExecution', 'execute')"
         :show-more-actions-divider="canUseAnyPageAction('hosts', ['verify', 'filter']) && canUseAnyPageAction('hosts', ['move', 'delete'])"
         :can-import="canUsePageAction('hosts', 'import')"
         :can-export="canUsePageAction('hosts', 'export')"
@@ -597,6 +631,7 @@ function hostPlatformType(value: string | null | undefined) {
         @toggle-more-actions="toggleHostMoreActions"
         @status-filter="setHostStatusFilter"
         @verify-selected="runVerifySelectedHosts"
+        @bulk-execute-selected="openBulkExecutionForSelectedHosts"
         @move-selected="runMoveSelectedHosts"
         @delete-selected="runDeleteSelectedHosts"
         @import="openHostTransferDialog('import')"
@@ -634,6 +669,7 @@ function hostPlatformType(value: string | null | undefined) {
         :can-verify="canUsePageAction('hosts', 'verify')"
         :can-move="canUsePageAction('hosts', 'move')"
         :can-delete="canUsePageAction('hosts', 'delete')"
+        :can-bulk-execute="canUsePageAction('bulkExecution', 'execute')"
         :can-use-row-actions="canUseHostRowActions"
         :is-column-visible="isHostColumnVisible"
         :group-name="hostGroupName"
@@ -651,6 +687,7 @@ function hostPlatformType(value: string | null | undefined) {
         @page-size-change="hostPageSize = $event"
         @clear-selection="clearSelectedManagedHosts"
         @verify-selected="runVerifySelectedHosts"
+        @bulk-execute-selected="openBulkExecutionForSelectedHosts"
         @move-selected="runMoveSelectedHosts"
         @delete-selected="runDeleteSelectedHosts"
       />

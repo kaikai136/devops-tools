@@ -351,6 +351,10 @@
 }
 
 .host-bulk-action-bar .host-bulk-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 24px;
   border: 0;
   border-radius: 999px;
@@ -378,6 +382,10 @@
   background: #008bd6;
 }
 
+.host-bulk-action-bar .host-bulk-button-execute {
+  background: #0f8f6b;
+}
+
 .host-bulk-action-bar .host-bulk-button-delete {
   background: #ff3f35;
 }
@@ -399,6 +407,10 @@
 
 .host-bulk-action-bar .host-bulk-button-update:disabled {
   background: #2a9fd8;
+}
+
+.host-bulk-action-bar .host-bulk-button-execute:disabled {
+  background: #38a884;
 }
 
 .host-bulk-action-bar .host-bulk-button-delete:disabled {
