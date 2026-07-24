@@ -2,7 +2,7 @@
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(220px, 270px) minmax(680px, 1fr);
+  grid-template-columns: minmax(200px, 240px) minmax(680px, 1fr);
   gap: 14px;
   margin: 14px;
   overflow: hidden;
@@ -26,7 +26,7 @@
 
 .host-groups-panel {
   position: relative;
-  padding: 16px;
+  padding: 14px;
 }
 
 .host-table-panel {

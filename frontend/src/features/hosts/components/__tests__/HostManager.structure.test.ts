@@ -424,10 +424,13 @@ describe('HostManager component structure', () => {
 
   it('keeps the host group sidebar compact without letting long names distort the row', () => {
     const styles = readStyle('src/styles/tools/host/layout-groups.css');
+    const groupTree = readSfc('src/features/hosts/components/HostGroupTree.vue').template?.content ?? '';
 
-    expect(styles).toMatch(/\.host-manager-page\s*\{[\s\S]*grid-template-columns:\s*minmax\(220px,\s*270px\)\s*minmax\(680px,\s*1fr\);/);
-    expect(styles).toMatch(/\.host-groups-panel\s*\{[\s\S]*padding:\s*16px;/);
+    expect(styles).toMatch(/\.host-manager-page\s*\{[\s\S]*grid-template-columns:\s*minmax\(200px,\s*240px\)\s*minmax\(680px,\s*1fr\);/);
+    expect(styles).toMatch(/\.host-groups-panel\s*\{[\s\S]*padding:\s*14px;/);
     expect(styles).toMatch(/\.host-group-row strong\s*\{[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/);
+    expect(groupTree).toContain('`${10 + row.group.level * 8}px`');
+    expect(groupTree).toContain('`${10 + row.editor.level * 8}px`');
   });
 
   it('lets successful quick command saves close the saving dialog while blocking manual closes', () => {
