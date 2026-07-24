@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import Guacamole from 'guacamole-common-js';
 import { FitAddon } from '@xterm/addon-fit';
+import { SearchAddon } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
-import { markRaw, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import type { IDisposable } from '@xterm/xterm';
+import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import AppIcon from '@shared/components/AppIcon.vue';
+import type { IconName } from '@shared/components/AppIcon.vue';
 import { listTerminalTree } from '@features/terminal/api/terminal';
 import type { TerminalHost, TerminalTabKind } from '@features/terminal/types';
 import {
@@ -19,6 +22,29 @@ import {
   findTerminalHostById,
   getSimpleTerminalProtocol,
 } from '@features/terminal/utils/simpleHostTerminal';
+import {
+  CONTROL_C,
+  MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS,
+  MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS,
+  TERMINAL_FONT_SIZE_STORAGE_KEY,
+  collectTerminalSearchMatches,
+  createTerminalScreenOptions,
+  getSendableTerminalData,
+  getTerminalBufferText,
+  getTerminalSearchOptions,
+  getTerminalVisibleText,
+  handleTerminalCopyShortcut,
+  sanitizeTerminalLogFileName,
+  selectTerminalSearchMatch,
+  toSingleLineTerminalText,
+} from '@features/terminal/utils/terminalScreen';
+import {
+  TERMINAL_FONT_SIZE_DEFAULT,
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_FONT_SIZE_MIN,
+  clampTerminalFontSize,
+  readStoredTerminalFontSize,
+} from '../../utils/terminalSettings';
 import { getCurrentUser } from '../../services/auth';
 
 type Status = 'idle' | 'loading' | 'connecting' | 'connected' | 'closed' | 'error' | 'denied';
@@ -26,6 +52,29 @@ type GuacamoleClientInstance = InstanceType<typeof Guacamole.Client>;
 type GuacamoleWebSocketTunnelInstance = InstanceType<typeof Guacamole.WebSocketTunnel>;
 type GuacamoleMouseInstance = InstanceType<typeof Guacamole.Mouse>;
 type GuacamoleKeyboardInstance = InstanceType<typeof Guacamole.Keyboard>;
+type SearchDirection = 'next' | 'previous';
+
+interface SimpleTerminalContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  selectedText: string;
+}
+
+interface SimpleTerminalContextMenuItem {
+  id: string;
+  label: string;
+  icon: IconName;
+  enabled: boolean;
+  danger?: boolean;
+  separatorBefore?: boolean;
+  shortcut?: string;
+  children?: SimpleTerminalContextMenuItem[];
+  action: () => void | Promise<void>;
+}
+
+const SIMPLE_TERMINAL_CONTEXT_MENU_WIDTH = 248;
+const SIMPLE_TERMINAL_CONTEXT_MENU_HEIGHT = 520;
 
 const host = ref<TerminalHost | null>(null);
 const protocol = ref<TerminalTabKind>('ssh');
@@ -34,24 +83,111 @@ const statusText = ref('准备连接');
 const errorMessage = ref('');
 const terminalRef = ref<HTMLElement | null>(null);
 const rdpRef = ref<HTMLElement | null>(null);
+const sessionId = ref<string | null>(null);
+const currentCwd = ref('');
+const isSearchOpen = ref(false);
+const searchQuery = ref('');
+const searchResultIndex = ref(-1);
+const searchResultCount = ref(0);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const terminalFontSize = ref(readTerminalFontSize());
+const terminalContextMenu = ref<SimpleTerminalContextMenuState>({
+  visible: false,
+  x: 0,
+  y: 0,
+  selectedText: '',
+});
 
 let xterm: Terminal | null = null;
 let fitAddon: FitAddon | null = null;
+let searchAddon: SearchAddon | null = null;
 let sshSocket: WebSocket | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let guacClient: GuacamoleClientInstance | null = null;
 let guacTunnel: GuacamoleWebSocketTunnelInstance | null = null;
 let guacMouse: GuacamoleMouseInstance | null = null;
 let guacKeyboard: GuacamoleKeyboardInstance | null = null;
+let suppressInterruptUntil = 0;
+let reconnectHintShown = false;
+let terminalDisposables: IDisposable[] = [];
+
+const canDecreaseTerminalFontSize = computed(() => terminalFontSize.value > TERMINAL_FONT_SIZE_MIN);
+const canIncreaseTerminalFontSize = computed(() => terminalFontSize.value < TERMINAL_FONT_SIZE_MAX);
+const searchResultText = computed(() => {
+  if (!searchQuery.value.trim()) return '';
+  if (searchResultCount.value <= 0) return '0';
+  if (searchResultIndex.value < 0) return String(searchResultCount.value);
+  return `${searchResultIndex.value + 1}/${searchResultCount.value}`;
+});
+const terminalContextMenuItems = computed<SimpleTerminalContextMenuItem[]>(() => {
+  const selectedText = terminalContextMenu.value.selectedText.trim();
+  const hasSelection = Boolean(selectedText);
+  const ready = isSshReady();
+  const items: SimpleTerminalContextMenuItem[] = [];
+
+  if (hasSelection) {
+    items.push(
+      { id: 'copy-selection', label: '复制', icon: 'copy', enabled: true, shortcut: 'Ctrl+Shift+C', action: () => copyText(selectedText) },
+      { id: 'find-selection', label: '查找选中内容', icon: 'search', enabled: true, shortcut: 'Ctrl+Shift+F', action: () => openSearch(selectedText) },
+      {
+        id: 'online-search',
+        label: '在线搜索',
+        icon: 'globe',
+        enabled: true,
+        action: () => undefined,
+        children: [
+          { id: 'search-selection', label: '搜索选中内容', icon: 'search', enabled: true, action: () => openOnlineSearch(selectedText) },
+          { id: 'search-error', label: '搜索报错关键词', icon: 'alert', enabled: true, action: () => openOnlineSearch(`${selectedText} linux error`) },
+          { id: 'search-command', label: '搜索命令用法', icon: 'terminal', enabled: true, action: () => openOnlineSearch(`${selectedText} linux command usage`) },
+        ],
+      },
+      {
+        id: 'translate',
+        label: '翻译',
+        icon: 'globe',
+        enabled: true,
+        action: () => undefined,
+        children: [
+          { id: 'translate-zh', label: '翻译为中文', icon: 'globe', enabled: true, action: () => openTranslation(selectedText, 'zh-Hans') },
+          { id: 'translate-en', label: '翻译为英文', icon: 'globe', enabled: true, action: () => openTranslation(selectedText, 'en') },
+        ],
+      },
+      { id: 'paste-selection', label: '粘贴选定文本到终端', icon: 'clipboard', enabled: ready, separatorBefore: true, action: () => sendTextToTerminal(selectedText) },
+      { id: 'paste-selection-single-line', label: '粘贴为单行', icon: 'cornerDownLeft', enabled: ready, action: () => sendTextToTerminal(toSingleLineTerminalText(selectedText)) },
+    );
+  } else {
+    items.push(
+      { id: 'paste', label: '粘贴', icon: 'clipboard', enabled: ready, shortcut: 'Ctrl+Shift+V', action: pasteClipboardToTerminal },
+      { id: 'find', label: '查找...', icon: 'search', enabled: Boolean(xterm), shortcut: 'Ctrl+Shift+F', action: () => openSearch() },
+    );
+  }
+
+  return [
+    ...items,
+    getSessionContextMenu(),
+    getControlKeyContextMenu(),
+    getViewContextMenu(),
+    getBufferContextMenu(),
+  ];
+});
 
 onMounted(() => {
   window.addEventListener('resize', fitActiveSession);
+  window.addEventListener('click', closeContextMenu);
+  window.addEventListener('keydown', handleWindowKeydown);
   void bootstrap();
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', fitActiveSession);
+  window.removeEventListener('click', closeContextMenu);
+  window.removeEventListener('keydown', handleWindowKeydown);
   cleanupConnections();
+});
+
+watch(searchQuery, () => {
+  if (!isSearchOpen.value) return;
+  searchCurrentTerminal('next', true);
 });
 
 async function bootstrap() {
@@ -111,26 +247,20 @@ async function connect() {
 }
 
 function connectSsh(selectedHost: TerminalHost) {
-  const terminal = markRaw(new Terminal({
-    cursorBlink: true,
-    fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
-    fontSize: 14,
-    scrollback: 5000,
-    theme: {
-      background: '#1f1f1f',
-      foreground: '#d8dee9',
-      cursor: '#ffffff',
-      selectionBackground: '#3b4252',
-      green: '#22c55e',
-      cyan: '#38bdf8',
-      yellow: '#facc15',
-      red: '#ef4444',
-    },
-  }));
+  terminalFontSize.value = readTerminalFontSize();
+  const terminal = markRaw(new Terminal(createTerminalScreenOptions(readTerminalFontSize())));
   const fit = markRaw(new FitAddon());
+  const search = markRaw(new SearchAddon({ highlightLimit: 2000 }));
   terminal.loadAddon(fit);
+  terminal.loadAddon(search);
+  terminal.attachCustomKeyEventHandler((event) => handleTerminalCopyShortcut(event, terminal));
+  terminal.writeln('CAPTAIN WEB TERMINAL');
+  terminal.writeln(`正在连接 ${selectedHost.name} (${selectedHost.publicIp || selectedHost.privateIp}:${selectedHost.port})...`);
   xterm = terminal;
   fitAddon = fit;
+  searchAddon = search;
+  suppressInterruptUntil = 0;
+  reconnectHintShown = false;
 
   if (!terminalRef.value) {
     setError('终端容器不可用');
@@ -138,17 +268,22 @@ function connectSsh(selectedHost: TerminalHost) {
   }
 
   terminal.open(terminalRef.value);
-  terminal.writeln(`正在连接 ${selectedHost.name} (${selectedHost.publicIp || selectedHost.privateIp}:${selectedHost.port})...`);
-  terminal.onData((data) => {
-    if (sshSocket?.readyState === WebSocket.OPEN) {
-      sshSocket.send(JSON.stringify({ type: 'input', data }));
+  terminalDisposables.push(terminal.onData((data) => {
+    if (status.value === 'closed' || status.value === 'error') {
+      if (data.includes('\r')) reconnectSshSession();
+      return;
     }
-  });
-  terminal.onResize(({ cols, rows }) => {
+    if (status.value === 'connecting') return;
+
+    const sendableData = getSendableTerminalData(data, suppressInterruptUntil);
+    if (sendableData) sendTerminalInput(sendableData);
+  }));
+  terminalDisposables.push(terminal.onResize(({ cols, rows }) => {
     if (sshSocket?.readyState === WebSocket.OPEN) {
       sshSocket.send(JSON.stringify({ type: 'resize', cols, rows }));
     }
-  });
+  }));
+  attachTerminalMouseSelectionGuards(terminalRef.value);
 
   observeResize(terminalRef.value);
   fitActiveSession();
@@ -165,20 +300,22 @@ function connectSsh(selectedHost: TerminalHost) {
   });
   socket.addEventListener('error', () => {
     if (sshSocket !== socket) return;
-    setError('WebSocket 连接失败');
+    status.value = 'error';
+    statusText.value = '错误';
+    showReconnectHint('WebSocket 连接失败。');
   });
   socket.addEventListener('close', () => {
     if (sshSocket !== socket) return;
     if (status.value === 'connected' || status.value === 'connecting') {
       status.value = 'closed';
       statusText.value = '已断开';
-      terminal.writeln('\r\n连接已断开。');
+      showReconnectHint('连接已关闭。');
     }
   });
 }
 
 function handleSshMessage(event: MessageEvent<string>) {
-  let message: { type?: string; data?: string; message?: string; reason?: string; sessionId?: string };
+  let message: { type?: string; data?: string; path?: string; message?: string; reason?: string; sessionId?: string };
   try {
     message = JSON.parse(event.data);
   } catch {
@@ -189,6 +326,8 @@ function handleSshMessage(event: MessageEvent<string>) {
   if (message.type === 'ready') {
     status.value = 'connected';
     statusText.value = '已连接';
+    sessionId.value = message.sessionId ?? null;
+    reconnectHintShown = false;
     fitActiveSession();
     xterm?.focus();
     return;
@@ -197,15 +336,417 @@ function handleSshMessage(event: MessageEvent<string>) {
     xterm?.write(message.data ?? '');
     return;
   }
+  if (message.type === 'cwd') {
+    currentCwd.value = String(message.path || '').trim();
+    return;
+  }
   if (message.type === 'error') {
-    setError(message.message || '终端连接失败');
+    status.value = 'error';
+    statusText.value = '错误';
+    errorMessage.value = '';
+    showReconnectHint(message.message || '终端连接失败');
     return;
   }
   if (message.type === 'closed') {
     status.value = 'closed';
     statusText.value = '已断开';
-    xterm?.writeln(`\r\n${message.reason || '连接已关闭'}`);
+    showReconnectHint(message.reason || '连接已关闭');
   }
+}
+
+function isSshReady() {
+  return protocol.value === 'ssh' && status.value === 'connected' && sshSocket?.readyState === WebSocket.OPEN;
+}
+
+function sendTerminalInput(data: string) {
+  if (!data || !isSshReady()) return false;
+  sshSocket?.send(JSON.stringify({ type: 'input', data }));
+  return true;
+}
+
+function sendTextToTerminal(value: string) {
+  if (sendTerminalInput(value)) xterm?.focus();
+}
+
+function sendControlToTerminal(value: string) {
+  sendTextToTerminal(value);
+}
+
+async function copyText(value: string) {
+  if (!value) return;
+  try {
+    await navigator.clipboard?.writeText(value);
+  } catch {
+    // Clipboard access can be denied outside a secure context or without permission.
+  }
+}
+
+async function pasteClipboardToTerminal() {
+  if (!isSshReady()) return;
+  try {
+    const value = await navigator.clipboard?.readText();
+    if (value) sendTextToTerminal(value);
+  } catch {
+    // Keep the menu action quiet when the browser blocks clipboard reads.
+  }
+}
+
+function attachTerminalMouseSelectionGuards(container: HTMLElement) {
+  const handleMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0) return;
+    suppressMouseInterrupt(MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS);
+    if (event.detail >= 2) suppressMouseInterrupt(MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS);
+  };
+  const handleDoubleClick = () => suppressMouseInterrupt(MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS);
+  container.addEventListener('mousedown', handleMouseDown, true);
+  container.addEventListener('dblclick', handleDoubleClick, true);
+  terminalDisposables.push({
+    dispose: () => {
+      container.removeEventListener('mousedown', handleMouseDown, true);
+      container.removeEventListener('dblclick', handleDoubleClick, true);
+    },
+  });
+}
+
+function suppressMouseInterrupt(duration: number) {
+  suppressInterruptUntil = Math.max(suppressInterruptUntil, Date.now() + duration);
+}
+
+function showReconnectHint(reason = '') {
+  if (reconnectHintShown) return;
+  if (reason) xterm?.writeln(`\r\n\x1b[33m${reason}\x1b[0m`);
+  xterm?.writeln('\x1b[32m[会话已断开]\x1b[0m');
+  xterm?.writeln('\x1b[32m[按回车键重新连接]\x1b[0m');
+  reconnectHintShown = true;
+}
+
+function reconnectSshSession() {
+  if (!host.value || protocol.value !== 'ssh') return;
+  status.value = 'connecting';
+  statusText.value = '连接中';
+  errorMessage.value = '';
+  sessionId.value = null;
+  currentCwd.value = '';
+  reconnectHintShown = false;
+  xterm?.writeln('\r\n\x1b[32m[正在重新连接...]\x1b[0m');
+  if (sshSocket && sshSocket.readyState !== WebSocket.CLOSED) sshSocket.close();
+  const socket = new WebSocket(buildTerminalWebSocketUrl(window.location.protocol, window.location.host, host.value.id));
+  sshSocket = socket;
+  socket.addEventListener('open', () => {
+    if (sshSocket !== socket) return;
+    fitActiveSession();
+  });
+  socket.addEventListener('message', (event) => {
+    if (sshSocket !== socket) return;
+    handleSshMessage(event as MessageEvent<string>);
+  });
+  socket.addEventListener('error', () => {
+    if (sshSocket !== socket) return;
+    status.value = 'error';
+    statusText.value = '错误';
+    showReconnectHint('WebSocket 连接失败。');
+  });
+  socket.addEventListener('close', () => {
+    if (sshSocket !== socket) return;
+    if (status.value === 'connected' || status.value === 'connecting') {
+      status.value = 'closed';
+      statusText.value = '已断开';
+      showReconnectHint('连接已关闭。');
+    }
+  });
+}
+
+function openSearch(initialQuery = '') {
+  if (protocol.value !== 'ssh' || !xterm) return;
+  closeContextMenu();
+  isSearchOpen.value = true;
+  if (initialQuery.trim()) searchQuery.value = initialQuery.trim();
+  resetSearchResultState();
+  focusSearchInputSoon(!initialQuery.trim());
+  if (searchQuery.value.trim()) {
+    void nextTick(() => searchCurrentTerminal('next', true));
+  }
+}
+
+function closeSearch() {
+  if (!isSearchOpen.value) return;
+  isSearchOpen.value = false;
+  searchAddon?.clearDecorations();
+  xterm?.clearSelection();
+  resetSearchResultState();
+  xterm?.focus();
+}
+
+function resetSearchResultState() {
+  searchResultIndex.value = -1;
+  searchResultCount.value = 0;
+}
+
+function focusSearchInputSoon(select = false) {
+  void nextTick(() => {
+    const input = searchInputRef.value;
+    if (!input) return;
+    input.focus();
+    if (select) input.select();
+  });
+}
+
+function searchCurrentTerminal(direction: SearchDirection = 'next', incremental = false) {
+  const terminal = xterm;
+  const query = searchQuery.value.trim();
+  if (!terminal || !query) {
+    searchAddon?.clearDecorations();
+    terminal?.clearSelection();
+    resetSearchResultState();
+    return false;
+  }
+
+  searchAddon?.clearDecorations();
+  const matches = collectTerminalSearchMatches(terminal, query);
+  searchResultCount.value = matches.length;
+  if (!matches.length) {
+    searchResultIndex.value = -1;
+    terminal.clearSelection();
+    return false;
+  }
+
+  const currentIndex = searchResultIndex.value;
+  const nextIndex =
+    incremental || currentIndex < 0
+      ? 0
+      : direction === 'previous'
+        ? (currentIndex - 1 + matches.length) % matches.length
+        : (currentIndex + 1) % matches.length;
+  searchResultIndex.value = nextIndex;
+  try {
+    searchAddon?.findNext(query, getTerminalSearchOptions(false));
+  } catch {
+    // Manual buffer search above remains the source of truth.
+  }
+  selectTerminalSearchMatch(terminal, matches[nextIndex]);
+  return true;
+}
+
+function openOnlineSearch(query: string) {
+  const value = query.trim();
+  if (!value) return;
+  window.open(`https://www.bing.com/search?q=${encodeURIComponent(value)}`, '_blank', 'noopener,noreferrer');
+}
+
+function openTranslation(text: string, targetLanguage: 'zh-Hans' | 'en') {
+  const value = text.trim();
+  if (!value) return;
+  window.open(
+    `https://www.bing.com/translator?to=${encodeURIComponent(targetLanguage)}&text=${encodeURIComponent(value)}`,
+    '_blank',
+    'noopener,noreferrer',
+  );
+}
+
+function getSessionContextMenu(): SimpleTerminalContextMenuItem {
+  return {
+    id: 'session',
+    label: '会话',
+    icon: 'server',
+    enabled: Boolean(host.value),
+    separatorBefore: true,
+    action: () => undefined,
+    children: [
+      {
+        id: 'session-reconnect',
+        label: '重新连接',
+        icon: 'refresh',
+        enabled: Boolean(host.value && (status.value === 'closed' || status.value === 'error')),
+        action: reconnectSshSession,
+      },
+      {
+        id: 'session-copy-info',
+        label: '复制当前主机信息',
+        icon: 'copy',
+        enabled: Boolean(host.value),
+        action: async () => {
+          const info = getSessionInfo();
+          if (info) await copyText(info);
+        },
+      },
+    ],
+  };
+}
+
+function getControlKeyContextMenu(): SimpleTerminalContextMenuItem {
+  const enabled = isSshReady();
+  return {
+    id: 'control-keys',
+    label: '发送控制键',
+    icon: 'terminal',
+    enabled,
+    action: () => undefined,
+    children: [
+      { id: 'control-c', label: '中断', icon: 'x', enabled, shortcut: 'Ctrl+C', action: () => sendControlToTerminal(CONTROL_C) },
+      { id: 'control-d', label: 'EOF', icon: 'logout', enabled, shortcut: 'Ctrl+D', action: () => sendControlToTerminal('\x04') },
+      { id: 'control-z', label: '挂起', icon: 'minimize', enabled, shortcut: 'Ctrl+Z', action: () => sendControlToTerminal('\x1a') },
+      { id: 'control-u', label: '清空当前输入', icon: 'trash', enabled, shortcut: 'Ctrl+U', action: () => sendControlToTerminal('\x15') },
+      { id: 'control-l', label: '清屏', icon: 'rows', enabled, shortcut: 'Ctrl+L', action: () => sendControlToTerminal('\x0c') },
+    ],
+  };
+}
+
+function getViewContextMenu(): SimpleTerminalContextMenuItem {
+  return {
+    id: 'view',
+    label: '视图',
+    icon: 'settings',
+    enabled: protocol.value === 'ssh',
+    action: () => undefined,
+    children: [
+      { id: 'font-decrease', label: '字号减小', icon: 'zoomOut', enabled: canDecreaseTerminalFontSize.value, action: decreaseTerminalFontSize },
+      { id: 'font-increase', label: '字号增大', icon: 'zoomIn', enabled: canIncreaseTerminalFontSize.value, action: increaseTerminalFontSize },
+      {
+        id: 'font-reset',
+        label: '重置字号',
+        icon: 'reset',
+        enabled: terminalFontSize.value !== TERMINAL_FONT_SIZE_DEFAULT,
+        action: () => setTerminalFontSize(TERMINAL_FONT_SIZE_DEFAULT),
+      },
+    ],
+  };
+}
+
+function getBufferContextMenu(): SimpleTerminalContextMenuItem {
+  const hasTerminal = protocol.value === 'ssh' && Boolean(xterm);
+  const ready = isSshReady();
+  return {
+    id: 'buffer',
+    label: '缓冲区',
+    icon: 'rows',
+    enabled: hasTerminal,
+    action: () => undefined,
+    children: [
+      { id: 'buffer-clear-screen', label: '清屏', icon: 'rows', enabled: ready, shortcut: 'Ctrl+L', action: () => sendControlToTerminal('\x0c') },
+      { id: 'buffer-clear-all', label: '全部清除', icon: 'trash', enabled: hasTerminal, action: () => xterm?.clear() },
+      { id: 'buffer-bottom', label: '滚动到底部', icon: 'chevronDown', enabled: hasTerminal, action: () => xterm?.scrollToBottom() },
+      {
+        id: 'buffer-copy-screen',
+        label: '复制当前屏幕',
+        icon: 'copy',
+        enabled: hasTerminal,
+        separatorBefore: true,
+        action: async () => {
+          if (xterm) await copyText(getTerminalVisibleText(xterm));
+        },
+      },
+      { id: 'buffer-export', label: '导出终端日志...', icon: 'download', enabled: hasTerminal, action: exportTerminalLog },
+      { id: 'buffer-select-all', label: '全选', icon: 'scan', enabled: hasTerminal, shortcut: 'Ctrl+Shift+A', separatorBefore: true, action: () => xterm?.selectAll() },
+    ],
+  };
+}
+
+function getSessionInfo() {
+  const selectedHost = host.value;
+  if (!selectedHost) return '';
+  return [
+    `主机：${selectedHost.name}`,
+    `登录用户：${selectedHost.loginUser || '-'}`,
+    `公网 IP：${selectedHost.publicIp || '-'}`,
+    `内网 IP：${selectedHost.privateIp || '-'}`,
+    `端口：${selectedHost.port}`,
+    `当前目录：${currentCwd.value || '-'}`,
+    `会话 ID：${sessionId.value || '-'}`,
+    `状态：${status.value}`,
+  ].join('\n');
+}
+
+function exportTerminalLog() {
+  if (!xterm || !host.value) return;
+  const content = getTerminalBufferText(xterm);
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${sanitizeTerminalLogFileName(host.value.name)}-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function setTerminalFontSize(nextSize: number) {
+  const normalized = clampTerminalFontSize(nextSize);
+  if (normalized === terminalFontSize.value) return;
+  terminalFontSize.value = normalized;
+  window.localStorage.setItem(TERMINAL_FONT_SIZE_STORAGE_KEY, String(normalized));
+  if (xterm) xterm.options.fontSize = normalized;
+  fitActiveSession();
+}
+
+function decreaseTerminalFontSize() {
+  setTerminalFontSize(terminalFontSize.value - 1);
+}
+
+function increaseTerminalFontSize() {
+  setTerminalFontSize(terminalFontSize.value + 1);
+}
+
+function openSshContextMenu(event: MouseEvent) {
+  if (protocol.value !== 'ssh' || !xterm) return;
+  event.preventDefault();
+  event.stopPropagation();
+  terminalContextMenu.value = {
+    visible: true,
+    selectedText: xterm.hasSelection() ? xterm.getSelection() : '',
+    ...getContextMenuPosition(event),
+  };
+}
+
+function getContextMenuPosition(event: MouseEvent) {
+  const padding = 8;
+  return {
+    x: Math.max(padding, Math.min(event.clientX, window.innerWidth - SIMPLE_TERMINAL_CONTEXT_MENU_WIDTH - padding)),
+    y: Math.max(padding, Math.min(event.clientY, window.innerHeight - SIMPLE_TERMINAL_CONTEXT_MENU_HEIGHT - padding)),
+  };
+}
+
+function isContextSubmenuLeft() {
+  return terminalContextMenu.value.x + SIMPLE_TERMINAL_CONTEXT_MENU_WIDTH + 226 > window.innerWidth;
+}
+
+function closeContextMenu() {
+  if (!terminalContextMenu.value.visible) return;
+  terminalContextMenu.value = { visible: false, x: 0, y: 0, selectedText: '' };
+}
+
+async function runContextMenuItem(item: SimpleTerminalContextMenuItem) {
+  if (!item.enabled || item.children?.length) return;
+  closeContextMenu();
+  await item.action();
+}
+
+function handleWindowKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    if (isSearchOpen.value) {
+      closeSearch();
+      return;
+    }
+    closeContextMenu();
+    return;
+  }
+
+  if (protocol.value !== 'ssh') return;
+  const key = event.key.toLowerCase();
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'f') {
+    event.preventDefault();
+    openSearch(xterm?.hasSelection() ? xterm.getSelection() : '');
+    return;
+  }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'v') {
+    event.preventDefault();
+    void pasteClipboardToTerminal();
+  }
+}
+
+function readTerminalFontSize() {
+  if (typeof window === 'undefined') return TERMINAL_FONT_SIZE_DEFAULT;
+  return readStoredTerminalFontSize(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY));
 }
 
 function connectRdp(selectedHost: TerminalHost) {
@@ -300,6 +841,10 @@ function disconnect() {
 }
 
 function cleanupConnections() {
+  for (const disposable of terminalDisposables) disposable.dispose();
+  terminalDisposables = [];
+  closeSearch();
+  closeContextMenu();
   resizeObserver?.disconnect();
   resizeObserver = null;
 
@@ -309,6 +854,11 @@ function cleanupConnections() {
   xterm?.dispose();
   xterm = null;
   fitAddon = null;
+  searchAddon = null;
+  sessionId.value = null;
+  currentCwd.value = '';
+  reconnectHintShown = false;
+  suppressInterruptUntil = 0;
 
   if (guacKeyboard) {
     guacKeyboard.onkeydown = null;
@@ -387,11 +937,91 @@ function rdpErrorMessage(error?: unknown) {
     </header>
 
     <section class="simple-host-terminal-shell" :class="protocol">
-      <div v-show="protocol === 'ssh'" ref="terminalRef" class="simple-host-terminal-xterm"></div>
+      <div
+        v-show="protocol === 'ssh'"
+        ref="terminalRef"
+        class="simple-host-terminal-xterm"
+        @contextmenu="openSshContextMenu($event)"
+      ></div>
+      <div
+        v-if="isSearchOpen && protocol === 'ssh'"
+        class="simple-host-terminal-search"
+        @click.stop
+        @mousedown.stop
+        @contextmenu.stop
+      >
+        <AppIcon name="search" :size="14" />
+        <input
+          ref="searchInputRef"
+          v-model="searchQuery"
+          type="search"
+          placeholder="查找当前终端"
+          @keydown.enter.prevent="searchCurrentTerminal($event.shiftKey ? 'previous' : 'next')"
+          @keydown.esc.prevent.stop="closeSearch"
+        />
+        <span>{{ searchResultText }}</span>
+        <button type="button" title="上一个" aria-label="上一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('previous')">
+          <AppIcon name="chevronDown" :size="14" />
+        </button>
+        <button type="button" title="下一个" aria-label="下一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('next')">
+          <AppIcon name="chevronDown" :size="14" />
+        </button>
+        <button type="button" title="关闭" aria-label="关闭" @click="closeSearch">
+          <AppIcon name="x" :size="14" />
+        </button>
+      </div>
       <div v-show="protocol === 'rdp'" ref="rdpRef" class="simple-host-terminal-rdp"></div>
       <div v-if="errorMessage || status === 'denied'" class="simple-host-terminal-overlay">
         <strong>{{ status === 'denied' ? '没有终端权限' : '连接不可用' }}</strong>
         <span>{{ errorMessage }}</span>
+      </div>
+      <div
+        v-if="terminalContextMenu.visible"
+        class="simple-host-terminal-context-menu"
+        :class="{ 'submenu-left': isContextSubmenuLeft() }"
+        :style="{ left: `${terminalContextMenu.x}px`, top: `${terminalContextMenu.y}px` }"
+        role="menu"
+        aria-label="终端操作菜单"
+        @click.stop
+        @contextmenu.prevent.stop
+      >
+        <div
+          v-for="item in terminalContextMenuItems"
+          :key="item.id"
+          class="simple-host-terminal-context-row"
+          :class="{ separator: item.separatorBefore }"
+        >
+          <button
+            type="button"
+            class="simple-host-terminal-context-item"
+            :class="{ danger: item.danger }"
+            :disabled="!item.enabled"
+            role="menuitem"
+            @click="runContextMenuItem(item)"
+          >
+            <AppIcon :name="item.icon" :size="14" />
+            <span>{{ item.label }}</span>
+            <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
+            <AppIcon v-else-if="item.children?.length" name="chevronRight" :size="13" />
+          </button>
+          <div v-if="item.children?.length" class="simple-host-terminal-context-submenu">
+            <button
+              v-for="child in item.children"
+              :key="child.id"
+              type="button"
+              class="simple-host-terminal-context-item"
+              :class="{ danger: child.danger, separator: child.separatorBefore }"
+              :disabled="!child.enabled"
+              role="menuitem"
+              @click="runContextMenuItem(child)"
+            >
+              <AppIcon :name="child.icon" :size="14" />
+              <span>{{ child.label }}</span>
+              <kbd v-if="child.shortcut">{{ child.shortcut }}</kbd>
+              <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   </main>

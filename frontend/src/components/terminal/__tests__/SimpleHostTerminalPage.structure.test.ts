@@ -25,4 +25,24 @@ describe('SimpleHostTerminalPage structure', () => {
     expect(script).toContain('buildRdpConnectionQuery');
     expect(script).toContain('getSimpleTerminalProtocol');
   });
+
+  it('reuses full terminal black-screen helpers for SSH terminal behavior', () => {
+    const script = parseSfc(source(), { filename: 'SimpleHostTerminalPage.vue' }).descriptor.scriptSetup?.content ?? '';
+
+    expect(script).toContain('SearchAddon');
+    expect(script).toContain('createTerminalScreenOptions(readTerminalFontSize())');
+    expect(script).toContain('handleTerminalCopyShortcut');
+    expect(script).toContain('getSendableTerminalData');
+    expect(script).toContain('collectTerminalSearchMatches');
+    expect(script).toContain('selectTerminalSearchMatch');
+    expect(script).toContain('getTerminalVisibleText');
+  });
+
+  it('adds only terminal-screen search and context menu controls to the standalone shell', () => {
+    const template = parseSfc(source(), { filename: 'SimpleHostTerminalPage.vue' }).descriptor.template?.content ?? '';
+
+    expect(template).toContain('simple-host-terminal-search');
+    expect(template).toContain('simple-host-terminal-context-menu');
+    expect(template).toContain('@contextmenu="openSshContextMenu($event)"');
+  });
 });

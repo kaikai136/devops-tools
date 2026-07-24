@@ -133,7 +133,7 @@ button {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #1f1f1f;
+  background: #000000;
 }
 
 .simple-host-terminal-rdp {
@@ -142,8 +142,208 @@ button {
   justify-content: center;
 }
 
+.simple-host-terminal-xterm .xterm {
+  width: 100%;
+  height: 100%;
+}
+
+.simple-host-terminal-xterm .xterm-viewport {
+  overflow-y: auto;
+}
+
 .simple-host-terminal-rdp-display {
   transform-origin: center center;
+}
+
+.simple-host-terminal-search {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 12;
+  display: grid;
+  grid-template-columns: 16px minmax(76px, 1fr) 48px 26px 26px 26px;
+  align-items: center;
+  width: min(340px, calc(100% - 32px));
+  min-height: 32px;
+  border: 1px solid #4b72aa;
+  background: rgb(11 18 32 / 96%);
+  color: #dbeafe;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 38%);
+  padding: 3px 4px 3px 9px;
+}
+
+.simple-host-terminal-search > .app-icon {
+  color: #93c5fd;
+}
+
+.simple-host-terminal-search input {
+  min-width: 0;
+  height: 24px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f8fafc;
+  font: 12px/1.2 Consolas, "Courier New", monospace;
+}
+
+.simple-host-terminal-search input::placeholder {
+  color: #7f94b2;
+}
+
+.simple-host-terminal-search span {
+  overflow: hidden;
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-host-terminal-search button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #cbd5e1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.simple-host-terminal-search button:first-of-type .app-icon {
+  transform: rotate(180deg);
+}
+
+.simple-host-terminal-search button:hover:not(:disabled) {
+  background: rgb(59 130 246 / 20%);
+  color: #eff6ff;
+}
+
+.simple-host-terminal-search button:disabled {
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.simple-host-terminal-context-menu {
+  position: fixed;
+  z-index: 86;
+  width: 248px;
+  max-height: min(520px, calc(100vh - 16px));
+  overflow: visible;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #f8fafc;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
+  padding: 4px 0;
+  color: #334155;
+}
+
+.simple-host-terminal-context-row {
+  position: relative;
+}
+
+.simple-host-terminal-context-row.separator {
+  margin-top: 4px;
+  border-top: 1px solid #d8e0ea;
+  padding-top: 4px;
+}
+
+.simple-host-terminal-context-item {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 31px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.simple-host-terminal-context-item.separator {
+  margin-top: 4px;
+  border-top: 1px solid #d8e0ea;
+  padding-top: 4px;
+}
+
+.simple-host-terminal-context-item .app-icon {
+  justify-self: center;
+  color: #64748b;
+}
+
+.simple-host-terminal-context-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simple-host-terminal-context-item kbd {
+  justify-self: end;
+  color: #7b8796;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.simple-host-terminal-context-item:hover:not(:disabled) {
+  background: #eaf1ff;
+  color: #1f63f1;
+}
+
+.simple-host-terminal-context-item:hover:not(:disabled) .app-icon,
+.simple-host-terminal-context-item:hover:not(:disabled) kbd {
+  color: #1f63f1;
+}
+
+.simple-host-terminal-context-item.danger {
+  color: #dc2626;
+}
+
+.simple-host-terminal-context-item.danger .app-icon {
+  color: #dc2626;
+}
+
+.simple-host-terminal-context-item:disabled {
+  color: #9aa8ba;
+  cursor: not-allowed;
+}
+
+.simple-host-terminal-context-item:disabled .app-icon,
+.simple-host-terminal-context-item:disabled kbd {
+  color: #aeb8c5;
+}
+
+.simple-host-terminal-context-submenu {
+  position: absolute;
+  top: -4px;
+  left: calc(100% - 2px);
+  display: none;
+  width: 226px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #f8fafc;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
+  padding: 4px 0;
+}
+
+.simple-host-terminal-context-menu.submenu-left .simple-host-terminal-context-submenu {
+  right: calc(100% - 2px);
+  left: auto;
+}
+
+.simple-host-terminal-context-row:hover > .simple-host-terminal-context-submenu {
+  display: block;
 }
 
 .simple-host-terminal-overlay {
