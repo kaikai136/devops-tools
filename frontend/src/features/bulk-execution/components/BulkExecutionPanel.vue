@@ -420,7 +420,7 @@ function formatTime(value: string | null | undefined) {
     </article>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <div v-if="isCreateOpen" class="modal-backdrop bulk-create-backdrop" @click.self="closeCreateDialog">
+    <div v-if="isCreateOpen" class="modal-backdrop bulk-create-backdrop">
       <form class="bulk-create-modal" @submit.prevent="createTaskWithConfirmation">
         <button class="modal-close" type="button" :disabled="isCreating" @click="closeCreateDialog"><AppIcon name="x" :size="16" /></button>
         <h2>新建批量执行</h2>

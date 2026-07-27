@@ -698,7 +698,7 @@ function hostPlatformType(value: string | null | undefined) {
     </template>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <div v-if="hostQuickCommandManagerOpen" class="modal-backdrop" @click.self="closeHostQuickCommandManager">
+    <div v-if="hostQuickCommandManagerOpen" class="modal-backdrop">
       <article class="host-quick-command-modal" @click.stop>
         <header class="host-quick-command-head">
           <div>
@@ -825,7 +825,7 @@ function hostPlatformType(value: string | null | undefined) {
       </article>
     </div>
 
-    <div v-if="hostQuickCommandDialog.visible" class="modal-backdrop host-quick-command-dialog-backdrop" @click.self="closeHostQuickCommandDialog">
+    <div v-if="hostQuickCommandDialog.visible" class="modal-backdrop host-quick-command-dialog-backdrop">
       <form class="host-form-modal host-quick-command-form" @submit.prevent="saveHostQuickCommandDialog">
         <button class="modal-close" type="button" :disabled="hostQuickCommandDialog.saving" @click="closeHostQuickCommandDialog">
           <AppIcon name="x" :size="16" />

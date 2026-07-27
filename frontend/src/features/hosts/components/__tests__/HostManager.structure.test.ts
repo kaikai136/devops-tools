@@ -467,9 +467,9 @@ describe('HostManager component structure', () => {
     });
 
     const editorBackdrop = findByClass(templateRoot('src/features/hosts/components/HostEditorDialog.vue'), 'div', 'modal-backdrop')[0];
-    expectDirective(editorBackdrop, 'on', 'click', "emit('close')", ['self']);
+    expectNoDirective(editorBackdrop, 'on', 'click');
     const moveBackdrop = findByClass(templateRoot('src/features/hosts/components/HostMoveDialog.vue'), 'div', 'modal-backdrop')[0];
-    expectDirective(moveBackdrop, 'on', 'click', "emit('close')", ['self']);
+    expectNoDirective(moveBackdrop, 'on', 'click');
   });
 
   it('protects HostTable checkbox payloads, pagination, column settings, and permissions', () => {

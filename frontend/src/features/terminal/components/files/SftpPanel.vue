@@ -622,7 +622,7 @@ onBeforeUnmount(() => {
     </div>
 
     <Teleport to="body">
-      <div v-if="browser.deleteDialog.value.visible" class="modal-backdrop terminal-file-delete-backdrop" @click.self="browser.closeDeleteDialog">
+      <div v-if="browser.deleteDialog.value.visible" class="modal-backdrop terminal-file-delete-backdrop">
         <section class="terminal-file-delete-modal" role="dialog" aria-modal="true">
           <div class="terminal-file-delete-visual" :class="deleteVisualType">
             <span class="terminal-file-delete-visual-card"><AppIcon :name="deleteVisualType === 'directory' ? 'folder' : 'file'" :size="34" /></span>

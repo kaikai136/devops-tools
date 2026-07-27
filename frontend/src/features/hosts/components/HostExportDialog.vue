@@ -38,7 +38,7 @@ const selectedFormat = computed({
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
+  <div class="modal-backdrop">
     <article class="host-transfer-modal host-export-modal">
       <button class="modal-close" type="button" @click="emit('close')"><AppIcon name="x" :size="16" /></button>
       <h2>导出实例数据</h2>

@@ -498,7 +498,7 @@ async function lockCurrentSession() {
       @download-template="downloadHostImportTemplate"
     />
 
-    <div v-if="qrPreview" class="modal-backdrop" @click.self="qrPreview = null">
+    <div v-if="qrPreview" class="modal-backdrop">
       <article class="qr-modal share-modal">
         <button class="modal-close" type="button" @click="qrPreview = null"><AppIcon name="x" :size="16" /></button>
         <h2>分享二维码</h2>

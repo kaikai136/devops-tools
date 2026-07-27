@@ -193,7 +193,7 @@ function emptyForm(): CredentialForm {
     </template>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <div v-if="dialog" class="modal-backdrop" @click.self="dialog = null">
+    <div v-if="dialog" class="modal-backdrop">
       <form class="account-form-modal account-horizontal-modal" @submit.prevent="saveCredential">
         <button class="modal-close" type="button" @click="dialog = null"><AppIcon name="x" :size="16" /></button>
         <h2>{{ dialog.mode === 'edit' ? '编辑账号' : '新增账号' }}</h2>
@@ -231,7 +231,7 @@ function emptyForm(): CredentialForm {
       </form>
     </div>
 
-    <div v-if="confirmDelete" class="modal-backdrop" @click.self="confirmDelete = null">
+    <div v-if="confirmDelete" class="modal-backdrop">
       <article class="account-confirm-modal">
         <button class="modal-close" type="button" @click="confirmDelete = null"><AppIcon name="x" :size="16" /></button>
         <h2>删除账号</h2>

@@ -47,7 +47,7 @@ const remark = fieldModel('remark');
 </script>
 
 <template>
-  <div v-if="props.dialog" class="modal-backdrop" @click.self="emit('close')">
+  <div v-if="props.dialog" class="modal-backdrop">
     <form class="host-form-modal host-edit-modal host-horizontal-modal" @submit.prevent="emit('submit')">
       <button class="modal-close" type="button" @click="emit('close')"><AppIcon name="x" :size="16" /></button>
       <h2>{{ props.dialog.mode === 'edit' ? '编辑主机' : '新增主机' }}</h2>

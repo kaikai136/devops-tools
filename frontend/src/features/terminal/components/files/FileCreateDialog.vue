@@ -47,7 +47,7 @@ function onOpenAfterCreateChange(event: Event) {
 
 <template>
   <Teleport to="body">
-    <div v-if="dialog.visible" class="modal-backdrop terminal-file-create-backdrop" @click.self="emit('close')">
+    <div v-if="dialog.visible" class="modal-backdrop terminal-file-create-backdrop">
       <section class="terminal-file-create-modal" role="dialog" aria-modal="true">
         <header>
           <h2>{{ title }}</h2>

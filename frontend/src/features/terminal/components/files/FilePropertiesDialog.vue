@@ -52,7 +52,7 @@ function updateOctalMode(event: Event) {
 
 <template>
   <Teleport to="body">
-    <div v-if="dialog.visible" class="modal-backdrop terminal-file-properties-backdrop" @click.self="emit('close')">
+    <div v-if="dialog.visible" class="modal-backdrop terminal-file-properties-backdrop">
       <section class="terminal-file-properties-modal" role="dialog" aria-modal="true">
         <header class="terminal-file-properties-head">
           <span class="terminal-file-properties-icon" :class="dialog.properties?.type || dialog.entry?.type">

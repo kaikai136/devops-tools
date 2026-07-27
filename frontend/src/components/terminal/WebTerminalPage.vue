@@ -3932,7 +3932,7 @@ function readTerminalQuickCommandPanelCollapsed() {
       </section>
     </section>
     <Teleport to="body">
-      <div v-if="terminalQuickCommandDialog.visible" class="terminal-quick-dialog-backdrop" @click.self="closeTerminalQuickCommandDialog">
+      <div v-if="terminalQuickCommandDialog.visible" class="terminal-quick-dialog-backdrop">
         <article class="terminal-quick-dialog">
           <header>
             <strong>{{ terminalQuickCommandDialog.mode === 'create' ? '新增快捷命令' : '编辑快捷命令' }}</strong>

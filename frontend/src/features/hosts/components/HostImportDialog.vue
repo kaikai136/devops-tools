@@ -9,7 +9,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
+  <div class="modal-backdrop">
     <article class="host-transfer-modal host-import-modal">
       <button class="modal-close" type="button" @click="emit('close')"><AppIcon name="x" :size="16" /></button>
       <h2>导入主机表格</h2>

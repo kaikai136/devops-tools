@@ -582,7 +582,7 @@ function emptyRoleForm(): RoleForm {
     </template>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <div v-if="dialog" class="modal-backdrop role-modal-backdrop" @click.self="closeDialog">
+    <div v-if="dialog" class="modal-backdrop role-modal-backdrop">
       <form class="role-modal" :class="{ 'role-wide-modal': dialog.mode === 'permissions' || dialog.mode === 'view' }" @submit.prevent="saveRole">
         <button class="modal-close" type="button" @click="closeDialog"><AppIcon name="x" :size="16" /></button>
         <h2>{{ dialogTitle() }}</h2>
@@ -666,7 +666,7 @@ function emptyRoleForm(): RoleForm {
       </form>
     </div>
 
-    <div v-if="roleUserDialog" class="modal-backdrop role-modal-backdrop" @click.self="closeRoleUserDialog">
+    <div v-if="roleUserDialog" class="modal-backdrop role-modal-backdrop">
       <form class="role-modal role-user-modal" @submit.prevent="saveRoleUsers">
         <button class="modal-close" type="button" @click="closeRoleUserDialog"><AppIcon name="x" :size="16" /></button>
         <h2>调整权限用户</h2>
@@ -701,7 +701,7 @@ function emptyRoleForm(): RoleForm {
       </form>
     </div>
 
-    <div v-if="deleteTarget" class="modal-backdrop role-modal-backdrop" @click.self="deleteTarget = null">
+    <div v-if="deleteTarget" class="modal-backdrop role-modal-backdrop">
       <article class="role-modal role-confirm-modal">
         <button class="modal-close" type="button" @click="deleteTarget = null"><AppIcon name="x" :size="16" /></button>
         <h2>删除角色</h2>

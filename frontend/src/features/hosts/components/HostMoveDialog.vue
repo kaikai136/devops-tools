@@ -34,7 +34,7 @@ const targetGroup = computed({
 </script>
 
 <template>
-  <div v-if="props.open" class="modal-backdrop" @click.self="emit('close')">
+  <div v-if="props.open" class="modal-backdrop">
     <form class="host-form-modal" @submit.prevent="emit('submit')">
       <button class="modal-close" type="button" @click="emit('close')"><AppIcon name="x" :size="16" /></button>
       <h2>{{ props.mode === 'selected' ? '更新所选' : '移动主机' }}</h2>

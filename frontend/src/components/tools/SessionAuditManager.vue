@@ -384,7 +384,7 @@ onBeforeUnmount(() => {
     </article>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <div v-if="sessionRecordingDialog.visible" class="modal-backdrop host-session-recording-backdrop" @click.self="closeSessionRecording">
+    <div v-if="sessionRecordingDialog.visible" class="modal-backdrop host-session-recording-backdrop">
       <article class="host-session-recording-modal" @click.stop>
         <header>
           <div>
