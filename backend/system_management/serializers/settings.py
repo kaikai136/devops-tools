@@ -4,6 +4,7 @@ from ..models import SystemSetting
 from .constants import (
     DASHBOARD_HERO_SETTING_KEY,
     LAYOUT_FOOTER_SETTING_KEY,
+    LOG_RETENTION_SETTING_KEY,
     LOGIN_CONTENT_SETTING_KEY,
     SECURITY_SCAN_SETTING_KEY,
     SITE_IDENTITY_SETTING_KEY,
@@ -12,6 +13,7 @@ from .constants import (
 from .settings_validators import (
     validate_dashboard_hero_value,
     validate_layout_footer_value,
+    validate_log_retention_value,
     validate_login_content_value,
     validate_security_scan_value,
     validate_site_identity_value,
@@ -47,4 +49,6 @@ class SystemSettingSerializer(serializers.ModelSerializer):
             attrs["value"] = validate_watermark_value(value)
         elif key == SECURITY_SCAN_SETTING_KEY:
             attrs["value"] = validate_security_scan_value(value)
+        elif key == LOG_RETENTION_SETTING_KEY:
+            attrs["value"] = validate_log_retention_value(value)
         return attrs

@@ -3,6 +3,13 @@ from django.db import models
 
 
 class BulkExecutionTask(models.Model):
+    EXECUTION_SHELL = "shell"
+    EXECUTION_PLAYBOOK = "playbook"
+    EXECUTION_CHOICES = [
+        (EXECUTION_SHELL, "Shell"),
+        (EXECUTION_PLAYBOOK, "Playbook"),
+    ]
+
     STATUS_QUEUED = "queued"
     STATUS_RUNNING = "running"
     STATUS_COMPLETED = "completed"
@@ -18,6 +25,7 @@ class BulkExecutionTask(models.Model):
 
     name = models.CharField(max_length=180)
     command = models.TextField()
+    execution_type = models.CharField(max_length=20, choices=EXECUTION_CHOICES, default=EXECUTION_SHELL)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="bulk_execution_tasks", null=True, blank=True, on_delete=models.SET_NULL)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_QUEUED)
     cancel_requested = models.BooleanField(default=False)

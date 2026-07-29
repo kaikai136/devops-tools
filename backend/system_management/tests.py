@@ -1,12 +1,17 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
+from django.core.management import call_command
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
 from unittest.mock import Mock, patch
+from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import pyotp
 
 from accounts.models import UserProfile
 from host_management.models import HostCredential, HostGroup, ManagedHost
+from web_terminal.models import TerminalCommandAudit, TerminalFileAudit, TerminalSession
 from .models import LoginLog, OperationLog, SystemSetting
 from .dashboard import parse_cip_output
 from .services import (
@@ -18,6 +23,7 @@ from .services import (
     UI_PERMISSION_CODES,
     ensure_builtin_admin,
     ensure_feature_permissions,
+    cleanup_expired_logs,
     record_login_log,
     record_operation_log,
 )
@@ -946,6 +952,220 @@ class SystemSettingsApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    def test_log_retention_setting_defaults_missing_fields_and_accepts_zero(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={
+                "key": "log_retention",
+                "label": "日志保留",
+                "value": {
+                    "loginLogsDays": 0,
+                    "rdpRecordingEnabled": True,
+                },
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            response.json()["value"],
+            {
+                "loginLogsDays": 0,
+                "operationLogsDays": 180,
+                "terminalCommandAuditDays": 180,
+                "terminalFileAuditDays": 180,
+                "terminalSessionDays": 180,
+                "rdpRecordingEnabled": True,
+                "rdpRecordingDays": 30,
+            },
+        )
+
+    def test_log_retention_setting_rejects_invalid_day_values(self):
+        for field, value in {
+            "loginLogsDays": -1,
+            "operationLogsDays": 3651,
+            "terminalCommandAuditDays": 1.5,
+            "terminalFileAuditDays": "1.5",
+            "terminalSessionDays": True,
+        }.items():
+            with self.subTest(field=field, value=value):
+                response = self.client.post(
+                    "/api/system/settings/",
+                    data={"key": "log_retention", "value": {field: value}},
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 400)
+
+    def test_log_retention_setting_requires_boolean_rdp_switch(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={"key": "log_retention", "value": {"rdpRecordingEnabled": "true"}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+
+class LogRetentionCleanupTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="cleanup-user", password="pass")
+        self.group = HostGroup.objects.create(name="cleanup")
+        self.host = ManagedHost.objects.create(name="cleanup-host", group=self.group, private_ip="10.0.0.8", os="ubuntu")
+
+    def set_created_at(self, instance, value):
+        instance.__class__.objects.filter(id=instance.id).update(created_at=value)
+        instance.refresh_from_db()
+
+    def test_cleanup_expired_logs_deletes_each_expired_category(self):
+        now = timezone.now()
+        SystemSetting.objects.create(
+            key="log_retention",
+            value={
+                "loginLogsDays": 10,
+                "operationLogsDays": 20,
+                "terminalCommandAuditDays": 30,
+                "terminalFileAuditDays": 40,
+                "terminalSessionDays": 50,
+                "rdpRecordingEnabled": False,
+                "rdpRecordingDays": 30,
+            },
+        )
+        old_login = LoginLog.objects.create(username="old", ip_address="10.0.0.1", status=LoginLog.STATUS_SUCCESS)
+        fresh_login = LoginLog.objects.create(username="fresh", ip_address="10.0.0.2", status=LoginLog.STATUS_SUCCESS)
+        old_operation = OperationLog.objects.create(username="old", module="m", action="a")
+        fresh_operation = OperationLog.objects.create(username="fresh", module="m", action="a")
+        old_session = TerminalSession.objects.create(host=self.host)
+        fresh_session = TerminalSession.objects.create(host=self.host)
+        session_with_command = TerminalSession.objects.create(host=self.host)
+        session_with_file = TerminalSession.objects.create(host=self.host)
+        session_with_recording = TerminalSession.objects.create(host=self.host, protocol=TerminalSession.PROTOCOL_RDP, recording_file="keep.guac")
+        old_command = TerminalCommandAudit.objects.create(
+            session=session_with_command,
+            host=self.host,
+            user=self.user,
+            username=self.user.username,
+            command="whoami",
+            executed_at=now - timezone.timedelta(days=31),
+        )
+        fresh_command = TerminalCommandAudit.objects.create(
+            session=fresh_session,
+            host=self.host,
+            user=self.user,
+            username=self.user.username,
+            command="uptime",
+            executed_at=now - timezone.timedelta(days=2),
+        )
+        old_file = TerminalFileAudit.objects.create(
+            session=session_with_file,
+            host=self.host,
+            user=self.user,
+            username=self.user.username,
+            operation=TerminalFileAudit.OPERATION_READ,
+            path="/tmp/old",
+        )
+        fresh_file = TerminalFileAudit.objects.create(
+            session=fresh_session,
+            host=self.host,
+            user=self.user,
+            username=self.user.username,
+            operation=TerminalFileAudit.OPERATION_READ,
+            path="/tmp/fresh",
+        )
+
+        self.set_created_at(old_login, now - timezone.timedelta(days=11))
+        self.set_created_at(fresh_login, now - timezone.timedelta(days=2))
+        self.set_created_at(old_operation, now - timezone.timedelta(days=21))
+        self.set_created_at(fresh_operation, now - timezone.timedelta(days=2))
+        for session in [old_session, session_with_command, session_with_file, session_with_recording]:
+            self.set_created_at(session, now - timezone.timedelta(days=51))
+        self.set_created_at(fresh_session, now - timezone.timedelta(days=2))
+        self.set_created_at(old_command, now - timezone.timedelta(days=31))
+        self.set_created_at(fresh_command, now - timezone.timedelta(days=2))
+        self.set_created_at(old_file, now - timezone.timedelta(days=41))
+        self.set_created_at(fresh_file, now - timezone.timedelta(days=2))
+
+        result = cleanup_expired_logs(now=now)
+
+        self.assertEqual(result["loginLogs"], 1)
+        self.assertEqual(result["operationLogs"], 1)
+        self.assertEqual(result["terminalCommandAudits"], 1)
+        self.assertEqual(result["terminalFileAudits"], 1)
+        self.assertEqual(result["terminalSessions"], 1)
+        self.assertFalse(LoginLog.objects.filter(id=old_login.id).exists())
+        self.assertTrue(LoginLog.objects.filter(id=fresh_login.id).exists())
+        self.assertFalse(OperationLog.objects.filter(id=old_operation.id).exists())
+        self.assertTrue(OperationLog.objects.filter(id=fresh_operation.id).exists())
+        self.assertFalse(TerminalCommandAudit.objects.filter(id=old_command.id).exists())
+        self.assertTrue(TerminalCommandAudit.objects.filter(id=fresh_command.id).exists())
+        self.assertFalse(TerminalFileAudit.objects.filter(id=old_file.id).exists())
+        self.assertTrue(TerminalFileAudit.objects.filter(id=fresh_file.id).exists())
+        self.assertFalse(TerminalSession.objects.filter(id=old_session.id).exists())
+        self.assertTrue(TerminalSession.objects.filter(id=session_with_command.id).exists())
+        self.assertTrue(TerminalSession.objects.filter(id=session_with_file.id).exists())
+        self.assertTrue(TerminalSession.objects.filter(id=session_with_recording.id).exists())
+
+    def test_cleanup_expired_logs_dry_run_and_zero_retention_do_not_delete(self):
+        now = timezone.now()
+        SystemSetting.objects.create(
+            key="log_retention",
+            value={
+                "loginLogsDays": 0,
+                "operationLogsDays": 1,
+                "terminalCommandAuditDays": 1,
+                "terminalFileAuditDays": 1,
+                "terminalSessionDays": 1,
+                "rdpRecordingEnabled": False,
+                "rdpRecordingDays": 0,
+            },
+        )
+        login = LoginLog.objects.create(username="old", ip_address="10.0.0.1", status=LoginLog.STATUS_SUCCESS)
+        operation = OperationLog.objects.create(username="old", module="m", action="a")
+        self.set_created_at(login, now - timezone.timedelta(days=365))
+        self.set_created_at(operation, now - timezone.timedelta(days=2))
+
+        result = cleanup_expired_logs(now=now, dry_run=True)
+
+        self.assertEqual(result["loginLogs"], 0)
+        self.assertEqual(result["operationLogs"], 1)
+        self.assertTrue(LoginLog.objects.filter(id=login.id).exists())
+        self.assertTrue(OperationLog.objects.filter(id=operation.id).exists())
+
+    def test_cleanup_logs_command_cleans_rdp_recordings(self):
+        now = timezone.now()
+        SystemSetting.objects.create(
+            key="log_retention",
+            value={
+                "loginLogsDays": 180,
+                "operationLogsDays": 180,
+                "terminalCommandAuditDays": 180,
+                "terminalFileAuditDays": 180,
+                "terminalSessionDays": 180,
+                "rdpRecordingEnabled": False,
+                "rdpRecordingDays": 30,
+            },
+        )
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            old_file = root / "old.guac"
+            old_file.write_text("old", encoding="utf-8")
+            session = TerminalSession.objects.create(
+                host=self.host,
+                protocol=TerminalSession.PROTOCOL_RDP,
+                recording_enabled=True,
+                recording_file=old_file.name,
+            )
+            self.set_created_at(session, now - timezone.timedelta(days=40))
+            output = StringIO()
+
+            with patch("django.utils.timezone.now", return_value=now), patch("web_terminal.services.rdp.rdp_recording_root", return_value=root):
+                call_command("cleanup_logs", stdout=output)
+
+            session.refresh_from_db()
+            self.assertFalse(old_file.exists())
+            self.assertEqual(session.recording_file, "")
+            self.assertIn("rdpRecordings=1", output.getvalue())
 
 
 class SystemUserLoginFlowTests(TestCase):

@@ -7,9 +7,12 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db.models import Count
 from django.http import HttpRequest
+from django.utils import timezone
 
 from .models import LoginLog, OperationLog, SystemSetting
+from .settings_defaults import DEFAULT_LOG_RETENTION
 
 FEATURE_PERMISSIONS_CACHE_KEY = "system.feature_permissions_ready.v1"
 FEATURE_PERMISSION_CACHE_SECONDS = getattr(settings, "FEATURE_PERMISSION_CACHE_SECONDS", 300)
@@ -135,6 +138,104 @@ FEATURE_PERMISSION_CODES = set(FEATURE_PERMISSION_CODE_BY_KEY.values())
 PAGE_ACTION_PERMISSION_CODES = set(PAGE_ACTION_PERMISSION_CODE_BY_KEY.values())
 UI_PERMISSION_CODES = FEATURE_PERMISSION_CODES | PAGE_ACTION_PERMISSION_CODES
 _feature_permissions_ready = False
+
+
+def get_log_retention_setting() -> dict:
+    try:
+        setting = SystemSetting.objects.get(key="log_retention")
+    except SystemSetting.DoesNotExist:
+        return DEFAULT_LOG_RETENTION.copy()
+    value = setting.value if isinstance(setting.value, dict) else {}
+    return {**DEFAULT_LOG_RETENTION, **value}
+
+
+def get_database_setting_value(key: str) -> dict | None:
+    try:
+        setting = SystemSetting.objects.get(key=key)
+    except SystemSetting.DoesNotExist:
+        return None
+    except Exception as exc:
+        if exc.__class__.__name__ == "DatabaseOperationForbidden":
+            return None
+        raise
+    return setting.value if isinstance(setting.value, dict) else {}
+
+
+def get_rdp_recording_enabled_setting() -> bool:
+    log_retention = get_database_setting_value("log_retention")
+    if log_retention is not None:
+        return bool({**DEFAULT_LOG_RETENTION, **log_retention}.get("rdpRecordingEnabled", DEFAULT_LOG_RETENTION["rdpRecordingEnabled"]))
+    value = get_database_setting_value("rdp_recording")
+    if value is None:
+        return bool(getattr(settings, "RDP_RECORDING_DEFAULT_ENABLED", False))
+    if "enabled" in value:
+        return bool(value["enabled"])
+    return bool(getattr(settings, "RDP_RECORDING_DEFAULT_ENABLED", False))
+
+
+def get_rdp_recording_retention_days() -> int:
+    log_retention = get_database_setting_value("log_retention")
+    if log_retention is not None:
+        return int({**DEFAULT_LOG_RETENTION, **log_retention}.get("rdpRecordingDays", DEFAULT_LOG_RETENTION["rdpRecordingDays"]))
+    return int(getattr(settings, "RDP_RECORDING_RETENTION_DAYS", DEFAULT_LOG_RETENTION["rdpRecordingDays"]))
+
+
+def retention_cutoff(days: int, now=None):
+    if days <= 0:
+        return None
+    return (now or timezone.now()) - timezone.timedelta(days=days)
+
+
+def cleanup_queryset(queryset, *, dry_run: bool) -> int:
+    count = queryset.count()
+    if not dry_run:
+        queryset.delete()
+    return count
+
+
+def cleanup_expired_logs(*, now=None, dry_run: bool = False, rdp_root=None) -> dict[str, int]:
+    from web_terminal.models import TerminalCommandAudit, TerminalFileAudit, TerminalSession
+    from web_terminal.services.rdp import cleanup_expired_rdp_recordings
+
+    now = now or timezone.now()
+    retention = get_log_retention_setting()
+    result = {
+        "loginLogs": 0,
+        "operationLogs": 0,
+        "terminalCommandAudits": 0,
+        "terminalFileAudits": 0,
+        "terminalSessions": 0,
+        "rdpRecordings": 0,
+    }
+
+    cutoff = retention_cutoff(int(retention["loginLogsDays"]), now)
+    if cutoff:
+        result["loginLogs"] = cleanup_queryset(LoginLog.objects.filter(created_at__lt=cutoff), dry_run=dry_run)
+
+    cutoff = retention_cutoff(int(retention["operationLogsDays"]), now)
+    if cutoff:
+        result["operationLogs"] = cleanup_queryset(OperationLog.objects.filter(created_at__lt=cutoff), dry_run=dry_run)
+
+    cutoff = retention_cutoff(int(retention["terminalSessionDays"]), now)
+    if cutoff:
+        sessions = (
+            TerminalSession.objects.filter(created_at__lt=cutoff, recording_file="")
+            .annotate(command_count=Count("command_audits"), file_count=Count("file_audits"))
+            .filter(command_count=0, file_count=0)
+        )
+        result["terminalSessions"] = cleanup_queryset(sessions, dry_run=dry_run)
+
+    cutoff = retention_cutoff(int(retention["terminalCommandAuditDays"]), now)
+    if cutoff:
+        result["terminalCommandAudits"] = cleanup_queryset(TerminalCommandAudit.objects.filter(executed_at__lt=cutoff), dry_run=dry_run)
+
+    cutoff = retention_cutoff(int(retention["terminalFileAuditDays"]), now)
+    if cutoff:
+        result["terminalFileAudits"] = cleanup_queryset(TerminalFileAudit.objects.filter(created_at__lt=cutoff), dry_run=dry_run)
+
+    rdp_result = cleanup_expired_rdp_recordings(root=rdp_root, now=now, dry_run=dry_run)
+    result["rdpRecordings"] = rdp_result["deleted"]
+    return result
 
 
 def is_builtin_admin_user(user) -> bool:

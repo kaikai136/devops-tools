@@ -12,7 +12,7 @@ import {
   listBulkExecutionTargets,
   listBulkExecutionTasks,
 } from '../api/bulkExecution';
-import type { BulkExecutionResult, BulkExecutionStatus, BulkExecutionTarget, BulkExecutionTask, BulkExecutionTaskDetail } from '../types';
+import type { BulkExecutionResult, BulkExecutionStatus, BulkExecutionTarget, BulkExecutionTask, BulkExecutionTaskDetail, BulkExecutionType } from '../types';
 
 const DRAFT_TARGET_IDS_KEY = 'ops-tool.bulk-execution.draft-target-ids';
 const statusLabels: Record<string, string> = {
@@ -25,6 +25,20 @@ const statusLabels: Record<string, string> = {
   success: '成功',
   skipped: '已跳过',
 };
+const executionTypeLabels: Record<BulkExecutionType, string> = {
+  shell: 'Shell 脚本',
+  playbook: 'Playbook 脚本',
+};
+const scriptPresets: Array<{ key: string; label: string; type: BulkExecutionType; command: string }> = [
+  { key: 'shell-health', label: '系统巡检', type: 'shell', command: 'hostname\nuptime\ndf -h\nfree -m' },
+  { key: 'shell-service', label: '服务状态', type: 'shell', command: 'systemctl status nginx --no-pager || true' },
+  {
+    key: 'playbook-ping',
+    label: '连通性检查',
+    type: 'playbook',
+    command: '- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Ping hosts\n      ansible.builtin.ping:\n',
+  },
+];
 
 const { activeTool, canUsePageAction, showToast, requestConfirm } = useAppContext();
 
@@ -44,6 +58,7 @@ const statusFilter = ref('');
 const hostFilter = ref<number | ''>('');
 const targetKeyword = ref('');
 const taskName = ref('');
+const executionType = ref<BulkExecutionType>('shell');
 const commandInput = ref('');
 let pollTimer: number | null = null;
 let taskRequestId = 0;
@@ -69,6 +84,12 @@ const selectedTaskProgress = computed(() => {
   if (!selectedTask.value || selectedTask.value.targetCount <= 0) return 0;
   return Math.round((selectedTask.value.completedCount / selectedTask.value.targetCount) * 100);
 });
+const selectedTaskExecutionType = computed(() => (selectedTask.value?.executionType === 'playbook' ? 'Playbook 脚本' : 'Shell 脚本'));
+const commandPlaceholder = computed(() =>
+  executionType.value === 'playbook'
+    ? '- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Check hostname\n      ansible.builtin.command: hostname'
+    : 'set -e\nhostname\nuptime',
+);
 
 onMounted(async () => {
   await refreshAll();
@@ -215,8 +236,8 @@ function createTaskWithConfirmation() {
   const run = async () => {
     await createTask();
   };
-  const message = `将对 ${selectedTargetIds.value.size} 台主机执行命令：\n${commandInput.value.trim()}`;
-  if (requestConfirm) requestConfirm('确认批量执行', message, '执行', run);
+  const message = `将对 ${selectedTargetIds.value.size} 台主机执行 ${executionTypeLabels[executionType.value]}：\n${commandInput.value.trim()}`;
+  if (requestConfirm) requestConfirm('确认批量执行', message, '执行脚本', run);
   else if (window.confirm(message)) void run();
 }
 
@@ -225,11 +246,13 @@ async function createTask() {
   try {
     const task = await createBulkExecutionTask({
       targetIds: [...selectedTargetIds.value],
-      command: commandInput.value.trim(),
+      command: commandInput.value,
+      executionType: executionType.value,
       name: taskName.value.trim() || undefined,
     });
     isCreateOpen.value = false;
     taskName.value = '';
+    executionType.value = 'shell';
     commandInput.value = '';
     selectedTargetIds.value = new Set();
     await loadTasks();
@@ -240,6 +263,19 @@ async function createTask() {
   } finally {
     isCreating.value = false;
   }
+}
+
+function setExecutionType(type: BulkExecutionType) {
+  executionType.value = type;
+  if (!commandInput.value.trim()) {
+    commandInput.value = type === 'playbook' ? scriptPresets.find((preset) => preset.type === 'playbook')?.command ?? '' : '';
+  }
+}
+
+function applyScriptPreset(preset: (typeof scriptPresets)[number]) {
+  executionType.value = preset.type;
+  commandInput.value = preset.command;
+  if (!taskName.value.trim()) taskName.value = preset.label;
 }
 
 async function cancelSelectedTask() {
@@ -319,7 +355,7 @@ function formatTime(value: string | null | undefined) {
       <header class="bulk-execution-head">
         <div>
           <h2>批量执行</h2>
-          <p>面向已验证 Linux SSH 主机并发执行 shell 命令。</p>
+          <p>面向已验证 Linux SSH 主机并发执行 Shell 脚本或 Ansible Playbook。</p>
         </div>
         <div class="bulk-execution-actions">
           <button v-if="canExecute" class="primary" type="button" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建任务</button>
@@ -367,7 +403,7 @@ function formatTime(value: string | null | undefined) {
             <header>
               <div>
                 <h3>{{ selectedTask.name }}</h3>
-                <p>{{ selectedTask.createdBy }} · {{ statusLabel(selectedTask.status) }} · {{ selectedTaskProgress }}%</p>
+                <p>{{ selectedTask.createdBy }} · {{ selectedTaskExecutionType }} · {{ statusLabel(selectedTask.status) }} · {{ selectedTaskProgress }}%</p>
               </div>
               <div>
                 <button v-if="canCancel" type="button" :disabled="!selectedTaskCanCancel || isControlBusy" @click="cancelSelectedTask">取消</button>
@@ -423,42 +459,65 @@ function formatTime(value: string | null | undefined) {
     <div v-if="isCreateOpen" class="modal-backdrop bulk-create-backdrop">
       <form class="bulk-create-modal" @submit.prevent="createTaskWithConfirmation">
         <button class="modal-close" type="button" :disabled="isCreating" @click="closeCreateDialog"><AppIcon name="x" :size="16" /></button>
-        <h2>新建批量执行</h2>
-        <div class="bulk-create-grid">
-          <label>
-            <span>任务名称</span>
-            <input v-model="taskName" maxlength="180" placeholder="留空自动生成" :disabled="isCreating" />
-          </label>
-          <label>
-            <span>命令</span>
-            <textarea v-model="commandInput" class="commandInput" rows="6" maxlength="4096" :disabled="isCreating"></textarea>
-          </label>
-        </div>
-        <div class="bulk-target-picker">
-          <header>
-            <label>
-              <input
-                type="checkbox"
-                :checked="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))"
-                @change="toggleAllFilteredTargetsFromEvent"
-              />
-              全选当前列表
-            </label>
-            <input v-model="targetKeyword" type="search" placeholder="搜索主机 / IP / 分组" />
-            <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
-          </header>
-          <div class="bulk-target-list">
-            <label v-for="target in filteredTargets" :key="target.id">
-              <input type="checkbox" :checked="selectedTargetIds.has(target.id)" @change="toggleTargetFromEvent(target.id, $event)" />
-              <strong>{{ target.name }}</strong>
-              <span>{{ target.privateIp }} · {{ target.loginUser }} · {{ target.groupName }}</span>
-            </label>
-            <div v-if="!filteredTargets.length" class="bulk-empty">{{ isTargetsLoading ? '加载中...' : '暂无可执行 Linux SSH 主机' }}</div>
+        <header class="bulk-create-title">
+          <div>
+            <h2>新建批量执行</h2>
+            <p>{{ executionTypeLabels[executionType] }} · 已选 {{ selectedTargets.length }} 台主机</p>
           </div>
+        </header>
+        <div class="bulk-create-workbench">
+          <section class="bulk-script-composer">
+            <div class="bulk-mode-tabs" role="tablist" aria-label="执行类型">
+              <button type="button" :class="{ active: executionType === 'shell' }" @click="setExecutionType('shell')">
+                <AppIcon name="terminal" :size="15" />
+                Shell 脚本
+              </button>
+              <button type="button" :class="{ active: executionType === 'playbook' }" @click="setExecutionType('playbook')">
+                <AppIcon name="rows" :size="15" />
+                Playbook 脚本
+              </button>
+            </div>
+            <label>
+              <span>任务名称</span>
+              <input v-model="taskName" maxlength="180" placeholder="留空自动生成" :disabled="isCreating" />
+            </label>
+            <div class="bulk-script-presets">
+              <button v-for="preset in scriptPresets" :key="preset.key" type="button" @click="applyScriptPreset(preset)">
+                {{ preset.label }}
+              </button>
+            </div>
+            <label class="bulk-script-editor">
+              <span>{{ executionTypeLabels[executionType] }}</span>
+              <textarea v-model="commandInput" class="commandInput" rows="14" maxlength="4096" :placeholder="commandPlaceholder" :disabled="isCreating"></textarea>
+            </label>
+          </section>
+
+          <section class="bulk-target-picker">
+            <header>
+              <label>
+                <input
+                  type="checkbox"
+                  :checked="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))"
+                  @change="toggleAllFilteredTargetsFromEvent"
+                />
+                全选当前列表
+              </label>
+              <input v-model="targetKeyword" type="search" placeholder="搜索主机 / IP / 分组" />
+              <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
+            </header>
+            <div class="bulk-target-list">
+              <label v-for="target in filteredTargets" :key="target.id">
+                <input type="checkbox" :checked="selectedTargetIds.has(target.id)" @change="toggleTargetFromEvent(target.id, $event)" />
+                <strong>{{ target.name }}</strong>
+                <span>{{ target.privateIp }} · {{ target.loginUser }} · {{ target.groupName }}</span>
+              </label>
+              <div v-if="!filteredTargets.length" class="bulk-empty">{{ isTargetsLoading ? '加载中...' : '暂无可执行 Linux SSH 主机' }}</div>
+            </div>
+          </section>
         </div>
         <footer>
           <button type="button" :disabled="isCreating" @click="closeCreateDialog">取消</button>
-          <button class="primary" type="submit" :disabled="!canCreateTask">{{ isCreating ? '创建中...' : '执行' }}</button>
+          <button class="primary" type="submit" :disabled="!canCreateTask">{{ isCreating ? '创建中...' : '执行脚本' }}</button>
         </footer>
       </form>
     </div>

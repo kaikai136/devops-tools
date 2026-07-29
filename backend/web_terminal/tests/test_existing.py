@@ -420,6 +420,13 @@ class RdpTerminalServiceTests(TestCase):
 
         self.assertTrue(is_rdp_recording_enabled())
 
+    @override_settings(RDP_RECORDING_DEFAULT_ENABLED=False)
+    def test_log_retention_recording_setting_takes_priority_over_legacy_rdp_setting(self):
+        SystemSetting.objects.create(key="rdp_recording", value={"enabled": False})
+        SystemSetting.objects.create(key="log_retention", value={"rdpRecordingEnabled": True, "rdpRecordingDays": 30})
+
+        self.assertTrue(is_rdp_recording_enabled())
+
     @override_settings(RDP_RECORDING_DEFAULT_ENABLED=True, RDP_RECORDING_ROOT=Path("C:/recordings"))
     def test_build_rdp_connection_parameters_includes_target_credentials_and_recording(self):
         host = self.create_windows_host(public_ip="203.0.113.10")
@@ -487,6 +494,48 @@ class RdpTerminalServiceTests(TestCase):
             self.assertTrue(fresh_file.exists())
             self.assertEqual(old_session.recording_file, "")
             self.assertEqual(fresh_session.recording_file, fresh_file.name)
+
+    @override_settings(RDP_RECORDING_RETENTION_DAYS=365)
+    def test_cleanup_expired_rdp_recordings_uses_log_retention_days_before_env_default(self):
+        SystemSetting.objects.create(key="log_retention", value={"rdpRecordingEnabled": False, "rdpRecordingDays": 10})
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            old_file = root / "old.guac"
+            old_file.write_text("old", encoding="utf-8")
+            session = TerminalSession.objects.create(
+                host=self.create_windows_host(name="win-retention", private_ip="10.0.0.12"),
+                protocol="rdp",
+                recording_enabled=True,
+                recording_file=old_file.name,
+            )
+            TerminalSession.objects.filter(id=session.id).update(created_at=timezone.now() - timezone.timedelta(days=11))
+
+            result = cleanup_expired_rdp_recordings(root=root, now=timezone.now())
+
+            self.assertEqual(result["deleted"], 1)
+            self.assertFalse(old_file.exists())
+
+    @override_settings(RDP_RECORDING_RETENTION_DAYS=0)
+    def test_cleanup_expired_rdp_recordings_keeps_files_when_retention_is_zero(self):
+        SystemSetting.objects.create(key="log_retention", value={"rdpRecordingEnabled": False, "rdpRecordingDays": 0})
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            old_file = root / "old.guac"
+            old_file.write_text("old", encoding="utf-8")
+            session = TerminalSession.objects.create(
+                host=self.create_windows_host(name="win-forever", private_ip="10.0.0.13"),
+                protocol="rdp",
+                recording_enabled=True,
+                recording_file=old_file.name,
+            )
+            TerminalSession.objects.filter(id=session.id).update(created_at=timezone.now() - timezone.timedelta(days=400))
+
+            result = cleanup_expired_rdp_recordings(root=root, now=timezone.now())
+
+            session.refresh_from_db()
+            self.assertEqual(result["deleted"], 0)
+            self.assertTrue(old_file.exists())
+            self.assertEqual(session.recording_file, old_file.name)
 
     def test_rdp_consumer_reports_guacd_connection_refused(self):
         host = self.create_windows_host()

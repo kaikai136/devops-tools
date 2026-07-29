@@ -110,6 +110,7 @@ class BulkExecutionApiTests(TestCase):
         task = BulkExecutionTask.objects.get()
         self.assertEqual(task.name, "check uptime")
         self.assertEqual(task.command, "uptime")
+        self.assertEqual(task.execution_type, BulkExecutionTask.EXECUTION_SHELL)
         self.assertEqual(task.created_by, self.user)
         self.assertEqual(task.target_count, 1)
         self.assertEqual(task.results.count(), 1)
@@ -119,6 +120,33 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual(result.host_ip, "10.0.0.11")
         self.assertEqual(result.login_user, "root")
         start_task.assert_called_once_with(task.id)
+
+    def test_create_task_accepts_playbook_execution_type(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        playbook = "- hosts: all\n  tasks:\n    - ansible.builtin.ping:\n"
+
+        with patch("bulk_execution.views.start_bulk_execution_task"):
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={"targetIds": [self.linux.id], "command": playbook, "executionType": "playbook", "name": "ping playbook"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["executionType"], "playbook")
+        task = BulkExecutionTask.objects.get(name="ping playbook")
+        self.assertEqual(task.execution_type, BulkExecutionTask.EXECUTION_PLAYBOOK)
+
+    def test_create_task_rejects_unknown_execution_type(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        response = self.client.post(
+            "/api/bulk-execution/tasks/",
+            data={"targetIds": [self.linux.id], "command": "uptime", "executionType": "python"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
 
     def test_task_history_detail_cancel_and_delete_endpoints(self):
         self.grant(
@@ -205,6 +233,32 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIsNotNone(result.started_at)
         self.assertIsNotNone(result.finished_at)
+
+    def test_playbook_task_runs_ansible_playbook_file(self):
+        playbook = "- hosts: all\n  gather_facts: false\n  tasks:\n    - ansible.builtin.command: hostname\n"
+        task = create_bulk_execution_task(
+            self.user,
+            {"targetIds": [self.host.id], "command": playbook, "name": "hostnames playbook", "executionType": "playbook"},
+        )
+
+        def fake_run(**kwargs):
+            self.assertNotIn("module", kwargs)
+            self.assertEqual(kwargs["playbook"], "playbook.yml")
+            playbook_path = kwargs["private_data_dir"] + "/project/playbook.yml"
+            with open(playbook_path, "r", encoding="utf-8") as handle:
+                self.assertEqual(handle.read(), playbook)
+            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
+            kwargs["event_handler"](
+                {"event": "runner_on_ok", "event_data": {"host": "host_1", "res": {"stdout": "api-01\n", "stderr": "", "rc": 0}}}
+            )
+            return SimpleNamespace(status="successful", rc=0)
+
+        with patch("bulk_execution.services.run_ansible_playbook", side_effect=fake_run):
+            run_bulk_execution_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
+        self.assertEqual(task.results.get().stdout, "api-01\n")
 
     def test_runner_failure_event_marks_task_failed(self):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false"})

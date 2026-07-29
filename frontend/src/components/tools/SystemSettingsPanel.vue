@@ -13,11 +13,21 @@ import { watermarkPageGroups } from '../../composables/features/useWatermarkSett
 import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from '../../services/system';
 import AppIcon from '@shared/components/AppIcon.vue';
 import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
+import type { LogRetentionConfig } from '../../types';
 
-type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'rdp' | 'securityScan' | 'watermark';
+type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'logRetention' | 'securityScan' | 'watermark';
 type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image' | 'shield';
-const RDP_RECORDING_SETTING_KEY = 'rdp_recording';
+const LOG_RETENTION_SETTING_KEY = 'log_retention';
 const SECURITY_SCAN_SETTING_KEY = 'security_scan';
+const defaultLogRetention: LogRetentionConfig = {
+  loginLogsDays: 180,
+  operationLogsDays: 180,
+  terminalCommandAuditDays: 180,
+  terminalFileAuditDays: 180,
+  terminalSessionDays: 180,
+  rdpRecordingEnabled: false,
+  rdpRecordingDays: 30,
+};
 
 const {
   siteIdentityDraft,
@@ -58,17 +68,17 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string; title: string; s
   { key: 'dashboard', label: '仪表盘', title: '仪表盘动态文字', subtitle: 'Hero 文案、样式与打字动画', icon: 'dashboard' },
   { key: 'login', label: '登录页', title: '登录页文案', subtitle: '欢迎标题、徽标和版权模板', icon: 'monitor' },
   { key: 'footer', label: '页脚', title: '页脚配置', subtitle: '工作台底部文案、链接与样式', icon: 'rows' },
-  { key: 'rdp', label: 'RDP', title: 'RDP 录屏', subtitle: 'Windows 远程桌面录屏开关', icon: 'monitor' },
+  { key: 'logRetention', label: '日志保留', title: '日志保留', subtitle: '统一管理审计日志和 RDP 录像留存', icon: 'rows' },
   { key: 'securityScan', label: '安全扫描', title: '安全扫描', subtitle: '在线漏洞源访问开关', icon: 'shield' },
   { key: 'watermark', label: '水印', title: '水印配置', subtitle: '水印模板与应用页面', icon: 'image' },
 ];
 
 const activeTab = ref<SettingsTabKey>('identity');
-const rdpRecordingDraft = ref({ enabled: false });
-const rdpRecordingSettingExists = ref(false);
-const rdpRecordingLoading = ref(false);
-const rdpRecordingSaving = ref(false);
-const rdpRecordingMessage = ref('');
+const logRetentionDraft = ref<LogRetentionConfig>({ ...defaultLogRetention });
+const logRetentionSettingExists = ref(false);
+const logRetentionLoading = ref(false);
+const logRetentionSaving = ref(false);
+const logRetentionMessage = ref('');
 const securityScanDraft = ref({ onlineCveEnabled: false });
 const securityScanSettingExists = ref(false);
 const securityScanLoading = ref(false);
@@ -79,8 +89,8 @@ const currentTab = computed(() => settingsTabs.find((tab) => tab.key === activeT
 const currentBusy = computed(() =>
   activeTab.value === 'watermark'
     ? watermarkSaving.value
-    : activeTab.value === 'rdp'
-      ? rdpRecordingSaving.value
+    : activeTab.value === 'logRetention'
+      ? logRetentionSaving.value
       : activeTab.value === 'securityScan'
         ? securityScanSaving.value
         : siteSettingsSaving.value,
@@ -88,8 +98,8 @@ const currentBusy = computed(() =>
 const currentLoading = computed(() =>
   activeTab.value === 'watermark'
     ? watermarkLoading.value
-    : activeTab.value === 'rdp'
-      ? rdpRecordingLoading.value
+    : activeTab.value === 'logRetention'
+      ? logRetentionLoading.value
       : activeTab.value === 'securityScan'
         ? securityScanLoading.value
         : siteSettingsLoading.value,
@@ -97,8 +107,8 @@ const currentLoading = computed(() =>
 const currentMessage = computed(() =>
   activeTab.value === 'watermark'
     ? watermarkMessage.value
-    : activeTab.value === 'rdp'
-      ? rdpRecordingMessage.value
+    : activeTab.value === 'logRetention'
+      ? logRetentionMessage.value
       : activeTab.value === 'securityScan'
         ? securityScanMessage.value
         : siteSettingsMessage.value,
@@ -134,7 +144,7 @@ async function refreshCurrentTab() {
   else if (activeTab.value === 'dashboard') await loadDashboardHeroSetting();
   else if (activeTab.value === 'login') await loadLoginContentSetting();
   else if (activeTab.value === 'footer') await loadLayoutFooterSetting();
-  else if (activeTab.value === 'rdp') await loadRdpRecordingSetting();
+  else if (activeTab.value === 'logRetention') await loadLogRetentionSetting();
   else if (activeTab.value === 'securityScan') await loadSecurityScanSetting();
   else await loadWatermarkSetting();
 }
@@ -145,7 +155,7 @@ async function saveCurrentTab() {
   else if (activeTab.value === 'dashboard') await saveDashboardHeroSetting();
   else if (activeTab.value === 'login') await saveLoginContentSetting();
   else if (activeTab.value === 'footer') await saveLayoutFooterSetting();
-  else if (activeTab.value === 'rdp') await saveRdpRecordingSetting();
+  else if (activeTab.value === 'logRetention') await saveLogRetentionSetting();
   else if (activeTab.value === 'securityScan') await saveSecurityScanSetting();
   else await saveWatermarkSetting();
 }
@@ -155,53 +165,79 @@ function resetCurrentTab() {
   else if (activeTab.value === 'dashboard') resetDashboardHeroDraft();
   else if (activeTab.value === 'login') resetLoginContentDraft();
   else if (activeTab.value === 'footer') resetLayoutFooterDraft();
-  else if (activeTab.value === 'rdp') resetRdpRecordingDraft();
+  else if (activeTab.value === 'logRetention') resetLogRetentionDraft();
   else if (activeTab.value === 'securityScan') resetSecurityScanDraft();
   else resetWatermarkDraft();
 }
 
-async function loadRdpRecordingSetting() {
-  rdpRecordingLoading.value = true;
-  rdpRecordingMessage.value = '';
+function normalizeRetentionDays(value: unknown, fallback: number) {
+  const number = Number(value);
+  if (!Number.isInteger(number)) return fallback;
+  return Math.min(3650, Math.max(0, number));
+}
+
+function normalizeLogRetention(value: unknown): LogRetentionConfig {
+  const raw = typeof value === 'object' && value !== null ? (value as Partial<LogRetentionConfig>) : {};
+  return {
+    loginLogsDays: normalizeRetentionDays(raw.loginLogsDays, defaultLogRetention.loginLogsDays),
+    operationLogsDays: normalizeRetentionDays(raw.operationLogsDays, defaultLogRetention.operationLogsDays),
+    terminalCommandAuditDays: normalizeRetentionDays(raw.terminalCommandAuditDays, defaultLogRetention.terminalCommandAuditDays),
+    terminalFileAuditDays: normalizeRetentionDays(raw.terminalFileAuditDays, defaultLogRetention.terminalFileAuditDays),
+    terminalSessionDays: normalizeRetentionDays(raw.terminalSessionDays, defaultLogRetention.terminalSessionDays),
+    rdpRecordingEnabled: typeof raw.rdpRecordingEnabled === 'boolean' ? raw.rdpRecordingEnabled : defaultLogRetention.rdpRecordingEnabled,
+    rdpRecordingDays: normalizeRetentionDays(raw.rdpRecordingDays, defaultLogRetention.rdpRecordingDays),
+  };
+}
+
+async function loadLogRetentionSetting() {
+  logRetentionLoading.value = true;
+  logRetentionMessage.value = '';
   try {
-    const setting = await getSystemSettingOrNull(RDP_RECORDING_SETTING_KEY);
-    rdpRecordingSettingExists.value = Boolean(setting);
-    const value = setting?.value as { enabled?: unknown } | undefined;
-    rdpRecordingDraft.value = { enabled: Boolean(value?.enabled) };
+    const setting = await getSystemSettingOrNull(LOG_RETENTION_SETTING_KEY);
+    logRetentionSettingExists.value = Boolean(setting);
+    logRetentionDraft.value = normalizeLogRetention(setting?.value);
   } catch (error) {
-    rdpRecordingMessage.value = error instanceof Error ? error.message : 'RDP 录屏设置加载失败';
+    logRetentionMessage.value = error instanceof Error ? error.message : '日志保留设置加载失败';
   } finally {
-    rdpRecordingLoading.value = false;
+    logRetentionLoading.value = false;
   }
 }
 
-async function saveRdpRecordingSetting() {
-  rdpRecordingSaving.value = true;
-  rdpRecordingMessage.value = '';
+async function saveLogRetentionSetting() {
+  logRetentionSaving.value = true;
+  logRetentionMessage.value = '';
+  const normalized = normalizeLogRetention(logRetentionDraft.value);
   const payload = {
-    key: RDP_RECORDING_SETTING_KEY,
-    label: 'RDP 录屏',
-    description: '控制新建 Windows RDP Web 终端会话是否录屏',
-    value: { enabled: Boolean(rdpRecordingDraft.value.enabled) },
+    key: LOG_RETENTION_SETTING_KEY,
+    label: '日志保留',
+    description: '统一管理登录日志、操作日志、终端审计和 RDP 录像留存策略',
+    value: {
+      loginLogsDays: normalized.loginLogsDays,
+      operationLogsDays: normalized.operationLogsDays,
+      terminalCommandAuditDays: normalized.terminalCommandAuditDays,
+      terminalFileAuditDays: normalized.terminalFileAuditDays,
+      terminalSessionDays: normalized.terminalSessionDays,
+      rdpRecordingEnabled: normalized.rdpRecordingEnabled,
+      rdpRecordingDays: normalized.rdpRecordingDays,
+    },
   };
   try {
-    const setting = rdpRecordingSettingExists.value
-      ? await updateSystemSetting(RDP_RECORDING_SETTING_KEY, payload)
+    const setting = logRetentionSettingExists.value
+      ? await updateSystemSetting(LOG_RETENTION_SETTING_KEY, payload)
       : await createSystemSetting(payload);
-    rdpRecordingSettingExists.value = true;
-    const value = setting.value as { enabled?: unknown };
-    rdpRecordingDraft.value = { enabled: Boolean(value?.enabled) };
-    rdpRecordingMessage.value = 'RDP 录屏设置已保存';
+    logRetentionSettingExists.value = true;
+    logRetentionDraft.value = normalizeLogRetention(setting.value);
+    logRetentionMessage.value = '日志保留设置已保存';
   } catch (error) {
-    rdpRecordingMessage.value = error instanceof Error ? error.message : 'RDP 录屏设置保存失败';
+    logRetentionMessage.value = error instanceof Error ? error.message : '日志保留设置保存失败';
   } finally {
-    rdpRecordingSaving.value = false;
+    logRetentionSaving.value = false;
   }
 }
 
-function resetRdpRecordingDraft() {
-  rdpRecordingDraft.value = { enabled: false };
-  rdpRecordingMessage.value = '';
+function resetLogRetentionDraft() {
+  logRetentionDraft.value = { ...defaultLogRetention };
+  logRetentionMessage.value = '';
 }
 
 async function loadSecurityScanSetting() {
@@ -265,7 +301,7 @@ function toggleAllWatermarkPages() {
 }
 
 onMounted(() => {
-  void loadRdpRecordingSetting();
+  void loadLogRetentionSetting();
   void loadSecurityScanSetting();
 });
 </script>
@@ -502,15 +538,39 @@ onMounted(() => {
           </div>
         </section>
 
-        <section v-else-if="activeTab === 'rdp'" class="settings-section single">
+        <section v-else-if="activeTab === 'logRetention'" class="settings-section single">
           <header>
-            <h3>RDP 录屏</h3>
-            <span>Windows 远程桌面新会话录屏</span>
+            <h3>日志保留</h3>
+            <span>0 表示永久保留</span>
           </header>
-          <div class="settings-field-grid">
+          <div class="settings-field-grid log-retention-field-grid">
             <label class="settings-check-row">
-              <input v-model="rdpRecordingDraft.enabled" :disabled="!canSave" type="checkbox" />
-              <span>开启 RDP 录屏</span>
+              <input v-model="logRetentionDraft.rdpRecordingEnabled" :disabled="!canSave" type="checkbox" />
+              <span>开启 RDP 录像</span>
+            </label>
+            <label>
+              <span>登录日志保留天数</span>
+              <input v-model.number="logRetentionDraft.loginLogsDays" :disabled="!canSave" type="number" min="0" max="3650" />
+            </label>
+            <label>
+              <span>操作日志保留天数</span>
+              <input v-model.number="logRetentionDraft.operationLogsDays" :disabled="!canSave" type="number" min="0" max="3650" />
+            </label>
+            <label>
+              <span>终端命令审计保留天数</span>
+              <input v-model.number="logRetentionDraft.terminalCommandAuditDays" :disabled="!canSave" type="number" min="0" max="3650" />
+            </label>
+            <label>
+              <span>终端文件审计保留天数</span>
+              <input v-model.number="logRetentionDraft.terminalFileAuditDays" :disabled="!canSave" type="number" min="0" max="3650" />
+            </label>
+            <label>
+              <span>终端会话元数据保留天数</span>
+              <input v-model.number="logRetentionDraft.terminalSessionDays" :disabled="!canSave" type="number" min="0" max="3650" />
+            </label>
+            <label>
+              <span>RDP 录像文件保留天数</span>
+              <input v-model.number="logRetentionDraft.rdpRecordingDays" :disabled="!canSave" type="number" min="0" max="3650" />
             </label>
           </div>
         </section>
@@ -637,12 +697,16 @@ onMounted(() => {
             </section>
           </template>
 
-          <template v-else-if="activeTab === 'rdp'">
+          <template v-else-if="activeTab === 'logRetention'">
             <section class="settings-preview-meta">
-              <span>新建 RDP 会话</span>
-              <strong>{{ rdpRecordingDraft.enabled ? '录屏开启' : '录屏关闭' }}</strong>
-              <span>默认留存</span>
-              <strong>30 天</strong>
+              <span>RDP 录像</span>
+              <strong>{{ logRetentionDraft.rdpRecordingEnabled ? '录像开启' : '录像关闭' }}</strong>
+              <span>登录 / 操作日志</span>
+              <strong>{{ logRetentionDraft.loginLogsDays }} / {{ logRetentionDraft.operationLogsDays }} 天</strong>
+              <span>终端命令 / 文件审计</span>
+              <strong>{{ logRetentionDraft.terminalCommandAuditDays }} / {{ logRetentionDraft.terminalFileAuditDays }} 天</strong>
+              <span>终端会话 / RDP 录像</span>
+              <strong>{{ logRetentionDraft.terminalSessionDays }} / {{ logRetentionDraft.rdpRecordingDays }} 天</strong>
             </section>
           </template>
 

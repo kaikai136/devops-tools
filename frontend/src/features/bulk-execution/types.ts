@@ -1,5 +1,6 @@
 export type BulkExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 export type BulkExecutionResultStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped';
+export type BulkExecutionType = 'shell' | 'playbook';
 
 export interface BulkExecutionTarget {
   id: number;
@@ -40,6 +41,7 @@ export interface BulkExecutionTask {
   id: number;
   name: string;
   command: string;
+  executionType: BulkExecutionType;
   status: BulkExecutionStatus;
   cancelRequested: boolean;
   targetCount: number;
@@ -68,5 +70,6 @@ export interface BulkExecutionTaskPage {
 export interface BulkExecutionCreatePayload {
   targetIds: number[];
   command: string;
+  executionType: BulkExecutionType;
   name?: string;
 }

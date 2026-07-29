@@ -157,6 +157,7 @@ describe('useAppState facade contract', () => {
       'openNavFlyout',
       'openPingFromHost',
       'openRenameHostGroup',
+      'openSimpleHostTerminal',
       'openWebTerminal',
       'parseAuthImport',
       'passwordHistory',

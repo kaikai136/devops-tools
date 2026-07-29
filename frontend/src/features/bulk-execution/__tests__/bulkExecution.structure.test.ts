@@ -60,4 +60,17 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('stderr');
     expect(panel).toContain('setInterval');
   });
+
+  it('supports shell scripts and playbook scripts in the task composer', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const types = readSource('features/bulk-execution/types.ts');
+
+    expect(types).toContain("BulkExecutionType = 'shell' | 'playbook'");
+    expect(types).toContain('executionType');
+    expect(panel).toContain('executionType');
+    expect(panel).toContain('Shell 脚本');
+    expect(panel).toContain('Playbook 脚本');
+    expect(panel).toContain('scriptPresets');
+    expect(panel).toContain('executionType: executionType.value');
+  });
 });

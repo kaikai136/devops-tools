@@ -261,6 +261,16 @@ export interface WatermarkConfig {
   pages: string[];
 }
 
+export interface LogRetentionConfig {
+  loginLogsDays: number;
+  operationLogsDays: number;
+  terminalCommandAuditDays: number;
+  terminalFileAuditDays: number;
+  terminalSessionDays: number;
+  rdpRecordingEnabled: boolean;
+  rdpRecordingDays: number;
+}
+
 export interface SiteIdentityConfig {
   appName: string;
   appShortName: string;

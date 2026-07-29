@@ -345,8 +345,8 @@ SSH_GATEWAY_PUBLIC_HOST=ops.example.com
 | `DJANGO_MEDIA_ROOT` | `/app/media` | 容器内上传文件目录。 |
 | `GUACD_HOST` | `guacd` | guacd 服务地址。Compose 内默认使用服务名。 |
 | `GUACD_PORT` | `4822` | guacd 服务端口。 |
-| `RDP_RECORDING_RETENTION_DAYS` | `30` | RDP 录像保留天数。 |
-| `RDP_RECORDING_DEFAULT_ENABLED` | `0` | 新建连接时是否默认开启 RDP 录像。 |
+| `RDP_RECORDING_RETENTION_DAYS` | `30` | RDP 录像保留天数的升级前默认值；保存系统设置“日志保留”后以系统设置为准。 |
+| `RDP_RECORDING_DEFAULT_ENABLED` | `0` | 新建连接时是否默认开启 RDP 录像；仅在系统设置“日志保留”和旧 `rdp_recording` 设置都不存在时兜底。 |
 | `SSH_GATEWAY_PUBLIC_HOST` | 空 | 外部 SSH/SFTP/SCP 示例命令展示的网关地址。 |
 | `SSH_GATEWAY_PUBLIC_PORT` | `2222` | 外部 SSH 网关端口。 |
 
@@ -489,11 +489,14 @@ bash deploy/scripts/compose-up.sh
 docker compose -f deploy/docker-compose.yml exec app python manage.py migrate
 ```
 
-清理过期 RDP 录像：
+按“系统设置 / 日志保留”统一清理过期日志和 RDP 录像：
 
 ```bash
-docker compose -f deploy/docker-compose.yml exec app python manage.py cleanup_rdp_recordings
+docker compose -f deploy/docker-compose.yml exec app python manage.py cleanup_logs --dry-run
+docker compose -f deploy/docker-compose.yml exec app python manage.py cleanup_logs
 ```
+
+旧入口 `cleanup_rdp_recordings` 仍保留用于兼容既有脚本。
 
 进入 Django shell：
 

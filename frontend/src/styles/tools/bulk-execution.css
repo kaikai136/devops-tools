@@ -420,17 +420,30 @@
 }
 
 .bulk-create-modal h2 {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 20px;
 }
 
-.bulk-create-grid {
+.bulk-create-title {
+  margin: 0 0 14px;
+  padding-right: 36px;
+}
+
+.bulk-create-title p {
+  margin: 5px 0 0;
+  color: var(--bulk-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bulk-create-workbench {
   display: grid;
-  grid-template-columns: minmax(180px, 0.45fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(420px, 1.15fr) minmax(300px, 0.85fr);
   gap: 12px;
 }
 
-.bulk-create-grid label,
+.bulk-script-composer,
+.bulk-script-editor,
 .bulk-target-picker label {
   display: grid;
   gap: 6px;
@@ -440,6 +453,54 @@
   font-weight: 700;
 }
 
+.bulk-script-composer {
+  align-content: start;
+  gap: 12px;
+}
+
+.bulk-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 42px;
+}
+
+.bulk-mode-tabs button,
+.bulk-script-presets button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid #b7c6d9;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e4f8f;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.bulk-mode-tabs button.active {
+  border-color: var(--bulk-primary);
+  background: #eaf2ff;
+  color: #174ea6;
+  box-shadow: inset 0 0 0 1px rgba(31, 111, 235, 0.1);
+}
+
+.bulk-script-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bulk-script-presets button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: #475569;
+  font-size: 12px;
+}
+
 .bulk-create-modal input,
 .bulk-create-modal textarea {
   width: 100%;
@@ -447,7 +508,7 @@
 }
 
 .bulk-create-modal textarea {
-  min-height: 140px;
+  min-height: 260px;
   resize: vertical;
   font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
 }
@@ -455,7 +516,6 @@
 .bulk-target-picker {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
   padding: 10px;
   border: 1px solid var(--bulk-soft-line);
   border-radius: 6px;
@@ -543,6 +603,17 @@
   color: var(--workspace-text);
 }
 
+.workspace-dark :where(.bulk-mode-tabs button, .bulk-script-presets button) {
+  border-color: var(--workspace-border);
+  background: var(--workspace-surface-muted);
+  color: var(--workspace-text);
+}
+
+.workspace-dark .bulk-mode-tabs button.active {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: #183052;
+}
+
 .workspace-dark .bulk-task-list > button.active {
   border-color: rgba(56, 189, 248, 0.55);
   background: #183052;
@@ -561,7 +632,7 @@
 
 @media (max-width: 1120px) {
   .bulk-execution-layout,
-  .bulk-create-grid,
+  .bulk-create-workbench,
   .bulk-result-output {
     grid-template-columns: minmax(0, 1fr);
   }

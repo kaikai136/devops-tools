@@ -74,11 +74,16 @@ def create_bulk_execution_task(user, payload: dict) -> BulkExecutionTask:
     except (TypeError, ValueError):
         raise ValueError("Invalid host selection")
 
-    command = str(payload.get("command", "")).strip()
-    if not command:
+    execution_type = str(payload.get("executionType") or payload.get("execution_type") or BulkExecutionTask.EXECUTION_SHELL).strip()
+    if execution_type not in {BulkExecutionTask.EXECUTION_SHELL, BulkExecutionTask.EXECUTION_PLAYBOOK}:
+        raise ValueError("Unsupported execution type")
+
+    raw_command = str(payload.get("command", ""))
+    if not raw_command.strip():
         raise ValueError("Please enter a command")
-    if len(command) > MAX_COMMAND_LENGTH:
+    if len(raw_command) > MAX_COMMAND_LENGTH:
         raise ValueError(f"Command cannot exceed {MAX_COMMAND_LENGTH} characters")
+    command = raw_command if execution_type == BulkExecutionTask.EXECUTION_PLAYBOOK else raw_command.strip()
 
     hosts_by_id = {host.id: host for host in list_executable_targets() if host.id in set(target_ids)}
     hosts = [hosts_by_id[target_id] for target_id in target_ids if target_id in hosts_by_id]
@@ -89,6 +94,7 @@ def create_bulk_execution_task(user, payload: dict) -> BulkExecutionTask:
         task = BulkExecutionTask.objects.create(
             name=str(payload.get("name", "")).strip() or f"Bulk execution {timezone.localtime().strftime('%Y-%m-%d %H:%M:%S')}",
             command=command,
+            execution_type=execution_type,
             created_by=user if getattr(user, "is_authenticated", False) else None,
             target_count=len(hosts),
         )
@@ -168,12 +174,15 @@ def run_bulk_execution_task(task_id: int) -> None:
                 task.error = "No available target host"
                 mark_unfinished_results(task, BulkExecutionResult.STATUS_SKIPPED, task.error)
                 return
-            runner_result = run_command_module(
-                task, result_by_inventory, temp_dir, inventory, config, module="ansible.builtin.shell"
-            )
+            if task.execution_type == BulkExecutionTask.EXECUTION_PLAYBOOK:
+                runner_result = run_playbook(task, result_by_inventory, temp_dir, inventory, config)
+            else:
+                runner_result = run_command_module(
+                    task, result_by_inventory, temp_dir, inventory, config, module="ansible.builtin.shell"
+                )
             task.refresh_from_db(fields=["cancel_requested"])
             canceled = bool(task.cancel_requested) or getattr(runner_result, "status", "") == "canceled"
-            if not canceled:
+            if not canceled and task.execution_type == BulkExecutionTask.EXECUTION_SHELL:
                 # Fallback: hosts whose shell module output was polluted (e.g. a login banner
                 # on stdout) fail JSON deserialization. Re-run just those with the raw module,
                 # which runs the command directly over SSH without a Python wrapper.
@@ -210,6 +219,24 @@ def run_command_module(task, result_by_inventory, temp_dir, inventory, config, *
     )
 
 
+def run_playbook(task, result_by_inventory, temp_dir, inventory, config):
+    project_dir = Path(temp_dir) / "project"
+    project_dir.mkdir(parents=True, exist_ok=True)
+    playbook_path = project_dir / "playbook.yml"
+    playbook_path.write_text(task.command, encoding="utf-8")
+    return run_ansible_playbook(
+        private_data_dir=temp_dir,
+        inventory=inventory,
+        playbook="playbook.yml",
+        forks=max(1, min(len(inventory["all"]["hosts"]), int(config["forks"]))),
+        timeout=int(config["timeoutSeconds"]),
+        quiet=True,
+        envvars={"ANSIBLE_HOST_KEY_CHECKING": "False"},
+        event_handler=lambda event: handle_runner_event(task.id, result_by_inventory, event),
+        cancel_callback=lambda: is_cancel_requested(task.id),
+    )
+
+
 def polluted_inventory_names(task: BulkExecutionTask) -> list[str]:
     names: list[str] = []
     # Query directly instead of task.results.all(): the task was loaded with
@@ -236,6 +263,14 @@ def retry_polluted_results_with_raw(task, result_by_inventory, temp_dir, invento
 
 
 def run_ansible_shell(**kwargs):
+    try:
+        import ansible_runner
+    except ImportError as error:
+        raise RuntimeError("ansible-runner is not installed") from error
+    return ansible_runner.run(**kwargs)
+
+
+def run_ansible_playbook(**kwargs):
     try:
         import ansible_runner
     except ImportError as error:

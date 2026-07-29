@@ -4,6 +4,7 @@ from .models import BulkExecutionResult, BulkExecutionTask
 
 
 class BulkExecutionTaskSerializer(serializers.ModelSerializer):
+    executionType = serializers.CharField(source="execution_type", read_only=True)
     cancelRequested = serializers.BooleanField(source="cancel_requested", read_only=True)
     targetCount = serializers.IntegerField(source="target_count", read_only=True)
     completedCount = serializers.IntegerField(source="completed_count", read_only=True)
@@ -21,6 +22,7 @@ class BulkExecutionTaskSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "command",
+            "executionType",
             "status",
             "cancelRequested",
             "targetCount",

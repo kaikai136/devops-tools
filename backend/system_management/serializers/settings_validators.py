@@ -7,6 +7,7 @@ from .constants import (
     DASHBOARD_HERO_FONT_CHOICES,
     DEFAULT_DASHBOARD_HERO,
     DEFAULT_LAYOUT_FOOTER,
+    DEFAULT_LOG_RETENTION,
     DEFAULT_LOGIN_CONTENT,
     DEFAULT_SITE_IDENTITY,
     DEFAULT_WATERMARK_TEXT,
@@ -87,6 +88,22 @@ def _clean_int(value, fallback: int, *, minimum: int, maximum: int, field_label:
         number = int(value)
     except (TypeError, ValueError):
         raise serializers.ValidationError({"value": f"{field_label}必须是数字"})
+    if number < minimum or number > maximum:
+        raise serializers.ValidationError({"value": f"{field_label}必须在 {minimum}-{maximum} 之间"})
+    return number
+
+
+def _clean_strict_int(value, fallback: int, *, minimum: int, maximum: int, field_label: str) -> int:
+    if value is None or value == "":
+        return fallback
+    if isinstance(value, bool):
+        raise serializers.ValidationError({"value": f"{field_label}必须是整数"})
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, str) and re.fullmatch(r"\d+", value.strip()):
+        number = int(value.strip())
+    else:
+        raise serializers.ValidationError({"value": f"{field_label}必须是整数"})
     if number < minimum or number > maximum:
         raise serializers.ValidationError({"value": f"{field_label}必须在 {minimum}-{maximum} 之间"})
     return number
@@ -198,3 +215,32 @@ def validate_security_scan_value(value):
     if not isinstance(value, dict):
         raise serializers.ValidationError({"value": "安全扫描配置格式无效"})
     return {"onlineCveEnabled": bool(value.get("onlineCveEnabled", False))}
+
+
+def validate_log_retention_value(value):
+    raw = _require_setting_object(value, "日志保留")
+    defaults = DEFAULT_LOG_RETENTION
+    day_labels = {
+        "loginLogsDays": "登录日志保留天数",
+        "operationLogsDays": "操作日志保留天数",
+        "terminalCommandAuditDays": "终端命令审计保留天数",
+        "terminalFileAuditDays": "终端文件审计保留天数",
+        "terminalSessionDays": "终端会话元数据保留天数",
+        "rdpRecordingDays": "RDP 录像保留天数",
+    }
+    enabled = raw.get("rdpRecordingEnabled", defaults["rdpRecordingEnabled"])
+    if not isinstance(enabled, bool):
+        raise serializers.ValidationError({"value": "RDP 录像开关必须是布尔值"})
+    cleaned = {
+        field: _clean_strict_int(raw.get(field), defaults[field], minimum=0, maximum=3650, field_label=label)
+        for field, label in day_labels.items()
+    }
+    return {
+        "loginLogsDays": cleaned["loginLogsDays"],
+        "operationLogsDays": cleaned["operationLogsDays"],
+        "terminalCommandAuditDays": cleaned["terminalCommandAuditDays"],
+        "terminalFileAuditDays": cleaned["terminalFileAuditDays"],
+        "terminalSessionDays": cleaned["terminalSessionDays"],
+        "rdpRecordingEnabled": enabled,
+        "rdpRecordingDays": cleaned["rdpRecordingDays"],
+    }

@@ -47,17 +47,9 @@ def greeting_for(host: ManagedHost) -> str:
 
 
 def is_rdp_recording_enabled() -> bool:
-    from system_management.models import SystemSetting
+    from system_management.services import get_rdp_recording_enabled_setting
 
-    try:
-        setting = SystemSetting.objects.get(key="rdp_recording")
-    except SystemSetting.DoesNotExist:
-        return bool(getattr(settings, "RDP_RECORDING_DEFAULT_ENABLED", False))
-
-    value = setting.value if isinstance(setting.value, dict) else {}
-    if "enabled" in value:
-        return bool(value["enabled"])
-    return bool(getattr(settings, "RDP_RECORDING_DEFAULT_ENABLED", False))
+    return get_rdp_recording_enabled_setting()
 
 
 def build_rdp_recording_file(session: TerminalSession) -> str:
@@ -109,11 +101,15 @@ def safe_recording_relative_path(value: str) -> Path:
     return normalized
 
 
-def cleanup_expired_rdp_recordings(*, root: Path | None = None, now=None) -> dict[str, int]:
+def cleanup_expired_rdp_recordings(*, root: Path | None = None, now=None, dry_run: bool = False) -> dict[str, int]:
+    from system_management.services import get_rdp_recording_retention_days
+
     root = Path(root or rdp_recording_root())
     now = now or timezone.now()
-    retention_days = int(getattr(settings, "RDP_RECORDING_RETENTION_DAYS", 30))
-    cutoff = now - timezone.timedelta(days=max(retention_days, 1))
+    retention_days = get_rdp_recording_retention_days()
+    if retention_days <= 0:
+        return {"deleted": 0}
+    cutoff = now - timezone.timedelta(days=retention_days)
     sessions = TerminalSession.objects.filter(
         protocol=TERMINAL_PROTOCOL_RDP,
         recording_file__gt="",
@@ -131,11 +127,13 @@ def cleanup_expired_rdp_recordings(*, root: Path | None = None, now=None) -> dic
         except ValueError:
             continue
         if target.is_file():
-            target.unlink()
-            prune_empty_recording_parents(target.parent, root)
+            if not dry_run:
+                target.unlink()
+                prune_empty_recording_parents(target.parent, root)
             deleted += 1
-        session.recording_file = ""
-        session.save(update_fields=["recording_file"])
+        if not dry_run:
+            session.recording_file = ""
+            session.save(update_fields=["recording_file"])
     return {"deleted": deleted}
 
 
