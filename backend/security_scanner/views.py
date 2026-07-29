@@ -4,7 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from accounts.permissions import require_feature_permission
-from operations.responses import bad_request, bounded_int, not_found
+from operations.responses import bad_request, get_object_or_error, not_found, paginate_queryset
 
 from .models import ScanTask
 from .runner import mark_interrupted_tasks, start_security_scan_task
@@ -24,7 +24,7 @@ MAX_FINDINGS_PAGE_SIZE = 200
 
 
 def security_scan_permission(request, action_key: str | None = None):
-    return require_feature_permission(request, "securityScan", action_key, "No security scan permission")
+    return require_feature_permission(request, "securityScan", action_key, "没有安全扫描权限")
 
 
 @api_view(["GET"])
@@ -96,10 +96,14 @@ def scan_task_detail(request, task_id: int):
     auth_error = security_scan_permission(request, action)
     if auth_error:
         return auth_error
-    try:
-        task = ScanTask.objects.select_related("created_by").prefetch_related("target_results").get(id=task_id)
-    except ScanTask.DoesNotExist:
-        return not_found("Security scan task not found")
+    task, error = get_object_or_error(
+        ScanTask,
+        queryset=ScanTask.objects.select_related("created_by").prefetch_related("target_results"),
+        id=task_id,
+        error_message="安全扫描任务不存在",
+    )
+    if error:
+        return error
     if request.method == "DELETE":
         task.delete()
         return Response({"deleted": True})
@@ -111,10 +115,9 @@ def scan_task_cancel(request, task_id: int):
     auth_error = security_scan_permission(request, "scan")
     if auth_error:
         return auth_error
-    try:
-        task = ScanTask.objects.get(id=task_id)
-    except ScanTask.DoesNotExist:
-        return not_found("Security scan task not found")
+    task, error = get_object_or_error(ScanTask, id=task_id, error_message="安全扫描任务不存在")
+    if error:
+        return error
     if task.status not in {ScanTask.STATUS_QUEUED, ScanTask.STATUS_RUNNING}:
         return bad_request("只有排队中或扫描中的任务可以取消")
     task.cancel_requested = True
@@ -129,10 +132,9 @@ def scan_task_retry_failed(request, task_id: int):
     auth_error = security_scan_permission(request, "scan")
     if auth_error:
         return auth_error
-    try:
-        task = ScanTask.objects.get(id=task_id)
-    except ScanTask.DoesNotExist:
-        return not_found("Security scan task not found")
+    task, error = get_object_or_error(ScanTask, id=task_id, error_message="安全扫描任务不存在")
+    if error:
+        return error
     try:
         retry_target_ids = prepare_failed_targets_for_retry(task)
     except ValueError as error:
@@ -148,26 +150,20 @@ def scan_task_findings(request, task_id: int):
     if auth_error:
         return auth_error
     if not ScanTask.objects.filter(id=task_id).exists():
-        return not_found("Security scan task not found")
+        return not_found("安全扫描任务不存在")
 
-    page = bounded_int(request.query_params.get("page", 1), default=1, minimum=1, maximum=100000)
-    page_size = bounded_int(request.query_params.get("pageSize", DEFAULT_FINDINGS_PAGE_SIZE), default=DEFAULT_FINDINGS_PAGE_SIZE, minimum=1, maximum=MAX_FINDINGS_PAGE_SIZE)
     try:
         queryset = filter_findings(task_id, request.query_params)
     except (TypeError, ValueError):
-        return bad_request("Invalid filter parameters")
-    total = queryset.count()
-    start = (page - 1) * page_size
-    end = start + page_size
-    results = list(queryset[start:end])
+        return bad_request("筛选条件无效")
     return Response(
-        {
-            "results": ScanFindingSummarySerializer(results, many=True).data,
-            "total": total,
-            "page": page,
-            "pageSize": page_size,
-            "hasNext": end < total,
-        }
+        paginate_queryset(
+            queryset,
+            request,
+            serializer=ScanFindingSummarySerializer,
+            default_page_size=DEFAULT_FINDINGS_PAGE_SIZE,
+            max_page_size=MAX_FINDINGS_PAGE_SIZE,
+        )
     )
 
 
@@ -176,17 +172,21 @@ def scan_task_export(request, task_id: int):
     auth_error = security_scan_permission(request, "export")
     if auth_error:
         return auth_error
-    try:
-        task = ScanTask.objects.prefetch_related("target_results", "findings").get(id=task_id)
-    except ScanTask.DoesNotExist:
-        return not_found("Security scan task not found")
+    task, error = get_object_or_error(
+        ScanTask,
+        queryset=ScanTask.objects.prefetch_related("target_results", "findings"),
+        id=task_id,
+        error_message="安全扫描任务不存在",
+    )
+    if error:
+        return error
     export_format = str(request.query_params.get("format", "csv")).lower()
     if export_format == "json":
         response = JsonResponse(export_task_json(task), json_dumps_params={"ensure_ascii": False, "indent": 2})
         response["Content-Disposition"] = f'attachment; filename="security-scan-{task.id}.json"'
         return response
     if export_format != "csv":
-        return bad_request("Unsupported export format")
+        return bad_request("不支持的导出格式")
     response = HttpResponse(export_task_csv(task), content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="security-scan-{task.id}.csv"'
     return response

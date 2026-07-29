@@ -1,8 +1,58 @@
-# 在 WSL(Ubuntu) 里启动 Django 后端 (daphne)。
-# 原因：批量执行依赖 ansible，而 ansible 控制端无法在原生 Windows 运行，故后端跑在 WSL。
-# venv 位于 WSL 家目录 ~/venv-opstool（避开 /mnt/c 的 9p 慢速）；代码与 db.sqlite3 仍在 Windows 原地。
-# 用法：在本文件所在目录执行  ./start-wsl.ps1   （保持该窗口开启，关闭即停止服务）
+$ErrorActionPreference = 'Stop'
 
-# 关键：把 venv 的 bin 加入 PATH，否则 ansible-runner 找不到 ansible-playbook，
-# 批量执行会报 "No result returned by Ansible"（子进程 RC 127）。
-wsl.exe -e bash -lc "export PATH=~/venv-opstool/bin:`$PATH; cd /mnt/c/Users/kaikai/Desktop/django-vue/backend && exec ~/venv-opstool/bin/python -m daphne -b 0.0.0.0 -p 8001 ops_tool.asgi:application"
+$BackendDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$RepoRoot = Split-Path -Parent $BackendDir
+$LocalConfig = Join-Path $RepoRoot 'config\local.app.conf'
+
+function Read-AppConfig {
+    param([string]$Path)
+
+    $config = @{}
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "Local startup config not found: $Path"
+    }
+
+    foreach ($rawLine in Get-Content -LiteralPath $Path -Encoding UTF8) {
+        $line = $rawLine.Trim()
+        if (-not $line -or $line.StartsWith('#') -or -not $line.Contains('=')) {
+            continue
+        }
+        $name, $value = $line.Split('=', 2)
+        $config[$name.Trim()] = $value.Trim()
+    }
+    return $config
+}
+
+function Convert-ToWslPath {
+    param([string]$WindowsPath)
+    $resolved = (Resolve-Path -LiteralPath $WindowsPath).Path
+    $converted = (& wsl.exe -e wslpath -a $resolved).Trim()
+    if (-not $converted) {
+        throw "Unable to convert Windows path to WSL path: $WindowsPath"
+    }
+    return $converted
+}
+
+function Convert-ToBashSingleQuoted {
+    param([string]$Value)
+    return "'" + ($Value -replace "'", "'\''") + "'"
+}
+
+$config = Read-AppConfig $LocalConfig
+$backendHost = if ($config.ContainsKey('BACKEND_HOST') -and $config['BACKEND_HOST']) { $config['BACKEND_HOST'] } else { '0.0.0.0' }
+$backendPort = if ($config.ContainsKey('BACKEND_PORT') -and $config['BACKEND_PORT']) { $config['BACKEND_PORT'] } else { '8001' }
+
+$wslBackendDir = Convert-ToWslPath $BackendDir
+$wslConfigPath = Convert-ToWslPath $LocalConfig
+$config['APP_CONFIG_FILE'] = $wslConfigPath
+$envExports = foreach ($key in ($config.Keys | Sort-Object)) {
+    if ($key -match '^[A-Za-z_][A-Za-z0-9_]*$') {
+        "export $key=$(Convert-ToBashSingleQuoted $config[$key])"
+    }
+}
+$envScript = $envExports -join '; '
+
+Write-Host "Using local config: $LocalConfig"
+Write-Host "Starting backend on ${backendHost}:${backendPort}"
+
+wsl.exe -e bash -lc "export PATH=~/venv-opstool/bin:`$PATH; $envScript; cd '$wslBackendDir' && exec ~/venv-opstool/bin/python -m daphne -b '$backendHost' -p '$backendPort' ops_tool.asgi:application"

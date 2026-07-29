@@ -23,9 +23,9 @@ def has_feature_permission(user, feature_key: str, action_key: str | None = None
     if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
         return True
 
-    from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions
+    from system_management.services import FEATURE_PERMISSION_CODE_BY_KEY, PAGE_ACTION_PERMISSION_CODE_BY_KEY, ensure_feature_permissions_ready
 
-    ensure_feature_permissions()
+    ensure_feature_permissions_ready()
     page_code = FEATURE_PERMISSION_CODE_BY_KEY.get(feature_key)
     if not page_code or not user.has_perm(f"system_management.{page_code}"):
         return False
@@ -44,3 +44,29 @@ def require_feature_permission(request, feature_key: str, action_key: str | None
     if has_feature_permission(request.user, feature_key, action_key):
         return None
     return Response({"error": error_message}, status=status.HTTP_403_FORBIDDEN)
+
+
+def feature_permission_required(feature_key: str, action_key: str | None = None, error_message: str = "没有操作权限"):
+    """生成一个校验功能权限的视图装饰器。
+
+    替代各 app 里重复的 ``perm = xxx_permission(request, action); if perm: return perm``
+    守卫样板。用法::
+
+        @api_view(["POST"])
+        @feature_permission_required("hosts", "terminal", "没有 Web 终端权限")
+        def view(request, ...):
+            ...
+    """
+    from functools import wraps
+
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped(request, *args, **kwargs):
+            permission_error = require_feature_permission(request, feature_key, action_key, error_message)
+            if permission_error:
+                return permission_error
+            return view_func(request, *args, **kwargs)
+
+        return wrapped
+
+    return decorator

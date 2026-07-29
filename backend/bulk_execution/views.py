@@ -1,4 +1,3 @@
-from django.core.paginator import EmptyPage, Paginator
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
@@ -6,7 +5,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from accounts.permissions import require_feature_permission
-from operations.responses import bad_request, bounded_int, not_found
+from operations.responses import bad_request, get_object_or_error, paginate_queryset
 
 from .models import BulkExecutionResult, BulkExecutionTask
 from .serializers import BulkExecutionTaskDetailSerializer, BulkExecutionTaskSerializer
@@ -14,7 +13,7 @@ from .services import create_bulk_execution_task, list_executable_targets, mark_
 
 
 def bulk_execution_permission(request, action_key: str | None = None):
-    return require_feature_permission(request, "bulkExecution", action_key, "No bulk execution permission")
+    return require_feature_permission(request, "bulkExecution", action_key, "没有批量执行权限")
 
 
 @api_view(["GET"])
@@ -63,8 +62,8 @@ def tasks(request):
             try:
                 queryset = queryset.filter(results__host_id=int(host)).distinct()
             except (TypeError, ValueError):
-                return bad_request("Invalid host filter")
-        return paginated_tasks_response(queryset, request)
+                return bad_request("主机筛选条件无效")
+        return Response(paginate_queryset(queryset, request, serializer=BulkExecutionTaskSerializer))
 
     auth_error = bulk_execution_permission(request, "execute")
     if auth_error:
@@ -84,10 +83,14 @@ def task_detail(request, task_id: int):
     auth_error = bulk_execution_permission(request, action)
     if auth_error:
         return auth_error
-    try:
-        task = BulkExecutionTask.objects.select_related("created_by").prefetch_related("results").get(id=task_id)
-    except BulkExecutionTask.DoesNotExist:
-        return not_found("Bulk execution task not found")
+    task, error = get_object_or_error(
+        BulkExecutionTask,
+        queryset=BulkExecutionTask.objects.select_related("created_by").prefetch_related("results"),
+        id=task_id,
+        error_message="批量执行任务不存在",
+    )
+    if error:
+        return error
     if request.method == "DELETE":
         task.delete()
         return Response({"deleted": True})
@@ -101,12 +104,11 @@ def task_cancel(request, task_id: int):
     auth_error = bulk_execution_permission(request, "cancel")
     if auth_error:
         return auth_error
-    try:
-        task = BulkExecutionTask.objects.get(id=task_id)
-    except BulkExecutionTask.DoesNotExist:
-        return not_found("Bulk execution task not found")
+    task, error = get_object_or_error(BulkExecutionTask, id=task_id, error_message="批量执行任务不存在")
+    if error:
+        return error
     if task.status not in {BulkExecutionTask.STATUS_QUEUED, BulkExecutionTask.STATUS_RUNNING}:
-        return bad_request("Only queued or running tasks can be canceled")
+        return bad_request("仅排队中或执行中的任务可以取消")
     task.cancel_requested = True
     if task.status == BulkExecutionTask.STATUS_QUEUED:
         now = timezone.now()
@@ -122,21 +124,3 @@ def task_cancel(request, task_id: int):
     else:
         task.save(update_fields=["cancel_requested"])
     return Response({"cancelRequested": True, "status": task.status})
-
-
-def paginated_tasks_response(queryset, request):
-    page_size = bounded_int(request.query_params.get("pageSize"), default=20, minimum=1, maximum=100)
-    page_number = bounded_int(request.query_params.get("page"), default=1, minimum=1, maximum=1000000)
-    paginator = Paginator(queryset, page_size)
-    try:
-        page = paginator.page(page_number)
-    except EmptyPage:
-        page = paginator.page(paginator.num_pages or 1)
-    return Response(
-        {
-            "count": paginator.count,
-            "page": page.number,
-            "pageSize": page_size,
-            "results": BulkExecutionTaskSerializer(page.object_list, many=True).data,
-        }
-    )

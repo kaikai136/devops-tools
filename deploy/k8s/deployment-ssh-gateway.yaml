@@ -63,21 +63,6 @@ spec:
               value: "0"
             - name: RUN_COLLECTSTATIC
               value: "0"
-
-
-            - name: NODE_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.hostIP
-
-            - name: DJANGO_CSRF_TRUSTED_ORIGINS
-              value: "http://$(NODE_IP):300271"
-
-            - name: SSH_GATEWAY_PUBLIC_HOST
-              value: "$(NODE_IP)"
-
-
-
           ports:
             - name: ssh
               containerPort: 2222

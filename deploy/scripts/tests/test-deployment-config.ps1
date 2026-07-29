@@ -21,7 +21,8 @@ $deployRemote = Join-Path $deployDir 'scripts\deploy-remote.sh'
 $entrypointLifecycleTest = Join-Path $deployDir 'scripts\tests\test-entrypoint-secret.sh'
 $remoteConfigTest = Join-Path $deployDir 'scripts\tests\test-deploy-remote-env.sh'
 $k8sConfigMap = Join-Path $deployDir 'k8s\configmap.yaml'
-$k8sDeployment = Join-Path $deployDir 'k8s\deployment.yaml'
+$k8sDeploymentApp = Join-Path $deployDir 'k8s\deployment-app.yaml'
+$k8sDeploymentSshGateway = Join-Path $deployDir 'k8s\deployment-ssh-gateway.yaml'
 $k8sService = Join-Path $deployDir 'k8s\service.yaml'
 $k8sPvc = Join-Path $deployDir 'k8s\pvc.yaml'
 
@@ -48,13 +49,19 @@ $configText = Get-Content -Raw -Encoding UTF8 $defaultConfig
 Assert-Match $configText '(?m)^DJANGO_SECRET_KEY=\r?$' 'Default config secret must be empty.'
 Assert-Match $configText '(?m)^DJANGO_SECRET_KEY_FILE=/app/data/django-secret-key\r?$' 'Default config secret file path is missing.'
 Assert-Match $configText '(?m)^DJANGO_ALLOWED_HOSTS=\*\r?$' 'Default hosts must support zero-setup startup.'
-Assert-Match $configText '(?m)^DATABASE_ENGINE=(mysql|sqlite)\r?$' 'Default deployment config must choose mysql or sqlite.'
+Assert-Match $configText '(?m)^DATABASE_ENGINE=(mysql|sqlite|sqlite3)\r?$' 'Default deployment config must choose mysql or sqlite.'
 Assert-Match $configText '(?m)^DATABASE_HOST=(?!mysql\r?$).+\r?$' 'Default deployment config must point at a remote MySQL host, not a Compose mysql service.'
 Assert-Match $configText '(?m)^DATABASE_PORT=3306\r?$' 'Default deployment config must use the MySQL port.'
 Assert-Match $configText '(?m)^DATABASE_NAME=devops_tools\r?$' 'Default deployment config must define the MySQL database name.'
 Assert-Match $configText '(?m)^DATABASE_USER=devops_tools\r?$' 'Default deployment config must define the MySQL app user.'
 Assert-Match $configText '(?m)^DATABASE_PASSWORD=' 'Default deployment config must define the MySQL app password.'
 if ($configText -match '(?m)^DATABASE_ROOT_PASSWORD=') { throw 'Default config still contains local MySQL root initialization settings.' }
+Assert-Match $configText '(?m)^REDIS_ENABLED=(1|true)\r?$' 'Default deployment config must enable external Redis.'
+Assert-Match $configText '(?m)^REDIS_HOST=(?!redis\r?$).+\r?$' 'Default deployment config must point at an external Redis host, not a Compose redis service.'
+Assert-Match $configText '(?m)^REDIS_PORT=6379\r?$' 'Default deployment config must define the Redis port.'
+Assert-Match $configText '(?m)^REDIS_PASSWORD=' 'Default deployment config must define the Redis password setting.'
+Assert-Match $configText '(?m)^REDIS_DB=5\r?$' 'Default deployment config must define the Redis database index.'
+Assert-Match $configText '(?m)^REDIS_KEY_PREFIX=opstool\r?$' 'Default deployment config must define the Redis key prefix.'
 
 $gitignoreText = Get-Content -Raw -Encoding UTF8 $gitignore
 if ($gitignoreText -match '(?m)^!/.env\r?$') { throw 'Root .env is still explicitly allowed by .gitignore.' }
@@ -77,9 +84,10 @@ if ($composeText -match '(?m)^\s*configs:\s*$|app_config:|source:\s*app_config|t
 foreach ($required in @('context: ..', 'dockerfile: deploy/Dockerfile', '../data:/app')) {
     if ($composeText -notmatch [regex]::Escape($required)) { throw "Compose is missing config-file deployment wiring: $required" }
 }
-foreach ($forbidden in @('./config/app.conf:/app/config/app.conf:ro', './config:/app/config:ro', '../data:/app/data', '../media:/app/media', '../rdp_recordings:/app/rdp_recordings', '/app/rdp_recordings', 'image: mysql:8.4', 'container_name: devops-tools-mysql', 'mysql_data:/var/lib/mysql', 'mysqladmin ping', 'docker-compose.mysql.yml')) {
-    if ($composeText -match [regex]::Escape($forbidden)) { throw "Base Compose should not require MySQL: $forbidden" }
+foreach ($forbidden in @('./config/app.conf:/app/config/app.conf:ro', './config:/app/config:ro', '../data:/app/data', '../media:/app/media', '../rdp_recordings:/app/rdp_recordings', '/app/rdp_recordings', 'image: mysql:8.4', 'container_name: devops-tools-mysql', 'mysql_data:/var/lib/mysql', 'mysqladmin ping', 'docker-compose.mysql.yml', 'image: redis:', 'container_name: devops-tools-redis', 'redis_data:/data')) {
+    if ($composeText -match [regex]::Escape($forbidden)) { throw "Base Compose should not require local database or Redis services: $forbidden" }
 }
+if ($composeText -match '(?m)^  redis:\s*$') { throw 'Base Compose should not start a Redis service; Redis must be configured through app.conf.' }
 if ($composeText -match '(?m)^\s*-\s+rdp_recordings:/app/rdp_recordings') { throw 'Compose still uses a named volume for RDP recordings.' }
 if ($composeText -match '(?m)^  rdp_recordings:\s*$') { throw 'Compose still defines the RDP recordings named volume.' }
 
@@ -98,9 +106,17 @@ $settingsText = Get-Content -Raw -Encoding UTF8 $settings
 foreach ($required in @('load_config_file', 'APP_CONFIG_FILE', 'APP_CONFIG', 'config_value', 'config_bool', 'config_int', 'config_path', 'database_config', 'django.db.backends.mysql', 'pymysql.install_as_MySQLdb')) {
     if ($settingsText -notmatch [regex]::Escape($required)) { throw "Django settings are missing config-file loading: $required" }
 }
+foreach ($required in @('REDIS_ENABLED', 'REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD', 'REDIS_DB', 'REDIS_KEY_PREFIX', 'REDIS_URL', 'channels_redis.core.RedisChannelLayer', 'django.core.cache.backends.redis.RedisCache')) {
+    if ($settingsText -notmatch [regex]::Escape($required)) { throw "Django settings are missing Redis config-file loading: $required" }
+}
+foreach ($forbidden in @('172.16.0.99', 'uLwHDyYr')) {
+    if ($settingsText -match [regex]::Escape($forbidden)) { throw "Django settings must not hard-code deployment Redis credentials: $forbidden" }
+}
 
 $requirementsText = Get-Content -Raw -Encoding UTF8 $requirements
 Assert-Match $requirementsText '(?m)^PyMySQL>=1\.1,<2\.0\r?$' 'requirements.txt must include the MySQL driver.'
+Assert-Match $requirementsText '(?m)^redis>=5\.0,<9\.0\r?$' 'requirements.txt must include the Redis client.'
+Assert-Match $requirementsText '(?m)^channels-redis>=4\.2,<5\.0\r?$' 'requirements.txt must include the Redis channel layer backend.'
 
 $composeUpText = Get-Content -Raw -Encoding UTF8 $composeUp
 if ($composeUpText -match '\.env|APP_PORT|IMAGE_NAME') { throw 'compose-up.sh still depends on environment-style deployment config.' }
@@ -129,7 +145,7 @@ foreach ($forbidden in @('read_config_value', 'DATABASE_ENGINE', 'docker-compose
 if ($deployRemoteText -match 'APP_PORT_OVERRIDE|cp "\$ENV_BACKUP" \.env|--env-file|cat > \.env') { throw 'deploy-remote.sh still preserves or injects env-file deployment config.' }
 
 $readmeText = Get-Content -Raw -Encoding UTF8 $readme
-foreach ($required in @('deploy/docker-compose.yml', 'deploy/config/app.conf', 'deploy/scripts/compose-up.sh', 'data/config/app.conf', '/app/config/app.conf', '/app/data/django-secret-key', '/app/recordings', 'DATABASE_ENGINE=mysql', 'DATABASE_ENGINE=sqlite', 'mysql.example.com')) {
+foreach ($required in @('deploy/docker-compose.yml', 'deploy/config/app.conf', 'deploy/scripts/compose-up.sh', 'data/config/app.conf', '/app/config/app.conf', '/app/data/django-secret-key', '/app/recordings', 'DATABASE_ENGINE=mysql', 'DATABASE_ENGINE=sqlite', 'mysql.example.com', 'REDIS_ENABLED=1', 'REDIS_HOST=redis.example.com', 'REDIS_PORT=6379')) {
     if ($readmeText -notmatch [regex]::Escape($required)) { throw "README is missing: $required" }
 }
 foreach ($forbidden in @('deploy/docker-compose.mysql.yml', 'mysql_data:/var/lib/mysql', 'DATABASE_ROOT_PASSWORD')) {
@@ -137,26 +153,26 @@ foreach ($forbidden in @('deploy/docker-compose.mysql.yml', 'mysql_data:/var/lib
 }
 
 $k8sConfigMapText = Get-Content -Raw -Encoding UTF8 $k8sConfigMap
-foreach ($required in @('kind: ConfigMap', 'name: devops-tools-config', 'app.conf: |', 'DATABASE_ENGINE=mysql', 'DATABASE_HOST=mysql.example.com', 'GUACD_HOST=guacd', 'RDP_RECORDING_ROOT=/app/recordings', 'SSH_GATEWAY_PORT=2222')) {
+foreach ($required in @('kind: ConfigMap', 'name: devops-tools-config', 'app.conf: |', 'DATABASE_ENGINE=sqlite', 'DATABASE_HOST=mysql.example.com', 'DJANGO_CSRF_TRUSTED_ORIGINS=', 'REDIS_ENABLED=1', 'REDIS_HOST=redis.example.com', 'REDIS_PORT=6379', 'GUACD_HOST=guacd', 'RDP_RECORDING_ROOT=/app/recordings', 'SSH_GATEWAY_PORT=2222', 'SSH_GATEWAY_PUBLIC_HOST=')) {
     if ($k8sConfigMapText -notmatch [regex]::Escape($required)) { throw "Kubernetes ConfigMap is missing app.conf config: $required" }
 }
 foreach ($forbidden in @('APP_PORT:', 'DATABASE_ROOT_PASSWORD', 'mysql_data', 'docker-compose.mysql.yml')) {
     if ($k8sConfigMapText -match [regex]::Escape($forbidden)) { throw "Kubernetes ConfigMap still contains non-compose deployment config: $forbidden" }
 }
 
-$k8sDeploymentText = Get-Content -Raw -Encoding UTF8 $k8sDeployment
-foreach ($forbidden in @('envFrom:', 'secretRef:', 'configMapRef:', 'name: devops-tools-secret', 'command: ["python", "manage.py", "run_ssh_gateway"]', 'containerPort: 32751', 'port: 32751', 'mountPath: /app/data', 'mountPath: /app/media', 'mountPath: /app/rdp_recordings', 'image: mysql', 'mysql_data')) {
+$k8sDeploymentText = (Get-Content -Raw -Encoding UTF8 $k8sDeploymentApp) + [Environment]::NewLine + (Get-Content -Raw -Encoding UTF8 $k8sDeploymentSshGateway)
+foreach ($forbidden in @('envFrom:', 'secretRef:', 'configMapRef:', 'name: devops-tools-secret', 'command: ["python", "manage.py", "run_ssh_gateway"]', 'containerPort: 32751', 'port: 32751', 'mountPath: /app/data', 'mountPath: /app/media', 'mountPath: /app/rdp_recordings', 'image: mysql', 'mysql_data', 'name: NODE_IP', 'name: DJANGO_CSRF_TRUSTED_ORIGINS', 'name: SSH_GATEWAY_PUBLIC_HOST')) {
     if ($k8sDeploymentText -match [regex]::Escape($forbidden)) { throw "Kubernetes Deployment is not aligned with Compose config-file deployment: $forbidden" }
 }
-foreach ($required in @('name: guacd', 'image: guacamole/guacd:1.5.5', 'name: devops-tools-app', 'name: devops-tools-ssh-gateway', 'image: devops-tools:latest', 'containerPort: 8001', 'containerPort: 2222', 'args: ["python", "manage.py", "run_ssh_gateway"]', 'initContainers:', 'mkdir -p /app/config /app/data /app/media /app/recordings', 'mountPath: /app', 'mountPath: /app/config/app.conf', 'subPath: app.conf', 'readOnly: true', 'claimName: devops-tools-runtime-pvc', 'name: app-config', 'configMap:', 'name: devops-tools-config')) {
+foreach ($required in @('name: devops-tools-app', 'name: devops-tools-ssh-gateway', 'image: harbor.xunsiya.com:7891/devops/devops-tools:latest', 'containerPort: 8001', 'containerPort: 2222', 'args: ["python", "manage.py", "run_ssh_gateway"]', 'initContainers:', 'mkdir -p /app/config /app/data /app/media /app/recordings', 'mountPath: /app', 'mountPath: /app/config/app.conf', 'subPath: app.conf', 'readOnly: true', 'claimName: devops-tools-runtime-pvc', 'name: app-config', 'configMap:', 'name: devops-tools-config')) {
     if ($k8sDeploymentText -notmatch [regex]::Escape($required)) { throw "Kubernetes Deployment is missing Compose-aligned wiring: $required" }
 }
 
 $k8sServiceText = Get-Content -Raw -Encoding UTF8 $k8sService
-foreach ($required in @('name: devops-tools-app', 'type: NodePort', 'port: 8001', 'targetPort: http', 'nodePort: 30001', 'name: devops-tools-ssh-gateway', 'port: 2222', 'targetPort: ssh', 'nodePort: 30222', 'name: guacd', 'port: 4822', 'targetPort: guacd')) {
+foreach ($required in @('name: devops-tools-app', 'type: NodePort', 'port: 8001', 'targetPort: http', 'nodePort: 30271', 'name: devops-tools-ssh-gateway', 'port: 2222', 'targetPort: ssh', 'nodePort: 30222')) {
     if ($k8sServiceText -notmatch [regex]::Escape($required)) { throw "Kubernetes Service is missing Compose-aligned ports: $required" }
 }
-foreach ($forbidden in @('port: 32751', 'targetPort: 32751', 'port: 22022')) {
+foreach ($forbidden in @('port: 32751', 'targetPort: 32751', 'port: 22022', 'nodePort: 30001')) {
     if ($k8sServiceText -match [regex]::Escape($forbidden)) { throw "Kubernetes Service still contains old port mapping: $forbidden" }
 }
 

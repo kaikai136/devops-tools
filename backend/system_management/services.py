@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import os
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.http import HttpRequest
 
 from .models import LoginLog, OperationLog, SystemSetting
+
+FEATURE_PERMISSIONS_CACHE_KEY = "system.feature_permissions_ready.v1"
+FEATURE_PERMISSION_CACHE_SECONDS = getattr(settings, "FEATURE_PERMISSION_CACHE_SECONDS", 300)
 
 BUILTIN_ADMIN_USERNAME = "admin"
 BUILTIN_ADMIN_EMAIL = "admin@ops.local"
@@ -213,7 +218,20 @@ def ensure_feature_permissions():
 
     inherit_created_action_permissions(page_permissions_by_key, created_action_permissions_by_feature)
     _feature_permissions_ready = True
+    cache.set(FEATURE_PERMISSIONS_CACHE_KEY, True, FEATURE_PERMISSION_CACHE_SECONDS)
     return permissions
+
+
+def ensure_feature_permissions_ready() -> None:
+    """权限校验热路径专用的轻量守卫。
+
+    命中缓存(默认 5 分钟)即直接返回,跳过 ``ensure_feature_permissions`` 里的
+    ContentType/Permission 查询;缓存未命中才触发一次完整的懒创建。
+    ``has_feature_permission`` 每个受控请求都会调用,故此快路径显著减少 DB 往返。
+    """
+    if cache.get(FEATURE_PERMISSIONS_CACHE_KEY):
+        return
+    ensure_feature_permissions()
 
 
 def ensure_builtin_admin_role(user=None):

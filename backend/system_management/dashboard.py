@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.models import Session
 from django.core.cache import cache
@@ -15,10 +16,31 @@ from host_management.models import HostCredential, HostGroup, ManagedHost
 from .models import LoginLog
 
 EGRESS_CACHE_KEY = "dashboard.egress_network.v1"
-EGRESS_CACHE_SECONDS = 300
+EGRESS_CACHE_SECONDS = getattr(settings, "EGRESS_CACHE_SECONDS", 300)
+DASHBOARD_SUMMARY_CACHE_KEY = "dashboard.summary.v1"
+DASHBOARD_CACHE_SECONDS = getattr(settings, "DASHBOARD_CACHE_SECONDS", 30)
 
 
 def build_dashboard_summary() -> dict:
+    """构建仪表盘概览。整份结果短时缓存(默认 30s),
+
+    一次缓存即可挡掉约 20 次 COUNT/聚合查询与一次全 Session 扫描
+    (``active_session_count``)。仪表盘是概览视图,30s 内的数据陈旧可接受;
+    如需强制刷新可通过 ``invalidate_dashboard_summary()`` 清除。
+    """
+    cached = cache.get(DASHBOARD_SUMMARY_CACHE_KEY)
+    if cached is not None:
+        return cached
+    summary = _compute_dashboard_summary()
+    cache.set(DASHBOARD_SUMMARY_CACHE_KEY, summary, DASHBOARD_CACHE_SECONDS)
+    return summary
+
+
+def invalidate_dashboard_summary() -> None:
+    cache.delete(DASHBOARD_SUMMARY_CACHE_KEY)
+
+
+def _compute_dashboard_summary() -> dict:
     now = timezone.localtime()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     month_start = today_start.replace(day=1)

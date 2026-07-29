@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -44,8 +45,16 @@ APP_CONFIG = load_config_file(APP_CONFIG_FILE)
 
 
 def config_value(name: str, default: str = "", *, config: dict[str, str] | None = None) -> str:
+    # 优先级:app.conf 文件(部署权威) > 环境变量 > 代码默认值。
+    # 支持环境变量便于本地开发临时覆盖(如 REDIS_ENABLED=false)与容器编排注入,
+    # 无需改动不入库的 app.conf。
     source = APP_CONFIG if config is None else config
-    return source.get(name, default)
+    if name in source:
+        return source[name]
+    env_value = os.environ.get(name)
+    if env_value is not None:
+        return env_value
+    return default
 
 
 def config_bool(name: str, default: bool = False, *, config: dict[str, str] | None = None) -> bool:
@@ -76,7 +85,11 @@ def config_path(name: str, default: Path, *, config: dict[str, str] | None = Non
     value = config_value(name, "", config=config)
     if not value.strip():
         return default
-    return Path(value)
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    config_root = Path(APP_CONFIG_FILE).resolve().parent.parent
+    return config_root / path
 
 
 def django_secret_key() -> str:
@@ -227,8 +240,59 @@ REST_FRAMEWORK = {
     "URL_FORMAT_OVERRIDE": None,
 }
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+# ---------------------------------------------------------------------------
+# Redis: 缓存 + Session(cached_db) + Channel Layer 三处共用。
+# 部署环境通过 app.conf 设置 REDIS_ENABLED=1 并提供 REDIS_* 连接信息。
+# 未提供配置文件时默认关闭 Redis，便于离线开发与测试。
+# ---------------------------------------------------------------------------
+REDIS_ENABLED = config_bool("REDIS_ENABLED", False)
+REDIS_HOST = config_value("REDIS_HOST", "redis.example.com")
+REDIS_PORT = config_int("REDIS_PORT", 6379)
+REDIS_PASSWORD = config_value("REDIS_PASSWORD", "")
+REDIS_DB = config_int("REDIS_DB", 5)
+REDIS_KEY_PREFIX = config_value("REDIS_KEY_PREFIX", "opstool")
+
+
+def build_redis_url(db: int) -> str:
+    auth = f":{quote(REDIS_PASSWORD, safe='')}@" if REDIS_PASSWORD else ""
+    return f"redis://{auth}{REDIS_HOST}:{REDIS_PORT}/{db}"
+
+
+REDIS_URL = build_redis_url(REDIS_DB)
+
+# 缓存 TTL(秒)集中管理,替代散落在各处的魔法值。
+DASHBOARD_CACHE_SECONDS = config_int("DASHBOARD_CACHE_SECONDS", 30)
+EGRESS_CACHE_SECONDS = config_int("EGRESS_CACHE_SECONDS", 300)
+FEATURE_PERMISSION_CACHE_SECONDS = config_int("FEATURE_PERMISSION_CACHE_SECONDS", 300)
+
+if REDIS_ENABLED:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "KEY_PREFIX": REDIS_KEY_PREFIX,
+        }
     }
-}
+    SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
+    SESSION_CACHE_ALIAS = "default"
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [REDIS_URL],
+                "prefix": f"{REDIS_KEY_PREFIX}:asgi",
+            },
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+    SESSION_ENGINE = "django.contrib.sessions.backends.db"
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }

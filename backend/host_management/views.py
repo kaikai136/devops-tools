@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from operations.responses import bad_request, not_found, serializer_bad_request
+from operations.responses import bad_request, get_object_or_error, serializer_bad_request
 
 from .import_export import export_host_management_payload, import_host_management_payload
 from .models import HostCredential, HostGroup, ManagedHost
@@ -81,10 +81,9 @@ def host_groups(request):
 
 @api_view(["PUT", "DELETE"])
 def host_group_detail(request, group_id: int):
-    try:
-        group = HostGroup.objects.get(id=group_id)
-    except HostGroup.DoesNotExist:
-        return not_found("分组不存在")
+    group, error = get_object_or_error(HostGroup, id=group_id, error_message="分组不存在")
+    if error:
+        return error
 
     if request.method == "PUT":
         name = str(request.data.get("name", group.name)).strip()
@@ -170,10 +169,14 @@ def host_management_import(request):
 
 @api_view(["PUT", "DELETE"])
 def managed_host_detail(request, host_id: int):
-    try:
-        host = ManagedHost.objects.select_related("created_by").get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return not_found("主机不存在")
+    host, error = get_object_or_error(
+        ManagedHost,
+        queryset=ManagedHost.objects.select_related("created_by"),
+        id=host_id,
+        error_message="主机不存在",
+    )
+    if error:
+        return error
 
     if request.method == "DELETE":
         host.delete()
@@ -191,10 +194,14 @@ def managed_host_detail(request, host_id: int):
 
 @api_view(["POST"])
 def managed_host_verify(_request, host_id: int):
-    try:
-        host = ManagedHost.objects.select_related("created_by").get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return not_found("主机不存在")
+    host, error = get_object_or_error(
+        ManagedHost,
+        queryset=ManagedHost.objects.select_related("created_by"),
+        id=host_id,
+        error_message="主机不存在",
+    )
+    if error:
+        return error
 
     original_login = (host.login_user, host.login_password, host.private_key_name, host.private_key)
     host, error = verify_host(host)
@@ -228,10 +235,9 @@ def host_credentials(request):
 
 @api_view(["PUT", "DELETE"])
 def host_credential_detail(request, credential_id: int):
-    try:
-        credential = HostCredential.objects.get(id=credential_id)
-    except HostCredential.DoesNotExist:
-        return not_found("账号不存在")
+    credential, error = get_object_or_error(HostCredential, id=credential_id, error_message="账号不存在")
+    if error:
+        return error
 
     if request.method == "DELETE":
         credential.delete()

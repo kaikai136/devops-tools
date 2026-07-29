@@ -1,12 +1,12 @@
+from functools import wraps
 from urllib.parse import quote
 
 from django.http import HttpResponse, StreamingHttpResponse
-from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from operations.responses import bad_request, get_object_or_error
 from host_management.models import ManagedHost
-from operations.responses import bad_request
 
 from ..services import (
     TerminalConnectionError,
@@ -25,56 +25,51 @@ from ..services import (
 from .common import terminal_permission_required
 
 
-@api_view(["POST"])
-@terminal_permission_required
-def terminal_file_list(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+def with_terminal_host(view_func):
+    """按 ``host_id`` 解析 ManagedHost 并统一处理终端异常。
 
-    try:
-        return Response(list_remote_directory(host, str(request.data.get("path", "."))))
-    except TerminalConnectionError as error:
-        return bad_request(error)
+    替代每个文件视图开头重复的「取 host → 404 / 捕获 TerminalConnectionError」样板。
+    被包装的视图签名为 ``view(request, host, ...)``,直接拿到已解析的 host 实例。
+    """
 
+    @wraps(view_func)
+    def wrapped(request, host_id: int, *args, **kwargs):
+        host, error = get_object_or_error(ManagedHost, id=host_id, error_message="主机不存在")
+        if error:
+            return error
+        try:
+            return view_func(request, host, *args, **kwargs)
+        except TerminalConnectionError as connection_error:
+            return bad_request(connection_error)
 
-@api_view(["POST"])
-@terminal_permission_required
-def terminal_file_download_list(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(list_remote_directory(host, str(request.data.get("path", "."))))
-    except TerminalConnectionError as error:
-        return bad_request(error)
+    return wrapped
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_download(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
+@with_terminal_host
+def terminal_file_list(request, host):
+    return Response(list_remote_directory(host, str(request.data.get("path", "."))))
 
-    try:
-        return Response(download_remote_file(host, str(request.data.get("path", ""))))
-    except TerminalConnectionError as error:
-        return bad_request(error)
+
+@api_view(["POST"])
+@terminal_permission_required
+@with_terminal_host
+def terminal_file_download_list(request, host):
+    return Response(list_remote_directory(host, str(request.data.get("path", "."))))
+
+
+@api_view(["POST"])
+@terminal_permission_required
+@with_terminal_host
+def terminal_file_download(request, host):
+    return Response(download_remote_file(host, str(request.data.get("path", ""))))
 
 
 @api_view(["GET"])
 @terminal_permission_required
-def terminal_file_download_attachment(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
-
+@with_terminal_host
+def terminal_file_download_attachment(request, host):
     try:
         payload = stream_remote_file_content(
             host,
@@ -100,149 +95,93 @@ def terminal_file_download_attachment(request, host_id: int):
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_upload(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(
-            upload_remote_file(
-                host,
-                str(request.data.get("directory", ".")),
-                str(request.data.get("filename", "")),
-                str(request.data.get("contentBase64", "")),
-                str(request.data.get("relativePath", "")),
-            )
+@with_terminal_host
+def terminal_file_upload(request, host):
+    return Response(
+        upload_remote_file(
+            host,
+            str(request.data.get("directory", ".")),
+            str(request.data.get("filename", "")),
+            str(request.data.get("contentBase64", "")),
+            str(request.data.get("relativePath", "")),
         )
-    except TerminalConnectionError as error:
-        return bad_request(error)
+    )
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_create_file(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(
-            create_remote_file(
-                host,
-                str(request.data.get("directory", ".")),
-                str(request.data.get("filename", "")),
-                str(request.data.get("octalMode", "")),
-            )
+@with_terminal_host
+def terminal_file_create_file(request, host):
+    return Response(
+        create_remote_file(
+            host,
+            str(request.data.get("directory", ".")),
+            str(request.data.get("filename", "")),
+            str(request.data.get("octalMode", "")),
         )
-    except TerminalConnectionError as error:
-        return bad_request(error)
+    )
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_create_directory(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(
-            create_remote_directory(
-                host,
-                str(request.data.get("directory", ".")),
-                str(request.data.get("dirname", "")),
-                str(request.data.get("octalMode", "")),
-            )
+@with_terminal_host
+def terminal_file_create_directory(request, host):
+    return Response(
+        create_remote_directory(
+            host,
+            str(request.data.get("directory", ".")),
+            str(request.data.get("dirname", "")),
+            str(request.data.get("octalMode", "")),
         )
-    except TerminalConnectionError as error:
-        return bad_request(error)
+    )
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_create_symlink(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(
-            create_remote_symlink(
-                host,
-                str(request.data.get("directory", ".")),
-                str(request.data.get("linkName", "")),
-                str(request.data.get("targetPath", "")),
-            )
+@with_terminal_host
+def terminal_file_create_symlink(request, host):
+    return Response(
+        create_remote_symlink(
+            host,
+            str(request.data.get("directory", ".")),
+            str(request.data.get("linkName", "")),
+            str(request.data.get("targetPath", "")),
         )
-    except TerminalConnectionError as error:
-        return bad_request(error)
+    )
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_rename(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(rename_remote_file(host, str(request.data.get("path", "")), str(request.data.get("newName", ""))))
-    except TerminalConnectionError as error:
-        return bad_request(error)
+@with_terminal_host
+def terminal_file_rename(request, host):
+    return Response(rename_remote_file(host, str(request.data.get("path", "")), str(request.data.get("newName", ""))))
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_delete(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "涓绘満涓嶅瓨鍦?"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(delete_remote_file(host, str(request.data.get("path", ""))))
-    except TerminalConnectionError as error:
-        return bad_request(error)
+@with_terminal_host
+def terminal_file_delete(request, host):
+    return Response(delete_remote_file(host, str(request.data.get("path", ""))))
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_properties(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(get_remote_file_properties(host, str(request.data.get("path", ""))))
-    except TerminalConnectionError as error:
-        return bad_request(error)
+@with_terminal_host
+def terminal_file_properties(request, host):
+    return Response(get_remote_file_properties(host, str(request.data.get("path", ""))))
 
 
 @api_view(["POST"])
 @terminal_permission_required
-def terminal_file_properties_update(request, host_id: int):
-    try:
-        host = ManagedHost.objects.get(id=host_id)
-    except ManagedHost.DoesNotExist:
-        return Response({"error": "主机不存在"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        return Response(
-            update_remote_file_properties(
-                host,
-                str(request.data.get("path", "")),
-                str(request.data.get("owner", "")),
-                str(request.data.get("group", "")),
-                str(request.data.get("octalMode", "")),
-                bool(request.data.get("recursive", False)),
-            )
+@with_terminal_host
+def terminal_file_properties_update(request, host):
+    return Response(
+        update_remote_file_properties(
+            host,
+            str(request.data.get("path", "")),
+            str(request.data.get("owner", "")),
+            str(request.data.get("group", "")),
+            str(request.data.get("octalMode", "")),
+            bool(request.data.get("recursive", False)),
         )
-    except TerminalConnectionError as error:
-        return bad_request(error)
+    )

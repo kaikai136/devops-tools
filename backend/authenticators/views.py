@@ -3,8 +3,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from accounts.permissions import require_feature_permission
-from operations.responses import bad_request
+from accounts.permissions import feature_permission_required, require_feature_permission
+from operations.responses import bad_request, get_object_or_error
 
 from .models import AuthenticatorEntry
 from .serializers import AuthenticatorEntrySerializer
@@ -59,10 +59,9 @@ def authenticator_detail(request, entry_id: int):
     if auth_error:
         return auth_error
 
-    try:
-        entry = AuthenticatorEntry.objects.get(id=entry_id, created_by=request.user)
-    except AuthenticatorEntry.DoesNotExist:
-        return Response({"error": "条目不存在"}, status=status.HTTP_404_NOT_FOUND)
+    entry, error = get_object_or_error(AuthenticatorEntry, id=entry_id, created_by=request.user, error_message="条目不存在")
+    if error:
+        return error
 
     if request.method == "DELETE":
         entry.delete()
@@ -84,31 +83,25 @@ def authenticator_detail(request, entry_id: int):
 
 
 @api_view(["GET"])
+@feature_permission_required("auth", None, "没有双因子认证操作权限")
 def authenticator_code(request, entry_id: int):
-    auth_error = require_feature_permission(request, "auth", None, "没有双因子认证操作权限")
-    if auth_error:
-        return auth_error
-
+    entry, error = get_object_or_error(AuthenticatorEntry, id=entry_id, created_by=request.user, error_message="条目不存在")
+    if error:
+        return error
     try:
-        entry = AuthenticatorEntry.objects.get(id=entry_id, created_by=request.user)
         return Response(generate_totp(entry))
-    except AuthenticatorEntry.DoesNotExist:
-        return Response({"error": "条目不存在"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as error:
         return bad_request(error)
 
 
 @api_view(["GET"])
+@feature_permission_required("auth", None, "没有双因子认证操作权限")
 def authenticator_qrcode(request, entry_id: int):
-    auth_error = require_feature_permission(request, "auth", None, "没有双因子认证操作权限")
-    if auth_error:
-        return auth_error
-
+    entry, error = get_object_or_error(AuthenticatorEntry, id=entry_id, created_by=request.user, error_message="条目不存在")
+    if error:
+        return error
     try:
-        entry = AuthenticatorEntry.objects.get(id=entry_id, created_by=request.user)
         uri = build_totp_uri(entry)
         return Response({"uri": uri, "data_url": generate_qr_data_url(uri)})
-    except AuthenticatorEntry.DoesNotExist:
-        return Response({"error": "条目不存在"}, status=status.HTTP_404_NOT_FOUND)
     except Exception as error:
         return bad_request(error)

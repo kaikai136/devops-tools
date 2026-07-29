@@ -1,16 +1,15 @@
-from django.core.paginator import EmptyPage, Paginator
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from accounts.permissions import require_feature_permission
-from operations.responses import bad_request
+from operations.responses import bad_request, paginate_queryset
 
 from ..gateway.assets import GatewayAssetError, resolve_gateway_host
 from ..gateway.config import gateway_connection_info
 from ..models import TerminalFileAudit
 from ..serializers import TerminalFileAuditSerializer
 from ..services import host_payload
-from .common import parse_positive_int, session_audit_permission_required
+from .common import session_audit_permission_required
 
 
 @api_view(["GET"])
@@ -62,19 +61,4 @@ def terminal_file_audits(request):
         except (TypeError, ValueError):
             return bad_request("主机筛选条件无效")
 
-    page_size = parse_positive_int(request.query_params.get("pageSize"), default=20, maximum=100)
-    page_number = parse_positive_int(request.query_params.get("page"), default=1, maximum=1000000)
-    paginator = Paginator(queryset, page_size)
-    try:
-        page = paginator.page(page_number)
-    except EmptyPage:
-        page = paginator.page(paginator.num_pages or 1)
-
-    return Response(
-        {
-            "count": paginator.count,
-            "page": page.number,
-            "pageSize": page_size,
-            "results": TerminalFileAuditSerializer(page.object_list, many=True).data,
-        }
-    )
+    return Response(paginate_queryset(queryset, request, serializer=TerminalFileAuditSerializer))

@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from accounts.permissions import require_feature_permission
+from accounts.permissions import feature_permission_required, require_feature_permission
 from operations.responses import bad_request
 
 from .models import PasswordRecord
@@ -11,11 +11,8 @@ from .services import generate_password
 
 
 @api_view(["POST"])
+@feature_permission_required("password", "generate", "没有密码生成器操作权限")
 def password_generate(request):
-    auth_error = require_feature_permission(request, "password", "generate", "没有密码生成器操作权限")
-    if auth_error:
-        return auth_error
-
     try:
         password = generate_password(
             int(request.data.get("length", 16)),
@@ -77,10 +74,7 @@ def password_history(request):
 
 
 @api_view(["DELETE"])
+@feature_permission_required("password", "delete", "没有密码生成器操作权限")
 def password_history_item(request, record_id: int):
-    auth_error = require_feature_permission(request, "password", "delete", "没有密码生成器操作权限")
-    if auth_error:
-        return auth_error
-
     PasswordRecord.objects.filter(id=record_id, created_by=request.user).delete()
     return Response({"deleted": True})

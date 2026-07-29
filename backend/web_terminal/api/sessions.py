@@ -1,6 +1,5 @@
 from uuid import UUID
 
-from django.core.paginator import EmptyPage, Paginator
 from django.db import transaction
 from django.db.models import CharField, Max, Q
 from django.db.models.functions import Cast
@@ -9,7 +8,13 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from host_management.models import ManagedHost
-from operations.responses import bad_request, not_found, serializer_bad_request
+from operations.responses import (
+    bad_request,
+    get_object_or_error,
+    not_found,
+    paginate_queryset,
+    serializer_bad_request,
+)
 
 from ..models import TerminalCommandAudit, TerminalQuickCommand, TerminalSession
 from ..serializers import TerminalCommandAuditSerializer, TerminalQuickCommandSerializer
@@ -22,7 +27,6 @@ from ..services import (
 )
 from .common import (
     parse_audit_datetime,
-    parse_positive_int,
     quick_command_permission_required,
     session_audit_permission_required,
     terminal_permission_required,
@@ -57,10 +61,9 @@ def terminal_quick_commands(request):
 @api_view(["PUT", "DELETE"])
 @quick_command_permission_required
 def terminal_quick_command_detail(request, command_id: int):
-    try:
-        command = TerminalQuickCommand.objects.get(id=command_id)
-    except TerminalQuickCommand.DoesNotExist:
-        return not_found("快捷命令不存在")
+    command, error = get_object_or_error(TerminalQuickCommand, id=command_id, error_message="快捷命令不存在")
+    if error:
+        return error
 
     if request.method == "DELETE":
         command.delete()
@@ -129,7 +132,7 @@ def terminal_commands(request, session_id: UUID):
     try:
         session = TerminalSession.objects.select_related("host").get(session_id=session_id)
     except TerminalSession.DoesNotExist:
-        return Response({"error": "终端会话不存在"}, status=status.HTTP_404_NOT_FOUND)
+        return not_found("终端会话不存在")
 
     command = str(request.data.get("command", "")).strip()
     if not command:
@@ -172,19 +175,4 @@ def session_audits(request):
     if date_to:
         queryset = queryset.filter(executed_at__lte=date_to)
 
-    page_size = parse_positive_int(request.query_params.get("pageSize"), default=20, maximum=100)
-    page_number = parse_positive_int(request.query_params.get("page"), default=1, maximum=1000000)
-    paginator = Paginator(queryset, page_size)
-    try:
-        page = paginator.page(page_number)
-    except EmptyPage:
-        page = paginator.page(paginator.num_pages or 1)
-
-    return Response(
-        {
-            "count": paginator.count,
-            "page": page.number,
-            "pageSize": page_size,
-            "results": TerminalCommandAuditSerializer(page.object_list, many=True).data,
-        }
-    )
+    return Response(paginate_queryset(queryset, request, serializer=TerminalCommandAuditSerializer))

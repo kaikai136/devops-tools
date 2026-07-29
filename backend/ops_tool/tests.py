@@ -127,3 +127,15 @@ class ConfigFileTests(SimpleTestCase):
 
         self.assertEqual(database["ENGINE"], "django.db.backends.sqlite3")
         self.assertEqual(database["NAME"], Path("/tmp/app.sqlite3"))
+
+    def test_config_path_resolves_relative_values_from_config_root(self):
+        from ops_tool import settings
+
+        original_config_file = settings.APP_CONFIG_FILE
+        try:
+            settings.APP_CONFIG_FILE = Path("/repo/config/local.app.conf")
+            path = settings.config_path("DJANGO_DB_PATH", Path("/fallback.sqlite3"), config={"DJANGO_DB_PATH": "backend/db.sqlite3"})
+        finally:
+            settings.APP_CONFIG_FILE = original_config_file
+
+        self.assertEqual(path, Path("/repo/backend/db.sqlite3"))
