@@ -96,14 +96,7 @@ django-vue/
 常用本地启动项：
 
 ```conf
-APP_CONFIG_FILE=config/local.app.conf
-BACKEND_PORT=8001
-FRONTEND_PORT=5173
-VITE_API_TARGET=http://127.0.0.1:8001
-VITE_WS_TARGET=ws://127.0.0.1:8001
-DATABASE_ENGINE=sqlite
-DJANGO_DB_PATH=backend/db.sqlite3
-REDIS_ENABLED=0
+# Redis/cache   mysql   端口
 ```
 
 本地配置只放安全默认值。生产和 Docker Compose 部署不要改这个文件，部署环境继续使用 `data/config/app.conf`。
@@ -169,12 +162,6 @@ npm run build
 ```
 
 ## Docker 部署
-
-### 前置条件
-
-- Docker
-- Docker Compose v2，或兼容的 `docker-compose`
-- 服务器开放应用端口，默认宿主机端口和容器端口均为 `8001`
 
 ### 镜像构建与运行时配置
 
@@ -419,34 +406,6 @@ SSH: ssh <平台用户>@节点IP -p 30222
 
 `devops-tools-runtime-pvc` 会挂载到容器 `/app`，其中包含 `config/app.conf`、`data/`、`media/` 和 `recordings/`，默认使用 `ReadWriteMany`。如果你的集群存储类不支持 RWX，需要改用支持共享挂载的存储，或根据集群拓扑调整 Pod 调度与 PVC 策略。
 
-## 远程部署
-
-项目提供 `deploy/scripts/deploy-remote.sh`，用于通过 SSH 在目标服务器拉取仓库并执行 Docker Compose。
-
-### 默认参数
-
-| 参数 | 默认值 |
-| --- | --- |
-| `DEPLOY_HOST` | `172.16.0.99` |
-| `DEPLOY_USER` | `root` |
-| `DEPLOY_ROOT` | `/opt` |
-| `APP_NAME` | `devops-tools` |
-| `REPO_URL` | `https://github.com/kaikai136/devops-tools.git` |
-| `BRANCH` | `main` |
-
-示例：
-
-```bash
-DEPLOY_HOST=172.16.0.99 \
-DEPLOY_USER=root \
-DEPLOY_ROOT=/opt \
-APP_NAME=devops-tools \
-REPO_URL=https://github.com/kaikai136/devops-tools.git \
-BRANCH=main \
-bash deploy/scripts/deploy-remote.sh
-```
-
-新服务器会使用仓库自带的默认 `deploy/config/app.conf` 初始化 `data/config/app.conf`。如果远程服务器已经有自定义 `data/config/app.conf`，部署脚本会在 Git 更新前临时备份并在更新后恢复，不会被仓库默认模板覆盖。
 
 ### 手动远程部署
 
