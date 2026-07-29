@@ -53,6 +53,7 @@ const emit = defineEmits<{
   'clear-selection': [];
   'verify-selected': [];
   'bulk-execute-selected': [];
+  'upload-file-selected': [];
   'move-selected': [];
   'delete-selected': [];
 }>();
@@ -232,6 +233,10 @@ function updatePageSize(event: Event) {
       <button v-if="props.canBulkExecute" class="host-bulk-button host-bulk-button-execute" type="button" @click="emit('bulk-execute-selected')">
         <AppIcon name="terminal" :size="14" />
         批量执行
+      </button>
+      <button v-if="props.canBulkExecute" class="host-bulk-button host-bulk-button-upload" type="button" @click="emit('upload-file-selected')">
+        <AppIcon name="upload" :size="14" />
+        上传文件
       </button>
       <button v-if="props.canMove" class="host-bulk-button host-bulk-button-update" type="button" @click="emit('move-selected')">更新所选</button>
       <button v-if="props.canDelete" class="host-bulk-button host-bulk-button-delete" type="button" @click="emit('delete-selected')">删除所选</button>

@@ -1,8 +1,11 @@
+import json
+import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -137,6 +140,49 @@ class BulkExecutionApiTests(TestCase):
         task = BulkExecutionTask.objects.get(name="ping playbook")
         self.assertEqual(task.execution_type, BulkExecutionTask.EXECUTION_PLAYBOOK)
 
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-test-"))
+    def test_create_file_upload_task_accepts_multipart_file_and_selected_targets(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        upload = SimpleUploadedFile("deploy.txt", b"hello from ops\n", content_type="text/plain")
+
+        with patch("bulk_execution.views.start_bulk_execution_task") as start_task:
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={
+                    "targetIds": json.dumps([self.linux.id, self.windows.id]),
+                    "remoteDirectory": "/tmp/",
+                    "name": "deploy file",
+                    "file": upload,
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["executionType"], "file_upload")
+        self.assertEqual(payload["remoteDirectory"], "/tmp")
+        self.assertEqual(payload["uploadFilename"], "deploy.txt")
+        self.assertEqual(payload["uploadSize"], 15)
+        task = BulkExecutionTask.objects.get(name="deploy file")
+        self.assertEqual(task.execution_type, BulkExecutionTask.EXECUTION_FILE_UPLOAD)
+        self.assertEqual(task.command, "Upload deploy.txt to /tmp/deploy.txt")
+        self.assertEqual(task.remote_directory, "/tmp")
+        self.assertEqual(task.upload_filename, "deploy.txt")
+        self.assertEqual(task.upload_size, 15)
+        self.assertTrue(task.upload_file)
+        self.assertEqual(task.target_count, 1)
+        self.assertEqual(task.results.get().host, self.linux)
+        start_task.assert_called_once_with(task.id)
+
+    def test_create_file_upload_task_requires_uploaded_file(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        response = self.client.post(
+            "/api/bulk-execution/tasks/",
+            data={"targetIds": json.dumps([self.linux.id]), "remoteDirectory": "/tmp/", "executionType": "file_upload"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
     def test_create_task_rejects_unknown_execution_type(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute")
 
@@ -259,6 +305,35 @@ class BulkExecutionRunnerTests(TestCase):
         task.refresh_from_db()
         self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
         self.assertEqual(task.results.get().stdout, "api-01\n")
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-runner-test-"))
+    def test_file_upload_task_runs_ansible_copy_module(self):
+        upload = SimpleUploadedFile("payload.txt", b"payload", content_type="text/plain")
+        from .services import create_bulk_file_upload_task
+
+        task = create_bulk_file_upload_task(
+            self.user,
+            {"targetIds": [self.host.id], "remoteDirectory": "/tmp/", "name": "upload payload"},
+            upload,
+        )
+
+        def fake_run(**kwargs):
+            self.assertEqual(kwargs["module"], "ansible.builtin.copy")
+            self.assertIn("src=", kwargs["module_args"])
+            self.assertIn("dest=/tmp/payload.txt", kwargs["module_args"])
+            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
+            kwargs["event_handler"](
+                {"event": "runner_on_ok", "event_data": {"host": "host_1", "res": {"stdout": "copied\n", "stderr": "", "rc": 0}}}
+            )
+            return SimpleNamespace(status="successful", rc=0)
+
+        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+            run_bulk_execution_task(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
+        self.assertEqual(task.results.get().stdout, "copied\n")
+        self.assertFalse(task.upload_file.storage.exists(task.upload_file.name))
 
     def test_runner_failure_event_marks_task_failed(self):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false"})

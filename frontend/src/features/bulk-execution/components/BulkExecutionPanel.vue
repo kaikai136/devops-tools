@@ -7,6 +7,7 @@ import { errorMessage } from '@shared/utils/errors';
 import {
   cancelBulkExecutionTask,
   createBulkExecutionTask,
+  createBulkFileUploadTask,
   deleteBulkExecutionTask,
   getBulkExecutionTask,
   listBulkExecutionTargets,
@@ -15,6 +16,7 @@ import {
 import type { BulkExecutionResult, BulkExecutionStatus, BulkExecutionTarget, BulkExecutionTask, BulkExecutionTaskDetail, BulkExecutionType } from '../types';
 
 const DRAFT_TARGET_IDS_KEY = 'ops-tool.bulk-execution.draft-target-ids';
+const uploadTargetIdsKey = 'ops-tool.bulk-execution.upload-target-ids';
 const statusLabels: Record<string, string> = {
   queued: '排队中',
   running: '执行中',
@@ -28,8 +30,9 @@ const statusLabels: Record<string, string> = {
 const executionTypeLabels: Record<BulkExecutionType, string> = {
   shell: 'Shell 脚本',
   playbook: 'Playbook 脚本',
+  file_upload: '文件上传',
 };
-const scriptPresets: Array<{ key: string; label: string; type: BulkExecutionType; command: string }> = [
+const scriptPresets: Array<{ key: string; label: string; type: Exclude<BulkExecutionType, 'file_upload'>; command: string }> = [
   { key: 'shell-health', label: '系统巡检', type: 'shell', command: 'hostname\nuptime\ndf -h\nfree -m' },
   { key: 'shell-service', label: '服务状态', type: 'shell', command: 'systemctl status nginx --no-pager || true' },
   {
@@ -49,17 +52,22 @@ const selectedTaskId = ref<number | null>(null);
 const selectedTargetIds = ref<Set<number>>(new Set());
 const expandedResultIds = ref<Set<number>>(new Set());
 const isCreateOpen = ref(false);
+const isUploadOpen = ref(false);
 const isLoading = ref(false);
 const isTargetsLoading = ref(false);
 const isCreating = ref(false);
+const isUploading = ref(false);
 const isControlBusy = ref(false);
+const uploadFileInput = ref<HTMLInputElement | null>(null);
 const keyword = ref('');
 const statusFilter = ref('');
 const hostFilter = ref<number | ''>('');
 const targetKeyword = ref('');
 const taskName = ref('');
-const executionType = ref<BulkExecutionType>('shell');
+const executionType = ref<Exclude<BulkExecutionType, 'file_upload'>>('shell');
 const commandInput = ref('');
+const selectedUploadFile = ref<File | null>(null);
+const remoteDirectory = ref('/tmp/');
 let pollTimer: number | null = null;
 let taskRequestId = 0;
 
@@ -79,12 +87,13 @@ const filteredTargets = computed(() => {
   );
 });
 const canCreateTask = computed(() => canExecute.value && selectedTargetIds.value.size > 0 && commandInput.value.trim().length > 0 && !isCreating.value);
+const canCreateUpload = computed(() => canExecute.value && selectedTargetIds.value.size > 0 && Boolean(selectedUploadFile.value) && remoteDirectory.value.trim().length > 0 && !isUploading.value);
 const selectedTaskCanCancel = computed(() => Boolean(selectedTask.value && ['queued', 'running'].includes(selectedTask.value.status)));
 const selectedTaskProgress = computed(() => {
   if (!selectedTask.value || selectedTask.value.targetCount <= 0) return 0;
   return Math.round((selectedTask.value.completedCount / selectedTask.value.targetCount) * 100);
 });
-const selectedTaskExecutionType = computed(() => (selectedTask.value?.executionType === 'playbook' ? 'Playbook 脚本' : 'Shell 脚本'));
+const selectedTaskExecutionType = computed(() => selectedTask.value ? executionTypeLabels[selectedTask.value.executionType] : '');
 const commandPlaceholder = computed(() =>
   executionType.value === 'playbook'
     ? '- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Check hostname\n      ansible.builtin.command: hostname'
@@ -94,6 +103,7 @@ const commandPlaceholder = computed(() =>
 onMounted(async () => {
   await refreshAll();
   applyDraftTargetIds();
+  applyUploadTargetIds();
   startPolling();
 });
 
@@ -109,7 +119,10 @@ watch(
   () => activeTool.value,
   (tool) => {
     if (tool === 'bulkExecution') {
-      void refreshAll().then(applyDraftTargetIds);
+      void refreshAll().then(() => {
+        applyDraftTargetIds();
+        applyUploadTargetIds();
+      });
     }
   },
 );
@@ -198,6 +211,27 @@ function applyDraftTargetIds() {
   }
 }
 
+function applyUploadTargetIds() {
+  if (typeof window === 'undefined') return;
+  const raw = window.sessionStorage.getItem(uploadTargetIdsKey);
+  if (!raw) return;
+  window.sessionStorage.removeItem(uploadTargetIdsKey);
+  try {
+    const ids = JSON.parse(raw);
+    if (!Array.isArray(ids)) return;
+    const executableIds = new Set(targets.value.map((target) => target.id));
+    const next = ids.map((id) => Number(id)).filter((id) => executableIds.has(id));
+    if (!next.length) {
+      showToast('没有可上传主机', '所选主机中没有已验证的 Linux SSH 主机。', 'error');
+      return;
+    }
+    selectedTargetIds.value = new Set(next);
+    isUploadOpen.value = true;
+  } catch {
+    selectedTargetIds.value = new Set();
+  }
+}
+
 function toggleTarget(targetId: number, checked: boolean) {
   const next = new Set(selectedTargetIds.value);
   if (checked) next.add(targetId);
@@ -226,9 +260,18 @@ function openCreateDialog() {
   isCreateOpen.value = true;
 }
 
+function openUploadDialog() {
+  isUploadOpen.value = true;
+}
+
 function closeCreateDialog() {
   if (isCreating.value) return;
   isCreateOpen.value = false;
+}
+
+function closeUploadDialog() {
+  if (isUploading.value) return;
+  isUploadOpen.value = false;
 }
 
 function createTaskWithConfirmation() {
@@ -265,7 +308,50 @@ async function createTask() {
   }
 }
 
-function setExecutionType(type: BulkExecutionType) {
+function triggerUploadFileSelect() {
+  uploadFileInput.value?.click();
+}
+
+function onUploadFileChange(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+  selectedUploadFile.value = file;
+  (event.target as HTMLInputElement).value = '';
+}
+
+function onUploadDrop(event: DragEvent) {
+  const file = event.dataTransfer?.files?.[0] ?? null;
+  if (file) selectedUploadFile.value = file;
+}
+
+function removeUploadFile() {
+  if (isUploading.value) return;
+  selectedUploadFile.value = null;
+}
+
+async function createUploadTask() {
+  if (!canCreateUpload.value || !selectedUploadFile.value) return;
+  isUploading.value = true;
+  try {
+    const task = await createBulkFileUploadTask({
+      targetIds: [...selectedTargetIds.value],
+      remoteDirectory: remoteDirectory.value.trim() || '/tmp/',
+      file: selectedUploadFile.value,
+    });
+    isUploadOpen.value = false;
+    selectedUploadFile.value = null;
+    remoteDirectory.value = '/tmp/';
+    selectedTargetIds.value = new Set();
+    await loadTasks();
+    await selectTask(task.id);
+    showToast('文件上传已创建', '后台正在将文件分发到所选主机。', 'success');
+  } catch (error) {
+    showToast('文件上传失败', errorMessage(error), 'error');
+  } finally {
+    isUploading.value = false;
+  }
+}
+
+function setExecutionType(type: Exclude<BulkExecutionType, 'file_upload'>) {
   executionType.value = type;
   if (!commandInput.value.trim()) {
     commandInput.value = type === 'playbook' ? scriptPresets.find((preset) => preset.type === 'playbook')?.command ?? '' : '';
@@ -347,6 +433,12 @@ function statusLabel(status: BulkExecutionStatus | BulkExecutionResult['status']
 function formatTime(value: string | null | undefined) {
   return value ? new Date(value).toLocaleString() : '-';
 }
+
+function formatFileSize(value: number) {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
 </script>
 
 <template>
@@ -359,6 +451,7 @@ function formatTime(value: string | null | undefined) {
         </div>
         <div class="bulk-execution-actions">
           <button v-if="canExecute" class="primary" type="button" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建任务</button>
+          <button v-if="canExecute" type="button" @click="openUploadDialog"><AppIcon name="upload" :size="16" />上传文件</button>
           <button v-if="canRefresh" type="button" :disabled="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</button>
         </div>
       </header>
@@ -411,6 +504,11 @@ function formatTime(value: string | null | undefined) {
               </div>
             </header>
             <pre class="bulk-command-block">{{ selectedTask.command }}</pre>
+            <div v-if="selectedTask.executionType === 'file_upload'" class="bulk-upload-summary">
+              <span>文件 {{ selectedTask.uploadFilename || '-' }}</span>
+              <span>目录 {{ selectedTask.remoteDirectory || '-' }}</span>
+              <span>大小 {{ formatFileSize(selectedTask.uploadSize || 0) }}</span>
+            </div>
             <p v-if="selectedTask.error" class="bulk-error">{{ selectedTask.error }}</p>
             <div class="bulk-progress"><span :style="{ width: `${selectedTaskProgress}%` }"></span></div>
 
@@ -518,6 +616,71 @@ function formatTime(value: string | null | undefined) {
         <footer>
           <button type="button" :disabled="isCreating" @click="closeCreateDialog">取消</button>
           <button class="primary" type="submit" :disabled="!canCreateTask">{{ isCreating ? '创建中...' : '执行脚本' }}</button>
+        </footer>
+      </form>
+    </div>
+
+    <div v-if="isUploadOpen" class="modal-backdrop bulk-upload-backdrop">
+      <form class="bulk-create-modal bulk-upload-modal" @submit.prevent="createUploadTask">
+        <button class="modal-close" type="button" :disabled="isUploading" @click="closeUploadDialog"><AppIcon name="x" :size="16" /></button>
+        <header class="bulk-create-title">
+          <div>
+            <h2>文件上传</h2>
+            <p>已选 {{ selectedTargets.length }} 台主机</p>
+          </div>
+        </header>
+
+        <input ref="uploadFileInput" hidden type="file" @change="onUploadFileChange" />
+        <button
+          class="bulk-upload-dropzone"
+          type="button"
+          :disabled="isUploading"
+          @click="triggerUploadFileSelect"
+          @dragover.prevent
+          @drop.prevent="onUploadDrop"
+        >
+          <AppIcon name="upload" :size="38" />
+          <strong>{{ selectedUploadFile?.name || '选择文件' }}</strong>
+          <span>{{ selectedUploadFile ? formatFileSize(selectedUploadFile.size) : '支持单个文件上传' }}</span>
+        </button>
+        <div v-if="selectedUploadFile" class="bulk-upload-file-row">
+          <span>{{ selectedUploadFile.name }}</span>
+          <em>{{ formatFileSize(selectedUploadFile.size) }}</em>
+          <button type="button" :disabled="isUploading" @click="removeUploadFile"><AppIcon name="x" :size="14" /></button>
+        </div>
+
+        <label class="bulk-upload-path">
+          <span>远程目录</span>
+          <input v-model="remoteDirectory" :disabled="isUploading" placeholder="/tmp/" />
+        </label>
+        <p class="bulk-upload-hint">文件将上传到目标主机的这个目录下。</p>
+
+        <section class="bulk-target-picker bulk-upload-targets">
+          <header>
+            <label>
+              <input
+                type="checkbox"
+                :checked="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))"
+                @change="toggleAllFilteredTargetsFromEvent"
+              />
+              全选当前列表
+            </label>
+            <input v-model="targetKeyword" type="search" placeholder="搜索主机 / IP / 分组" />
+            <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
+          </header>
+          <div class="bulk-target-list">
+            <label v-for="target in filteredTargets" :key="target.id">
+              <input type="checkbox" :checked="selectedTargetIds.has(target.id)" @change="toggleTargetFromEvent(target.id, $event)" />
+              <strong>{{ target.name }}</strong>
+              <span>{{ target.privateIp }} · {{ target.loginUser }} · {{ target.groupName }}</span>
+            </label>
+            <div v-if="!filteredTargets.length" class="bulk-empty">{{ isTargetsLoading ? '加载中...' : '暂无可上传 Linux SSH 主机' }}</div>
+          </div>
+        </section>
+
+        <footer>
+          <button type="button" :disabled="isUploading" @click="closeUploadDialog">取消</button>
+          <button class="primary" type="submit" :disabled="!canCreateUpload">{{ isUploading ? '上传中...' : '开始上传' }}</button>
         </footer>
       </form>
     </div>

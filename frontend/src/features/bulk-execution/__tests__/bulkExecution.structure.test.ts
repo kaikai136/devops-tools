@@ -35,17 +35,34 @@ describe('bulk execution frontend contract', () => {
     expect(api).toContain('deleteBulkExecutionTask');
   });
 
+  it('exposes a multipart API helper and typed metadata for file upload tasks', () => {
+    const api = readSource('features/bulk-execution/api/bulkExecution.ts');
+    const types = readSource('features/bulk-execution/types.ts');
+
+    expect(types).toContain("BulkExecutionType = 'shell' | 'playbook' | 'file_upload'");
+    expect(types).toContain('BulkFileUploadCreatePayload');
+    expect(types).toContain('remoteDirectory');
+    expect(types).toContain('uploadFilename');
+    expect(types).toContain('uploadSize');
+    expect(api).toContain('createBulkFileUploadTask');
+    expect(api).toContain('FormData');
+    expect(api).toContain("form.append('executionType', 'file_upload')");
+  });
+
   it('adds a host-list shortcut that stores selected hosts and opens the bulk execution page', () => {
     const manager = readSource('features/hosts/components/HostManager.vue');
     const table = readSource('features/hosts/components/HostTable.vue');
     const toolbar = readSource('features/hosts/components/HostToolbar.vue');
 
     expect(manager).toContain('ops-tool.bulk-execution.draft-target-ids');
+    expect(manager).toContain('ops-tool.bulk-execution.upload-target-ids');
     expect(manager).toContain("setActiveTool('bulkExecution')");
     expect(manager).toContain("canUsePageAction('bulkExecution', 'execute')");
     expect(table).toContain('bulk-execute-selected');
+    expect(table).toContain('upload-file-selected');
     expect(toolbar).toContain('canBulkExecute');
     expect(toolbar).toContain('bulk-execute-selected');
+    expect(toolbar).toContain('upload-file-selected');
   });
 
   it('defines the bulk execution page surface with task history, target picker, command input, confirmation, and result output', () => {
@@ -59,6 +76,19 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('stdout');
     expect(panel).toContain('stderr');
     expect(panel).toContain('setInterval');
+  });
+
+  it('defines the file upload modal surface and target handoff from batch operations', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+
+    expect(panel).toContain('isUploadOpen');
+    expect(panel).toContain('uploadTargetIdsKey');
+    expect(panel).toContain('selectedUploadFile');
+    expect(panel).toContain('remoteDirectory');
+    expect(panel).toContain('createBulkFileUploadTask');
+    expect(panel).toContain('bulk-upload-dropzone');
+    expect(panel).toContain('type="file"');
+    expect(panel).toContain('开始上传');
   });
 
   it('supports shell scripts and playbook scripts in the task composer', () => {

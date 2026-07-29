@@ -314,12 +314,12 @@
   left: 50%;
   bottom: 24px;
   display: grid;
-  width: 436px;
+  width: 640px;
   max-width: calc(100% - 48px);
-  min-height: 84px;
+  min-height: 108px;
   align-content: center;
-  gap: 8px;
-  padding: 16px 22px 16px 20px;
+  gap: 12px;
+  padding: 18px 24px 18px 22px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #fff;
@@ -372,10 +372,10 @@
 }
 
 .host-bulk-action-buttons {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   padding-left: 36px;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
 }
 
 .host-bulk-action-bar .host-bulk-button {
@@ -383,15 +383,15 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  min-height: 24px;
+  min-height: 28px;
   border: 0;
   border-radius: 999px;
   background-image: none;
-  padding: 0 13px;
+  padding: 0 14px;
   color: #fff;
   font-size: 13px;
   font-weight: 900;
-  line-height: 24px;
+  line-height: 28px;
   white-space: nowrap;
   box-shadow: none;
   text-rendering: geometricPrecision;
@@ -412,6 +412,10 @@
 
 .host-bulk-action-bar .host-bulk-button-execute {
   background: #0f8f6b;
+}
+
+.host-bulk-action-bar .host-bulk-button-upload {
+  background: #1677ff;
 }
 
 .host-bulk-action-bar .host-bulk-button-delete {
@@ -439,6 +443,10 @@
 
 .host-bulk-action-bar .host-bulk-button-execute:disabled {
   background: #38a884;
+}
+
+.host-bulk-action-bar .host-bulk-button-upload:disabled {
+  background: #4b94f5;
 }
 
 .host-bulk-action-bar .host-bulk-button-delete:disabled {
@@ -532,7 +540,7 @@
 
 @media (max-width: 980px) {
   .host-bulk-action-bar {
-    width: 436px;
+    width: 560px;
     max-width: calc(100% - 28px);
     padding: 16px 18px;
   }
@@ -548,6 +556,7 @@
 
   .host-bulk-action-buttons {
     display: flex;
+    flex-wrap: wrap;
   }
 }
 

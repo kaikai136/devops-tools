@@ -51,6 +51,7 @@ const hostColumnOptions = [
 
 const hostColumnStorageKey = 'ops-tool.host-manager.columns.v3';
 const bulkExecutionDraftTargetIdsKey = 'ops-tool.bulk-execution.draft-target-ids';
+const bulkExecutionUploadTargetIdsKey = 'ops-tool.bulk-execution.upload-target-ids';
 const fallbackHostColumnKey: HostColumnKey = 'name';
 
 const {
@@ -524,16 +525,15 @@ function runDeleteSelectedHosts() {
   deleteSelectedManagedHosts();
 }
 
-function openBulkExecutionForSelectedHosts() {
-  closeHostMoreActions();
+function selectedExecutableHostIds() {
   if (!canUsePageAction('bulkExecution', 'execute')) {
     showToast('无权限', '当前账号不能发起批量执行任务。');
-    return;
+    return [];
   }
   const selectedIds = selectedManagedHostIds.value;
   if (!selectedIds.size) {
-    showToast('请选择主机', '请先在主机管理列表中选择需要执行命令的主机。');
-    return;
+    showToast('请选择主机', '请先在主机管理列表中选择需要操作的主机。');
+    return [];
   }
 
   const executableIds = managedHosts.value
@@ -542,14 +542,33 @@ function openBulkExecutionForSelectedHosts() {
     .map((host) => host.id);
   if (!executableIds.length) {
     showToast('没有可执行主机', '所选主机中没有已验证的 Linux SSH 主机。');
-    return;
+    return [];
   }
+  return executableIds;
+}
+
+function openBulkExecutionForSelectedHosts() {
+  closeHostMoreActions();
+  const executableIds = selectedExecutableHostIds();
+  if (!executableIds.length) return;
 
   if (typeof window !== 'undefined') {
     window.sessionStorage.setItem(bulkExecutionDraftTargetIdsKey, JSON.stringify(executableIds));
   }
   setActiveTool('bulkExecution');
   showToast('已进入批量执行', `已带入 ${executableIds.length} 台可执行主机。`);
+}
+
+function openBulkFileUploadForSelectedHosts() {
+  closeHostMoreActions();
+  const executableIds = selectedExecutableHostIds();
+  if (!executableIds.length) return;
+
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem(bulkExecutionUploadTargetIdsKey, JSON.stringify(executableIds));
+  }
+  setActiveTool('bulkExecution');
+  showToast('已进入文件上传', `已带入 ${executableIds.length} 台可上传主机。`);
 }
 
 function formatHostDate(value: string | null | undefined) {
@@ -634,6 +653,7 @@ function hostPlatformType(value: string | null | undefined) {
         @status-filter="setHostStatusFilter"
         @verify-selected="runVerifySelectedHosts"
         @bulk-execute-selected="openBulkExecutionForSelectedHosts"
+        @upload-file-selected="openBulkFileUploadForSelectedHosts"
         @move-selected="runMoveSelectedHosts"
         @delete-selected="runDeleteSelectedHosts"
         @import="openHostTransferDialog('import')"
@@ -691,6 +711,7 @@ function hostPlatformType(value: string | null | undefined) {
         @clear-selection="clearSelectedManagedHosts"
         @verify-selected="runVerifySelectedHosts"
         @bulk-execute-selected="openBulkExecutionForSelectedHosts"
+        @upload-file-selected="openBulkFileUploadForSelectedHosts"
         @move-selected="runMoveSelectedHosts"
         @delete-selected="runDeleteSelectedHosts"
       />

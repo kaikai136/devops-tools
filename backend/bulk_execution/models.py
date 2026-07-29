@@ -5,9 +5,11 @@ from django.db import models
 class BulkExecutionTask(models.Model):
     EXECUTION_SHELL = "shell"
     EXECUTION_PLAYBOOK = "playbook"
+    EXECUTION_FILE_UPLOAD = "file_upload"
     EXECUTION_CHOICES = [
         (EXECUTION_SHELL, "Shell"),
         (EXECUTION_PLAYBOOK, "Playbook"),
+        (EXECUTION_FILE_UPLOAD, "File upload"),
     ]
 
     STATUS_QUEUED = "queued"
@@ -26,6 +28,10 @@ class BulkExecutionTask(models.Model):
     name = models.CharField(max_length=180)
     command = models.TextField()
     execution_type = models.CharField(max_length=20, choices=EXECUTION_CHOICES, default=EXECUTION_SHELL)
+    remote_directory = models.CharField(max_length=500, blank=True)
+    upload_file = models.FileField(upload_to="bulk_execution_uploads/", blank=True)
+    upload_filename = models.CharField(max_length=255, blank=True)
+    upload_size = models.PositiveBigIntegerField(default=0)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="bulk_execution_tasks", null=True, blank=True, on_delete=models.SET_NULL)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_QUEUED)
     cancel_requested = models.BooleanField(default=False)

@@ -1,6 +1,7 @@
-import { apiDelete, apiGet, apiPost } from '../../../api';
+import { apiDelete, apiGet, apiPost, apiPostForm } from '../../../api';
 import type {
   BulkExecutionCreatePayload,
+  BulkFileUploadCreatePayload,
   BulkExecutionTarget,
   BulkExecutionTask,
   BulkExecutionTaskDetail,
@@ -26,6 +27,16 @@ export function listBulkExecutionTasks(params: { status?: string; keyword?: stri
 
 export function createBulkExecutionTask(payload: BulkExecutionCreatePayload) {
   return apiPost<BulkExecutionTask>(`${baseUrl}/tasks/`, payload);
+}
+
+export function createBulkFileUploadTask(payload: BulkFileUploadCreatePayload) {
+  const form = new FormData();
+  form.append('executionType', 'file_upload');
+  form.append('targetIds', JSON.stringify(payload.targetIds));
+  form.append('remoteDirectory', payload.remoteDirectory);
+  form.append('file', payload.file);
+  if (payload.name) form.append('name', payload.name);
+  return apiPostForm<BulkExecutionTask>(`${baseUrl}/tasks/`, form);
 }
 
 export function getBulkExecutionTask(taskId: number) {

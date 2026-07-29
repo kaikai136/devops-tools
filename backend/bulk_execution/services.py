@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import os
+import shlex
 import tempfile
 import threading
+import uuid
 from pathlib import Path
 from typing import Any
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.db import OperationalError, ProgrammingError, close_old_connections, transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
 from host_management.models import ManagedHost
+from web_terminal.services.file_parsers import join_remote_path, normalize_remote_file_name, normalize_remote_file_path
 
 from .models import BulkExecutionResult, BulkExecutionTask
 
@@ -114,6 +118,91 @@ def create_bulk_execution_task(user, payload: dict) -> BulkExecutionTask:
     return task
 
 
+def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExecutionTask:
+    if uploaded_file is None:
+        raise ValueError("Please select a file to upload")
+
+    target_ids = parse_target_ids(payload.get("targetIds") or payload.get("target_ids") or payload.get("hostIds") or [])
+    config = bulk_execution_settings()
+    if len(target_ids) > int(config["maxTargets"]):
+        raise ValueError(f"Select at most {config['maxTargets']} hosts")
+
+    filename = normalize_remote_file_name(getattr(uploaded_file, "name", ""))
+    remote_directory = normalize_remote_directory(str(payload.get("remoteDirectory") or payload.get("remote_directory") or "/tmp/"))
+    remote_path = join_remote_path(remote_directory, filename)
+    hosts = executable_hosts_for_target_ids(target_ids)
+    if not hosts:
+        raise ValueError("No executable Linux SSH hosts selected")
+
+    stored_name = ""
+    try:
+        stored_name = default_storage.save(f"bulk_execution_uploads/{uuid.uuid4().hex}_{filename}", uploaded_file)
+        upload_size = int(getattr(uploaded_file, "size", 0) or default_storage.size(stored_name))
+
+        with transaction.atomic():
+            task = BulkExecutionTask.objects.create(
+                name=str(payload.get("name", "")).strip() or f"File upload {timezone.localtime().strftime('%Y-%m-%d %H:%M:%S')}",
+                command=f"Upload {filename} to {remote_path}",
+                execution_type=BulkExecutionTask.EXECUTION_FILE_UPLOAD,
+                remote_directory=remote_directory,
+                upload_file=stored_name,
+                upload_filename=filename,
+                upload_size=upload_size,
+                created_by=user if getattr(user, "is_authenticated", False) else None,
+                target_count=len(hosts),
+            )
+            create_results_for_hosts(task, hosts)
+    except Exception:
+        if stored_name and default_storage.exists(stored_name):
+            default_storage.delete(stored_name)
+        raise
+    return task
+
+
+def parse_target_ids(value) -> list[int]:
+    if isinstance(value, str):
+        import json
+
+        try:
+            value = json.loads(value)
+        except ValueError:
+            value = [item for item in value.split(",") if item.strip()]
+    if not isinstance(value, list) or not value:
+        raise ValueError("Please select Linux SSH hosts")
+    try:
+        return [int(item) for item in value]
+    except (TypeError, ValueError):
+        raise ValueError("Invalid host selection")
+
+
+def executable_hosts_for_target_ids(target_ids: list[int]) -> list[ManagedHost]:
+    hosts_by_id = {host.id: host for host in list_executable_targets() if host.id in set(target_ids)}
+    return [hosts_by_id[target_id] for target_id in target_ids if target_id in hosts_by_id]
+
+
+def create_results_for_hosts(task: BulkExecutionTask, hosts: list[ManagedHost]) -> None:
+    for index, host in enumerate(hosts, start=1):
+        BulkExecutionResult.objects.create(
+            task=task,
+            host=host,
+            inventory_name=f"host_{index}",
+            host_name=host.name,
+            host_ip=host.private_ip,
+            host_port=host.port,
+            login_user=host.login_user,
+            os=host.os,
+            system_type=host.system_type,
+            system_arch=host.system_arch,
+        )
+
+
+def normalize_remote_directory(value: str) -> str:
+    directory = normalize_remote_file_path(value or "/tmp/")
+    if directory != "/" and directory.endswith("/"):
+        directory = directory.rstrip("/")
+    return directory
+
+
 def start_bulk_execution_task(task_id: int) -> None:
     if not bool(getattr(settings, "BULK_EXECUTION_RUN_ASYNC", True)):
         run_bulk_execution_task(task_id)
@@ -176,6 +265,8 @@ def run_bulk_execution_task(task_id: int) -> None:
                 return
             if task.execution_type == BulkExecutionTask.EXECUTION_PLAYBOOK:
                 runner_result = run_playbook(task, result_by_inventory, temp_dir, inventory, config)
+            elif task.execution_type == BulkExecutionTask.EXECUTION_FILE_UPLOAD:
+                runner_result = run_file_upload(task, result_by_inventory, temp_dir, inventory, config)
             else:
                 runner_result = run_command_module(
                     task, result_by_inventory, temp_dir, inventory, config, module="ansible.builtin.shell"
@@ -201,6 +292,7 @@ def run_bulk_execution_task(task_id: int) -> None:
         task.finished_at = timezone.now()
         refresh_task_counts(task)
         task.save(update_fields=["status", "error", "finished_at", "completed_count", "success_count", "failed_count", "skipped_count"])
+        cleanup_upload_file(task)
 
 
 def run_command_module(task, result_by_inventory, temp_dir, inventory, config, *, module):
@@ -235,6 +327,40 @@ def run_playbook(task, result_by_inventory, temp_dir, inventory, config):
         event_handler=lambda event: handle_runner_event(task.id, result_by_inventory, event),
         cancel_callback=lambda: is_cancel_requested(task.id),
     )
+
+
+def run_file_upload(task, result_by_inventory, temp_dir, inventory, config):
+    if not task.upload_file:
+        raise RuntimeError("No upload file attached to task")
+    source_path = task.upload_file.path
+    filename = normalize_remote_file_name(task.upload_filename)
+    remote_directory = normalize_remote_directory(task.remote_directory or "/tmp/")
+    destination = join_remote_path(remote_directory, filename)
+    return run_ansible_shell(
+        private_data_dir=temp_dir,
+        inventory=inventory,
+        module="ansible.builtin.copy",
+        module_args=f"src={shlex.quote(source_path)} dest={shlex.quote(destination)}",
+        host_pattern="all",
+        forks=max(1, min(len(inventory["all"]["hosts"]), int(config["forks"]))),
+        timeout=int(config["timeoutSeconds"]),
+        quiet=True,
+        envvars={"ANSIBLE_HOST_KEY_CHECKING": "False"},
+        event_handler=lambda event: handle_runner_event(task.id, result_by_inventory, event),
+        cancel_callback=lambda: is_cancel_requested(task.id),
+    )
+
+
+def cleanup_upload_file(task: BulkExecutionTask) -> None:
+    if task.execution_type != BulkExecutionTask.EXECUTION_FILE_UPLOAD or not task.upload_file:
+        return
+    try:
+        storage = task.upload_file.storage
+        name = task.upload_file.name
+        if name and storage.exists(name):
+            storage.delete(name)
+    except Exception:
+        pass
 
 
 def polluted_inventory_names(task: BulkExecutionTask) -> list[str]:

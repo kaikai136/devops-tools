@@ -5,6 +5,9 @@ from .models import BulkExecutionResult, BulkExecutionTask
 
 class BulkExecutionTaskSerializer(serializers.ModelSerializer):
     executionType = serializers.CharField(source="execution_type", read_only=True)
+    remoteDirectory = serializers.CharField(source="remote_directory", read_only=True)
+    uploadFilename = serializers.CharField(source="upload_filename", read_only=True)
+    uploadSize = serializers.IntegerField(source="upload_size", read_only=True)
     cancelRequested = serializers.BooleanField(source="cancel_requested", read_only=True)
     targetCount = serializers.IntegerField(source="target_count", read_only=True)
     completedCount = serializers.IntegerField(source="completed_count", read_only=True)
@@ -23,6 +26,9 @@ class BulkExecutionTaskSerializer(serializers.ModelSerializer):
             "name",
             "command",
             "executionType",
+            "remoteDirectory",
+            "uploadFilename",
+            "uploadSize",
             "status",
             "cancelRequested",
             "targetCount",

@@ -26,6 +26,10 @@ export async function apiPost<T>(url: string, payload: unknown, options: Request
   return apiJsonRequest<T>('POST', url, payload, options);
 }
 
+export async function apiPostForm<T>(url: string, body: FormData, options: RequestInit = {}): Promise<T> {
+  return apiRequest<T>(url, { ...options, method: 'POST', body });
+}
+
 export async function apiPut<T>(url: string, payload: unknown, options: RequestInit = {}): Promise<T> {
   return apiJsonRequest<T>('PUT', url, payload, options);
 }

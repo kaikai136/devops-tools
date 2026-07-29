@@ -1,6 +1,6 @@
 export type BulkExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 export type BulkExecutionResultStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped';
-export type BulkExecutionType = 'shell' | 'playbook';
+export type BulkExecutionType = 'shell' | 'playbook' | 'file_upload';
 
 export interface BulkExecutionTarget {
   id: number;
@@ -42,6 +42,9 @@ export interface BulkExecutionTask {
   name: string;
   command: string;
   executionType: BulkExecutionType;
+  remoteDirectory: string;
+  uploadFilename: string;
+  uploadSize: number;
   status: BulkExecutionStatus;
   cancelRequested: boolean;
   targetCount: number;
@@ -70,6 +73,13 @@ export interface BulkExecutionTaskPage {
 export interface BulkExecutionCreatePayload {
   targetIds: number[];
   command: string;
-  executionType: BulkExecutionType;
+  executionType: Exclude<BulkExecutionType, 'file_upload'>;
+  name?: string;
+}
+
+export interface BulkFileUploadCreatePayload {
+  targetIds: number[];
+  remoteDirectory: string;
+  file: File;
   name?: string;
 }

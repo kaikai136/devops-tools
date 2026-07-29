@@ -9,7 +9,7 @@ from operations.responses import bad_request, get_object_or_error, paginate_quer
 
 from .models import BulkExecutionResult, BulkExecutionTask
 from .serializers import BulkExecutionTaskDetailSerializer, BulkExecutionTaskSerializer
-from .services import create_bulk_execution_task, list_executable_targets, mark_interrupted_tasks, refresh_task_counts, start_bulk_execution_task
+from .services import create_bulk_execution_task, create_bulk_file_upload_task, list_executable_targets, mark_interrupted_tasks, refresh_task_counts, start_bulk_execution_task
 
 
 def bulk_execution_permission(request, action_key: str | None = None):
@@ -69,7 +69,11 @@ def tasks(request):
     if auth_error:
         return auth_error
     try:
-        task = create_bulk_execution_task(request.user, request.data if isinstance(request.data, dict) else {})
+        payload = request.data if isinstance(request.data, dict) else {}
+        if request.FILES.get("file") or str(payload.get("executionType") or payload.get("execution_type") or "") == "file_upload":
+            task = create_bulk_file_upload_task(request.user, payload, request.FILES.get("file"))
+        else:
+            task = create_bulk_execution_task(request.user, payload)
     except (TypeError, ValueError) as error:
         return bad_request(error)
     start_bulk_execution_task(task.id)

@@ -63,6 +63,7 @@ const emit = defineEmits<{
   'status-filter': [filter: 'all' | 'unverified'];
   'verify-selected': [];
   'bulk-execute-selected': [];
+  'upload-file-selected': [];
   'move-selected': [];
   'delete-selected': [];
   import: [];
@@ -108,6 +109,10 @@ const searchModel = computed({
           <button v-if="props.canBulkExecute" type="button" :disabled="!props.selectedCount" @click="emit('bulk-execute-selected')">
             <AppIcon name="terminal" :size="15" />
             <span>批量执行</span>
+          </button>
+          <button v-if="props.canBulkExecute" type="button" :disabled="!props.selectedCount" @click="emit('upload-file-selected')">
+            <AppIcon name="upload" :size="15" />
+            <span>上传文件</span>
           </button>
           <button v-if="props.canFilter" type="button" :class="{ active: props.statusFilter === 'all' }" @click="emit('status-filter', 'all')">
             <AppIcon name="search" :size="15" />
