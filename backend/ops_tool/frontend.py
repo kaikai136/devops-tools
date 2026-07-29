@@ -17,6 +17,11 @@ def frontend_terminal(_request):
 
 
 @require_GET
+def frontend_host_terminal(_request):
+    return serve_frontend_html("host-terminal.html")
+
+
+@require_GET
 def frontend_asset(_request, path: str):
     return serve_frontend_file(path)
 

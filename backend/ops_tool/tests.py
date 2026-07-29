@@ -16,6 +16,10 @@ class FrontendServingTests(SimpleTestCase):
             "<!doctype html><html><body><div id=\"terminal-app\"></div></body></html>",
             encoding="utf-8",
         )
+        (self.frontend_dist / "host-terminal.html").write_text(
+            "<!doctype html><html><body><div id=\"host-terminal-app\"></div></body></html>",
+            encoding="utf-8",
+        )
         self.banner_bytes = b"\x89PNG\r\n\x1a\nbrand"
         (self.frontend_dist / "captain-banner.png").write_bytes(self.banner_bytes)
         self.static_root = self.frontend_dist / "static-root"
@@ -38,6 +42,13 @@ class FrontendServingTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'id="terminal-app"', b"".join(response.streaming_content))
+
+    def test_host_terminal_html_serves_simple_terminal_entry_with_querystring(self):
+        with override_settings(FRONTEND_DIST_DIR=self.frontend_dist, STATIC_ROOT=self.static_root):
+            response = self.client.get("/host-terminal.html?host=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'id="host-terminal-app"', b"".join(response.streaming_content))
 
     def test_frontend_route_falls_back_to_index(self):
         with override_settings(FRONTEND_DIST_DIR=self.frontend_dist, STATIC_ROOT=self.static_root):

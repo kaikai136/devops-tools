@@ -16,6 +16,7 @@ if settings.SERVE_MEDIA_FILES:
 urlpatterns += [
     path("", frontend.frontend_index, name="frontend-index"),
     path("terminal.html", frontend.frontend_terminal, name="frontend-terminal"),
+    path("host-terminal.html", frontend.frontend_host_terminal, name="frontend-host-terminal"),
     re_path(r"^(?P<path>[^/]+\.(?:png|jpg|jpeg|gif|webp|svg|ico|txt|webmanifest))$", frontend.frontend_asset, name="frontend-asset"),
     re_path(r"^(?!api/|admin/|media/|static/|ws/).*$", frontend.frontend_index, name="frontend-fallback"),
 ]
