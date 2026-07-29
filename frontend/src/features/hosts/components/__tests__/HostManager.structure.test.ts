@@ -526,6 +526,36 @@ describe('HostManager component structure', () => {
     expect(staticAttribute(terminalIcon, 'name')).toBe('terminal');
   });
 
+  it('combines system architecture, system type, and config into one host spec table column only', () => {
+    const managerScript = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
+    const toolbarScript = readSfc('src/features/hosts/components/HostToolbar.vue').scriptSetup?.content ?? '';
+    const tableTemplate = readSfc('src/features/hosts/components/HostTable.vue').template?.content ?? '';
+    const styles = readStyle('../../../../styles/tools/host/table.css');
+    const exportSource = readFileSync(
+      fileURLToPath(new URL('../../utils/export.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(managerScript).toContain("{ key: 'spec', label: '主机规格'");
+    expect(managerScript).not.toContain("{ key: 'systemArch', label: '系统架构'");
+    expect(managerScript).not.toContain("{ key: 'systemType', label: '系统类型'");
+    expect(managerScript).not.toContain("{ key: 'config', label: '配置信息'");
+    expect(toolbarScript).toContain("| 'spec'");
+    expect(tableTemplate).toContain("props.isColumnVisible('spec')");
+    expect(tableTemplate).toContain('class="host-spec-cell"');
+    expect(tableTemplate).toContain('<strong>规格:</strong>');
+    expect(tableTemplate).toContain('<strong>系统:</strong>');
+    expect(tableTemplate).toContain('{{ formatHostSpec(host) }}');
+    expect(tableTemplate).toContain('{{ formatHostSystem(host) }}');
+    expect(readSfc('src/features/hosts/components/HostTable.vue').scriptSetup?.content).toContain('function formatHostSpec(host: ManagedHost)');
+    expect(readSfc('src/features/hosts/components/HostTable.vue').scriptSetup?.content).toContain('function formatHostSystem(host: ManagedHost)');
+    expect(styles).toMatch(/\.host-spec-cell\s*\{[\s\S]*display:\s*grid;[\s\S]*gap:\s*8px;/);
+    expect(styles).toMatch(/\.host-spec-cell span\s*\{[\s\S]*gap:\s*10px;/);
+    expect(exportSource).toContain("{ field: 'systemArch'");
+    expect(exportSource).toContain("{ field: 'systemType'");
+    expect(exportSource).toContain("{ field: 'config'");
+  });
+
   it('wires selected host file upload through the bulk execution handoff key', () => {
     const managerScript = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
     const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');

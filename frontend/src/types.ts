@@ -58,6 +58,7 @@ export interface ManagedHost {
   remark: string;
   cpu: number;
   memory: number;
+  disk?: number;
   os: 'ubuntu' | 'centos' | 'debian' | 'windows';
   verified: boolean;
   verifyStatus?: 'unverified' | 'verified' | 'failed';

@@ -211,6 +211,39 @@
   font-size: 15px;
 }
 
+.host-spec-cell {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  color: #173252;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.host-spec-cell span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.host-spec-cell strong {
+  flex: 0 0 auto;
+  color: #173252;
+  font-weight: 900;
+}
+
+.host-spec-cell em {
+  min-width: 0;
+  overflow: hidden;
+  color: #173252;
+  font-style: normal;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .os-badge {
   width: 18px;
   height: 18px;

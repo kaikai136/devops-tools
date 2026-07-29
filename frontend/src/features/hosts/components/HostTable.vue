@@ -61,6 +61,16 @@ const emit = defineEmits<{
 function updatePageSize(event: Event) {
   emit('page-size-change', Number((event.target as HTMLSelectElement).value));
 }
+
+function formatHostSpec(host: ManagedHost) {
+  if (!host.verified || host.cpu <= 0 || host.memory <= 0) return '-';
+  const disk = typeof host.disk === 'number' && host.disk > 0 ? `${host.disk}G` : '-';
+  return `${host.cpu}C / ${host.memory}G / ${disk}`;
+}
+
+function formatHostSystem(host: ManagedHost) {
+  return [host.systemType, host.systemArch].filter(Boolean).join(' - ') || '-';
+}
 </script>
 
 <template>
@@ -84,13 +94,7 @@ function updatePageSize(event: Event) {
           IP地址 <em>{{ props.sortMark('ip') }}</em>
         </button>
         <span v-if="props.isColumnVisible('machine')">机器名称</span>
-        <button v-if="props.isColumnVisible('systemArch')" class="host-sort-button" :class="{ active: props.sortKey === 'systemArch', desc: props.sortKey === 'systemArch' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'systemArch')">
-          系统架构 <em>{{ props.sortMark('systemArch') }}</em>
-        </button>
-        <button v-if="props.isColumnVisible('systemType')" class="host-sort-button" :class="{ active: props.sortKey === 'systemType', desc: props.sortKey === 'systemType' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'systemType')">
-          系统类型 <em>{{ props.sortMark('systemType') }}</em>
-        </button>
-        <span v-if="props.isColumnVisible('config')">配置信息</span>
+        <span v-if="props.isColumnVisible('spec')">主机规格</span>
         <button v-if="props.isColumnVisible('platformType')" class="host-sort-button" :class="{ active: props.sortKey === 'platformType', desc: props.sortKey === 'platformType' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'platformType')">
           平台类型 <em>{{ props.sortMark('platformType') }}</em>
         </button>
@@ -125,14 +129,15 @@ function updatePageSize(event: Event) {
           <span>{{ host.privateIp }}</span>
         </div>
         <span v-if="props.isColumnVisible('machine')" class="host-machine-cell" :title="host.machineName">{{ host.verified ? host.machineName : '' }}</span>
-        <span v-if="props.isColumnVisible('systemArch')" class="host-system-cell">{{ host.systemArch || '-' }}</span>
-        <span v-if="props.isColumnVisible('systemType')" class="host-system-cell">{{ host.systemType || '-' }}</span>
-        <div v-if="props.isColumnVisible('config')" class="host-config">
-          <template v-if="host.verified && host.cpu > 0 && host.memory > 0">
-            <span class="os-badge" :class="host.os"></span>
-            <strong>{{ host.cpu }}核 {{ host.memory }}GB</strong>
-          </template>
-          <span v-else class="host-config-empty" aria-label="配置信息为空"></span>
+        <div v-if="props.isColumnVisible('spec')" class="host-spec-cell">
+          <span>
+            <strong>规格:</strong>
+            <em>{{ formatHostSpec(host) }}</em>
+          </span>
+          <span>
+            <strong>系统:</strong>
+            <em>{{ formatHostSystem(host) }}</em>
+          </span>
         </div>
         <span v-if="props.isColumnVisible('platformType')" class="host-platform-type" :class="props.platformType(host.platformType)">
           {{ props.platformType(host.platformType) }}
