@@ -12,6 +12,7 @@ from .models import ManagedHost
 
 CPU_COMMAND = "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null"
 MEMORY_COMMAND = "awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null"
+DISK_COMMAND = "lsblk -b -dn -o NAME,SIZE,TYPE 2>/dev/null"
 OS_COMMAND = ". /etc/os-release 2>/dev/null && printf '%s' \"${ID:-}\" || uname -s"
 MACHINE_NAME_COMMAND = "hostname -f 2>/dev/null || hostname 2>/dev/null || uname -n"
 SYSTEM_ARCH_COMMAND = "uname -m 2>/dev/null"
@@ -30,21 +31,23 @@ def verify_host(host: ManagedHost) -> tuple[ManagedHost, str | None]:
         host.verify_status = "failed"
         host.cpu = 0
         host.memory = 0
+        host.disk = ""
         host.machine_name = ""
         host.updated_at = now
-        host.save(update_fields=["verified", "verify_status", "cpu", "memory", "machine_name", "updated_at"])
+        host.save(update_fields=["verified", "verify_status", "cpu", "memory", "disk", "machine_name", "updated_at"])
         return host, str(error)
 
     host.machine_name = info["machine_name"]
     host.cpu = info["cpu"]
     host.memory = info["memory"]
+    host.disk = info["disk"]
     host.os = info["os"]
     host.system_arch = info["system_arch"]
     host.system_type = info["system_type"]
     host.verified = True
     host.verify_status = "verified"
     host.updated_at = now
-    host.save(update_fields=["machine_name", "cpu", "memory", "os", "system_arch", "system_type", "verified", "verify_status", "updated_at"])
+    host.save(update_fields=["machine_name", "cpu", "memory", "disk", "os", "system_arch", "system_type", "verified", "verify_status", "updated_at"])
     return host, None
 
 
@@ -67,12 +70,13 @@ def verify_windows_host_connectivity(host: ManagedHost) -> tuple[ManagedHost, st
     host.machine_name = ""
     host.cpu = 0
     host.memory = 0
+    host.disk = ""
     host.system_arch = ""
     host.system_type = ""
     host.verified = True
     host.verify_status = "verified"
     host.updated_at = now
-    host.save(update_fields=["machine_name", "cpu", "memory", "system_arch", "system_type", "verified", "verify_status", "updated_at"])
+    host.save(update_fields=["machine_name", "cpu", "memory", "disk", "system_arch", "system_type", "verified", "verify_status", "updated_at"])
     return host, None
 
 
@@ -81,6 +85,7 @@ def probe_host_info(host: ManagedHost) -> dict:
     try:
         cpu = parse_positive_int(run_probe_command(client, CPU_COMMAND))
         memory = parse_memory_gb(run_probe_command(client, MEMORY_COMMAND))
+        disk = parse_lsblk_disk_details(run_probe_command(client, DISK_COMMAND))
         if cpu <= 0 or memory <= 0:
             raise TerminalConnectionError("无法识别机器 CPU 或内存信息")
         return {
@@ -89,6 +94,7 @@ def probe_host_info(host: ManagedHost) -> dict:
             "system_type": parse_system_type(run_probe_command(client, SYSTEM_TYPE_COMMAND)),
             "cpu": cpu,
             "memory": memory,
+            "disk": disk,
             "os": parse_os(run_probe_command(client, OS_COMMAND)),
         }
     except Exception as error:
@@ -120,6 +126,31 @@ def parse_memory_gb(value: str) -> int:
     if memory_kb <= 0:
         return 0
     return max(1, math.ceil(memory_kb / 1024 / 1024))
+
+
+def parse_lsblk_disk_details(value: str) -> str:
+    disks: list[str] = []
+    for line in value.splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        name, size, device_type = parts[:3]
+        if device_type != "disk":
+            continue
+        size_bytes = parse_positive_int(size)
+        if size_bytes <= 0:
+            continue
+        disks.append(f"{name[:40]}: {format_disk_size(size_bytes)}")
+    return "  ".join(disks)[:260]
+
+
+def format_disk_size(size_bytes: int) -> str:
+    size_gb = size_bytes / 1024 / 1024 / 1024
+    if size_gb >= 10:
+        rounded = round(size_gb, 1)
+    else:
+        rounded = round(size_gb, 2)
+    return f"{rounded:g}G"
 
 
 def parse_machine_name(value: str) -> str:

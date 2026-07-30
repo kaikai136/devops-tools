@@ -41,6 +41,7 @@ class ManagedHostSerializer(serializers.ModelSerializer):
             "remark",
             "cpu",
             "memory",
+            "disk",
             "os",
             "verified",
             "verifyStatus",

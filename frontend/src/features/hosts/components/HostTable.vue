@@ -64,7 +64,7 @@ function updatePageSize(event: Event) {
 
 function formatHostSpec(host: ManagedHost) {
   if (!host.verified || host.cpu <= 0 || host.memory <= 0) return '-';
-  const disk = typeof host.disk === 'number' && host.disk > 0 ? `${host.disk}G` : '-';
+  const disk = typeof host.disk === 'string' && host.disk.trim() ? host.disk.trim() : '-';
   return `${host.cpu}C / ${host.memory}G / ${disk}`;
 }
 
@@ -132,11 +132,11 @@ function formatHostSystem(host: ManagedHost) {
         <div v-if="props.isColumnVisible('spec')" class="host-spec-cell">
           <span>
             <strong>规格:</strong>
-            <em>{{ formatHostSpec(host) }}</em>
+            <em :title="formatHostSpec(host)">{{ formatHostSpec(host) }}</em>
           </span>
           <span>
             <strong>系统:</strong>
-            <em>{{ formatHostSystem(host) }}</em>
+            <em :title="formatHostSystem(host)">{{ formatHostSystem(host) }}</em>
           </span>
         </div>
         <span v-if="props.isColumnVisible('platformType')" class="host-platform-type" :class="props.platformType(host.platformType)">

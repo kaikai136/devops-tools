@@ -31,23 +31,33 @@ interface HostQuickCommandDialogState {
 }
 
 const hostColumnOptions = [
-  { key: 'group', label: '主机分组', width: 'minmax(100px, 0.8fr)', minWidth: 100 },
-  { key: 'name', label: '节点', width: 'minmax(120px, 1fr)', minWidth: 120 },
-  { key: 'ip', label: 'IP地址', width: 'minmax(150px, 1.1fr)', minWidth: 150 },
-  { key: 'machine', label: '机器名称', width: 'minmax(110px, 0.8fr)', minWidth: 110 },
-  { key: 'spec', label: '主机规格', width: 'minmax(180px, 1.2fr)', minWidth: 180 },
-  { key: 'platformType', label: '平台类型', width: 'minmax(88px, 0.6fr)', minWidth: 88 },
-  { key: 'user', label: '用户', width: 'minmax(80px, 0.65fr)', minWidth: 80 },
-  { key: 'port', label: '端口', width: 'minmax(64px, 0.45fr)', minWidth: 64 },
-  { key: 'createdAt', label: '创建时间', width: 'minmax(150px, 1fr)', minWidth: 150 },
-  { key: 'updatedAt', label: '更新时间', width: 'minmax(150px, 1fr)', minWidth: 150 },
-  { key: 'creator', label: '创建者', width: 'minmax(90px, 0.65fr)', minWidth: 90 },
-  { key: 'remark', label: '备注', width: 'minmax(130px, 1fr)', minWidth: 130 },
+  { key: 'group', label: '主机分组', width: 'minmax(84px, 0.7fr)', minWidth: 84 },
+  { key: 'name', label: '节点', width: 'minmax(102px, 0.85fr)', minWidth: 102 },
+  { key: 'ip', label: 'IP地址', width: 'minmax(126px, 0.95fr)', minWidth: 126 },
+  { key: 'machine', label: '机器名称', width: 'minmax(92px, 0.7fr)', minWidth: 92 },
+  { key: 'spec', label: '主机规格', width: 'minmax(150px, 1fr)', minWidth: 150 },
+  { key: 'platformType', label: '平台类型', width: 'minmax(76px, 0.52fr)', minWidth: 76 },
+  { key: 'user', label: '用户', width: 'minmax(68px, 0.55fr)', minWidth: 68 },
+  { key: 'port', label: '端口', width: 'minmax(56px, 0.38fr)', minWidth: 56 },
+  { key: 'createdAt', label: '创建时间', width: 'minmax(126px, 0.85fr)', minWidth: 126 },
+  { key: 'updatedAt', label: '更新时间', width: 'minmax(126px, 0.85fr)', minWidth: 126 },
+  { key: 'creator', label: '创建者', width: 'minmax(76px, 0.55fr)', minWidth: 76 },
+  { key: 'remark', label: '备注', width: 'minmax(104px, 0.82fr)', minWidth: 104 },
   { key: 'status', label: '状态', width: 'minmax(86px, 0.65fr)', minWidth: 86 },
   { key: 'actions', label: '操作', width: 'minmax(132px, 0.8fr)', minWidth: 132 },
 ] as const;
 
-const hostColumnStorageKey = 'ops-tool.host-manager.columns.v3';
+const defaultVisibleHostColumnKeys = [
+  'group',
+  'name',
+  'ip',
+  'machine',
+  'spec',
+  'platformType',
+  'remark',
+  'status',
+  'actions',
+] as const satisfies readonly HostColumnKey[];
 const bulkExecutionDraftTargetIdsKey = 'ops-tool.bulk-execution.draft-target-ids';
 const bulkExecutionUploadTargetIdsKey = 'ops-tool.bulk-execution.upload-target-ids';
 const fallbackHostColumnKey: HostColumnKey = 'name';
@@ -174,12 +184,18 @@ const {
   toggleAllColumns: toggleAllHostColumns,
   resetColumns: resetHostColumns,
 } = useColumnVisibility(hostColumnOptions, {
-  storageKey: hostColumnStorageKey,
   fallbackKey: fallbackHostColumnKey,
+  defaultVisibleKeys: defaultVisibleHostColumnKeys,
 });
 const hostTableStyle = computed<Record<string, string>>(() => {
   const columns = visibleHostTableColumns.value;
-  const minimumWidth = columns.reduce((total, column) => total + (column.minWidth ?? 0), 0) + columns.length * 12 + 238;
+  const tableGapWidth = 6;
+  const tableHorizontalPadding = 20;
+  const selectColumnWidth = 32;
+  const minimumWidth = columns.reduce((total, column) => total + (column.minWidth ?? 0), 0)
+    + columns.length * tableGapWidth
+    + tableHorizontalPadding
+    + selectColumnWidth;
   const actionsVisible = columns.some((column) => column.key === 'actions');
   const templateColumns = columns.map((column) => {
     if (column.key === 'status') return 'var(--host-status-column-width)';
@@ -190,10 +206,10 @@ const hostTableStyle = computed<Record<string, string>>(() => {
   return {
     '--host-table-columns': `var(--host-select-column-width) ${templateColumns.join(' ') || 'minmax(180px, 1fr)'}`,
     '--host-table-min-width': `${Math.max(760, minimumWidth)}px`,
-    '--host-select-column-width': '38px',
+    '--host-select-column-width': '32px',
     '--host-status-column-width': '86px',
     '--host-actions-column-width': '132px',
-    '--host-status-sticky-right': actionsVisible ? 'calc(var(--host-actions-column-width) + 12px)' : '0px',
+    '--host-status-sticky-right': actionsVisible ? 'calc(var(--host-actions-column-width) + 6px)' : '0px',
   };
 });
 const hostTotalPages = computed(() => Math.max(1, Math.ceil(visibleManagedHosts.value.length / hostPageSize.value)));

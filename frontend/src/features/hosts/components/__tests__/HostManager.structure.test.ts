@@ -435,6 +435,17 @@ describe('HostManager component structure', () => {
     expect(groupTree).toContain('`${10 + row.editor.level * 8}px`');
   });
 
+  it('labels the host navigation as asset management', () => {
+    const navigationSource = readFileSync(
+      fileURLToPath(new URL('../../../../app/navigation.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(navigationSource).toContain("label: '资产管理'");
+    expect(navigationSource.match(/label: '资产管理'/g)).toHaveLength(2);
+    expect(navigationSource).not.toContain("label: '主机管理'");
+  });
+
   it('lets successful quick command saves close the saving dialog while blocking manual closes', () => {
     const script = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
 
@@ -529,6 +540,7 @@ describe('HostManager component structure', () => {
   it('combines system architecture, system type, and config into one host spec table column only', () => {
     const managerScript = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
     const toolbarScript = readSfc('src/features/hosts/components/HostToolbar.vue').scriptSetup?.content ?? '';
+    const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
     const tableTemplate = readSfc('src/features/hosts/components/HostTable.vue').template?.content ?? '';
     const styles = readStyle('../../../../styles/tools/host/table.css');
     const exportSource = readFileSync(
@@ -547,6 +559,10 @@ describe('HostManager component structure', () => {
     expect(tableTemplate).toContain('<strong>系统:</strong>');
     expect(tableTemplate).toContain('{{ formatHostSpec(host) }}');
     expect(tableTemplate).toContain('{{ formatHostSystem(host) }}');
+    const specCell = findByClass(tableRoot, 'div', 'host-spec-cell')[0];
+    const specValues = findElements({ ...tableRoot, children: specCell.children } as RootNode, 'em');
+    expectDirective(specValues[0], 'bind', 'title', 'formatHostSpec(host)');
+    expectDirective(specValues[1], 'bind', 'title', 'formatHostSystem(host)');
     expect(readSfc('src/features/hosts/components/HostTable.vue').scriptSetup?.content).toContain('function formatHostSpec(host: ManagedHost)');
     expect(readSfc('src/features/hosts/components/HostTable.vue').scriptSetup?.content).toContain('function formatHostSystem(host: ManagedHost)');
     expect(styles).toMatch(/\.host-spec-cell\s*\{[\s\S]*display:\s*grid;[\s\S]*gap:\s*8px;/);
@@ -554,6 +570,37 @@ describe('HostManager component structure', () => {
     expect(exportSource).toContain("{ field: 'systemArch'");
     expect(exportSource).toContain("{ field: 'systemType'");
     expect(exportSource).toContain("{ field: 'config'");
+  });
+
+  it('defaults host manager visible columns to the screenshot selection without persistence', () => {
+    const managerScript = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
+    const defaultVisibleMatch = managerScript.match(/const defaultVisibleHostColumnKeys = \[([\s\S]*?)\] as const satisfies readonly HostColumnKey\[];/);
+
+    expect(defaultVisibleMatch).toBeTruthy();
+    const defaultVisibleBlock = defaultVisibleMatch?.[1] ?? '';
+    for (const key of ['group', 'name', 'ip', 'machine', 'spec', 'platformType', 'remark', 'status', 'actions']) {
+      expect(defaultVisibleBlock).toContain(`'${key}',`);
+    }
+    for (const key of ['user', 'port', 'createdAt', 'updatedAt', 'creator']) {
+      expect(defaultVisibleBlock).not.toContain(`'${key}',`);
+    }
+    expect(managerScript).toContain('defaultVisibleKeys: defaultVisibleHostColumnKeys');
+    expect(managerScript).not.toContain('storageKey: hostColumnStorageKey');
+  });
+
+  it('keeps the host table compact while preserving action space', () => {
+    const managerScript = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
+    const styles = readStyle('../../../../styles/tools/host/table.css');
+
+    expect(managerScript).toContain("{ key: 'group', label: '主机分组', width: 'minmax(84px, 0.7fr)', minWidth: 84 }");
+    expect(managerScript).toContain("{ key: 'ip', label: 'IP地址', width: 'minmax(126px, 0.95fr)', minWidth: 126 }");
+    expect(managerScript).toContain("{ key: 'spec', label: '主机规格', width: 'minmax(150px, 1fr)', minWidth: 150 }");
+    expect(managerScript).toContain("'--host-select-column-width': '32px'");
+    expect(managerScript).toContain("'--host-status-column-width': '86px'");
+    expect(managerScript).toContain("'--host-actions-column-width': '132px'");
+    expect(managerScript).toContain("'--host-status-sticky-right': actionsVisible ? 'calc(var(--host-actions-column-width) + 6px)' : '0px'");
+    expect(styles).toMatch(/\.host-table\s*\{[\s\S]*width:\s*100%;[\s\S]*min-width:\s*var\(--host-table-min-width,\s*1300px\);/);
+    expect(styles).toMatch(/\.host-table-row\s*\{[\s\S]*gap:\s*6px;[\s\S]*padding:\s*0 10px;/);
   });
 
   it('wires selected host file upload through the bulk execution handoff key', () => {

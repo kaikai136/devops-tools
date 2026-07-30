@@ -29,6 +29,7 @@ function makeHost(id: number): ManagedHost {
     systemType: '',
     cpu: 0,
     memory: 0,
+    disk: '',
     verified: false,
     verifyStatus: 'unverified',
     creator: '',
@@ -73,6 +74,30 @@ describe('useHostVerification', () => {
     resolveByHost.get(2)?.({ host: { ...secondHost, verified: true }, verified: true, error: null, credentialSaved: false });
     await pending;
     expect(manager.verifyingHostIds.value).toEqual(new Set());
+    scope.stop();
+  });
+
+  it('clears stale disk size when host verification request fails', async () => {
+    const host = { ...makeHost(1), verified: true, verifyStatus: 'verified' as const, cpu: 4, memory: 8, disk: 'sda: 256G' };
+    const managedHosts = ref([host]);
+    const replaceHost = vi.fn();
+    vi.mocked(hostApi.verifyManagedHost).mockRejectedValueOnce(new Error('ssh failed'));
+
+    const scope = effectScope();
+    const manager = scope.run(() =>
+      useHostVerification({
+        showToast: vi.fn(),
+        managedHosts,
+        visibleManagedHosts: computed(() => managedHosts.value),
+        selectedManagedHostIds: ref(new Set()),
+        replaceHost,
+      }),
+    )!;
+
+    const failedHost = await manager.verifyManagedHost(host);
+
+    expect(failedHost).toMatchObject({ verified: false, verifyStatus: 'failed', cpu: 0, memory: 0, disk: '' });
+    expect(replaceHost).toHaveBeenCalledWith(expect.objectContaining({ disk: '' }));
     scope.stop();
   });
 });

@@ -38,6 +38,7 @@ class HostVerifyTests(TestCase):
                 "machine_name": "prod-api-01",
                 "cpu": 4,
                 "memory": 8,
+                "disk": "sda: 447.1G  nvme0n1: 238.5G",
                 "os": "ubuntu",
                 "system_arch": "x86_64",
                 "system_type": "ubuntu",
@@ -51,6 +52,7 @@ class HostVerifyTests(TestCase):
         self.assertEqual(updated.machine_name, "prod-api-01")
         self.assertEqual(updated.cpu, 4)
         self.assertEqual(updated.memory, 8)
+        self.assertEqual(updated.disk, "sda: 447.1G  nvme0n1: 238.5G")
         self.assertEqual(updated.os, "ubuntu")
 
     def test_verify_host_clears_machine_config_on_failure(self):
@@ -61,6 +63,7 @@ class HostVerifyTests(TestCase):
             login_user="root",
             cpu=2,
             memory=4,
+            disk="sda: 128G",
             machine_name="old-hostname",
             verified=True,
             verify_status="verified",
@@ -75,6 +78,7 @@ class HostVerifyTests(TestCase):
         self.assertEqual(updated.machine_name, "")
         self.assertEqual(updated.cpu, 0)
         self.assertEqual(updated.memory, 0)
+        self.assertEqual(updated.disk, "")
 
     def test_verify_host_polls_credentials_and_saves_successful_login(self):
         HostCredential.objects.create(name="wrong", username="root", password="wrong")
@@ -105,6 +109,7 @@ class HostVerifyTests(TestCase):
                 "machine_name": "api-01",
                 "cpu": 4,
                 "memory": 8,
+                "disk": "sda: 256G",
                 "os": "ubuntu",
                 "system_arch": "x86_64",
                 "system_type": "ubuntu",
@@ -159,6 +164,7 @@ class HostVerifyTests(TestCase):
             login_password="secret",
             cpu=8,
             memory=16,
+            disk="sda: 512G",
             machine_name="stale-name",
             system_arch="x86_64",
             system_type="windows",
@@ -186,8 +192,51 @@ class HostVerifyTests(TestCase):
         self.assertEqual(updated.machine_name, "")
         self.assertEqual(updated.cpu, 0)
         self.assertEqual(updated.memory, 0)
+        self.assertEqual(updated.disk, "")
         self.assertEqual(updated.system_arch, "")
         self.assertEqual(updated.system_type, "")
+
+    def test_managed_host_verify_response_includes_disk_size(self):
+        host = ManagedHost.objects.create(
+            name="api-disk-host",
+            group=self.group,
+            private_ip="10.10.10.16",
+            login_user="root",
+            verified=False,
+        )
+
+        with self.patch_probe(
+            {
+                "machine_name": "api-disk-host",
+                "cpu": 8,
+                "memory": 32,
+                "disk": "sda: 447.1G  nvme0n1: 238.5G",
+                "os": "ubuntu",
+                "system_arch": "x86_64",
+                "system_type": "ubuntu",
+            }
+        ):
+            response = self.client.post(f"/api/host-management/hosts/{host.id}/verify/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["host"]["cpu"], 8)
+        self.assertEqual(payload["host"]["memory"], 32)
+        self.assertEqual(payload["host"]["disk"], "sda: 447.1G  nvme0n1: 238.5G")
+
+    def test_parse_lsblk_disk_details_uses_only_top_level_disks(self):
+        from .probe import parse_lsblk_disk_details
+
+        output = "\n".join(
+            [
+                "sda 480069664358 disk",
+                "nvme0n1 256060514304 disk",
+                "nvme0n1p1 1073741824 part",
+            ]
+        )
+
+        self.assertEqual(parse_lsblk_disk_details(output), "sda: 447.1G  nvme0n1: 238.5G")
+        self.assertEqual(parse_lsblk_disk_details(""), "")
 
     def test_verify_windows_host_marks_failed_when_port_unreachable(self):
         host = ManagedHost.objects.create(
@@ -242,7 +291,16 @@ class HostImportExportTests(TestCase):
     def test_export_host_management_payload(self):
         group = HostGroup.objects.create(name="prod", sort_order=10)
         HostCredential.objects.create(name="root账号", username="root", password="secret", port=22)
-        ManagedHost.objects.create(name="api-01", group=group, private_ip="10.0.0.1", public_ip="1.1.1.1", login_user="root")
+        ManagedHost.objects.create(
+            name="api-01",
+            group=group,
+            private_ip="10.0.0.1",
+            public_ip="1.1.1.1",
+            login_user="root",
+            cpu=4,
+            memory=8,
+            disk="sda: 256G",
+        )
 
         response = self.client.get("/api/host-management/export/")
 
@@ -250,7 +308,8 @@ class HostImportExportTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["version"], 1)
         self.assertTrue(any(item["path"] == "prod" for item in payload["groups"]))
-        self.assertTrue(any(item["privateIp"] == "10.0.0.1" for item in payload["hosts"]))
+        exported_host = next(item for item in payload["hosts"] if item["privateIp"] == "10.0.0.1")
+        self.assertEqual(exported_host["disk"], "sda: 256G")
         self.assertTrue(any(item["name"] == "root账号" for item in payload["credentials"]))
 
     def test_import_host_management_payload(self):
@@ -268,6 +327,9 @@ class HostImportExportTests(TestCase):
                         "publicIp": "1.1.1.2",
                         "port": 22,
                         "loginUser": "root",
+                        "cpu": 4,
+                        "memory": 8,
+                        "disk": "sda: 256G",
                         "os": "centos",
                     }
                 ],
@@ -279,4 +341,5 @@ class HostImportExportTests(TestCase):
         self.assertEqual(response.json()["imported"]["hosts"], 1)
         self.assertTrue(HostGroup.objects.filter(name="zone-a", parent__name="prod").exists())
         self.assertTrue(HostCredential.objects.filter(name="root账号", username="root").exists())
-        self.assertTrue(ManagedHost.objects.filter(private_ip="10.0.0.2", group__name="zone-a").exists())
+        imported_host = ManagedHost.objects.get(private_ip="10.0.0.2", group__name="zone-a")
+        self.assertEqual(imported_host.disk, "sda: 256G")

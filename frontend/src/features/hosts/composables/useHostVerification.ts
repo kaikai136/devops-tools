@@ -35,7 +35,7 @@ export function useHostVerification({
       }
       return result.host;
     } catch (error) {
-      const failedHost = { ...host, verified: false, verifyStatus: 'failed' as const, cpu: 0, memory: 0 };
+      const failedHost = { ...host, verified: false, verifyStatus: 'failed' as const, cpu: 0, memory: 0, disk: '' };
       replaceHost(failedHost);
       showToast('验证失败', `${host.name} 连接失败，配置信息已清空。${(error as Error).message}`);
       return failedHost;

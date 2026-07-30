@@ -46,6 +46,7 @@ class ManagedHost(models.Model):
     system_type = models.CharField(max_length=80, blank=True)
     cpu = models.PositiveSmallIntegerField(default=2)
     memory = models.PositiveSmallIntegerField(default=4)
+    disk = models.CharField(max_length=260, blank=True, default="")
     os = models.CharField(max_length=20, choices=OS_CHOICES, default="centos")
     verified = models.BooleanField(default=False)
     verify_status = models.CharField(max_length=20, choices=VERIFY_STATUS_CHOICES, default="unverified")

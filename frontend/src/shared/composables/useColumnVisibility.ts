@@ -11,6 +11,7 @@ interface ColumnVisibilityOptions<TKey extends string> {
   storageKey?: string;
   fallbackKey?: TKey;
   defaultVisible?: boolean;
+  defaultVisibleKeys?: readonly TKey[];
 }
 
 export type ColumnVisibility<TKey extends string> = Record<TKey, boolean>;
@@ -20,11 +21,16 @@ export function useColumnVisibility<TKey extends string>(
   options: ColumnVisibilityOptions<TKey> = {},
 ) {
   const fallbackKey = options.fallbackKey ?? columns[0]?.key;
+  const defaultVisibility = createDefaultColumnVisibility(columns, {
+    fallbackKey,
+    defaultVisible: options.defaultVisible ?? true,
+    defaultVisibleKeys: options.defaultVisibleKeys,
+  });
   const visibility = ref<ColumnVisibility<TKey>>(
     loadColumnVisibility(columns, {
       storageKey: options.storageKey,
       fallbackKey,
-      defaultVisible: options.defaultVisible ?? true,
+      defaultVisibility,
     }),
   );
 
@@ -63,7 +69,7 @@ export function useColumnVisibility<TKey extends string>(
   }
 
   function resetColumns() {
-    setColumnVisibility(createColumnVisibility(columns, true));
+    setColumnVisibility({ ...defaultVisibility });
   }
 
   return {
@@ -92,17 +98,18 @@ export function createColumnVisibility<TKey extends string>(
 
 function loadColumnVisibility<TKey extends string>(
   columns: readonly TableColumnOption<TKey>[],
-  options: Required<Pick<ColumnVisibilityOptions<TKey>, 'defaultVisible'>> & Pick<ColumnVisibilityOptions<TKey>, 'fallbackKey' | 'storageKey'>,
+  options: Pick<ColumnVisibilityOptions<TKey>, 'fallbackKey' | 'storageKey'> & {
+    defaultVisibility: ColumnVisibility<TKey>;
+  },
 ) {
-  const fallback = createColumnVisibility(columns, options.defaultVisible);
-  if (!options.storageKey || typeof window === 'undefined') return fallback;
+  if (!options.storageKey || typeof window === 'undefined') return { ...options.defaultVisibility };
 
   const raw = window.localStorage.getItem(options.storageKey);
-  if (!raw) return fallback;
+  if (!raw) return { ...options.defaultVisibility };
 
   try {
     const parsed = JSON.parse(raw) as Partial<Record<TKey, unknown>>;
-    const next = createColumnVisibility(columns, true);
+    const next = { ...options.defaultVisibility };
     for (const column of columns) {
       const parsedValue = parsed[column.key];
       if (typeof parsedValue === 'boolean') {
@@ -114,7 +121,7 @@ function loadColumnVisibility<TKey extends string>(
     }
     return next;
   } catch {
-    return fallback;
+    return { ...options.defaultVisibility };
   }
 }
 
@@ -126,4 +133,25 @@ function saveColumnVisibility<TKey extends string>(storageKey: string | undefine
 function checkedFrom(eventOrChecked: Event | boolean) {
   if (typeof eventOrChecked === 'boolean') return eventOrChecked;
   return (eventOrChecked.target as HTMLInputElement).checked;
+}
+
+function createDefaultColumnVisibility<TKey extends string>(
+  columns: readonly TableColumnOption<TKey>[],
+  options: Pick<ColumnVisibilityOptions<TKey>, 'fallbackKey' | 'defaultVisible' | 'defaultVisibleKeys'>,
+) {
+  if (options.defaultVisibleKeys) {
+    const allowed = new Set(options.defaultVisibleKeys);
+    const next = createColumnVisibility(columns, false);
+    for (const column of columns) {
+      if (allowed.has(column.key)) {
+        next[column.key] = true;
+      }
+    }
+    if (options.fallbackKey && !Object.values(next).some(Boolean)) {
+      next[options.fallbackKey] = true;
+    }
+    return next;
+  }
+
+  return createColumnVisibility(columns, options.defaultVisible ?? true);
 }

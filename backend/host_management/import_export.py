@@ -68,6 +68,7 @@ def export_host_management_payload() -> dict:
                 "systemType": host.system_type,
                 "cpu": host.cpu,
                 "memory": host.memory,
+                "disk": host.disk,
                 "os": host.os,
                 "creator": host.created_by.username if host.created_by_id and host.created_by else "system",
                 "createdAt": host.created_at.isoformat() if host.created_at else None,
@@ -282,6 +283,7 @@ def build_host_defaults(item: dict, name: str, group: HostGroup) -> dict:
         "systemType": ("system_type", lambda value: str(value or "")),
         "cpu": ("cpu", lambda value: int(value or 0)),
         "memory": ("memory", lambda value: int(value or 0)),
+        "disk": ("disk", lambda value: str(value or "")[:260]),
         "os": ("os", lambda value: str(value or "centos")),
         "verified": ("verified", parse_bool),
         "verifyStatus": (

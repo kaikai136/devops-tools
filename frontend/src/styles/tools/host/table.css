@@ -5,6 +5,7 @@
 }
 
 .host-table {
+  width: 100%;
   min-width: var(--host-table-min-width, 1300px);
   border-top: 1px solid #edf1f6;
 }
@@ -13,10 +14,10 @@
   display: grid;
   grid-template-columns: var(--host-table-columns);
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   min-height: 72px;
   border-bottom: 1px solid #edf1f6;
-  padding: 0 18px;
+  padding: 0 10px;
 }
 
 .host-select-cell {
