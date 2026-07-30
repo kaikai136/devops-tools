@@ -30,6 +30,7 @@ const verifiedHost: ManagedHost = {
   remark: 'primary',
   cpu: 8,
   memory: 32,
+  disk: 'sda: 447.1G  nvme0n1: 238.5G',
   os: 'centos',
   verified: true,
   verifyStatus: 'verified',
@@ -53,6 +54,7 @@ const failedHost = {
   remark: null,
   cpu: 16,
   memory: 64,
+  disk: 'sda: 128G',
   os: 'windows',
   verified: false,
   verifyStatus: 'failed',
@@ -155,6 +157,7 @@ describe('host export pure utilities', () => {
       { field: 'systemArch', label: '系统架构', width: 16 },
       { field: 'systemType', label: '系统类型', width: 16 },
       { field: 'config', label: '配置信息', width: 18 },
+      { field: 'disk', label: '磁盘信息', width: 28 },
       { field: 'platformType', label: '平台类型', width: 16 },
       { field: 'user', label: '用户', width: 16 },
       { field: 'port', label: '端口', width: 10 },
@@ -182,6 +185,7 @@ describe('host export pure utilities', () => {
           systemArch: 'x86_64',
           systemType: 'Rocky Linux 9',
           config: '8核 32GB',
+          disk: 'sda: 447.1G  nvme0n1: 238.5G',
           platformType: 'linux',
           user: 'ops',
           port: 2222,
@@ -200,6 +204,7 @@ describe('host export pure utilities', () => {
     expect(formatHostExportValue(failedHost, 'ip', groupName)).toBe('10.0.0.8');
     expect(formatHostExportValue(failedHost, 'machine', groupName)).toBe('');
     expect(formatHostExportValue(failedHost, 'config', groupName)).toBe('');
+    expect(formatHostExportValue(failedHost, 'disk', groupName)).toBe('');
     expect(formatHostExportValue(failedHost, 'platformType', groupName)).toBe('windows');
     expect(formatHostExportValue(failedHost, 'port', groupName)).toBe(22);
     expect(formatHostExportValue(failedHost, 'createdAt', groupName)).toBe('');

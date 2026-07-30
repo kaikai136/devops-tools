@@ -49,6 +49,7 @@ export type HostExportColumnKey =
   | 'systemArch'
   | 'systemType'
   | 'config'
+  | 'disk'
   | 'platformType'
   | 'user'
   | 'port'

@@ -15,6 +15,7 @@ export const hostExportColumnOptions: readonly HostExportColumnOption[] = [
   { field: 'systemArch', label: '系统架构', width: 16 },
   { field: 'systemType', label: '系统类型', width: 16 },
   { field: 'config', label: '配置信息', width: 18 },
+  { field: 'disk', label: '磁盘信息', width: 28 },
   { field: 'platformType', label: '平台类型', width: 16 },
   { field: 'user', label: '用户', width: 16 },
   { field: 'port', label: '端口', width: 10 },
@@ -68,6 +69,7 @@ export function formatHostExportValue(
   if (field === 'ip') return [host.publicIp, host.privateIp].filter(Boolean).join('\n');
   if (field === 'machine') return host.verified ? host.machineName || '' : '';
   if (field === 'config') return host.verified && host.cpu > 0 && host.memory > 0 ? `${host.cpu}核 ${host.memory}GB` : '';
+  if (field === 'disk') return host.verified ? host.disk || '' : '';
   if (field === 'platformType') return host.platformType || (host.os === 'windows' ? 'windows' : 'linux');
   if (field === 'user') return host.loginUser || '';
   if (field === 'status') return host.verified ? '已验证' : host.verifyStatus === 'failed' ? '验证失败' : '未验证';

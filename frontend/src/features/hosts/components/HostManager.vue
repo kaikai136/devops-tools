@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { useAppContext } from '@app/context';
 import { useColumnVisibility } from '@shared/composables/useColumnVisibility';
@@ -146,6 +146,7 @@ const fullscreen = ref(false);
 const hostPage = ref(1);
 const hostPageSize = ref(10);
 const hostColumnWidths = ref<Partial<Record<HostColumnKey, number>>>({});
+let stopHostColumnResize: (() => void) | null = null;
 const hostQuickCommandManagerOpen = ref(false);
 const hostQuickCommands = ref<QuickCommand[]>([]);
 const hostQuickCommandCategory = ref('all');
@@ -361,6 +362,7 @@ function resizeHostColumn(key: HostColumnKey, width: number) {
 function startHostColumnResize(key: HostColumnKey, event: MouseEvent) {
   if (key === 'status' || key === 'actions') return;
   event.preventDefault();
+  stopHostColumnResize?.();
   const startX = event.clientX;
   const headerCell = (event.currentTarget as HTMLElement).closest('.host-table-head-cell');
   const startWidth = headerCell?.getBoundingClientRect().width ?? hostColumnOptions.find((column) => column.key === key)?.minWidth ?? 80;
@@ -369,6 +371,10 @@ function startHostColumnResize(key: HostColumnKey, event: MouseEvent) {
     resizeHostColumn(key, startWidth + moveEvent.clientX - startX);
   };
   const onEnd = () => {
+    stopHostColumnResize?.();
+    stopHostColumnResize = null;
+  };
+  stopHostColumnResize = () => {
     window.removeEventListener('mousemove', onMove);
     window.removeEventListener('mouseup', onEnd);
     document.body.classList.remove('host-column-resizing');
@@ -378,6 +384,10 @@ function startHostColumnResize(key: HostColumnKey, event: MouseEvent) {
   window.addEventListener('mousemove', onMove);
   window.addEventListener('mouseup', onEnd, { once: true });
 }
+
+onBeforeUnmount(() => {
+  stopHostColumnResize?.();
+});
 
 function resetHostTableColumns() {
   resetHostColumns();
