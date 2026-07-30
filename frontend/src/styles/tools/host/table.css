@@ -74,10 +74,60 @@
   background: #f8fafc;
 }
 
+.host-table-head-cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 100%;
+  align-items: center;
+  padding-right: 8px;
+}
+
+.host-table-head-cell > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-column-resize-handle {
+  position: absolute;
+  top: 12px;
+  right: -5px;
+  bottom: 12px;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.host-column-resize-handle::after {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  bottom: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+  content: "";
+}
+
+.host-column-resize-handle:hover::after,
+.host-column-resizing .host-column-resize-handle::after {
+  background: #2364f5;
+}
+
+.host-column-resizing,
+.host-column-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+
 .host-sort-button {
   min-height: auto;
+  min-width: 0;
   justify-self: start;
   justify-content: flex-start;
+  overflow: hidden;
   border: 0;
   background: transparent;
   color: inherit;
@@ -85,6 +135,8 @@
   text-align: left;
   font: inherit;
   cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .host-sort-button em {

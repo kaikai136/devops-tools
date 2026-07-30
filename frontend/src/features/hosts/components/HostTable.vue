@@ -43,6 +43,7 @@ const emit = defineEmits<{
   'toggle-all-visible': [event: Event];
   'toggle-host': [hostId: number, event: Event];
   sort: [key: HostSortKey];
+  'resize-column-start': [key: HostColumnKey, event: MouseEvent];
   'open-terminal': [host: ManagedHost];
   'open-simple-terminal': [host: ManagedHost];
   edit: [host: ManagedHost];
@@ -86,30 +87,66 @@ function formatHostSystem(host: ManagedHost) {
             @change="emit('toggle-all-visible', $event)"
           />
         </label>
-        <span v-if="props.isColumnVisible('group')">主机分组</span>
-        <button v-if="props.isColumnVisible('name')" class="host-sort-button" :class="{ active: props.sortKey === 'name', desc: props.sortKey === 'name' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'name')">
-          节点 <em>{{ props.sortMark('name') }}</em>
-        </button>
-        <button v-if="props.isColumnVisible('ip')" class="host-sort-button" :class="{ active: props.sortKey === 'ip', desc: props.sortKey === 'ip' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'ip')">
-          IP地址 <em>{{ props.sortMark('ip') }}</em>
-        </button>
-        <span v-if="props.isColumnVisible('machine')">机器名称</span>
-        <span v-if="props.isColumnVisible('spec')">主机规格</span>
-        <button v-if="props.isColumnVisible('platformType')" class="host-sort-button" :class="{ active: props.sortKey === 'platformType', desc: props.sortKey === 'platformType' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'platformType')">
-          平台类型 <em>{{ props.sortMark('platformType') }}</em>
-        </button>
-        <span v-if="props.isColumnVisible('user')">用户</span>
-        <span v-if="props.isColumnVisible('port')">端口</span>
-        <button v-if="props.isColumnVisible('createdAt')" class="host-sort-button" :class="{ active: props.sortKey === 'createdAt', desc: props.sortKey === 'createdAt' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'createdAt')">
-          创建时间 <em>{{ props.sortMark('createdAt') }}</em>
-        </button>
-        <button v-if="props.isColumnVisible('updatedAt')" class="host-sort-button" :class="{ active: props.sortKey === 'updatedAt', desc: props.sortKey === 'updatedAt' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'updatedAt')">
-          更新时间 <em>{{ props.sortMark('updatedAt') }}</em>
-        </button>
-        <button v-if="props.isColumnVisible('creator')" class="host-sort-button" :class="{ active: props.sortKey === 'creator', desc: props.sortKey === 'creator' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'creator')">
-          创建者 <em>{{ props.sortMark('creator') }}</em>
-        </button>
-        <span v-if="props.isColumnVisible('remark')">备注</span>
+        <div v-if="props.isColumnVisible('group')" class="host-table-head-cell">
+          <span>主机分组</span>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整主机分组列宽" @mousedown="emit('resize-column-start', 'group', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('name')" class="host-table-head-cell">
+          <button class="host-sort-button" :class="{ active: props.sortKey === 'name', desc: props.sortKey === 'name' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'name')">
+            节点 <em>{{ props.sortMark('name') }}</em>
+          </button>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整节点列宽" @mousedown="emit('resize-column-start', 'name', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('ip')" class="host-table-head-cell">
+          <button class="host-sort-button" :class="{ active: props.sortKey === 'ip', desc: props.sortKey === 'ip' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'ip')">
+            IP地址 <em>{{ props.sortMark('ip') }}</em>
+          </button>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整IP地址列宽" @mousedown="emit('resize-column-start', 'ip', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('machine')" class="host-table-head-cell">
+          <span>机器名称</span>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整机器名称列宽" @mousedown="emit('resize-column-start', 'machine', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('spec')" class="host-table-head-cell">
+          <span>主机规格</span>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整主机规格列宽" @mousedown="emit('resize-column-start', 'spec', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('platformType')" class="host-table-head-cell">
+          <button class="host-sort-button" :class="{ active: props.sortKey === 'platformType', desc: props.sortKey === 'platformType' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'platformType')">
+            平台类型 <em>{{ props.sortMark('platformType') }}</em>
+          </button>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整平台类型列宽" @mousedown="emit('resize-column-start', 'platformType', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('user')" class="host-table-head-cell">
+          <span>用户</span>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整用户列宽" @mousedown="emit('resize-column-start', 'user', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('port')" class="host-table-head-cell">
+          <span>端口</span>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整端口列宽" @mousedown="emit('resize-column-start', 'port', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('createdAt')" class="host-table-head-cell">
+          <button class="host-sort-button" :class="{ active: props.sortKey === 'createdAt', desc: props.sortKey === 'createdAt' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'createdAt')">
+            创建时间 <em>{{ props.sortMark('createdAt') }}</em>
+          </button>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整创建时间列宽" @mousedown="emit('resize-column-start', 'createdAt', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('updatedAt')" class="host-table-head-cell">
+          <button class="host-sort-button" :class="{ active: props.sortKey === 'updatedAt', desc: props.sortKey === 'updatedAt' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'updatedAt')">
+            更新时间 <em>{{ props.sortMark('updatedAt') }}</em>
+          </button>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整更新时间列宽" @mousedown="emit('resize-column-start', 'updatedAt', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('creator')" class="host-table-head-cell">
+          <button class="host-sort-button" :class="{ active: props.sortKey === 'creator', desc: props.sortKey === 'creator' && props.sortDirection === 'desc' }" type="button" @click="emit('sort', 'creator')">
+            创建者 <em>{{ props.sortMark('creator') }}</em>
+          </button>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整创建者列宽" @mousedown="emit('resize-column-start', 'creator', $event)"></span>
+        </div>
+        <div v-if="props.isColumnVisible('remark')" class="host-table-head-cell">
+          <span>备注</span>
+          <span class="host-column-resize-handle" role="separator" aria-label="调整备注列宽" @mousedown="emit('resize-column-start', 'remark', $event)"></span>
+        </div>
         <span v-if="props.isColumnVisible('status')" class="host-sticky-cell host-status-cell">状态</span>
         <span v-if="props.isColumnVisible('actions')" class="host-sticky-cell host-actions-cell">操作</span>
       </div>

@@ -591,14 +591,28 @@ describe('HostManager component structure', () => {
   it('keeps the host table compact while preserving action space', () => {
     const managerScript = readSfc('src/features/hosts/components/HostManager.vue').scriptSetup?.content ?? '';
     const styles = readStyle('../../../../styles/tools/host/table.css');
+    const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
+    const headerResizeHandles = findByClass(tableRoot, 'span', 'host-column-resize-handle');
 
     expect(managerScript).toContain("{ key: 'group', label: '主机分组', width: 'minmax(84px, 0.7fr)', minWidth: 84 }");
     expect(managerScript).toContain("{ key: 'ip', label: 'IP地址', width: 'minmax(126px, 0.95fr)', minWidth: 126 }");
     expect(managerScript).toContain("{ key: 'spec', label: '主机规格', width: 'minmax(150px, 1fr)', minWidth: 150 }");
+    expect(managerScript).toContain('const hostColumnWidths = ref<Partial<Record<HostColumnKey, number>>>({});');
+    expect(managerScript).toContain('function resizeHostColumn(key: HostColumnKey, width: number)');
+    expect(managerScript).toContain("if (column.key === 'status') return 'var(--host-status-column-width)'");
+    expect(managerScript).toContain("if (column.key === 'actions') return 'var(--host-actions-column-width)'");
     expect(managerScript).toContain("'--host-select-column-width': '32px'");
     expect(managerScript).toContain("'--host-status-column-width': '86px'");
     expect(managerScript).toContain("'--host-actions-column-width': '132px'");
     expect(managerScript).toContain("'--host-status-sticky-right': actionsVisible ? 'calc(var(--host-actions-column-width) + 6px)' : '0px'");
+    const resizeEvents = headerResizeHandles.map((handle) => directiveExpression(handle, 'on', 'mousedown'));
+    expect(resizeEvents).toEqual(expect.arrayContaining([
+      "emit('resize-column-start', 'group', $event)",
+      "emit('resize-column-start', 'name', $event)",
+      "emit('resize-column-start', 'spec', $event)",
+    ]));
+    expect(resizeEvents).not.toContain("emit('resize-column-start', 'status', $event)");
+    expect(resizeEvents).not.toContain("emit('resize-column-start', 'actions', $event)");
     expect(styles).toMatch(/\.host-table\s*\{[\s\S]*width:\s*100%;[\s\S]*min-width:\s*var\(--host-table-min-width,\s*1300px\);/);
     expect(styles).toMatch(/\.host-table-row\s*\{[\s\S]*gap:\s*6px;[\s\S]*padding:\s*0 10px;/);
   });

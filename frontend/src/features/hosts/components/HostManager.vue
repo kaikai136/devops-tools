@@ -145,6 +145,7 @@ const hostMoreActionsOpen = ref(false);
 const fullscreen = ref(false);
 const hostPage = ref(1);
 const hostPageSize = ref(10);
+const hostColumnWidths = ref<Partial<Record<HostColumnKey, number>>>({});
 const hostQuickCommandManagerOpen = ref(false);
 const hostQuickCommands = ref<QuickCommand[]>([]);
 const hostQuickCommandCategory = ref('all');
@@ -192,7 +193,10 @@ const hostTableStyle = computed<Record<string, string>>(() => {
   const tableGapWidth = 6;
   const tableHorizontalPadding = 20;
   const selectColumnWidth = 32;
-  const minimumWidth = columns.reduce((total, column) => total + (column.minWidth ?? 0), 0)
+  const minimumWidth = columns.reduce((total, column) => {
+    const width = hostColumnWidths.value[column.key];
+    return total + (width ?? column.minWidth ?? 0);
+  }, 0)
     + columns.length * tableGapWidth
     + tableHorizontalPadding
     + selectColumnWidth;
@@ -200,6 +204,8 @@ const hostTableStyle = computed<Record<string, string>>(() => {
   const templateColumns = columns.map((column) => {
     if (column.key === 'status') return 'var(--host-status-column-width)';
     if (column.key === 'actions') return 'var(--host-actions-column-width)';
+    const width = hostColumnWidths.value[column.key];
+    if (width) return `${width}px`;
     return column.width;
   });
 
@@ -341,6 +347,41 @@ function toggleHostMoreActions() {
 
 function closeHostMoreActions() {
   hostMoreActionsOpen.value = false;
+}
+
+function resizeHostColumn(key: HostColumnKey, width: number) {
+  const column = hostColumnOptions.find((option) => option.key === key);
+  if (!column || key === 'status' || key === 'actions') return;
+  hostColumnWidths.value = {
+    ...hostColumnWidths.value,
+    [key]: Math.max(column.minWidth, Math.round(width)),
+  };
+}
+
+function startHostColumnResize(key: HostColumnKey, event: MouseEvent) {
+  if (key === 'status' || key === 'actions') return;
+  event.preventDefault();
+  const startX = event.clientX;
+  const headerCell = (event.currentTarget as HTMLElement).closest('.host-table-head-cell');
+  const startWidth = headerCell?.getBoundingClientRect().width ?? hostColumnOptions.find((column) => column.key === key)?.minWidth ?? 80;
+
+  const onMove = (moveEvent: MouseEvent) => {
+    resizeHostColumn(key, startWidth + moveEvent.clientX - startX);
+  };
+  const onEnd = () => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onEnd);
+    document.body.classList.remove('host-column-resizing');
+  };
+
+  document.body.classList.add('host-column-resizing');
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onEnd, { once: true });
+}
+
+function resetHostTableColumns() {
+  resetHostColumns();
+  hostColumnWidths.value = {};
 }
 
 function createHostQuickCommandDraft(command?: QuickCommand | null): QuickCommandPayload {
@@ -675,7 +716,7 @@ function hostPlatformType(value: string | null | undefined) {
         @refresh="loadHostManagement"
         @toggle-column-settings="toggleHostColumnSettings"
         @toggle-all-columns="toggleAllHostColumns"
-        @reset-columns="resetHostColumns"
+        @reset-columns="resetHostTableColumns"
         @update-column="updateHostColumnVisibility"
         @toggle-fullscreen="toggleFullscreen"
       />
@@ -715,6 +756,7 @@ function hostPlatformType(value: string | null | undefined) {
         @toggle-all-visible="toggleAllVisibleHosts"
         @toggle-host="toggleHostSelected"
         @sort="setHostSort"
+        @resize-column-start="startHostColumnResize"
         @open-terminal="openWebTerminal"
         @open-simple-terminal="openSimpleHostTerminal"
         @edit="editManagedHost"
