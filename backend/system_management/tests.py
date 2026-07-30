@@ -839,6 +839,23 @@ class SystemSettingsApiTests(TestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertFalse(update_response.json()["value"]["enabled"])
 
+    def test_watermark_setting_accepts_all_navigation_pages(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={
+                "key": "watermark",
+                "value": {
+                    "enabled": True,
+                    "text": "CAPTAIN",
+                    "pages": ["bulkExecution", "companyDevices", "securityScan"],
+                },
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["value"]["pages"], ["bulkExecution", "companyDevices", "securityScan"])
+
     def test_logged_in_user_can_read_watermark_but_cannot_write(self):
         SystemSetting.objects.create(key="watermark", value={"enabled": True, "text": "CAPTAIN", "pages": ["ip"]})
         self.client.force_login(self.user)

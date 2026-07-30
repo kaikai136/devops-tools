@@ -32,7 +32,7 @@ FEATURE_PERMISSION_DEFINITIONS = [
     ("host", "主机管理", "hosts", "主机管理"),
     ("host", "主机管理", "bulkExecution", "批量执行"),
     ("host", "主机管理", "accounts", "账号管理"),
-    ("company", "公司管理", "companyDevices", "设备管理"),
+    ("company", "设备管理", "companyDevices", "设备资产"),
     ("security", "安全工具", "auth", "双因子认证"),
     ("security", "安全工具", "password", "密码生成器"),
     ("security", "安全工具", "securityScan", "安全扫描"),
