@@ -49,7 +49,7 @@ function findByClass(root: ReturnType<typeof templateRoot>, tag: string, classNa
 }
 
 describe('DeviceManager page structure', () => {
-  it('registers company management navigation and app rendering', () => {
+  it('registers device asset navigation and app rendering', () => {
     const types = readSource('types.ts');
     const navigation = readSource('app/navigation.ts');
     const shell = readSource('composables/app/useShellState.ts');
@@ -58,10 +58,14 @@ describe('DeviceManager page structure', () => {
 
     expect(types).toContain("| 'companyDevices'");
     expect(navigation).toContain("key: 'company' as const");
-    expect(navigation).toContain("label: '公司管理'");
-    expect(navigation).toContain("{ key: 'companyDevices' as const, label: '设备管理'");
-    expect(shell).toContain("companyDevices: 'hardDrive'");
-    expect(shell).toContain("company: 'users'");
+    expect(navigation).toContain("label: '设备管理'");
+    expect(navigation).toContain("{ key: 'companyDevices' as const, label: '设备资产'");
+    expect(navigation).not.toContain("label: '公司管理'");
+    expect(navigation).not.toContain("{ key: 'companyDevices' as const, label: '设备管理'");
+    expect(shell).toContain("companyDevices: 'laptop'");
+    expect(shell).toContain("company: 'monitor'");
+    expect(shell).not.toContain("companyDevices: 'hardDrive'");
+    expect(shell).not.toContain("company: 'users'");
     expect(app).toContain("const DeviceManager = defineAsyncComponent(() => import('./features/company/components/DeviceManager.vue'))");
     expect(app).toContain("<DeviceManager v-if=\"activeTool === 'companyDevices'\" />");
     expect(styles).toContain('@import "./styles/tools/device-manager.css";');
@@ -82,7 +86,6 @@ describe('DeviceManager page structure', () => {
     expect(source).toContain("canUsePageAction('companyDevices', 'delete')");
     expect(source).toContain("canUsePageAction('companyDevices', 'export')");
     expect(source).toContain("canUsePageAction('companyDevices', 'filter')");
-    expect(source).toContain('资产列表');
     expect(source).toContain('删除');
     expect(source).toContain('添加');
     expect(source).toContain('导出Excel');
@@ -100,5 +103,104 @@ describe('DeviceManager page structure', () => {
     for (const removedHeader of ['使用部门', '供应商', '采购订单编号', '合同编号', '标签', '添加时间']) {
       expect(source).not.toContain(`<th>${removedHeader}</th>`);
     }
+  });
+
+  it('renders closed category and status option sets for filters and form', () => {
+    const source = readSource('features/company/components/DeviceManager.vue');
+
+    expect(source).toContain('<select v-model="categoryFilter" aria-label="资产类别">');
+    expect(source).toContain('<select v-model="deviceForm.category">');
+    expect(source).not.toContain('list="device-category-options"');
+    expect(source).not.toContain('<datalist id="device-category-options">');
+    expect(source).toContain('<option value="固定资产">固定资产</option>');
+    expect(source).toContain('<option value="耗材">耗材</option>');
+    expect(source).toContain('<option value="using">使用中</option>');
+    expect(source).toContain('<option value="idle">闲置</option>');
+    expect(source).toContain('<option value="repair">维修</option>');
+    expect(source).toContain('<option value="scrapped">报废</option>');
+  });
+
+  it('closes the device dialog after a successful save without being blocked by saving state', () => {
+    const source = readSource('features/company/components/DeviceManager.vue');
+
+    expect(source).toContain('function finishDeviceDialog()');
+    expect(source).toMatch(/showToast\('保存成功'[\s\S]*?finishDeviceDialog\(\);/);
+    expect(source).not.toMatch(/showToast\('保存成功'[\s\S]*?closeDeviceDialog\(\);/);
+    expect(source).toContain('if (isSaving.value) return;');
+  });
+
+  it('places device toolbar controls in the former title position without rendering the title', () => {
+    const source = readSource('features/company/components/DeviceManager.vue');
+    const styles = readSource('styles/tools/device-manager.css');
+
+    expect(source).not.toContain('<h2><AppIcon name="hardDrive" :size="18" />资产列表</h2>');
+    expect(source).not.toContain('<h2><AppIcon name="hardDrive" :size="18" />璧勪骇鍒楄〃</h2>');
+    expect(source).toContain('class="device-toolbar-filters"');
+    expect(source).toContain('class="device-toolbar-actions"');
+    expect(styles).toMatch(/\.device-list-toolbar\s*\{[^}]*justify-content:\s*space-between;/s);
+    expect(styles).toMatch(/\.device-toolbar-filters\s*\{[^}]*justify-content:\s*flex-start;/s);
+    expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*justify-content:\s*flex-end;/s);
+    expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*margin-left:\s*auto;/s);
+  });
+
+  it('keeps device toolbar controls in one row with explicit danger disabled styling', () => {
+    const styles = readSource('styles/tools/device-manager.css');
+    const source = readSource('features/company/components/DeviceManager.vue');
+
+    expect(source).not.toContain('>查询</button>');
+    expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*flex-wrap:\s*nowrap;/s);
+    expect(styles).toMatch(/\.device-toolbar-filters\s*\{[^}]*flex-wrap:\s*nowrap;/s);
+    expect(styles).toMatch(/\.device-toolbar-filters select\s*\{[^}]*width:\s*112px;/s);
+    expect(styles).toMatch(/\.device-toolbar-filters select\s*\{[^}]*flex:\s*0 0 112px;/s);
+    expect(styles).toMatch(/\.device-toolbar-filters input\s*\{[^}]*width:\s*132px;/s);
+    expect(styles).toMatch(/\.device-toolbar-filters input\s*\{[^}]*flex:\s*0 0 132px;/s);
+    expect(styles).toMatch(/\.device-button,\s*\.device-toolbar-filters select,\s*\.device-toolbar-filters input,\s*\.device-pagination button\s*\{[^}]*height:\s*32px;/s);
+    expect(styles).toMatch(/\.device-button,\s*\.device-toolbar-filters select,\s*\.device-toolbar-filters input,\s*\.device-pagination button\s*\{[^}]*min-height:\s*32px;/s);
+    expect(styles).toMatch(/\.device-button,\s*\.device-toolbar-filters select,\s*\.device-toolbar-filters input,\s*\.device-pagination button\s*\{[^}]*box-sizing:\s*border-box;/s);
+    expect(styles).toMatch(/\.device-button\s*\{[^}]*min-width:\s*72px;/s);
+    expect(styles).toMatch(/\.device-row-actions \.device-button\s*\{[^}]*min-width:\s*58px;/s);
+    expect(styles).toMatch(/\.device-button\.danger\s*\{[^}]*color:\s*#fff;/s);
+    expect(styles).toMatch(/\.device-button\.danger\s*\{[^}]*background:\s*#ff5c6b;/s);
+    expect(styles).toMatch(/\.device-button\.danger:disabled\s*\{[^}]*background:\s*#ff5c6b;/s);
+    expect(styles).toMatch(/\.device-button\.danger:disabled\s*\{[^}]*color:\s*#fff;/s);
+    expect(styles).toMatch(/\.device-button:disabled:not\(\.danger\),\s*\.device-pagination button:disabled\s*\{/s);
+  });
+
+  it('renders host-style pagination with category counts on the right', () => {
+    const source = readSource('features/company/components/DeviceManager.vue');
+    const styles = readSource('styles/tools/device-manager.css');
+
+    expect(source).toContain('const pageSize = ref(10);');
+    expect(source).toContain('const pageStart = computed(() => (filteredDevices.value.length ? (page.value - 1) * pageSize.value + 1 : 0));');
+    expect(source).toContain('const pageEnd = computed(() => Math.min(page.value * pageSize.value, filteredDevices.value.length));');
+    expect(source).toContain("const fixedAssetCount = computed(() => filteredDevices.value.filter((device) => device.category === '固定资产').length);");
+    expect(source).toContain("const consumableCount = computed(() => filteredDevices.value.filter((device) => device.category === '耗材').length);");
+    expect(source).toContain('class="device-pagination-left"');
+    expect(source).toContain('共 {{ filteredDevices.length }} 条');
+    expect(source).toContain('{{ pageStart }}-{{ pageEnd }}');
+    expect(source).toContain('v-for="pageNumber in pageNumbers"');
+    expect(source).toContain('<select :value="pageSize" aria-label="每页条数" @change="setPageSize">');
+    expect(source).toContain('<option :value="10">10 条/页</option>');
+    expect(source).toContain('<option :value="20">20 条/页</option>');
+    expect(source).toContain('<option :value="50">50 条/页</option>');
+    expect(source).toContain('class="device-category-summary"');
+    expect(source).toContain('固定资产 {{ fixedAssetCount }}');
+    expect(source).toContain('耗材 {{ consumableCount }}');
+    expect(source).not.toContain('共{{ totalPages }}页 {{ filteredDevices.length }}条，已选 {{ selectedDeviceCount }} 条');
+    expect(styles).toMatch(/\.device-pagination-left,\s*\.device-pagination-controls,\s*\.device-category-summary\s*\{[^}]*display:\s*flex;/s);
+    expect(styles).toMatch(/\.device-pagination-controls select\s*\{[^}]*min-height:\s*30px;/s);
+    expect(styles).toMatch(/\.device-category-summary\s*\{[^}]*justify-content:\s*flex-end;/s);
+    expect(styles).toMatch(/\.device-summary-pill\s*\{[^}]*white-space:\s*nowrap;/s);
+  });
+
+  it('uses separate category badge colors for fixed assets and consumables', () => {
+    const source = readSource('features/company/components/DeviceManager.vue');
+    const styles = readSource('styles/tools/device-manager.css');
+
+    expect(source).toContain("categoryClass(device.category)");
+    expect(source).toContain("function categoryClass(category: string)");
+    expect(source).toContain("category === '耗材' ? 'consumable' : 'fixed'");
+    expect(styles).toMatch(/\.device-category-badge\.fixed\s*\{[^}]*background:\s*#7146f6;/s);
+    expect(styles).toMatch(/\.device-category-badge\.consumable\s*\{[^}]*background:\s*#0f9f8f;/s);
   });
 });

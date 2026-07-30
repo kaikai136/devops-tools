@@ -42,14 +42,15 @@ describe('company device export utilities', () => {
   it('serializes status values and empty fields for export rows', () => {
     expect(companyDeviceStatusText('using')).toBe('使用中');
     expect(companyDeviceStatusText('idle')).toBe('闲置');
-    expect(companyDeviceStatusText('repair')).toBe('维修中');
+    expect(companyDeviceStatusText('repair')).toBe('维修');
+    expect(companyDeviceStatusText('scrapped')).toBe('报废');
     expect(buildCompanyDeviceExportRows([{ ...device, code: '', purchaseTime: null }])).toEqual([
       {
         name: '笔记本',
         category: '固定资产',
         code: '',
         spec: 'i7/32GB/1TB',
-        status: '维修中',
+        status: '维修',
         user: '张三',
         brand: 'ThinkPad',
         purchaseTime: '',
@@ -65,6 +66,6 @@ describe('company device export utilities', () => {
     expect(workbook).toContain('资产名称');
     expect(workbook).toContain('资产状态');
     expect(workbook).toContain('笔记本');
-    expect(workbook).toContain('维修中');
+    expect(workbook).toContain('维修');
   });
 });

@@ -3,17 +3,26 @@ from django.db import models
 
 
 class CompanyDevice(models.Model):
+    CATEGORY_FIXED = "固定资产"
+    CATEGORY_CONSUMABLE = "耗材"
+    CATEGORY_CHOICES = [
+        (CATEGORY_FIXED, "固定资产"),
+        (CATEGORY_CONSUMABLE, "耗材"),
+    ]
+
     STATUS_USING = "using"
     STATUS_IDLE = "idle"
     STATUS_REPAIR = "repair"
+    STATUS_SCRAPPED = "scrapped"
     STATUS_CHOICES = [
         (STATUS_USING, "使用中"),
         (STATUS_IDLE, "闲置"),
-        (STATUS_REPAIR, "维修中"),
+        (STATUS_REPAIR, "维修"),
+        (STATUS_SCRAPPED, "报废"),
     ]
 
     name = models.CharField(max_length=160)
-    category = models.CharField(max_length=80, default="固定资产")
+    category = models.CharField(max_length=80, choices=CATEGORY_CHOICES, default=CATEGORY_FIXED)
     code = models.CharField(max_length=120, blank=True)
     spec = models.CharField(max_length=260, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_USING)

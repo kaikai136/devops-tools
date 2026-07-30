@@ -19,7 +19,8 @@ export const companyDeviceExportColumns: readonly CompanyDeviceExportColumn[] = 
 
 export function companyDeviceStatusText(status: CompanyDeviceStatus) {
   if (status === 'idle') return '闲置';
-  if (status === 'repair') return '维修中';
+  if (status === 'repair') return '维修';
+  if (status === 'scrapped') return '报废';
   return '使用中';
 }
 

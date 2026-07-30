@@ -26,7 +26,7 @@ const statusFilter = ref<'' | CompanyDeviceStatus>('');
 const categoryFilter = ref('');
 const search = ref('');
 const page = ref(1);
-const pageSize = 10;
+const pageSize = ref(10);
 const isLoading = ref(false);
 const isSaving = ref(false);
 const loadError = ref('');
@@ -54,17 +54,28 @@ const filteredDevices = computed(() => {
     return matchesStatus && matchesCategory && matchesQuery;
   });
 });
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredDevices.value.length / pageSize)));
-const pagedDevices = computed(() => filteredDevices.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredDevices.value.length / pageSize.value)));
+const pagedDevices = computed(() => {
+  const start = (page.value - 1) * pageSize.value;
+  return filteredDevices.value.slice(start, start + pageSize.value);
+});
+const pageStart = computed(() => (filteredDevices.value.length ? (page.value - 1) * pageSize.value + 1 : 0));
+const pageEnd = computed(() => Math.min(page.value * pageSize.value, filteredDevices.value.length));
+const pageNumbers = computed(() => {
+  const from = Math.max(1, page.value - 2);
+  const to = Math.min(totalPages.value, page.value + 2);
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+});
+const fixedAssetCount = computed(() => filteredDevices.value.filter((device) => device.category === '固定资产').length);
+const consumableCount = computed(() => filteredDevices.value.filter((device) => device.category === '耗材').length);
 const visibleDeviceIds = computed(() => pagedDevices.value.map((device) => device.id));
 const allVisibleSelected = computed(() => visibleDeviceIds.value.length > 0 && visibleDeviceIds.value.every((id) => selectedIds.value.has(id)));
-const selectedDeviceCount = computed(() => selectedIds.value.size);
 
-watch([filteredDevices], () => {
+watch([filteredDevices, pageSize], () => {
   if (page.value > totalPages.value) page.value = totalPages.value;
 });
 
-watch([statusFilter, categoryFilter, search], () => {
+watch([statusFilter, categoryFilter, search, pageSize], () => {
   page.value = 1;
 });
 
@@ -136,6 +147,10 @@ function openEditDeviceDialog(device: CompanyDevice) {
 
 function closeDeviceDialog() {
   if (isSaving.value) return;
+  finishDeviceDialog();
+}
+
+function finishDeviceDialog() {
   deviceDialog.value = null;
   dialogError.value = '';
 }
@@ -153,7 +168,7 @@ async function saveDeviceDialog() {
       ? devices.value.map((device) => (device.id === saved.id ? saved : device))
       : [saved, ...devices.value];
     showToast('保存成功', `设备「${saved.name}」已保存。`);
-    closeDeviceDialog();
+    finishDeviceDialog();
   } catch (error) {
     dialogError.value = error instanceof Error ? error.message : '设备保存失败';
   } finally {
@@ -230,6 +245,10 @@ function statusText(status: CompanyDeviceStatus) {
   return companyDeviceStatusText(status);
 }
 
+function categoryClass(category: string) {
+  return category === '耗材' ? 'consumable' : 'fixed';
+}
+
 function toggleAll(event: Event) {
   const checked = (event.target as HTMLInputElement).checked;
   const next = new Set(selectedIds.value);
@@ -254,13 +273,36 @@ function resetFilters() {
   search.value = '';
   page.value = 1;
 }
+
+function setPage(nextPage: number) {
+  page.value = Math.min(Math.max(1, nextPage), totalPages.value);
+}
+
+function setPageSize(event: Event) {
+  pageSize.value = Number((event.target as HTMLSelectElement).value);
+}
 </script>
 
 <template>
   <section class="device-manager-page">
     <article class="device-list-panel">
       <div class="device-list-toolbar">
-        <h2><AppIcon name="hardDrive" :size="18" />资产列表</h2>
+        <div v-if="canUsePageAction('companyDevices', 'filter')" class="device-toolbar-filters">
+          <select v-model="statusFilter" aria-label="资产状态">
+            <option value="">资产状态</option>
+            <option value="using">使用中</option>
+            <option value="idle">闲置</option>
+            <option value="repair">维修</option>
+            <option value="scrapped">报废</option>
+          </select>
+          <select v-model="categoryFilter" aria-label="资产类别">
+            <option value="">资产类别</option>
+            <option value="固定资产">固定资产</option>
+            <option value="耗材">耗材</option>
+          </select>
+          <input v-model="search" type="search" placeholder="输入名称等信息" aria-label="输入名称等信息" />
+          <button class="device-button danger" type="button" @click="resetFilters">重置</button>
+        </div>
         <div class="device-toolbar-actions">
           <button
             v-if="canUsePageAction('companyDevices', 'delete')"
@@ -287,22 +329,6 @@ function resetFilters() {
           >
             <AppIcon name="download" :size="15" />导出Excel
           </button>
-          <template v-if="canUsePageAction('companyDevices', 'filter')">
-            <select v-model="statusFilter" aria-label="资产状态">
-              <option value="">资产状态</option>
-              <option value="using">使用中</option>
-              <option value="idle">闲置</option>
-              <option value="repair">维修中</option>
-            </select>
-            <select v-model="categoryFilter" aria-label="资产类别">
-              <option value="">资产类别</option>
-              <option value="固定资产">固定资产</option>
-              <option value="耗材">耗材</option>
-            </select>
-            <input v-model="search" type="search" placeholder="输入名称等信息" aria-label="输入名称等信息" />
-            <button class="device-button primary" type="button" @click="page = 1">查询</button>
-            <button class="device-button danger" type="button" @click="resetFilters">重置</button>
-          </template>
         </div>
       </div>
 
@@ -340,7 +366,7 @@ function resetFilters() {
               </td>
               <td>{{ (page - 1) * pageSize + index + 1 }}</td>
               <td>{{ device.name }}</td>
-              <td><span class="device-category-badge">{{ device.category }}</span></td>
+              <td><span class="device-category-badge" :class="categoryClass(device.category)">{{ device.category }}</span></td>
               <td>{{ device.code || '-' }}</td>
               <td class="device-spec-cell">{{ device.spec || '-' }}</td>
               <td><span class="device-status-badge" :class="device.status">{{ statusText(device.status) }}</span></td>
@@ -377,11 +403,37 @@ function resetFilters() {
       </div>
 
       <div class="device-pagination">
-        <span>共{{ totalPages }}页 {{ filteredDevices.length }}条，已选 {{ selectedDeviceCount }} 条</span>
-        <div>
-          <button type="button" :disabled="page <= 1" @click="page -= 1">«</button>
-          <button class="active" type="button">{{ page }}</button>
-          <button type="button" :disabled="page >= totalPages" @click="page += 1">»</button>
+        <div class="device-pagination-left">
+          <div class="device-pagination-summary">
+            <span>共 {{ filteredDevices.length }} 条</span>
+            <span>{{ pageStart }}-{{ pageEnd }}</span>
+          </div>
+          <div class="device-pagination-controls">
+            <button class="prev" type="button" :disabled="page <= 1" aria-label="上一页" @click="setPage(page - 1)">
+              <AppIcon name="chevronRight" :size="14" />
+            </button>
+            <button
+              v-for="pageNumber in pageNumbers"
+              :key="pageNumber"
+              type="button"
+              :class="{ active: pageNumber === page }"
+              @click="setPage(pageNumber)"
+            >
+              {{ pageNumber }}
+            </button>
+            <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)">
+              <AppIcon name="chevronRight" :size="14" />
+            </button>
+            <select :value="pageSize" aria-label="每页条数" @change="setPageSize">
+              <option :value="10">10 条/页</option>
+              <option :value="20">20 条/页</option>
+              <option :value="50">50 条/页</option>
+            </select>
+          </div>
+        </div>
+        <div class="device-category-summary">
+          <span class="device-summary-pill">固定资产 {{ fixedAssetCount }}</span>
+          <span class="device-summary-pill">耗材 {{ consumableCount }}</span>
         </div>
       </div>
     </article>
@@ -398,13 +450,12 @@ function resetFilters() {
         </label>
         <label :class="{ invalid: formErrors.category }">
           <span>资产类别</span>
-          <input v-model="deviceForm.category" list="device-category-options" />
+          <select v-model="deviceForm.category">
+            <option value="固定资产">固定资产</option>
+            <option value="耗材">耗材</option>
+          </select>
           <em v-if="formErrors.category">{{ formErrors.category }}</em>
         </label>
-        <datalist id="device-category-options">
-          <option value="固定资产"></option>
-          <option value="耗材"></option>
-        </datalist>
         <label><span>资产编码</span><input v-model="deviceForm.code" /></label>
         <label><span>规格说明</span><input v-model="deviceForm.spec" /></label>
         <label>
@@ -412,7 +463,8 @@ function resetFilters() {
           <select v-model="deviceForm.status">
             <option value="using">使用中</option>
             <option value="idle">闲置</option>
-            <option value="repair">维修中</option>
+            <option value="repair">维修</option>
+            <option value="scrapped">报废</option>
           </select>
         </label>
         <label><span>使用人员</span><input v-model="deviceForm.user" /></label>

@@ -33,9 +33,9 @@ export const navGroups: NavGroup[] = [
   },
   {
     key: 'company' as const,
-    label: '公司管理',
+    label: '设备管理',
     items: [
-      { key: 'companyDevices' as const, label: '设备管理', desc: '公司设备资产、标签与使用信息管理' },
+      { key: 'companyDevices' as const, label: '设备资产', desc: '公司设备资产、标签与使用信息管理' },
     ],
   },
   {

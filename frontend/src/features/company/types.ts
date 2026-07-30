@@ -1,4 +1,4 @@
-export type CompanyDeviceStatus = 'using' | 'idle' | 'repair';
+export type CompanyDeviceStatus = 'using' | 'idle' | 'repair' | 'scrapped';
 
 export interface CompanyDevice {
   id: number;

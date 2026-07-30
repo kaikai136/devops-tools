@@ -100,6 +100,33 @@ class CompanyDeviceApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("资产名称", response.json()["error"])
 
+    def test_company_device_category_and_status_choices_are_enforced(self):
+        self.client.force_login(self.staff)
+
+        scrapped_response = self.client.post(
+            "/api/company-devices/",
+            data={"name": "报废打印机", "category": "耗材", "status": "scrapped"},
+            content_type="application/json",
+        )
+        invalid_category_response = self.client.post(
+            "/api/company-devices/",
+            data={"name": "其他资产", "category": "其他", "status": "using"},
+            content_type="application/json",
+        )
+        invalid_status_response = self.client.post(
+            "/api/company-devices/",
+            data={"name": "未知状态资产", "category": "固定资产", "status": "lost"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(scrapped_response.status_code, 201)
+        self.assertEqual(scrapped_response.json()["status"], "scrapped")
+        self.assertEqual(scrapped_response.json()["category"], "耗材")
+        self.assertEqual(invalid_category_response.status_code, 400)
+        self.assertIn("资产类别", invalid_category_response.json()["error"])
+        self.assertEqual(invalid_status_response.status_code, 400)
+        self.assertIn("资产状态", invalid_status_response.json()["error"])
+
     def test_company_device_action_permissions_are_enforced(self):
         self.client.force_login(self.viewer)
 

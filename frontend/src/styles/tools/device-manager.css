@@ -30,32 +30,37 @@
   border-bottom: 1px solid #e2e7ef;
 }
 
-.device-list-toolbar h2 {
-  display: inline-flex;
+.device-toolbar-filters,
+.device-toolbar-actions {
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-  margin: 0;
-  color: #111827;
-  font-size: 18px;
-  font-weight: 500;
-  line-height: 32px;
+  gap: 5px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.device-toolbar-filters {
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
 }
 
 .device-toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  gap: 5px;
-  min-width: 0;
+  margin-left: auto;
 }
 
 .device-button,
-.device-toolbar-actions select,
-.device-toolbar-actions input,
+.device-toolbar-filters select,
+.device-toolbar-filters input,
 .device-pagination button {
-  height: 31px;
+  box-sizing: border-box;
+  height: 32px;
+  min-height: 32px;
   border: 1px solid #d3dbe7;
   border-radius: 3px;
   background: #fff;
@@ -65,19 +70,26 @@
   line-height: 29px;
 }
 
-.device-toolbar-actions select {
-  min-width: 150px;
+.device-toolbar-filters select {
+  flex: 0 0 112px;
+  width: 112px;
+  min-width: 112px;
   color: #374151;
 }
 
-.device-toolbar-actions input {
-  width: 178px;
+.device-toolbar-filters input {
+  flex: 0 0 132px;
+  width: 132px;
+  min-width: 132px;
 }
 
 .device-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
+  gap: 5px;
+  min-width: 72px;
   border-color: #087cff;
   background: #087cff;
   color: #fff;
@@ -87,14 +99,26 @@
 }
 
 .device-button.danger {
-  border-color: #f02d42;
-  background: #f02d42;
+  border-color: #ff5c6b;
+  background: #ff5c6b;
+  color: #fff;
 }
 
-.device-button:disabled,
+.device-button.danger:disabled {
+  border-color: #ff5c6b;
+  background: #ff5c6b;
+  color: #fff;
+  opacity: 1;
+}
+
+.device-button:disabled:not(.danger),
 .device-pagination button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.device-button:disabled {
+  cursor: not-allowed;
 }
 
 .device-button svg {
@@ -172,8 +196,12 @@
   font-weight: 700;
 }
 
-.device-category-badge {
+.device-category-badge.fixed {
   background: #7146f6;
+}
+
+.device-category-badge.consumable {
+  background: #0f9f8f;
 }
 
 .device-status-badge.using {
@@ -188,10 +216,18 @@
   background: #f59e0b;
 }
 
+.device-status-badge.scrapped {
+  background: #6b7280;
+}
+
 .device-row-actions {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+.device-row-actions .device-button {
+  min-width: 58px;
 }
 
 .device-empty {
@@ -204,29 +240,87 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  min-height: 68px;
-  padding-top: 10px;
-  color: #111827;
-  font-size: 14px;
+  gap: 14px;
+  min-height: 44px;
+  padding-top: 12px;
+  border-top: 1px solid #edf1f6;
+  color: #526b8a;
+  font-size: 13px;
+  font-weight: 800;
 }
 
-.device-pagination > div {
-  display: inline-flex;
+.device-pagination-left,
+.device-pagination-controls,
+.device-category-summary {
+  display: flex;
   align-items: center;
-  gap: 0;
+  gap: 8px;
+}
+
+.device-pagination-left {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.device-pagination-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.device-pagination-summary span {
+  white-space: nowrap;
 }
 
 .device-pagination button {
-  min-width: 34px;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
   border-radius: 0;
+  padding: 0;
+  color: #173252;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .device-pagination button.active {
   border-color: #087cff;
   background: #087cff;
   color: #fff;
+}
+
+.device-pagination button.prev .app-icon {
+  transform: rotate(180deg);
+}
+
+.device-pagination-controls select {
+  min-height: 30px;
+  border: 1px solid #d8e2ee;
+  border-radius: 0;
+  background: #fff;
+  color: #173252;
+  padding: 0 8px;
+  font: inherit;
+}
+
+.device-category-summary {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.device-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid #d8e2ee;
+  border-radius: 3px;
+  background: #fff;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 .device-form-modal {
