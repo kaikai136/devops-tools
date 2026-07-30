@@ -1,6 +1,6 @@
 import type { ToolKey } from '../types';
 
-type NavGroupKey = 'network' | 'host' | 'security' | 'system';
+type NavGroupKey = 'network' | 'host' | 'company' | 'security' | 'system';
 
 export interface NavItem {
   key: ToolKey;
@@ -25,10 +25,17 @@ export const navGroups: NavGroup[] = [
     key: 'host' as const,
     label: '资产管理',
     items: [
-      { key: 'hosts' as const, label: '资产管理', desc: '分组资产、验证状态与终端入口' },
+      { key: 'hosts' as const, label: '主机管理', desc: '分组资产、验证状态与终端入口' },
       { key: 'sessionAudits' as const, label: '会话审计', desc: 'Web 终端命令审计与操作录像' },
       { key: 'bulkExecution' as const, label: '批量执行', desc: '对已验证 Linux SSH 主机并发执行命令' },
       { key: 'accounts' as const, label: '账号管理', desc: '用户账号、状态与权限管理' },
+    ],
+  },
+  {
+    key: 'company' as const,
+    label: '公司管理',
+    items: [
+      { key: 'companyDevices' as const, label: '设备管理', desc: '公司设备资产、标签与使用信息管理' },
     ],
   },
   {

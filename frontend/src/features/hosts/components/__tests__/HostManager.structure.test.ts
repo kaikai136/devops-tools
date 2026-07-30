@@ -435,15 +435,15 @@ describe('HostManager component structure', () => {
     expect(groupTree).toContain('`${10 + row.editor.level * 8}px`');
   });
 
-  it('labels the host navigation as asset management', () => {
+  it('labels the host group as asset management and the host item as host management', () => {
     const navigationSource = readFileSync(
       fileURLToPath(new URL('../../../../app/navigation.ts', import.meta.url)),
       'utf8',
     );
 
     expect(navigationSource).toContain("label: '资产管理'");
-    expect(navigationSource.match(/label: '资产管理'/g)).toHaveLength(2);
-    expect(navigationSource).not.toContain("label: '主机管理'");
+    expect(navigationSource.match(/label: '资产管理'/g)).toHaveLength(1);
+    expect(navigationSource).toContain("{ key: 'hosts' as const, label: '主机管理'");
   });
 
   it('lets successful quick command saves close the saving dialog while blocking manual closes', () => {

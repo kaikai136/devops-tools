@@ -470,6 +470,7 @@ class FeaturePermissionTests(TestCase):
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["dashboard"], codenames)
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["hosts"], codenames)
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["bulkExecution"], codenames)
+        self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["companyDevices"], codenames)
         self.assertIn(FEATURE_PERMISSION_CODE_BY_KEY["operationLogs"], codenames)
         self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "create")], codenames)
         self.assertIn(PAGE_ACTION_PERMISSION_CODE_BY_KEY[("hosts", "quick_commands")], codenames)
@@ -479,6 +480,7 @@ class FeaturePermissionTests(TestCase):
         self.assertTrue(all(item["isFeature"] for item in payload))
         self.assertTrue(any(item["permissionType"] == "page" and item["featureKey"] == "hosts" for item in payload))
         self.assertTrue(any(item["permissionType"] == "page" and item["featureKey"] == "bulkExecution" for item in payload))
+        self.assertTrue(any(item["permissionType"] == "page" and item["featureKey"] == "companyDevices" for item in payload))
         self.assertTrue(any(item["permissionType"] == "action" and item["featureKey"] == "hosts" and item["actionKey"] == "create" for item in payload))
         self.assertTrue(any(item["permissionType"] == "action" and item["featureKey"] == "bulkExecution" and item["actionKey"] == "execute" for item in payload))
 

@@ -5,6 +5,7 @@ export type ToolKey =
   | 'sessionAudits'
   | 'bulkExecution'
   | 'accounts'
+  | 'companyDevices'
   | 'ports'
   | 'subnet'
   | 'auth'

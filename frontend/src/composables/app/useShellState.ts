@@ -94,6 +94,7 @@ function navItemIcon(key: ToolKey): IconName {
     sessionAudits: 'scan',
     bulkExecution: 'terminal',
     accounts: 'users',
+    companyDevices: 'hardDrive',
     ports: 'gauge',
     subnet: 'globe',
     auth: 'shield',
@@ -110,7 +111,7 @@ function navItemIcon(key: ToolKey): IconName {
 }
 
 function navGroupIcon(key: string): IconName {
-  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', security: 'settings', system: 'dashboard' };
+  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', company: 'users', security: 'settings', system: 'dashboard' };
   return icons[key] ?? 'dashboard';
 }
 
