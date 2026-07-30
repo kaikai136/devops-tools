@@ -38,6 +38,7 @@ AUDIT_RULES = [
     AuditRule("/api/host-management/groups/", "主机分组"),
     AuditRule("/api/host-management/hosts/", "主机管理"),
     AuditRule("/api/host-management/accounts/", "账号管理"),
+    AuditRule("/api/company-devices/", "设备管理"),
     AuditRule("/api/authenticators/", "双因子认证"),
     AuditRule("/api/passwords/generate/", "密码生成器", {"POST": "生成密码"}),
     AuditRule("/api/passwords/history/", "密码生成器", {"POST": "导入记录", "DELETE": "清空记录"}),

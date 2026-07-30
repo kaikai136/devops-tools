@@ -150,6 +150,7 @@ INSTALLED_APPS = [
     "web_terminal",
     "security_scanner",
     "bulk_execution",
+    "company_assets",
     "operations",
     "system_management",
 ]

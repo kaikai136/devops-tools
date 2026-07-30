@@ -12,5 +12,6 @@ urlpatterns = [
     path("", include("web_terminal.urls")),
     path("", include("security_scanner.urls")),
     path("", include("bulk_execution.urls")),
+    path("", include("company_assets.urls")),
     path("", include("system_management.urls")),
 ]
