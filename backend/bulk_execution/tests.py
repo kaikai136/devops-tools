@@ -91,6 +91,62 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual(payload[0]["port"], 2222)
         self.assertEqual(payload[0]["loginUser"], "root")
 
+    def test_target_tree_requires_execute_permission(self):
+        self.grant("access_bulkExecution")
+
+        response = self.client.get("/api/bulk-execution/target-tree/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_target_tree_returns_only_executable_targets_with_group_counts(self):
+        parent = HostGroup.objects.create(name="parent", sort_order=1)
+        child = HostGroup.objects.create(name="child", parent=parent, sort_order=1)
+        empty = HostGroup.objects.create(name="empty", sort_order=2)
+        child_host = ManagedHost.objects.create(
+            name="child-linux",
+            group=child,
+            private_ip="10.0.1.11",
+            login_user="root",
+            login_password="secret",
+            verified=True,
+            verify_status="verified",
+            os="ubuntu",
+        )
+        ManagedHost.objects.create(
+            name="child-windows",
+            group=child,
+            private_ip="10.0.1.12",
+            login_user="Administrator",
+            login_password="secret",
+            verified=True,
+            verify_status="verified",
+            os="windows",
+        )
+        ManagedHost.objects.create(
+            name="empty-unverified",
+            group=empty,
+            private_ip="10.0.1.13",
+            login_user="root",
+            login_password="secret",
+            verified=False,
+            verify_status="unverified",
+            os="ubuntu",
+        )
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        response = self.client.get("/api/bulk-execution/target-tree/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual([item["id"] for item in payload["targets"]], [self.linux.id, self.key_host.id, child_host.id])
+        self.assertNotIn(self.windows.id, [item["id"] for item in payload["targets"]])
+        roots = {group["label"]: group for group in payload["groups"]}
+        self.assertEqual(roots["prod"]["count"], 2)
+        self.assertEqual(roots["parent"]["count"], 1)
+        self.assertEqual(roots["parent"]["children"][0]["label"], "child")
+        self.assertEqual(roots["parent"]["children"][0]["count"], 1)
+        self.assertNotIn("empty", roots)
+
     def test_create_task_requires_execute_permission_and_snapshots_only_executable_targets(self):
         self.grant("access_bulkExecution")
 
@@ -172,6 +228,84 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual(task.target_count, 1)
         self.assertEqual(task.results.get().host, self.linux)
         start_task.assert_called_once_with(task.id)
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-multi-test-"))
+    def test_create_file_upload_task_accepts_multiple_files_and_exposes_transfer_details(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute", "action_bulkExecution_refresh")
+        deploy = SimpleUploadedFile("deploy.txt", b"deploy\n", content_type="text/plain")
+        config = SimpleUploadedFile("config.yml", b"name: api\n", content_type="text/yaml")
+
+        with patch("bulk_execution.views.start_bulk_execution_task") as start_task:
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={
+                    "executionType": "file_upload",
+                    "targetIds": json.dumps([self.linux.id, self.windows.id]),
+                    "remoteDirectory": "/opt/app/",
+                    "overwrite": "true",
+                    "files": [deploy, config],
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["executionType"], "file_upload")
+        self.assertEqual(payload["remoteDirectory"], "/opt/app")
+        self.assertEqual(payload["uploadFilename"], "2 files")
+        self.assertEqual(payload["uploadSize"], 17)
+        task = BulkExecutionTask.objects.get()
+        self.assertEqual(task.upload_files.count(), 2)
+        self.assertEqual(task.transfer_items.count(), 2)
+        self.assertEqual([item.filename for item in task.upload_files.order_by("id")], ["deploy.txt", "config.yml"])
+        self.assertEqual([item.remote_path for item in task.upload_files.order_by("id")], ["/opt/app/deploy.txt", "/opt/app/config.yml"])
+        start_task.assert_called_once_with(task.id)
+
+        detail = self.client.get(f"/api/bulk-execution/tasks/{task.id}/")
+        self.assertEqual(detail.status_code, 200)
+        detail_payload = detail.json()
+        self.assertEqual([item["filename"] for item in detail_payload["uploadFiles"]], ["deploy.txt", "config.yml"])
+        self.assertEqual([item["remotePath"] for item in detail_payload["uploadFiles"]], ["/opt/app/deploy.txt", "/opt/app/config.yml"])
+        self.assertEqual([item["remotePath"] for item in detail_payload["results"][0]["transfers"]], ["/opt/app/deploy.txt", "/opt/app/config.yml"])
+
+    def test_upload_check_reports_connected_targets_unreachable_targets_and_duplicate_files(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        def fake_inspect(host, remote_directory, filenames):
+            if host.id == self.key_host.id:
+                return {"connected": False, "presentFiles": [], "error": "SSH connection failed"}
+            self.assertEqual(remote_directory, "/opt/app")
+            self.assertEqual(filenames, ["deploy.txt", "config.yml"])
+            return {"connected": True, "presentFiles": ["deploy.txt"], "error": ""}
+
+        with patch("bulk_execution.services.inspect_bulk_upload_target", side_effect=fake_inspect, create=True):
+            response = self.client.post(
+                "/api/bulk-execution/uploads/check/",
+                data={
+                    "targetIds": [self.linux.id, self.key_host.id, self.windows.id],
+                    "remoteDirectory": "/opt/app/",
+                    "filenames": ["deploy.txt", "config.yml"],
+                    "totalSize": 16,
+                },
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual([target["id"] for target in payload["connectedTargets"]], [self.linux.id])
+        self.assertEqual([target["id"] for target in payload["unreachableTargets"]], [self.key_host.id])
+        self.assertEqual(payload["unreachableTargets"][0]["error"], "SSH connection failed")
+        self.assertEqual(payload["usableTargetIds"], [self.linux.id])
+        self.assertEqual(
+            payload["duplicateFiles"],
+            [
+                {
+                    "targetId": self.linux.id,
+                    "hostName": "linux-ok",
+                    "hostIp": "10.0.0.11",
+                    "filenames": ["deploy.txt"],
+                }
+            ],
+        )
 
     def test_create_file_upload_task_requires_uploaded_file(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute")
@@ -334,6 +468,49 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
         self.assertEqual(task.results.get().stdout, "copied\n")
         self.assertFalse(task.upload_file.storage.exists(task.upload_file.name))
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-runner-multi-test-"))
+    def test_multi_file_upload_updates_transfer_items_and_aggregates_host_result(self):
+        deploy = SimpleUploadedFile("deploy.txt", b"deploy\n", content_type="text/plain")
+        config = SimpleUploadedFile("config.yml", b"name: api\n", content_type="text/yaml")
+        from .services import create_bulk_file_upload_task
+
+        task = create_bulk_file_upload_task(
+            self.user,
+            {"targetIds": [self.host.id], "remoteDirectory": "/srv/app", "overwrite": True},
+            [deploy, config],
+        )
+        calls = []
+
+        def fake_run(**kwargs):
+            calls.append(kwargs["module_args"])
+            self.assertEqual(kwargs["module"], "ansible.builtin.copy")
+            self.assertIn("force=yes", kwargs["module_args"])
+            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
+            if "deploy.txt" in kwargs["module_args"]:
+                kwargs["event_handler"](
+                    {"event": "runner_on_ok", "event_data": {"host": "host_1", "res": {"stdout": "deploy copied\n", "stderr": "", "rc": 0}}}
+                )
+            else:
+                kwargs["event_handler"](
+                    {"event": "runner_on_ok", "event_data": {"host": "host_1", "res": {"stdout": "config copied\n", "stderr": "", "rc": 0}}}
+                )
+            return SimpleNamespace(status="successful", rc=0)
+
+        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+            run_bulk_execution_task(task.id)
+
+        task.refresh_from_db()
+        result = task.results.get()
+        transfers = list(result.transfers.order_by("id"))
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
+        self.assertEqual(result.status, BulkExecutionResult.STATUS_SUCCESS)
+        self.assertEqual(result.stdout, "deploy copied\nconfig copied\n")
+        self.assertEqual([transfer.status for transfer in transfers], ["success", "success"])
+        self.assertEqual([transfer.remote_path for transfer in transfers], ["/srv/app/deploy.txt", "/srv/app/config.yml"])
+        for upload_file in task.upload_files.all():
+            self.assertFalse(upload_file.file.storage.exists(upload_file.file.name))
 
     def test_runner_failure_event_marks_task_failed(self):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false"})

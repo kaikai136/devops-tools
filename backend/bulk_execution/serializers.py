@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import BulkExecutionResult, BulkExecutionTask
+from .models import BulkExecutionResult, BulkExecutionTask, BulkExecutionTransferItem, BulkExecutionUploadFile
 
 
 class BulkExecutionTaskSerializer(serializers.ModelSerializer):
@@ -58,6 +58,7 @@ class BulkExecutionResultSerializer(serializers.ModelSerializer):
     outputTruncated = serializers.BooleanField(source="output_truncated", read_only=True)
     startedAt = serializers.DateTimeField(source="started_at", read_only=True)
     finishedAt = serializers.DateTimeField(source="finished_at", read_only=True)
+    transfers = serializers.SerializerMethodField()
 
     class Meta:
         model = BulkExecutionResult
@@ -79,14 +80,57 @@ class BulkExecutionResultSerializer(serializers.ModelSerializer):
             "outputTruncated",
             "startedAt",
             "finishedAt",
+            "transfers",
+        ]
+
+    def get_transfers(self, result: BulkExecutionResult):
+        return BulkExecutionTransferItemSerializer(result.transfers.all(), many=True).data
+
+
+class BulkExecutionUploadFileSerializer(serializers.ModelSerializer):
+    remotePath = serializers.CharField(source="remote_path", read_only=True)
+
+    class Meta:
+        model = BulkExecutionUploadFile
+        fields = [
+            "id",
+            "filename",
+            "remotePath",
+            "size",
+        ]
+
+
+class BulkExecutionTransferItemSerializer(serializers.ModelSerializer):
+    uploadFile = serializers.IntegerField(source="upload_file_id", read_only=True)
+    remotePath = serializers.CharField(source="remote_path", read_only=True)
+    startedAt = serializers.DateTimeField(source="started_at", read_only=True)
+    finishedAt = serializers.DateTimeField(source="finished_at", read_only=True)
+
+    class Meta:
+        model = BulkExecutionTransferItem
+        fields = [
+            "id",
+            "uploadFile",
+            "remotePath",
+            "size",
+            "status",
+            "stdout",
+            "stderr",
+            "error",
+            "startedAt",
+            "finishedAt",
         ]
 
 
 class BulkExecutionTaskDetailSerializer(BulkExecutionTaskSerializer):
     results = serializers.SerializerMethodField()
+    uploadFiles = serializers.SerializerMethodField()
 
     class Meta(BulkExecutionTaskSerializer.Meta):
-        fields = BulkExecutionTaskSerializer.Meta.fields + ["results"]
+        fields = BulkExecutionTaskSerializer.Meta.fields + ["uploadFiles", "results"]
 
     def get_results(self, task: BulkExecutionTask):
         return BulkExecutionResultSerializer(task.results.all(), many=True).data
+
+    def get_uploadFiles(self, task: BulkExecutionTask):
+        return BulkExecutionUploadFileSerializer(task.upload_files.all(), many=True).data

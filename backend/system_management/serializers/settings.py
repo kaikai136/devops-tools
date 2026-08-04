@@ -8,6 +8,7 @@ from .constants import (
     LOGIN_CONTENT_SETTING_KEY,
     SECURITY_SCAN_SETTING_KEY,
     SITE_IDENTITY_SETTING_KEY,
+    TERMINAL_SETTINGS_SETTING_KEY,
     WATERMARK_SETTING_KEY,
 )
 from .settings_validators import (
@@ -17,6 +18,7 @@ from .settings_validators import (
     validate_login_content_value,
     validate_security_scan_value,
     validate_site_identity_value,
+    validate_terminal_settings_value,
     validate_watermark_value,
 )
 
@@ -51,4 +53,6 @@ class SystemSettingSerializer(serializers.ModelSerializer):
             attrs["value"] = validate_security_scan_value(value)
         elif key == LOG_RETENTION_SETTING_KEY:
             attrs["value"] = validate_log_retention_value(value)
+        elif key == TERMINAL_SETTINGS_SETTING_KEY:
+            attrs["value"] = validate_terminal_settings_value(value)
         return attrs

@@ -32,6 +32,7 @@ class BulkExecutionTask(models.Model):
     upload_file = models.FileField(upload_to="bulk_execution_uploads/", blank=True)
     upload_filename = models.CharField(max_length=255, blank=True)
     upload_size = models.PositiveBigIntegerField(default=0)
+    upload_overwrite = models.BooleanField(default=False)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="bulk_execution_tasks", null=True, blank=True, on_delete=models.SET_NULL)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_QUEUED)
     cancel_requested = models.BooleanField(default=False)
@@ -54,6 +55,24 @@ class BulkExecutionTask(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class BulkExecutionUploadFile(models.Model):
+    task = models.ForeignKey(BulkExecutionTask, related_name="upload_files", on_delete=models.CASCADE)
+    file = models.FileField(upload_to="bulk_execution_uploads/", blank=True)
+    filename = models.CharField(max_length=255)
+    remote_path = models.CharField(max_length=700)
+    size = models.PositiveBigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        indexes = [
+            models.Index(fields=["task"], name="bulk_upload_task_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return self.filename
 
 
 class BulkExecutionResult(models.Model):
@@ -98,3 +117,40 @@ class BulkExecutionResult(models.Model):
 
     def __str__(self) -> str:
         return f"{self.task_id}:{self.host_name}"
+
+
+class BulkExecutionTransferItem(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_RUNNING = "running"
+    STATUS_SUCCESS = "success"
+    STATUS_FAILED = "failed"
+    STATUS_SKIPPED = "skipped"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_RUNNING, "Running"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_SKIPPED, "Skipped"),
+    ]
+
+    task = models.ForeignKey(BulkExecutionTask, related_name="transfer_items", on_delete=models.CASCADE)
+    result = models.ForeignKey(BulkExecutionResult, related_name="transfers", on_delete=models.CASCADE)
+    upload_file = models.ForeignKey(BulkExecutionUploadFile, related_name="transfers", on_delete=models.CASCADE)
+    remote_path = models.CharField(max_length=700)
+    size = models.PositiveBigIntegerField(default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    stdout = models.TextField(blank=True)
+    stderr = models.TextField(blank=True)
+    error = models.TextField(blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["id"]
+        indexes = [
+            models.Index(fields=["task", "status"], name="bulk_transfer_status_idx"),
+            models.Index(fields=["result"], name="bulk_transfer_result_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.result_id}:{self.remote_path}"

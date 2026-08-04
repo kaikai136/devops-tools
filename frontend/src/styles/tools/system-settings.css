@@ -258,6 +258,32 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.terminal-settings-groups {
+  display: grid;
+  gap: 22px;
+}
+
+.terminal-settings-groups section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.terminal-settings-groups h4 {
+  margin: 0;
+  color: #0f2742;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.workspace-dark .terminal-settings-groups h4 {
+  color: #e5edf8;
+}
+
+.terminal-settings-field-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .settings-field-grid label > span,
 .watermark-page-picker span {
   color: #607086;
@@ -620,6 +646,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .terminal-settings-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .system-settings-tabs {
     justify-content: flex-start;
     margin-bottom: 18px;
@@ -672,6 +702,10 @@
   }
 
   .log-retention-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal-settings-field-grid {
     grid-template-columns: 1fr;
   }
 

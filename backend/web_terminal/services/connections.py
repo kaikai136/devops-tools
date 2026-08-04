@@ -8,14 +8,16 @@ import time
 from django.utils import timezone
 
 from host_management.models import HostCredential, ManagedHost
+from system_management.settings_defaults import DEFAULT_TERMINAL_SETTINGS
 
 from .errors import TerminalConnectionError
 
 class LiveTerminalConnection:
-    def __init__(self, client, channel):
+    def __init__(self, client, channel, terminal_settings: dict | None = None):
         self.client = client
         self.channel = channel
         self.lock = threading.Lock()
+        self.terminal_settings = normalize_terminal_settings(terminal_settings)
 
     def read_available(self, timeout: float = 4.0, idle_timeout: float = 0.35) -> str:
         return normalize_terminal_output(self.read_available_raw(timeout=timeout, idle_timeout=idle_timeout))
@@ -53,7 +55,10 @@ class LiveTerminalConnection:
 
     def send_command(self, command: str) -> str:
         self.send_data(command + "\n")
-        return self.read_available(timeout=30.0)
+        return self.read_available(
+            timeout=float(self.terminal_settings["commandReadTimeoutSeconds"]),
+            idle_timeout=float(self.terminal_settings["commandReadIdleTimeoutMs"]) / 1000,
+        )
 
     def resize(self, cols: int, rows: int) -> None:
         cols = max(1, min(cols, 300))
@@ -95,6 +100,12 @@ SSH_CONNECTIVITY_FAILURE_MARKERS = SSH_RETRY_ERROR_MARKERS + (
 )
 
 
+def normalize_terminal_settings(value: dict | None = None) -> dict:
+    if not isinstance(value, dict):
+        return DEFAULT_TERMINAL_SETTINGS.copy()
+    return {**DEFAULT_TERMINAL_SETTINGS, **value}
+
+
 @dataclass(frozen=True)
 class SshLoginCandidate:
     username: str
@@ -104,25 +115,27 @@ class SshLoginCandidate:
     persist_to_host: bool = False
 
 
-def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36) -> LiveTerminalConnection:
-    client = open_ssh_client(host)
+def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36, terminal_settings: dict | None = None) -> LiveTerminalConnection:
+    effective_settings = normalize_terminal_settings(terminal_settings)
+    client = open_ssh_client(host, terminal_settings=effective_settings)
     try:
         channel = client.invoke_shell(term="xterm", width=cols, height=rows)
         channel.settimeout(0.0)
-        return LiveTerminalConnection(client, channel)
+        return LiveTerminalConnection(client, channel, terminal_settings=effective_settings)
     except Exception as error:
         client.close()
         raise TerminalConnectionError(f"SSH 会话创建失败：{error}")
 
 
-def open_ssh_client(host: ManagedHost):
+def open_ssh_client(host: ManagedHost, *, terminal_settings: dict | None = None):
+    effective_settings = normalize_terminal_settings(terminal_settings)
     current_candidate = current_host_login_candidate(host)
     errors: list[str] = []
     stop_credential_polling = False
 
     if current_candidate is not None:
         try:
-            return connect_ssh_candidate(host, current_candidate)
+            return connect_ssh_candidate(host, current_candidate, terminal_settings=effective_settings)
         except TerminalConnectionError as error:
             message = str(error)
             errors.append(message)
@@ -132,7 +145,12 @@ def open_ssh_client(host: ManagedHost):
         seen = {candidate_identity(current_candidate)} if current_candidate is not None else set()
         for candidate in host_credential_login_candidates(seen):
             try:
-                client = connect_ssh_candidate(host, candidate, attempts=SSH_CREDENTIAL_POLL_ATTEMPTS)
+                client = connect_ssh_candidate(
+                    host,
+                    candidate,
+                    attempts=SSH_CREDENTIAL_POLL_ATTEMPTS,
+                    terminal_settings=effective_settings,
+                )
             except TerminalConnectionError as error:
                 message = str(error)
                 errors.append(message)
@@ -205,7 +223,12 @@ def persist_login_candidate_to_host(host: ManagedHost, candidate: SshLoginCandid
     host.save(update_fields=["login_user", "login_password", "private_key_name", "private_key", "updated_at"])
 
 
-def connect_ssh_candidate(host: ManagedHost, candidate: SshLoginCandidate, attempts: int = SSH_CONNECT_ATTEMPTS):
+def connect_ssh_candidate(
+    host: ManagedHost,
+    candidate: SshLoginCandidate,
+    attempts: int | None = None,
+    terminal_settings: dict | None = None,
+):
     if not candidate.username:
         raise TerminalConnectionError("主机未配置登录用户，请先在主机管理中补充用户或选择账号。")
 
@@ -221,7 +244,8 @@ def connect_ssh_candidate(host: ManagedHost, candidate: SshLoginCandidate, attem
         raise TerminalConnectionError(str(error))
 
     errors: list[str] = []
-    max_attempts = max(1, attempts)
+    effective_settings = normalize_terminal_settings(terminal_settings)
+    max_attempts = max(1, int(attempts if attempts is not None else effective_settings["sshConnectAttempts"]))
     for attempt in range(1, max_attempts + 1):
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -233,22 +257,23 @@ def connect_ssh_candidate(host: ManagedHost, candidate: SshLoginCandidate, attem
                 username=candidate.username,
                 password=candidate.password or None,
                 pkey=pkey,
-                timeout=SSH_CONNECT_TIMEOUT,
-                banner_timeout=SSH_BANNER_TIMEOUT,
-                auth_timeout=SSH_AUTH_TIMEOUT,
+                timeout=effective_settings["sshConnectTimeoutSeconds"],
+                banner_timeout=effective_settings["sshBannerTimeoutSeconds"],
+                auth_timeout=effective_settings["sshAuthTimeoutSeconds"],
                 look_for_keys=False,
                 allow_agent=False,
             )
             transport = client.get_transport()
-            if transport is not None:
-                transport.set_keepalive(30)
+            keepalive = int(effective_settings["sshKeepaliveSeconds"])
+            if transport is not None and keepalive > 0:
+                transport.set_keepalive(keepalive)
             return client
         except Exception as error:
             errors.append(str(error))
             client.close()
             if attempt >= max_attempts or not should_retry_ssh_connect_error(error):
                 break
-            time.sleep(SSH_RETRY_DELAY_SECONDS * attempt)
+            time.sleep((float(effective_settings["sshRetryDelayMs"]) / 1000) * attempt)
 
     last_error = errors[-1] if errors else "unknown error"
     raise TerminalConnectionError(f"SSH 连接失败：{last_error}")

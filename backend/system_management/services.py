@@ -12,7 +12,7 @@ from django.http import HttpRequest
 from django.utils import timezone
 
 from .models import LoginLog, OperationLog, SystemSetting
-from .settings_defaults import DEFAULT_LOG_RETENTION
+from .settings_defaults import DEFAULT_LOG_RETENTION, DEFAULT_TERMINAL_SETTINGS, TERMINAL_SETTINGS_FIELD_LIMITS
 
 FEATURE_PERMISSIONS_CACHE_KEY = "system.feature_permissions_ready.v1"
 FEATURE_PERMISSION_CACHE_SECONDS = getattr(settings, "FEATURE_PERMISSION_CACHE_SECONDS", 300)
@@ -153,6 +153,25 @@ def get_log_retention_setting() -> dict:
         return DEFAULT_LOG_RETENTION.copy()
     value = setting.value if isinstance(setting.value, dict) else {}
     return {**DEFAULT_LOG_RETENTION, **value}
+
+
+def get_terminal_settings() -> dict:
+    value = get_database_setting_value("terminal_settings")
+    if value is None:
+        return DEFAULT_TERMINAL_SETTINGS.copy()
+    normalized = DEFAULT_TERMINAL_SETTINGS.copy()
+    for field, fallback in DEFAULT_TERMINAL_SETTINGS.items():
+        minimum, maximum = TERMINAL_SETTINGS_FIELD_LIMITS[field]
+        raw_value = value.get(field, fallback)
+        if isinstance(raw_value, bool):
+            number = fallback
+        else:
+            try:
+                number = int(raw_value)
+            except (TypeError, ValueError):
+                number = fallback
+        normalized[field] = max(minimum, min(maximum, number))
+    return normalized
 
 
 def get_database_setting_value(key: str) -> dict | None:

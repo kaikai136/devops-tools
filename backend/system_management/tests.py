@@ -1026,6 +1026,81 @@ class SystemSettingsApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_terminal_settings_defaults_missing_fields_and_accepts_zero_disables(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={
+                "key": "terminal_settings",
+                "label": "终端设置",
+                "value": {
+                    "sshConnectTimeoutSeconds": 10,
+                    "sshKeepaliveSeconds": 0,
+                    "webSocketHeartbeatSeconds": 0,
+                    "idleDisconnectMinutes": 0,
+                },
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            response.json()["value"],
+            {
+                "sshConnectTimeoutSeconds": 10,
+                "sshBannerTimeoutSeconds": 30,
+                "sshAuthTimeoutSeconds": 20,
+                "sshConnectAttempts": 3,
+                "sshRetryDelayMs": 800,
+                "sshKeepaliveSeconds": 0,
+                "webSocketHeartbeatSeconds": 0,
+                "idleDisconnectMinutes": 0,
+                "initialReadTimeoutSeconds": 3,
+                "initialReadIdleTimeoutMs": 350,
+                "commandReadTimeoutSeconds": 30,
+                "commandReadIdleTimeoutMs": 350,
+                "readerPollIntervalMs": 30,
+                "cwdHookSuppressEchoMs": 2000,
+                "cwdHookDrainTimeoutMs": 800,
+                "cwdHookDrainIdleTimeoutMs": 120,
+                "defaultCols": 120,
+                "defaultRows": 36,
+                "defaultFontSize": 17,
+                "scrollbackLines": 5000,
+            },
+        )
+
+    def test_terminal_settings_rejects_invalid_numeric_values(self):
+        for field, value in {
+            "sshConnectTimeoutSeconds": 0,
+            "sshBannerTimeoutSeconds": 301,
+            "sshAuthTimeoutSeconds": "1.5",
+            "sshConnectAttempts": True,
+            "sshRetryDelayMs": -1,
+            "defaultFontSize": 40,
+        }.items():
+            with self.subTest(field=field, value=value):
+                response = self.client.post(
+                    "/api/system/settings/",
+                    data={"key": "terminal_settings", "value": {field: value}},
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 400)
+
+    def test_logged_in_user_can_read_terminal_settings_but_cannot_write(self):
+        SystemSetting.objects.create(key="terminal_settings", value={"sshKeepaliveSeconds": 20})
+        self.client.force_login(self.user)
+
+        read_response = self.client.get("/api/system/settings/terminal_settings/")
+        write_response = self.client.put(
+            "/api/system/settings/terminal_settings/",
+            data={"value": {"sshKeepaliveSeconds": 10}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(read_response.status_code, 200)
+        self.assertEqual(write_response.status_code, 403)
+
 
 class LogRetentionCleanupTests(TestCase):
     def setUp(self):

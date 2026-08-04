@@ -15,9 +15,10 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from host_management.models import ManagedHost
+from web_terminal.services.commands import run_one_shot_ssh_command
 from web_terminal.services.file_parsers import join_remote_path, normalize_remote_file_name, normalize_remote_file_path
 
-from .models import BulkExecutionResult, BulkExecutionTask
+from .models import BulkExecutionResult, BulkExecutionTask, BulkExecutionTransferItem, BulkExecutionUploadFile
 
 MAX_COMMAND_LENGTH = 4096
 OUTPUT_LIMIT = 200_000
@@ -119,7 +120,8 @@ def create_bulk_execution_task(user, payload: dict) -> BulkExecutionTask:
 
 
 def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExecutionTask:
-    if uploaded_file is None:
+    uploaded_files = normalize_uploaded_files(uploaded_file)
+    if not uploaded_files:
         raise ValueError("Please select a file to upload")
 
     target_ids = parse_target_ids(payload.get("targetIds") or payload.get("target_ids") or payload.get("hostIds") or [])
@@ -127,36 +129,78 @@ def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExec
     if len(target_ids) > int(config["maxTargets"]):
         raise ValueError(f"Select at most {config['maxTargets']} hosts")
 
-    filename = normalize_remote_file_name(getattr(uploaded_file, "name", ""))
     remote_directory = normalize_remote_directory(str(payload.get("remoteDirectory") or payload.get("remote_directory") or "/tmp/"))
-    remote_path = join_remote_path(remote_directory, filename)
     hosts = executable_hosts_for_target_ids(target_ids)
     if not hosts:
         raise ValueError("No executable Linux SSH hosts selected")
 
-    stored_name = ""
+    overwrite = parse_bool(payload.get("overwrite") or payload.get("uploadOverwrite") or payload.get("upload_overwrite"))
+    uploaded_specs = []
+    stored_names: list[str] = []
     try:
-        stored_name = default_storage.save(f"bulk_execution_uploads/{uuid.uuid4().hex}_{filename}", uploaded_file)
-        upload_size = int(getattr(uploaded_file, "size", 0) or default_storage.size(stored_name))
+        for item in uploaded_files:
+            filename = normalize_remote_file_name(getattr(item, "name", ""))
+            if any(spec["filename"] == filename for spec in uploaded_specs):
+                raise ValueError(f"Duplicate upload filename: {filename}")
+            remote_path = join_remote_path(remote_directory, filename)
+            stored_name = default_storage.save(f"bulk_execution_uploads/{uuid.uuid4().hex}_{filename}", item)
+            stored_names.append(stored_name)
+            uploaded_specs.append(
+                {
+                    "filename": filename,
+                    "remote_path": remote_path,
+                    "stored_name": stored_name,
+                    "size": int(getattr(item, "size", 0) or default_storage.size(stored_name)),
+                }
+            )
+        total_size = sum(spec["size"] for spec in uploaded_specs)
+        summary_filename = uploaded_specs[0]["filename"] if len(uploaded_specs) == 1 else f"{len(uploaded_specs)} files"
+        summary_file = uploaded_specs[0]["stored_name"] if len(uploaded_specs) == 1 else ""
+        command_target = uploaded_specs[0]["remote_path"] if len(uploaded_specs) == 1 else remote_directory
 
         with transaction.atomic():
             task = BulkExecutionTask.objects.create(
                 name=str(payload.get("name", "")).strip() or f"File upload {timezone.localtime().strftime('%Y-%m-%d %H:%M:%S')}",
-                command=f"Upload {filename} to {remote_path}",
+                command=f"Upload {summary_filename} to {command_target}",
                 execution_type=BulkExecutionTask.EXECUTION_FILE_UPLOAD,
                 remote_directory=remote_directory,
-                upload_file=stored_name,
-                upload_filename=filename,
-                upload_size=upload_size,
+                upload_file=summary_file,
+                upload_filename=summary_filename,
+                upload_size=total_size,
+                upload_overwrite=overwrite,
                 created_by=user if getattr(user, "is_authenticated", False) else None,
                 target_count=len(hosts),
             )
+            for spec in uploaded_specs:
+                BulkExecutionUploadFile.objects.create(
+                    task=task,
+                    file=spec["stored_name"],
+                    filename=spec["filename"],
+                    remote_path=spec["remote_path"],
+                    size=spec["size"],
+                )
             create_results_for_hosts(task, hosts)
+            create_transfer_items_for_uploads(task)
     except Exception:
-        if stored_name and default_storage.exists(stored_name):
-            default_storage.delete(stored_name)
+        for stored_name in stored_names:
+            if stored_name and default_storage.exists(stored_name):
+                default_storage.delete(stored_name)
         raise
     return task
+
+
+def normalize_uploaded_files(uploaded_file) -> list:
+    if uploaded_file is None:
+        return []
+    if isinstance(uploaded_file, (list, tuple)):
+        return [item for item in uploaded_file if item is not None]
+    return [uploaded_file]
+
+
+def parse_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def parse_target_ids(value) -> list[int]:
@@ -196,11 +240,99 @@ def create_results_for_hosts(task: BulkExecutionTask, hosts: list[ManagedHost]) 
         )
 
 
+def create_transfer_items_for_uploads(task: BulkExecutionTask) -> None:
+    upload_files = list(task.upload_files.all())
+    if not upload_files:
+        return
+    results = list(task.results.all())
+    for result in results:
+        for upload_file in upload_files:
+            BulkExecutionTransferItem.objects.create(
+                task=task,
+                result=result,
+                upload_file=upload_file,
+                remote_path=upload_file.remote_path,
+                size=upload_file.size,
+            )
+
+
 def normalize_remote_directory(value: str) -> str:
     directory = normalize_remote_file_path(value or "/tmp/")
     if directory != "/" and directory.endswith("/"):
         directory = directory.rstrip("/")
     return directory
+
+
+def check_bulk_file_upload_targets(payload: dict) -> dict:
+    target_ids = parse_target_ids(payload.get("targetIds") or payload.get("target_ids") or payload.get("hostIds") or [])
+    filenames_value = payload.get("filenames") or payload.get("names") or []
+    if not isinstance(filenames_value, list) or not filenames_value:
+        raise ValueError("Please select files to upload")
+    filenames = [normalize_remote_file_name(str(name)) for name in filenames_value]
+    remote_directory = normalize_remote_directory(str(payload.get("remoteDirectory") or payload.get("remote_directory") or "/tmp/"))
+    hosts = executable_hosts_for_target_ids(target_ids)
+
+    connected_targets = []
+    unreachable_targets = []
+    duplicate_files = []
+    usable_target_ids = []
+    for host in hosts:
+        inspected = inspect_bulk_upload_target(host, remote_directory, filenames)
+        if not inspected.get("connected"):
+            unreachable_targets.append(target_payload(host, error=str(inspected.get("error") or "Connection failed")))
+            continue
+        connected_targets.append(target_payload(host))
+        usable_target_ids.append(host.id)
+        present_files = [str(item) for item in inspected.get("presentFiles", []) if str(item).strip()]
+        if present_files:
+            duplicate_files.append(
+                {
+                    "targetId": host.id,
+                    "hostName": host.name,
+                    "hostIp": str(host.private_ip),
+                    "filenames": present_files,
+                }
+            )
+    return {
+        "connectedTargets": connected_targets,
+        "unreachableTargets": unreachable_targets,
+        "duplicateFiles": duplicate_files,
+        "usableTargetIds": usable_target_ids,
+    }
+
+
+def target_payload(host: ManagedHost, *, error: str = "") -> dict:
+    payload = {
+        "id": host.id,
+        "name": host.name,
+        "group": host.group_id,
+        "groupName": host.group.name if host.group_id and host.group else "",
+        "privateIp": host.private_ip,
+        "publicIp": host.public_ip,
+        "port": host.port,
+        "loginUser": host.login_user,
+        "os": host.os,
+        "systemType": host.system_type,
+        "systemArch": host.system_arch,
+        "verified": host.verified,
+    }
+    if error:
+        payload["error"] = error
+    return payload
+
+
+def inspect_bulk_upload_target(host: ManagedHost, remote_directory: str, filenames: list[str]) -> dict:
+    checks = []
+    for filename in filenames:
+        remote_path = join_remote_path(remote_directory, filename)
+        checks.append(f"if test -e {shlex.quote(remote_path)}; then printf '%s\\n' {shlex.quote(filename)}; fi")
+    command = "; ".join(checks) if checks else "true"
+    try:
+        output = run_one_shot_ssh_command(host, command)
+    except Exception as error:
+        return {"connected": False, "presentFiles": [], "error": str(error)}
+    present = [line.strip() for line in output.splitlines() if line.strip()]
+    return {"connected": True, "presentFiles": present, "error": ""}
 
 
 def start_bulk_execution_task(task_id: int) -> None:
@@ -279,14 +411,17 @@ def run_bulk_execution_task(task_id: int) -> None:
                 # which runs the command directly over SSH without a Python wrapper.
                 retry_polluted_results_with_raw(task, result_by_inventory, temp_dir, inventory, config)
         if canceled:
+            mark_unfinished_transfers(task, BulkExecutionTransferItem.STATUS_SKIPPED, "Task canceled")
             mark_unfinished_results(task, BulkExecutionResult.STATUS_SKIPPED, "Task canceled")
             task.status = BulkExecutionTask.STATUS_CANCELED
         else:
+            mark_unfinished_transfers(task, BulkExecutionTransferItem.STATUS_FAILED, "No result returned by Ansible")
             mark_unfinished_results(task, BulkExecutionResult.STATUS_FAILED, "No result returned by Ansible")
             task.status = final_task_status(task)
     except Exception as error:
         task.status = BulkExecutionTask.STATUS_FAILED
         task.error = str(error)
+        mark_unfinished_transfers(task, BulkExecutionTransferItem.STATUS_FAILED, str(error))
         mark_unfinished_results(task, BulkExecutionResult.STATUS_FAILED, str(error))
     finally:
         task.finished_at = timezone.now()
@@ -330,35 +465,162 @@ def run_playbook(task, result_by_inventory, temp_dir, inventory, config):
 
 
 def run_file_upload(task, result_by_inventory, temp_dir, inventory, config):
-    if not task.upload_file:
+    upload_files = list(task.upload_files.all())
+    if not upload_files and not task.upload_file:
         raise RuntimeError("No upload file attached to task")
-    source_path = task.upload_file.path
-    filename = normalize_remote_file_name(task.upload_filename)
-    remote_directory = normalize_remote_directory(task.remote_directory or "/tmp/")
-    destination = join_remote_path(remote_directory, filename)
+    if not upload_files:
+        filename = normalize_remote_file_name(task.upload_filename)
+        remote_directory = normalize_remote_directory(task.remote_directory or "/tmp/")
+        upload_files = [
+            BulkExecutionUploadFile.objects.create(
+                task=task,
+                file=task.upload_file.name,
+                filename=filename,
+                remote_path=join_remote_path(remote_directory, filename),
+                size=task.upload_size,
+            )
+        ]
+        create_transfer_items_for_uploads(task)
+
+    runner_result = None
+    canceled = False
+    for upload_file in upload_files:
+        if is_cancel_requested(task.id):
+            canceled = True
+            break
+        runner_result = run_upload_file_item(task, upload_file, result_by_inventory, temp_dir, inventory, config)
+        if getattr(runner_result, "status", "") == "canceled":
+            canceled = True
+            break
+    if canceled:
+        mark_unfinished_transfers(task, BulkExecutionTransferItem.STATUS_SKIPPED, "Task canceled")
+        return runner_result
+    aggregate_file_upload_results(task)
+    return runner_result
+
+
+def run_upload_file_item(task, upload_file: BulkExecutionUploadFile, result_by_inventory, temp_dir, inventory, config):
+    source_path = upload_file.file.path
+    force = "yes" if task.upload_overwrite else "no"
     return run_ansible_shell(
         private_data_dir=temp_dir,
         inventory=inventory,
         module="ansible.builtin.copy",
-        module_args=f"src={shlex.quote(source_path)} dest={shlex.quote(destination)}",
+        module_args=f"src={shlex.quote(source_path)} dest={shlex.quote(upload_file.remote_path)} force={force}",
         host_pattern="all",
         forks=max(1, min(len(inventory["all"]["hosts"]), int(config["forks"]))),
         timeout=int(config["timeoutSeconds"]),
         quiet=True,
         envvars={"ANSIBLE_HOST_KEY_CHECKING": "False"},
-        event_handler=lambda event: handle_runner_event(task.id, result_by_inventory, event),
+        event_handler=lambda event: handle_file_upload_event(task.id, result_by_inventory, upload_file, event),
         cancel_callback=lambda: is_cancel_requested(task.id),
     )
 
 
+def handle_file_upload_event(task_id: int, result_by_inventory: dict[str, BulkExecutionResult], upload_file: BulkExecutionUploadFile, event: dict[str, Any]) -> bool:
+    event_name = str(event.get("event", ""))
+    event_data = event.get("event_data") if isinstance(event.get("event_data"), dict) else {}
+    result = result_by_inventory.get(str(event_data.get("host", "")))
+    if result is None:
+        return True
+
+    transfer = BulkExecutionTransferItem.objects.filter(result=result, upload_file=upload_file).first()
+    if transfer is None:
+        return True
+
+    if event_name == "runner_on_start":
+        transfer.status = BulkExecutionTransferItem.STATUS_RUNNING
+        transfer.started_at = transfer.started_at or timezone.now()
+        transfer.finished_at = None
+        transfer.error = ""
+        transfer.save(update_fields=["status", "started_at", "finished_at", "error"])
+        result.status = BulkExecutionResult.STATUS_RUNNING
+        result.started_at = result.started_at or timezone.now()
+        result.finished_at = None
+        result.error = ""
+        result.save(update_fields=["status", "started_at", "finished_at", "error"])
+        return True
+
+    if event_name in {"runner_on_ok", "runner_on_failed", "runner_on_unreachable", "runner_on_skipped"}:
+        res = event_data.get("res") if isinstance(event_data.get("res"), dict) else {}
+        if event_name == "runner_on_ok":
+            status = BulkExecutionTransferItem.STATUS_SUCCESS
+        elif event_name == "runner_on_skipped":
+            status = BulkExecutionTransferItem.STATUS_SKIPPED
+        else:
+            status = BulkExecutionTransferItem.STATUS_FAILED
+        stdout, stdout_truncated = truncate_output(str(res.get("stdout", "") or ""))
+        stderr, stderr_truncated = truncate_output(str(res.get("stderr", "") or ""))
+        transfer.status = status
+        transfer.stdout = stdout
+        transfer.stderr = stderr
+        transfer.error = result_error(event_name, res)
+        transfer.started_at = transfer.started_at or timezone.now()
+        transfer.finished_at = timezone.now()
+        transfer.save(update_fields=["status", "stdout", "stderr", "error", "started_at", "finished_at"])
+
+        if stdout:
+            result.stdout = append_output(result.stdout, stdout)
+        if stderr:
+            result.stderr = append_output(result.stderr, stderr)
+        result.output_truncated = result.output_truncated or stdout_truncated or stderr_truncated
+        if transfer.error:
+            result.error = transfer.error
+        result.save(update_fields=["stdout", "stderr", "output_truncated", "error"])
+        refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
+    return True
+
+
+def append_output(current: str, addition: str) -> str:
+    if not current:
+        return addition
+    separator = "" if current.endswith("\n") or addition.startswith("\n") else "\n"
+    return current + separator + addition
+
+
+def aggregate_file_upload_results(task: BulkExecutionTask) -> None:
+    for result in task.results.prefetch_related("transfers").all():
+        transfers = list(result.transfers.all())
+        if not transfers:
+            continue
+        if any(transfer.status == BulkExecutionTransferItem.STATUS_FAILED for transfer in transfers):
+            result.status = BulkExecutionResult.STATUS_FAILED
+            failed = next(transfer for transfer in transfers if transfer.status == BulkExecutionTransferItem.STATUS_FAILED)
+            result.error = failed.error
+        elif all(transfer.status == BulkExecutionTransferItem.STATUS_SUCCESS for transfer in transfers):
+            result.status = BulkExecutionResult.STATUS_SUCCESS
+            result.error = ""
+        elif all(transfer.status == BulkExecutionTransferItem.STATUS_SKIPPED for transfer in transfers):
+            result.status = BulkExecutionResult.STATUS_SKIPPED
+            result.error = result.error or "Task canceled"
+        else:
+            result.status = BulkExecutionResult.STATUS_FAILED
+            result.error = result.error or "Some upload transfers did not finish"
+        result.started_at = result.started_at or timezone.now()
+        result.finished_at = timezone.now()
+        result.save(update_fields=["status", "error", "started_at", "finished_at"])
+
+
 def cleanup_upload_file(task: BulkExecutionTask) -> None:
     if task.execution_type != BulkExecutionTask.EXECUTION_FILE_UPLOAD or not task.upload_file:
+        if task.execution_type == BulkExecutionTask.EXECUTION_FILE_UPLOAD:
+            cleanup_upload_files(task)
         return
+    cleanup_upload_files(task)
+
+
+def cleanup_upload_files(task: BulkExecutionTask) -> None:
+    names = set()
+    if task.upload_file:
+        names.add(task.upload_file.name)
+    for upload_file in task.upload_files.all():
+        if upload_file.file:
+            names.add(upload_file.file.name)
     try:
-        storage = task.upload_file.storage
-        name = task.upload_file.name
-        if name and storage.exists(name):
-            storage.delete(name)
+        storage = task.upload_file.storage if task.upload_file else default_storage
+        for name in names:
+            if name and storage.exists(name):
+                storage.delete(name)
     except Exception:
         pass
 
@@ -517,6 +779,18 @@ def mark_result(result: BulkExecutionResult, status: str, error: str = "") -> No
 def mark_unfinished_results(task: BulkExecutionTask, status: str, error: str) -> None:
     now = timezone.now()
     task.results.filter(status__in=[BulkExecutionResult.STATUS_PENDING, BulkExecutionResult.STATUS_RUNNING]).update(
+        status=status,
+        error=error,
+        started_at=now,
+        finished_at=now,
+    )
+
+
+def mark_unfinished_transfers(task: BulkExecutionTask, status: str, error: str) -> None:
+    if task.execution_type != BulkExecutionTask.EXECUTION_FILE_UPLOAD:
+        return
+    now = timezone.now()
+    task.transfer_items.filter(status__in=[BulkExecutionTransferItem.STATUS_PENDING, BulkExecutionTransferItem.STATUS_RUNNING]).update(
         status=status,
         error=error,
         started_at=now,

@@ -11,6 +11,8 @@ from django.utils import timezone
 
 from accounts.permissions import has_feature_permission
 from host_management.models import ManagedHost
+from system_management.services import get_terminal_settings
+from system_management.settings_defaults import DEFAULT_TERMINAL_SETTINGS
 
 from ..models import TerminalCommandAudit, TerminalSession
 from ..services import (
@@ -57,8 +59,12 @@ class TerminalConsumer(WebsocketConsumer):
     recording_events: list[str]
     recording_last_event_at: object | None
     recording_lock: threading.Lock
+    terminal_settings: dict
+    last_activity_monotonic: float
 
     def connect(self):
+        self.terminal_settings = get_terminal_settings()
+        self.last_activity_monotonic = time.monotonic()
         self.stop_reader = threading.Event()
         self.transcript_chunks = []
         self.pending_output = ""
@@ -83,7 +89,12 @@ class TerminalConsumer(WebsocketConsumer):
         host_id = self.scope["url_route"]["kwargs"]["host_id"]
         try:
             host = ManagedHost.objects.get(id=host_id)
-            self.connection = open_live_terminal(host)
+            self.connection = open_live_terminal(
+                host,
+                cols=int(self.terminal_settings["defaultCols"]),
+                rows=int(self.terminal_settings["defaultRows"]),
+                terminal_settings=self.terminal_settings,
+            )
         except ManagedHost.DoesNotExist:
             self._send_error("请选择要连接的主机")
             self.close()
@@ -96,7 +107,16 @@ class TerminalConsumer(WebsocketConsumer):
         self._create_audit_session(host)
         self._send_initial_output()
         self._install_cwd_hook()
-        ready_payload = {"type": "ready"}
+        ready_payload = {
+            "type": "ready",
+            "terminalSettings": {
+                "webSocketHeartbeatSeconds": int(self.terminal_settings["webSocketHeartbeatSeconds"]),
+                "defaultCols": int(self.terminal_settings["defaultCols"]),
+                "defaultRows": int(self.terminal_settings["defaultRows"]),
+                "defaultFontSize": int(self.terminal_settings["defaultFontSize"]),
+                "scrollbackLines": int(self.terminal_settings["scrollbackLines"]),
+            },
+        }
         if self.session is not None:
             ready_payload["sessionId"] = str(self.session.session_id)
         self.send(text_data=json.dumps(ready_payload, ensure_ascii=False))
@@ -119,11 +139,15 @@ class TerminalConsumer(WebsocketConsumer):
 
         message_type = message.get("type")
         try:
-            if message_type == "input":
+            if message_type == "ping":
+                self.send(text_data=json.dumps({"type": "pong"}, ensure_ascii=False))
+            elif message_type == "input":
+                self.last_activity_monotonic = time.monotonic()
                 data = str(message.get("data", ""))
                 self._record_input(data)
                 self.connection.send_data(data)
             elif message_type == "resize":
+                self.last_activity_monotonic = time.monotonic()
                 cols = int(message.get("cols", DEFAULT_TERMINAL_COLS))
                 rows = int(message.get("rows", DEFAULT_TERMINAL_ROWS))
                 self._record_resize(cols, rows)
@@ -176,6 +200,8 @@ class TerminalConsumer(WebsocketConsumer):
                         self._send_to_consumer({"type": "terminal.error", "message": "请先登录"})
                         self._send_to_consumer({"type": "terminal.closed", "reason": "请先登录"})
                         return
+                    if self._close_if_idle(now=now):
+                        return
 
                 output = self.connection.read_raw()
                 if output:
@@ -205,7 +231,23 @@ class TerminalConsumer(WebsocketConsumer):
                     self._send_to_consumer({"type": "terminal.closed", "reason": "SSH 会话已关闭"})
                 return
 
-            time.sleep(0.03)
+            time.sleep(float(self._terminal_setting("readerPollIntervalMs")) / 1000)
+
+    def _close_if_idle(self, *, now: float | None = None) -> bool:
+        idle_minutes = int(self._terminal_setting("idleDisconnectMinutes"))
+        if idle_minutes <= 0:
+            return False
+        current = time.monotonic() if now is None else now
+        if current - getattr(self, "last_activity_monotonic", current) < idle_minutes * 60:
+            return False
+        self._send_to_consumer({"type": "terminal.closed", "reason": "终端闲置超时，连接已关闭"})
+        return True
+
+    def _terminal_setting(self, key: str):
+        settings_value = getattr(self, "terminal_settings", None)
+        if isinstance(settings_value, dict) and key in settings_value:
+            return settings_value[key]
+        return DEFAULT_TERMINAL_SETTINGS[key]
 
     def _send_to_consumer(self, event: dict):
         if self.channel_layer is None:
@@ -271,7 +313,10 @@ class TerminalConsumer(WebsocketConsumer):
         if self.connection is None:
             return
         try:
-            output = self.connection.read_available_raw(timeout=3.0, idle_timeout=0.35)
+            output = self.connection.read_available_raw(
+                timeout=float(self._terminal_setting("initialReadTimeoutSeconds")),
+                idle_timeout=float(self._terminal_setting("initialReadIdleTimeoutMs")) / 1000,
+            )
         except Exception:
             return
         if not output:
@@ -290,7 +335,7 @@ class TerminalConsumer(WebsocketConsumer):
             return
         echo_disabled = False
         try:
-            self.suppress_internal_echo_until = time.monotonic() + 2.0
+            self.suppress_internal_echo_until = time.monotonic() + (float(self._terminal_setting("cwdHookSuppressEchoMs")) / 1000)
             self.connection.send_data(CWD_HOOK_ECHO_OFF)
             echo_disabled = True
             self._drain_cwd_hook_output()
@@ -310,7 +355,10 @@ class TerminalConsumer(WebsocketConsumer):
         if self.connection is None:
             return
         try:
-            self.connection.read_available_raw(timeout=0.8, idle_timeout=0.12)
+            self.connection.read_available_raw(
+                timeout=float(self._terminal_setting("cwdHookDrainTimeoutMs")) / 1000,
+                idle_timeout=float(self._terminal_setting("cwdHookDrainIdleTimeoutMs")) / 1000,
+            )
         except Exception:
             pass
 

@@ -40,14 +40,14 @@ interface TerminalBufferTextReader {
   };
 }
 
-export function createTerminalScreenOptions(fontSize: number): ITerminalOptions {
+export function createTerminalScreenOptions(fontSize: number, scrollback = 5000): ITerminalOptions {
   return {
     cursorBlink: true,
     convertEol: false,
     fontFamily: 'Consolas, "Courier New", monospace',
     fontSize,
     lineHeight: 1.25,
-    scrollback: 5000,
+    scrollback,
     theme: {
       background: '#000000',
       foreground: '#f5f7fb',

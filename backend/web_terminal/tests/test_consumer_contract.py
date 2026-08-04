@@ -120,13 +120,34 @@ class TerminalConsumerContractTests(SimpleTestCase):
         consumer._send_initial_output = Mock()
         consumer._install_cwd_hook = Mock()
 
-        consumer.connect()
+        terminal_settings = {
+            "webSocketHeartbeatSeconds": 20,
+            "defaultCols": 120,
+            "defaultRows": 36,
+            "defaultFontSize": 17,
+            "scrollbackLines": 5000,
+        }
+        with patch("web_terminal.consumers.ssh.get_terminal_settings", return_value=terminal_settings) as get_settings:
+            consumer.connect()
 
         consumer.accept.assert_called_once_with()
         get_host.assert_called_once_with(id=7)
-        open_terminal.assert_called_once_with(host)
+        get_settings.assert_called_once_with()
+        open_terminal.assert_called_once_with(host, cols=120, rows=36, terminal_settings=terminal_settings)
         payload = json.loads(consumer.send.call_args.kwargs["text_data"])
-        self.assertEqual(payload, {"type": "ready"})
+        self.assertEqual(
+            payload,
+            {
+                "type": "ready",
+                "terminalSettings": {
+                    "webSocketHeartbeatSeconds": 20,
+                    "defaultCols": 120,
+                    "defaultRows": 36,
+                    "defaultFontSize": 17,
+                    "scrollbackLines": 5000,
+                },
+            },
+        )
         thread_class.return_value.start.assert_called_once_with()
 
     def test_receive_dispatches_input_and_resize_messages(self):
@@ -142,6 +163,37 @@ class TerminalConsumerContractTests(SimpleTestCase):
         consumer.connection.send_data.assert_called_once_with("ls\r")
         consumer._record_resize.assert_called_once_with(132, 43)
         consumer.connection.resize.assert_called_once_with(132, 43)
+
+    def test_receive_replies_to_ping_with_pong_without_requiring_connection(self):
+        consumer = self._consumer()
+        consumer.connection = Mock()
+
+        consumer.receive(text_data=json.dumps({"type": "ping"}))
+
+        payload = json.loads(consumer.send.call_args.kwargs["text_data"])
+        self.assertEqual(payload, {"type": "pong"})
+
+    def test_idle_check_closes_after_configured_minutes(self):
+        consumer = self._consumer()
+        consumer.terminal_settings = {"idleDisconnectMinutes": 1}
+        consumer.last_activity_monotonic = 100.0
+        consumer._send_to_consumer = Mock()
+
+        self.assertTrue(consumer._close_if_idle(now=161.0))
+
+        consumer._send_to_consumer.assert_called_once_with(
+            {"type": "terminal.closed", "reason": "终端闲置超时，连接已关闭"}
+        )
+
+    def test_idle_check_is_disabled_when_minutes_is_zero(self):
+        consumer = self._consumer()
+        consumer.terminal_settings = {"idleDisconnectMinutes": 0}
+        consumer.last_activity_monotonic = 100.0
+        consumer._send_to_consumer = Mock()
+
+        self.assertFalse(consumer._close_if_idle(now=10000.0))
+
+        consumer._send_to_consumer.assert_not_called()
 
     def test_outbound_events_keep_serialized_json_keys(self):
         consumer = self._consumer()

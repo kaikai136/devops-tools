@@ -3,15 +3,22 @@ import type {
   BulkExecutionCreatePayload,
   BulkFileUploadCreatePayload,
   BulkExecutionTarget,
+  BulkExecutionTargetTree,
   BulkExecutionTask,
   BulkExecutionTaskDetail,
   BulkExecutionTaskPage,
+  BulkUploadCheckPayload,
+  BulkUploadCheckResult,
 } from '../types';
 
 const baseUrl = '/api/bulk-execution';
 
 export function listBulkExecutionTargets() {
   return apiGet<BulkExecutionTarget[]>(`${baseUrl}/targets/`);
+}
+
+export function listBulkExecutionTargetTree() {
+  return apiGet<BulkExecutionTargetTree>(`${baseUrl}/target-tree/`);
 }
 
 export function listBulkExecutionTasks(params: { status?: string; keyword?: string; host?: number | string; page?: number; pageSize?: number } = {}) {
@@ -31,12 +38,20 @@ export function createBulkExecutionTask(payload: BulkExecutionCreatePayload) {
 
 export function createBulkFileUploadTask(payload: BulkFileUploadCreatePayload) {
   const form = new FormData();
+  const files = payload.files?.length ? payload.files : payload.file ? [payload.file] : [];
   form.append('executionType', 'file_upload');
   form.append('targetIds', JSON.stringify(payload.targetIds));
   form.append('remoteDirectory', payload.remoteDirectory);
-  form.append('file', payload.file);
+  form.append('overwrite', String(Boolean(payload.overwrite)));
+  for (const file of files) {
+    form.append('files', file);
+  }
   if (payload.name) form.append('name', payload.name);
   return apiPostForm<BulkExecutionTask>(`${baseUrl}/tasks/`, form);
+}
+
+export function checkBulkFileUpload(payload: BulkUploadCheckPayload) {
+  return apiPost<BulkUploadCheckResult>(`${baseUrl}/uploads/check/`, payload);
 }
 
 export function getBulkExecutionTask(taskId: number) {

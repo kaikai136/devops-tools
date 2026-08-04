@@ -30,7 +30,7 @@ describe('SimpleHostTerminalPage structure', () => {
     const script = parseSfc(source(), { filename: 'SimpleHostTerminalPage.vue' }).descriptor.scriptSetup?.content ?? '';
 
     expect(script).toContain('SearchAddon');
-    expect(script).toContain('createTerminalScreenOptions(readTerminalFontSize())');
+    expect(script).toContain('createTerminalScreenOptions(readTerminalFontSize(), terminalSettings.value.scrollbackLines)');
     expect(script).toContain('handleTerminalCopyShortcut');
     expect(script).toContain('getSendableTerminalData');
     expect(script).toContain('collectTerminalSearchMatches');

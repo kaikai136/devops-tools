@@ -10,9 +10,11 @@ from .constants import (
     DEFAULT_LOG_RETENTION,
     DEFAULT_LOGIN_CONTENT,
     DEFAULT_SITE_IDENTITY,
+    DEFAULT_TERMINAL_SETTINGS,
     DEFAULT_WATERMARK_TEXT,
     FONT_WEIGHT_CHOICES,
     HEX_COLOR_RE,
+    TERMINAL_SETTINGS_FIELD_LIMITS,
     WATERMARK_ALLOWED_PAGES,
 )
 
@@ -244,3 +246,40 @@ def validate_log_retention_value(value):
         "rdpRecordingEnabled": enabled,
         "rdpRecordingDays": cleaned["rdpRecordingDays"],
     }
+
+
+def validate_terminal_settings_value(value):
+    raw = _require_setting_object(value, "终端设置")
+    cleaned = {}
+    labels = {
+        "sshConnectTimeoutSeconds": "SSH 连接超时秒数",
+        "sshBannerTimeoutSeconds": "SSH Banner 超时秒数",
+        "sshAuthTimeoutSeconds": "SSH 认证超时秒数",
+        "sshConnectAttempts": "SSH 连接重试次数",
+        "sshRetryDelayMs": "SSH 重试基础间隔毫秒",
+        "sshKeepaliveSeconds": "SSH Keepalive 间隔秒数",
+        "webSocketHeartbeatSeconds": "WebSocket 心跳间隔秒数",
+        "idleDisconnectMinutes": "闲置断开分钟数",
+        "initialReadTimeoutSeconds": "初始读取超时秒数",
+        "initialReadIdleTimeoutMs": "初始读取空闲毫秒",
+        "commandReadTimeoutSeconds": "命令读取超时秒数",
+        "commandReadIdleTimeoutMs": "命令读取空闲毫秒",
+        "readerPollIntervalMs": "输出轮询间隔毫秒",
+        "cwdHookSuppressEchoMs": "CWD Hook 回显抑制毫秒",
+        "cwdHookDrainTimeoutMs": "CWD Hook 排空超时毫秒",
+        "cwdHookDrainIdleTimeoutMs": "CWD Hook 排空空闲毫秒",
+        "defaultCols": "默认列数",
+        "defaultRows": "默认行数",
+        "defaultFontSize": "默认字号",
+        "scrollbackLines": "滚屏行数",
+    }
+    for field, fallback in DEFAULT_TERMINAL_SETTINGS.items():
+        minimum, maximum = TERMINAL_SETTINGS_FIELD_LIMITS[field]
+        cleaned[field] = _clean_strict_int(
+            raw.get(field),
+            fallback,
+            minimum=minimum,
+            maximum=maximum,
+            field_label=labels[field],
+        )
+    return cleaned

@@ -39,16 +39,19 @@ import {
 } from '../../features/terminal/utils/protocol';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
+import { getSystemSettingOrNull } from '../../services/system';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
   clampTerminalFontSize,
+  createDefaultTerminalSettings,
+  normalizeTerminalSettings,
   readStoredTerminalFontSize,
 } from '../../utils/terminalSettings';
 import AppIcon from '@shared/components/AppIcon.vue';
 import type { IconName } from '@shared/components/AppIcon.vue';
-import type { AccountUser } from '../../types';
+import type { AccountUser, TerminalSettingsConfig } from '../../types';
 
 type GuacamoleClientInstance = InstanceType<typeof Guacamole.Client>;
 type GuacamoleWebSocketTunnelInstance = InstanceType<typeof Guacamole.WebSocketTunnel>;
@@ -109,8 +112,9 @@ interface TerminalRoot {
 }
 
 interface TerminalMessage {
-  type: 'ready' | 'output' | 'cwd' | 'error' | 'closed';
+  type: 'ready' | 'output' | 'cwd' | 'error' | 'closed' | 'pong';
   sessionId?: string;
+  terminalSettings?: Partial<TerminalSettingsConfig>;
   data?: string;
   path?: string;
   message?: string;
@@ -224,6 +228,7 @@ const TERMINAL_WORKSPACE_STORAGE_KEY = 'ops-tool.web-terminal.workspace';
 const TERMINAL_SIDEBAR_WIDTH_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-width';
 const TERMINAL_SIDEBAR_COLLAPSED_STORAGE_KEY = 'ops-tool.web-terminal.sidebar-collapsed';
 const TERMINAL_FONT_SIZE_STORAGE_KEY = 'ops-tool.web-terminal.font-size';
+const TERMINAL_SETTINGS_SETTING_KEY = 'terminal_settings';
 const TERMINAL_SPLIT_MODE_STORAGE_KEY = 'ops-tool.web-terminal.split-mode';
 const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
@@ -484,6 +489,7 @@ const canScrollTerminalTabsRight = ref(false);
 const isLoadingTree = ref(false);
 const treeError = ref('');
 const highlightEnabled = ref(false);
+const terminalSettings = ref<TerminalSettingsConfig>(createDefaultTerminalSettings());
 const terminalFontSize = ref(readTerminalFontSize());
 const terminalSplitMode = ref<TerminalSplitMode>(readTerminalSplitMode());
 const terminalSidebarMode = ref<TerminalSidebarMode>('hosts');
@@ -493,6 +499,7 @@ const isResizingSidebar = ref(false);
 let sidebarResizeStartX = 0;
 let sidebarResizeStartWidth = TERMINAL_SIDEBAR_DEFAULT_WIDTH;
 const terminalContainers = new Map<string, HTMLElement>();
+const terminalHeartbeatTimers = new Map<string, number>();
 const pendingConnectTabIds: string[] = [];
 const connectingTabIds = new Set<string>();
 let terminalAuthRedirecting = false;
@@ -1273,6 +1280,7 @@ function handleTerminalAuthExpired(error?: unknown) {
   }
   for (const tab of tabs.value) {
     tab.status = 'closed';
+    stopTerminalHeartbeat(tab.id);
     if (tab.socket && tab.socket.readyState !== WebSocket.CLOSED) {
       tab.socket.close();
     }
@@ -2133,6 +2141,7 @@ onMounted(async () => {
   try {
     const current = await getCurrentUser();
     terminalCurrentUser.value = current.user;
+    await loadTerminalSettings();
     if (canUseTerminalQuickCommands.value) await loadTerminalQuickCommands();
     await loadTree();
     if (terminalAuthRedirecting) return;
@@ -2187,6 +2196,14 @@ async function loadTree() {
     treeError.value = (error as Error).message;
   } finally {
     isLoadingTree.value = false;
+  }
+}
+
+async function loadTerminalSettings() {
+  const setting = await getSystemSettingOrNull(TERMINAL_SETTINGS_SETTING_KEY);
+  terminalSettings.value = normalizeTerminalSettings(setting?.value);
+  if (!window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY)) {
+    terminalFontSize.value = readTerminalFontSize();
   }
 }
 
@@ -2245,7 +2262,7 @@ function createTerminalTab(
       fontFamily: 'Consolas, "Courier New", monospace',
       fontSize: terminalFontSize.value,
       lineHeight: 1.25,
-      scrollback: 5000,
+      scrollback: terminalSettings.value.scrollbackLines,
       theme: {
         background: '#000000',
         foreground: '#f5f7fb',
@@ -2453,6 +2470,7 @@ const sshTerminal = useSshTerminal<TerminalTab>({
   onOpen: fitTerminal,
   onMessage: handleSocketMessage,
   onError: (tab) => {
+    stopTerminalHeartbeat(tab.id);
     if (tab.status !== 'closed') {
       tab.status = 'error';
       showTerminalReconnectHint(tab, 'WebSocket 连接失败。');
@@ -2460,6 +2478,7 @@ const sshTerminal = useSshTerminal<TerminalTab>({
     finishConnectingTab(tab);
   },
   onClose: (tab) => {
+    stopTerminalHeartbeat(tab.id);
     finishConnectingTab(tab);
     if (tab.status === 'connected' || tab.status === 'connecting') {
       tab.status = 'closed';
@@ -2477,6 +2496,26 @@ function connectTab(tab: TerminalTab) {
   if (terminalAuthRedirecting) return;
   tab.reconnectHintShown = false;
   sshTerminal.connect(tab);
+}
+
+function startTerminalHeartbeat(tab: TerminalTab) {
+  stopTerminalHeartbeat(tab.id);
+  const seconds = terminalSettings.value.webSocketHeartbeatSeconds;
+  if (seconds <= 0) return;
+  const timer = window.setInterval(() => {
+    if (tab.socket?.readyState === WebSocket.OPEN) {
+      tab.socket.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, seconds * 1000);
+  terminalHeartbeatTimers.set(tab.id, timer);
+}
+
+function stopTerminalHeartbeat(tabId: string) {
+  const timer = terminalHeartbeatTimers.get(tabId);
+  if (timer !== undefined) {
+    window.clearInterval(timer);
+    terminalHeartbeatTimers.delete(tabId);
+  }
 }
 
 function connectRdpTab(tab: TerminalTab) {
@@ -2578,12 +2617,20 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   }
 
   if (message.type === 'ready') {
+    if (message.terminalSettings) {
+      terminalSettings.value = normalizeTerminalSettings({ ...terminalSettings.value, ...message.terminalSettings });
+    }
     tab.status = 'connected';
     tab.sessionId = message.sessionId ?? null;
     tab.reconnectHintShown = false;
     finishConnectingTab(tab);
     fitTerminal(tab);
+    startTerminalHeartbeat(tab);
     if (tab.id === activeTabId.value) openTerminalMonitorPanel();
+    return;
+  }
+
+  if (message.type === 'pong') {
     return;
   }
 
@@ -2614,6 +2661,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   }
 
   if (message.type === 'closed') {
+    stopTerminalHeartbeat(tab.id);
     tab.status = 'closed';
     finishConnectingTab(tab);
     showTerminalReconnectHint(tab, message.reason ?? '连接已关闭');
@@ -2936,6 +2984,7 @@ function saveTerminalWorkspace() {
 
 function disposeTab(tab: TerminalTab) {
   tab.status = 'closed';
+  stopTerminalHeartbeat(tab.id);
   removePendingConnectTab(tab.id);
   finishConnectingTab(tab);
   sshTerminal.disconnect(tab);
@@ -3131,7 +3180,7 @@ function readTerminalSidebarCollapsed() {
 
 function readTerminalFontSize() {
   if (typeof window === 'undefined') return TERMINAL_FONT_SIZE_DEFAULT;
-  return readStoredTerminalFontSize(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY));
+  return readStoredTerminalFontSize(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY), terminalSettings.value.defaultFontSize);
 }
 
 function readTerminalSplitMode(): TerminalSplitMode {

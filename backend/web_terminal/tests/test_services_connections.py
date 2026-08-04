@@ -59,6 +59,49 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         )
         transport.set_keepalive.assert_called_once_with(30)
 
+    def test_open_ssh_client_uses_terminal_settings_timeouts_attempts_and_keepalive(self):
+        client = MagicMock()
+        transport = client.get_transport.return_value
+        client_factory = MagicMock(return_value=client)
+        paramiko = self.fake_paramiko(client_factory)
+        host = self.make_host()
+        terminal_settings = {
+            "sshConnectTimeoutSeconds": 9,
+            "sshBannerTimeoutSeconds": 11,
+            "sshAuthTimeoutSeconds": 13,
+            "sshConnectAttempts": 1,
+            "sshRetryDelayMs": 250,
+            "sshKeepaliveSeconds": 7,
+        }
+
+        with patch.dict(sys.modules, {"paramiko": paramiko}):
+            result = services.open_ssh_client(host, terminal_settings=terminal_settings)
+
+        self.assertIs(result, client)
+        client.connect.assert_called_once_with(
+            hostname="203.0.113.10",
+            port=2222,
+            username="root",
+            password="secret",
+            pkey=None,
+            timeout=9,
+            banner_timeout=11,
+            auth_timeout=13,
+            look_for_keys=False,
+            allow_agent=False,
+        )
+        transport.set_keepalive.assert_called_once_with(7)
+
+    def test_open_ssh_client_skips_keepalive_when_terminal_setting_is_zero(self):
+        client = MagicMock()
+        transport = client.get_transport.return_value
+        paramiko = self.fake_paramiko(MagicMock(return_value=client))
+
+        with patch.dict(sys.modules, {"paramiko": paramiko}):
+            services.open_ssh_client(self.make_host(), terminal_settings={"sshKeepaliveSeconds": 0})
+
+        transport.set_keepalive.assert_not_called()
+
     def test_open_ssh_client_retries_retryable_errors_and_translates_last_error(self):
         clients = [MagicMock(), MagicMock(), MagicMock()]
         clients[0].connect.side_effect = TimeoutError("timed out once")
@@ -108,7 +151,21 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
 
         self.assertEqual(result, "result")
         channel.send.assert_called_once_with("whoami\n")
-        read_available.assert_called_once_with(timeout=30.0)
+        read_available.assert_called_once_with(timeout=30.0, idle_timeout=0.35)
+
+    def test_live_connection_command_uses_terminal_settings_read_timeouts(self):
+        channel = MagicMock(closed=False)
+        connection = services.LiveTerminalConnection(
+            MagicMock(),
+            channel,
+            terminal_settings={"commandReadTimeoutSeconds": 12, "commandReadIdleTimeoutMs": 250},
+        )
+
+        with patch.object(connection, "read_available", return_value="result") as read_available:
+            result = connection.send_command("whoami")
+
+        self.assertEqual(result, "result")
+        read_available.assert_called_once_with(timeout=12.0, idle_timeout=0.25)
 
     def test_live_connection_normalizes_output_and_translates_closed_send(self):
         channel = MagicMock(closed=False)

@@ -273,6 +273,29 @@ export interface LogRetentionConfig {
   rdpRecordingDays: number;
 }
 
+export interface TerminalSettingsConfig {
+  sshConnectTimeoutSeconds: number;
+  sshBannerTimeoutSeconds: number;
+  sshAuthTimeoutSeconds: number;
+  sshConnectAttempts: number;
+  sshRetryDelayMs: number;
+  sshKeepaliveSeconds: number;
+  webSocketHeartbeatSeconds: number;
+  idleDisconnectMinutes: number;
+  initialReadTimeoutSeconds: number;
+  initialReadIdleTimeoutMs: number;
+  commandReadTimeoutSeconds: number;
+  commandReadIdleTimeoutMs: number;
+  readerPollIntervalMs: number;
+  cwdHookSuppressEchoMs: number;
+  cwdHookDrainTimeoutMs: number;
+  cwdHookDrainIdleTimeoutMs: number;
+  defaultCols: number;
+  defaultRows: number;
+  defaultFontSize: number;
+  scrollbackLines: number;
+}
+
 export interface SiteIdentityConfig {
   appName: string;
   appShortName: string;

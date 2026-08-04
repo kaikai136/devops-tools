@@ -43,9 +43,13 @@ import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
   clampTerminalFontSize,
+  createDefaultTerminalSettings,
+  normalizeTerminalSettings,
   readStoredTerminalFontSize,
 } from '../../utils/terminalSettings';
 import { getCurrentUser } from '../../services/auth';
+import { getSystemSettingOrNull } from '../../services/system';
+import type { TerminalSettingsConfig } from '../../types';
 
 type Status = 'idle' | 'loading' | 'connecting' | 'connected' | 'closed' | 'error' | 'denied';
 type GuacamoleClientInstance = InstanceType<typeof Guacamole.Client>;
@@ -75,6 +79,7 @@ interface SimpleTerminalContextMenuItem {
 
 const SIMPLE_TERMINAL_CONTEXT_MENU_WIDTH = 248;
 const SIMPLE_TERMINAL_CONTEXT_MENU_HEIGHT = 520;
+const TERMINAL_SETTINGS_SETTING_KEY = 'terminal_settings';
 
 const host = ref<TerminalHost | null>(null);
 const protocol = ref<TerminalTabKind>('ssh');
@@ -85,6 +90,7 @@ const terminalRef = ref<HTMLElement | null>(null);
 const rdpRef = ref<HTMLElement | null>(null);
 const sessionId = ref<string | null>(null);
 const currentCwd = ref('');
+const terminalSettings = ref<TerminalSettingsConfig>(createDefaultTerminalSettings());
 const isSearchOpen = ref(false);
 const searchQuery = ref('');
 const searchResultIndex = ref(-1);
@@ -109,6 +115,7 @@ let guacMouse: GuacamoleMouseInstance | null = null;
 let guacKeyboard: GuacamoleKeyboardInstance | null = null;
 let suppressInterruptUntil = 0;
 let reconnectHintShown = false;
+let heartbeatTimer: number | null = null;
 let terminalDisposables: IDisposable[] = [];
 
 const canDecreaseTerminalFontSize = computed(() => terminalFontSize.value > TERMINAL_FONT_SIZE_MIN);
@@ -203,6 +210,7 @@ async function bootstrap() {
 
   try {
     const current = await getCurrentUser();
+    await loadTerminalSettings();
     if (!canUseSimpleHostTerminal(current.user.featurePermissionCodes)) {
       status.value = 'denied';
       statusText.value = '无权限';
@@ -248,7 +256,7 @@ async function connect() {
 
 function connectSsh(selectedHost: TerminalHost) {
   terminalFontSize.value = readTerminalFontSize();
-  const terminal = markRaw(new Terminal(createTerminalScreenOptions(readTerminalFontSize())));
+  const terminal = markRaw(new Terminal(createTerminalScreenOptions(readTerminalFontSize(), terminalSettings.value.scrollbackLines)));
   const fit = markRaw(new FitAddon());
   const search = markRaw(new SearchAddon({ highlightLimit: 2000 }));
   terminal.loadAddon(fit);
@@ -300,12 +308,14 @@ function connectSsh(selectedHost: TerminalHost) {
   });
   socket.addEventListener('error', () => {
     if (sshSocket !== socket) return;
+    stopHeartbeat();
     status.value = 'error';
     statusText.value = '错误';
     showReconnectHint('WebSocket 连接失败。');
   });
   socket.addEventListener('close', () => {
     if (sshSocket !== socket) return;
+    stopHeartbeat();
     if (status.value === 'connected' || status.value === 'connecting') {
       status.value = 'closed';
       statusText.value = '已断开';
@@ -315,7 +325,7 @@ function connectSsh(selectedHost: TerminalHost) {
 }
 
 function handleSshMessage(event: MessageEvent<string>) {
-  let message: { type?: string; data?: string; path?: string; message?: string; reason?: string; sessionId?: string };
+  let message: { type?: string; data?: string; path?: string; message?: string; reason?: string; sessionId?: string; terminalSettings?: Partial<TerminalSettingsConfig> };
   try {
     message = JSON.parse(event.data);
   } catch {
@@ -324,12 +334,19 @@ function handleSshMessage(event: MessageEvent<string>) {
   }
 
   if (message.type === 'ready') {
+    if (message.terminalSettings) {
+      terminalSettings.value = normalizeTerminalSettings({ ...terminalSettings.value, ...message.terminalSettings });
+    }
     status.value = 'connected';
     statusText.value = '已连接';
     sessionId.value = message.sessionId ?? null;
     reconnectHintShown = false;
     fitActiveSession();
     xterm?.focus();
+    startHeartbeat();
+    return;
+  }
+  if (message.type === 'pong') {
     return;
   }
   if (message.type === 'output') {
@@ -348,14 +365,41 @@ function handleSshMessage(event: MessageEvent<string>) {
     return;
   }
   if (message.type === 'closed') {
+    stopHeartbeat();
     status.value = 'closed';
     statusText.value = '已断开';
     showReconnectHint(message.reason || '连接已关闭');
   }
 }
 
+async function loadTerminalSettings() {
+  const setting = await getSystemSettingOrNull(TERMINAL_SETTINGS_SETTING_KEY);
+  terminalSettings.value = normalizeTerminalSettings(setting?.value);
+  if (!window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY)) {
+    terminalFontSize.value = readTerminalFontSize();
+  }
+}
+
 function isSshReady() {
   return protocol.value === 'ssh' && status.value === 'connected' && sshSocket?.readyState === WebSocket.OPEN;
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  const seconds = terminalSettings.value.webSocketHeartbeatSeconds;
+  if (seconds <= 0) return;
+  heartbeatTimer = window.setInterval(() => {
+    if (sshSocket?.readyState === WebSocket.OPEN) {
+      sshSocket.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, seconds * 1000);
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer !== null) {
+    window.clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
 }
 
 function sendTerminalInput(data: string) {
@@ -429,6 +473,7 @@ function reconnectSshSession() {
   currentCwd.value = '';
   reconnectHintShown = false;
   xterm?.writeln('\r\n\x1b[32m[正在重新连接...]\x1b[0m');
+  stopHeartbeat();
   if (sshSocket && sshSocket.readyState !== WebSocket.CLOSED) sshSocket.close();
   const socket = new WebSocket(buildTerminalWebSocketUrl(window.location.protocol, window.location.host, host.value.id));
   sshSocket = socket;
@@ -442,12 +487,14 @@ function reconnectSshSession() {
   });
   socket.addEventListener('error', () => {
     if (sshSocket !== socket) return;
+    stopHeartbeat();
     status.value = 'error';
     statusText.value = '错误';
     showReconnectHint('WebSocket 连接失败。');
   });
   socket.addEventListener('close', () => {
     if (sshSocket !== socket) return;
+    stopHeartbeat();
     if (status.value === 'connected' || status.value === 'connecting') {
       status.value = 'closed';
       statusText.value = '已断开';
@@ -746,7 +793,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
 
 function readTerminalFontSize() {
   if (typeof window === 'undefined') return TERMINAL_FONT_SIZE_DEFAULT;
-  return readStoredTerminalFontSize(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY));
+  return readStoredTerminalFontSize(window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY), terminalSettings.value.defaultFontSize);
 }
 
 function connectRdp(selectedHost: TerminalHost) {
@@ -841,6 +888,7 @@ function disconnect() {
 }
 
 function cleanupConnections() {
+  stopHeartbeat();
   for (const disposable of terminalDisposables) disposable.dispose();
   terminalDisposables = [];
   closeSearch();

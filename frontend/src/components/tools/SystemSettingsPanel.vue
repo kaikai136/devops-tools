@@ -11,14 +11,16 @@ import {
 } from '../../composables/features/useSiteSettings';
 import { watermarkPageGroups } from '../../composables/features/useWatermarkSettings';
 import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from '../../services/system';
+import { createDefaultTerminalSettings, normalizeTerminalSettings } from '../../utils/terminalSettings';
 import AppIcon from '@shared/components/AppIcon.vue';
 import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
-import type { LogRetentionConfig } from '../../types';
+import type { LogRetentionConfig, TerminalSettingsConfig } from '../../types';
 
-type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'logRetention' | 'securityScan' | 'watermark';
-type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image' | 'shield';
+type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'logRetention' | 'securityScan' | 'watermark' | 'terminal';
+type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image' | 'shield' | 'terminal';
 const LOG_RETENTION_SETTING_KEY = 'log_retention';
 const SECURITY_SCAN_SETTING_KEY = 'security_scan';
+const TERMINAL_SETTINGS_SETTING_KEY = 'terminal_settings';
 const defaultLogRetention: LogRetentionConfig = {
   loginLogsDays: 180,
   operationLogsDays: 180,
@@ -28,6 +30,7 @@ const defaultLogRetention: LogRetentionConfig = {
   rdpRecordingEnabled: false,
   rdpRecordingDays: 30,
 };
+const defaultTerminalSettings = createDefaultTerminalSettings();
 
 const {
   siteIdentityDraft,
@@ -71,6 +74,7 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string; title: string; s
   { key: 'logRetention', label: '日志保留', title: '日志保留', subtitle: '统一管理审计日志和 RDP 录像留存', icon: 'rows' },
   { key: 'securityScan', label: '安全扫描', title: '安全扫描', subtitle: '在线漏洞源访问开关', icon: 'shield' },
   { key: 'watermark', label: '水印', title: '水印配置', subtitle: '水印模板与应用页面', icon: 'image' },
+  { key: 'terminal', label: '终端', title: '终端设置', subtitle: 'Web SSH 连接、保活与显示默认值', icon: 'terminal' },
 ];
 
 const activeTab = ref<SettingsTabKey>('identity');
@@ -84,6 +88,11 @@ const securityScanSettingExists = ref(false);
 const securityScanLoading = ref(false);
 const securityScanSaving = ref(false);
 const securityScanMessage = ref('');
+const terminalSettingsDraft = ref<TerminalSettingsConfig>({ ...defaultTerminalSettings });
+const terminalSettingsSettingExists = ref(false);
+const terminalSettingsLoading = ref(false);
+const terminalSettingsSaving = ref(false);
+const terminalSettingsMessage = ref('');
 const canSave = computed(() => canUsePageAction('systemSettings', 'save'));
 const currentTab = computed(() => settingsTabs.find((tab) => tab.key === activeTab.value) ?? settingsTabs[0]);
 const currentBusy = computed(() =>
@@ -93,7 +102,9 @@ const currentBusy = computed(() =>
       ? logRetentionSaving.value
       : activeTab.value === 'securityScan'
         ? securityScanSaving.value
-        : siteSettingsSaving.value,
+        : activeTab.value === 'terminal'
+          ? terminalSettingsSaving.value
+          : siteSettingsSaving.value,
 );
 const currentLoading = computed(() =>
   activeTab.value === 'watermark'
@@ -102,7 +113,9 @@ const currentLoading = computed(() =>
       ? logRetentionLoading.value
       : activeTab.value === 'securityScan'
         ? securityScanLoading.value
-        : siteSettingsLoading.value,
+        : activeTab.value === 'terminal'
+          ? terminalSettingsLoading.value
+          : siteSettingsLoading.value,
 );
 const currentMessage = computed(() =>
   activeTab.value === 'watermark'
@@ -111,7 +124,9 @@ const currentMessage = computed(() =>
       ? logRetentionMessage.value
       : activeTab.value === 'securityScan'
         ? securityScanMessage.value
-        : siteSettingsMessage.value,
+        : activeTab.value === 'terminal'
+          ? terminalSettingsMessage.value
+          : siteSettingsMessage.value,
 );
 const selectedPages = computed(() => new Set(watermarkDraft.value.pages));
 const allPageKeys = computed(() => watermarkPageGroups.flatMap((group) => group.pages.map((page) => page.key)));
@@ -146,6 +161,7 @@ async function refreshCurrentTab() {
   else if (activeTab.value === 'footer') await loadLayoutFooterSetting();
   else if (activeTab.value === 'logRetention') await loadLogRetentionSetting();
   else if (activeTab.value === 'securityScan') await loadSecurityScanSetting();
+  else if (activeTab.value === 'terminal') await loadTerminalSettingsSetting();
   else await loadWatermarkSetting();
 }
 
@@ -157,6 +173,7 @@ async function saveCurrentTab() {
   else if (activeTab.value === 'footer') await saveLayoutFooterSetting();
   else if (activeTab.value === 'logRetention') await saveLogRetentionSetting();
   else if (activeTab.value === 'securityScan') await saveSecurityScanSetting();
+  else if (activeTab.value === 'terminal') await saveTerminalSettingsSetting();
   else await saveWatermarkSetting();
 }
 
@@ -167,6 +184,7 @@ function resetCurrentTab() {
   else if (activeTab.value === 'footer') resetLayoutFooterDraft();
   else if (activeTab.value === 'logRetention') resetLogRetentionDraft();
   else if (activeTab.value === 'securityScan') resetSecurityScanDraft();
+  else if (activeTab.value === 'terminal') resetTerminalSettingsDraft();
   else resetWatermarkDraft();
 }
 
@@ -284,6 +302,49 @@ function resetSecurityScanDraft() {
   securityScanMessage.value = '';
 }
 
+async function loadTerminalSettingsSetting() {
+  terminalSettingsLoading.value = true;
+  terminalSettingsMessage.value = '';
+  try {
+    const setting = await getSystemSettingOrNull(TERMINAL_SETTINGS_SETTING_KEY);
+    terminalSettingsSettingExists.value = Boolean(setting);
+    terminalSettingsDraft.value = normalizeTerminalSettings(setting?.value);
+  } catch (error) {
+    terminalSettingsMessage.value = error instanceof Error ? error.message : '终端设置加载失败';
+  } finally {
+    terminalSettingsLoading.value = false;
+  }
+}
+
+async function saveTerminalSettingsSetting() {
+  terminalSettingsSaving.value = true;
+  terminalSettingsMessage.value = '';
+  const normalized = normalizeTerminalSettings(terminalSettingsDraft.value);
+  const payload = {
+    key: TERMINAL_SETTINGS_SETTING_KEY,
+    label: '终端设置',
+    description: 'Web SSH 连接、保活、读取和显示默认值',
+    value: normalized,
+  };
+  try {
+    const setting = terminalSettingsSettingExists.value
+      ? await updateSystemSetting(TERMINAL_SETTINGS_SETTING_KEY, payload)
+      : await createSystemSetting(payload);
+    terminalSettingsSettingExists.value = true;
+    terminalSettingsDraft.value = normalizeTerminalSettings(setting.value);
+    terminalSettingsMessage.value = '终端设置已保存';
+  } catch (error) {
+    terminalSettingsMessage.value = error instanceof Error ? error.message : '终端设置保存失败';
+  } finally {
+    terminalSettingsSaving.value = false;
+  }
+}
+
+function resetTerminalSettingsDraft() {
+  terminalSettingsDraft.value = { ...defaultTerminalSettings };
+  terminalSettingsMessage.value = '';
+}
+
 function toggleWatermarkPage(page: string) {
   if (!canSave.value) return;
   const next = new Set(watermarkDraft.value.pages);
@@ -303,6 +364,7 @@ function toggleAllWatermarkPages() {
 onMounted(() => {
   void loadLogRetentionSetting();
   void loadSecurityScanSetting();
+  void loadTerminalSettingsSetting();
 });
 </script>
 
@@ -591,7 +653,7 @@ onMounted(() => {
           </div>
         </section>
 
-        <section v-else class="settings-section single">
+        <section v-else-if="activeTab === 'watermark'" class="settings-section single">
           <header>
             <h3>水印配置</h3>
             <span>水印模板与应用范围</span>
@@ -645,6 +707,124 @@ onMounted(() => {
                     </span>
                   </template>
                 </article>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section v-else-if="activeTab === 'terminal'" class="settings-section single">
+          <header>
+            <h3>终端设置</h3>
+            <span>仅作用于 Web SSH 终端</span>
+          </header>
+          <div class="terminal-settings-groups">
+            <section>
+              <h4>连接握手</h4>
+              <div class="settings-field-grid terminal-settings-field-grid">
+                <label>
+                  <span>SSH 连接超时秒数</span>
+                  <input v-model.number="terminalSettingsDraft.sshConnectTimeoutSeconds" :disabled="!canSave" type="number" min="1" max="300" />
+                </label>
+                <label>
+                  <span>SSH Banner 超时秒数</span>
+                  <input v-model.number="terminalSettingsDraft.sshBannerTimeoutSeconds" :disabled="!canSave" type="number" min="1" max="300" />
+                </label>
+                <label>
+                  <span>SSH 认证超时秒数</span>
+                  <input v-model.number="terminalSettingsDraft.sshAuthTimeoutSeconds" :disabled="!canSave" type="number" min="1" max="300" />
+                </label>
+                <label>
+                  <span>SSH 连接重试次数</span>
+                  <input v-model.number="terminalSettingsDraft.sshConnectAttempts" :disabled="!canSave" type="number" min="1" max="10" />
+                </label>
+                <label>
+                  <span>SSH 重试基础间隔 ms</span>
+                  <input v-model.number="terminalSettingsDraft.sshRetryDelayMs" :disabled="!canSave" type="number" min="0" max="10000" />
+                </label>
+              </div>
+            </section>
+
+            <section>
+              <h4>会话保活</h4>
+              <div class="settings-field-grid terminal-settings-field-grid">
+                <label>
+                  <span>SSH Keepalive 间隔秒数</span>
+                  <input v-model.number="terminalSettingsDraft.sshKeepaliveSeconds" :disabled="!canSave" type="number" min="0" max="3600" />
+                </label>
+                <label>
+                  <span>WebSocket 心跳间隔秒数</span>
+                  <input v-model.number="terminalSettingsDraft.webSocketHeartbeatSeconds" :disabled="!canSave" type="number" min="0" max="3600" />
+                </label>
+                <label>
+                  <span>闲置断开分钟数</span>
+                  <input v-model.number="terminalSettingsDraft.idleDisconnectMinutes" :disabled="!canSave" type="number" min="0" max="1440" />
+                </label>
+              </div>
+            </section>
+
+            <section>
+              <h4>读取与命令</h4>
+              <div class="settings-field-grid terminal-settings-field-grid">
+                <label>
+                  <span>初始读取超时秒数</span>
+                  <input v-model.number="terminalSettingsDraft.initialReadTimeoutSeconds" :disabled="!canSave" type="number" min="1" max="60" />
+                </label>
+                <label>
+                  <span>初始读取空闲 ms</span>
+                  <input v-model.number="terminalSettingsDraft.initialReadIdleTimeoutMs" :disabled="!canSave" type="number" min="50" max="10000" />
+                </label>
+                <label>
+                  <span>命令读取超时秒数</span>
+                  <input v-model.number="terminalSettingsDraft.commandReadTimeoutSeconds" :disabled="!canSave" type="number" min="1" max="3600" />
+                </label>
+                <label>
+                  <span>命令读取空闲 ms</span>
+                  <input v-model.number="terminalSettingsDraft.commandReadIdleTimeoutMs" :disabled="!canSave" type="number" min="50" max="10000" />
+                </label>
+                <label>
+                  <span>输出轮询间隔 ms</span>
+                  <input v-model.number="terminalSettingsDraft.readerPollIntervalMs" :disabled="!canSave" type="number" min="10" max="1000" />
+                </label>
+              </div>
+            </section>
+
+            <section>
+              <h4>启动辅助</h4>
+              <div class="settings-field-grid terminal-settings-field-grid">
+                <label>
+                  <span>CWD Hook 回显抑制 ms</span>
+                  <input v-model.number="terminalSettingsDraft.cwdHookSuppressEchoMs" :disabled="!canSave" type="number" min="0" max="10000" />
+                </label>
+                <label>
+                  <span>CWD Hook 排空超时 ms</span>
+                  <input v-model.number="terminalSettingsDraft.cwdHookDrainTimeoutMs" :disabled="!canSave" type="number" min="100" max="10000" />
+                </label>
+                <label>
+                  <span>CWD Hook 排空空闲 ms</span>
+                  <input v-model.number="terminalSettingsDraft.cwdHookDrainIdleTimeoutMs" :disabled="!canSave" type="number" min="50" max="10000" />
+                </label>
+              </div>
+            </section>
+
+            <section>
+              <h4>显示默认</h4>
+              <div class="settings-field-grid terminal-settings-field-grid">
+                <label>
+                  <span>默认列数</span>
+                  <input v-model.number="terminalSettingsDraft.defaultCols" :disabled="!canSave" type="number" min="40" max="300" />
+                </label>
+                <label>
+                  <span>默认行数</span>
+                  <input v-model.number="terminalSettingsDraft.defaultRows" :disabled="!canSave" type="number" min="10" max="120" />
+                </label>
+                <label>
+                  <span>默认字号</span>
+                  <input v-model.number="terminalSettingsDraft.defaultFontSize" :disabled="!canSave" type="number" min="10" max="24" />
+                </label>
+                <label>
+                  <span>滚屏行数</span>
+                  <input v-model.number="terminalSettingsDraft.scrollbackLines" :disabled="!canSave" type="number" min="100" max="50000" />
+                </label>
               </div>
             </section>
           </div>
@@ -719,7 +899,7 @@ onMounted(() => {
             </section>
           </template>
 
-          <template v-else>
+          <template v-else-if="activeTab === 'watermark'">
             <section class="watermark-preview-box">
               <div class="watermark-preview-content">
                 <strong>{{ siteIdentityDraft.appShortName }}</strong>
@@ -727,6 +907,19 @@ onMounted(() => {
                 <p>{{ watermarkPreviewText }}</p>
               </div>
               <WatermarkOverlay v-if="watermarkDraft.enabled" :text="watermarkPreviewText" />
+            </section>
+          </template>
+
+          <template v-else-if="activeTab === 'terminal'">
+            <section class="settings-preview-meta">
+              <span>SSH 连接 / 认证超时</span>
+              <strong>{{ terminalSettingsDraft.sshConnectTimeoutSeconds }} / {{ terminalSettingsDraft.sshAuthTimeoutSeconds }} 秒</strong>
+              <span>Keepalive / 心跳</span>
+              <strong>{{ terminalSettingsDraft.sshKeepaliveSeconds || '关闭' }} / {{ terminalSettingsDraft.webSocketHeartbeatSeconds || '关闭' }}</strong>
+              <span>闲置断开</span>
+              <strong>{{ terminalSettingsDraft.idleDisconnectMinutes ? `${terminalSettingsDraft.idleDisconnectMinutes} 分钟` : '不自动断开' }}</strong>
+              <span>默认终端</span>
+              <strong>{{ terminalSettingsDraft.defaultCols }}x{{ terminalSettingsDraft.defaultRows }} · {{ terminalSettingsDraft.defaultFontSize }}px · {{ terminalSettingsDraft.scrollbackLines }} 行</strong>
             </section>
           </template>
         </div>
