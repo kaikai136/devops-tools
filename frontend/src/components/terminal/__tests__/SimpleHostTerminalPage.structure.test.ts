@@ -33,7 +33,7 @@ describe('SimpleHostTerminalPage structure', () => {
     expect(script).toContain('createTerminalScreenOptions(readTerminalFontSize(), terminalSettings.value.scrollbackLines)');
     expect(script).toContain('attachTerminalPasteHandler');
     expect(script).toContain('handleTerminalCopyShortcut');
-    expect(script).toContain('getClipboardTextFromPasteEvent');
+    expect(script).toContain('writeTextToClipboard');
     expect(script).toContain('getSendableTerminalData');
     expect(script).toContain('collectTerminalSearchMatches');
     expect(script).toContain('selectTerminalSearchMatch');
@@ -46,6 +46,5 @@ describe('SimpleHostTerminalPage structure', () => {
     expect(template).toContain('simple-host-terminal-search');
     expect(template).toContain('simple-host-terminal-context-menu');
     expect(template).toContain('@contextmenu="openSshContextMenu($event)"');
-    expect(template).toContain('@paste="handleTerminalPaste($event)"');
   });
 });

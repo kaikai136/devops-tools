@@ -30,7 +30,6 @@ import {
   attachTerminalPasteHandler,
   collectTerminalSearchMatches,
   createTerminalScreenOptions,
-  getClipboardTextFromPasteEvent,
   getSendableTerminalData,
   getTerminalBufferText,
   getTerminalSearchOptions,
@@ -39,6 +38,7 @@ import {
   sanitizeTerminalLogFileName,
   selectTerminalSearchMatch,
   toSingleLineTerminalText,
+  writeTextToClipboard,
 } from '@features/terminal/utils/terminalScreen';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
@@ -424,11 +424,7 @@ function sendControlToTerminal(value: string) {
 
 async function copyText(value: string) {
   if (!value) return;
-  try {
-    await navigator.clipboard?.writeText(value);
-  } catch {
-    // Clipboard access can be denied outside a secure context or without permission.
-  }
+  await writeTextToClipboard(value);
 }
 
 async function pasteClipboardToTerminal() {
@@ -439,12 +435,6 @@ async function pasteClipboardToTerminal() {
   } catch {
     // Keep the menu action quiet when the browser blocks clipboard reads.
   }
-}
-
-function handleTerminalPaste(event: ClipboardEvent) {
-  if (!isSshReady()) return;
-  const value = getClipboardTextFromPasteEvent(event);
-  if (value) sendTextToTerminal(value);
 }
 
 function attachTerminalMouseSelectionGuards(container: HTMLElement) {
@@ -1002,7 +992,6 @@ function rdpErrorMessage(error?: unknown) {
         ref="terminalRef"
         class="simple-host-terminal-xterm"
         @contextmenu="openSshContextMenu($event)"
-        @paste="handleTerminalPaste($event)"
       ></div>
       <div
         v-if="isSearchOpen && protocol === 'ssh'"

@@ -24,6 +24,15 @@ interface ClipboardWriter {
   writeText(value: string): Promise<void>;
 }
 
+interface ClipboardFallbackDocument {
+  createElement(tagName: 'textarea'): HTMLTextAreaElement;
+  execCommand(command: 'copy'): boolean;
+  body?: {
+    appendChild(node: HTMLTextAreaElement): unknown;
+    removeChild(node: HTMLTextAreaElement): unknown;
+  } | null;
+}
+
 interface TerminalSelectionReader {
   hasSelection(): boolean;
   getSelection(): string;
@@ -74,9 +83,43 @@ export function handleTerminalCopyShortcut(
 
   const selection = terminal.getSelection();
   if (selection) {
-    clipboard?.writeText(selection).catch(() => undefined);
+    void writeTextToClipboard(selection, clipboard);
   }
   return false;
+}
+
+export async function writeTextToClipboard(
+  value: string,
+  clipboard: ClipboardWriter | undefined | null = globalThis.navigator?.clipboard,
+  doc: ClipboardFallbackDocument | undefined = globalThis.document,
+) {
+  if (!value) return false;
+  if (clipboard) {
+    try {
+      await clipboard.writeText(value);
+      return true;
+    } catch {
+      // Continue to the document-command fallback below.
+    }
+  }
+
+  if (!doc?.body) return false;
+  const textarea = doc.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute?.('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  doc.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    return doc.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    doc.body.removeChild(textarea);
+  }
 }
 
 export function getClipboardTextFromPasteEvent(event: TerminalPasteEvent) {
@@ -85,14 +128,21 @@ export function getClipboardTextFromPasteEvent(event: TerminalPasteEvent) {
   return text;
 }
 
-export function attachTerminalPasteHandler(container: HTMLElement, sendText: (value: string) => void) {
+export function attachTerminalPasteHandler(
+  container: HTMLElement,
+  sendText: (value: string) => void,
+  eventTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> | undefined = globalThis.window,
+) {
   const handlePaste = (event: ClipboardEvent) => {
+    if (event.defaultPrevented) return;
+    if (typeof Node !== 'undefined' && event.target instanceof Node && !container.contains(event.target)) return;
+    if (typeof Node === 'undefined' && event.target && !container.contains(event.target as never)) return;
     const text = getClipboardTextFromPasteEvent(event);
     if (text) sendText(text);
   };
-  container.addEventListener('paste', handlePaste, true);
+  eventTarget?.addEventListener('paste', handlePaste, true);
   return {
-    dispose: () => container.removeEventListener('paste', handlePaste, true),
+    dispose: () => eventTarget?.removeEventListener('paste', handlePaste, true),
   };
 }
 

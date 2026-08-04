@@ -37,7 +37,7 @@ import {
   formatRdpConnectionErrorMessage,
   parseTerminalHostQuery,
 } from '../../features/terminal/utils/protocol';
-import { attachTerminalPasteHandler, getClipboardTextFromPasteEvent } from '../../features/terminal/utils/terminalScreen';
+import { attachTerminalPasteHandler, writeTextToClipboard } from '../../features/terminal/utils/terminalScreen';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
 import { getSystemSettingOrNull } from '../../services/system';
@@ -1420,11 +1420,7 @@ function canDisconnectTerminalTab(tab: TerminalTab | null) {
 
 async function copyTerminalContextText(value: string) {
   if (!value) return;
-  try {
-    await navigator.clipboard?.writeText(value);
-  } catch {
-    // Clipboard access can be denied outside a secure context or without permission.
-  }
+  await writeTextToClipboard(value);
 }
 
 async function pasteClipboardToTerminal(tab: TerminalTab | null) {
@@ -1435,12 +1431,6 @@ async function pasteClipboardToTerminal(tab: TerminalTab | null) {
   } catch {
     // Keep the menu action quiet when the browser blocks clipboard reads.
   }
-}
-
-function handleTerminalPaste(tab: TerminalTab, event: ClipboardEvent) {
-  if (!isTerminalTabReady(tab)) return;
-  const value = getClipboardTextFromPasteEvent(event);
-  if (value) sendTextToTerminal(value, tab);
 }
 
 function sendTextToTerminal(value: string, tab: TerminalTab | null) {
@@ -2334,7 +2324,7 @@ function handleTerminalKey(event: KeyboardEvent, terminal: Terminal) {
 
   const selection = terminal.getSelection();
   if (selection) {
-    navigator.clipboard?.writeText(selection).catch(() => undefined);
+    void writeTextToClipboard(selection);
   }
   return false;
 }
@@ -3655,7 +3645,6 @@ function readTerminalQuickCommandPanelCollapsed() {
             <div
               :ref="(element) => setTerminalContainer(tab.id, element)"
               :class="tab.kind === 'rdp' ? 'terminal-rdp-host' : 'terminal-xterm-host'"
-              @paste="handleTerminalPaste(tab, $event)"
             ></div>
             <div v-if="tab.kind === 'rdp' && tab.rdpErrorMessage" class="terminal-rdp-status-overlay">
               <strong>RDP connection failed</strong>

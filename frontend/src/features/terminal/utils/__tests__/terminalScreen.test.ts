@@ -7,6 +7,7 @@ import {
   getTerminalVisibleText,
   handleTerminalCopyShortcut,
   toSingleLineTerminalText,
+  writeTextToClipboard,
 } from '../terminalScreen';
 
 describe('terminal screen helpers', () => {
@@ -47,6 +48,39 @@ describe('terminal screen helpers', () => {
     expect(handled).toBe(false);
     await Promise.resolve();
     expect(writes).toEqual(['root@host:~#']);
+  });
+
+  it('falls back to a hidden textarea copy command when clipboard write is blocked', async () => {
+    const commands: string[] = [];
+    const appended: unknown[] = [];
+    const removed: unknown[] = [];
+    const textarea = {
+      value: '',
+      style: {},
+      focus: () => undefined,
+      select: () => undefined,
+    };
+    const handled = await writeTextToClipboard(
+      'copied from terminal',
+      { writeText: async () => { throw new Error('blocked'); } },
+      {
+        createElement: () => textarea,
+        execCommand: (command: string) => {
+          commands.push(command);
+          return true;
+        },
+        body: {
+          appendChild: (node: unknown) => appended.push(node),
+          removeChild: (node: unknown) => removed.push(node),
+        },
+      },
+    );
+
+    expect(handled).toBe(true);
+    expect(textarea.value).toBe('copied from terminal');
+    expect(commands).toEqual(['copy']);
+    expect(appended).toEqual([textarea]);
+    expect(removed).toEqual([textarea]);
   });
 
   it('lets normal keyboard input continue when there is no selected text to copy', () => {
@@ -110,24 +144,37 @@ describe('terminal screen helpers', () => {
     expect(getClipboardTextFromPasteEvent(event)).toBe('whoami');
   });
 
-  it('attaches a capture paste listener and disposes it', () => {
+  it('attaches a window capture paste listener scoped to the terminal container and disposes it', () => {
     const sent: string[] = [];
     const listeners = new Map<string, EventListenerOrEventListenerObject>();
+    const terminalChild = {};
+    const outside = {};
     const container = {
+      contains: (target: unknown) => target === terminalChild,
+    } as HTMLElement;
+    const eventTarget = {
       addEventListener: (type: string, listener: EventListenerOrEventListenerObject, capture?: boolean) => {
         if (capture) listeners.set(type, listener);
       },
       removeEventListener: (type: string, listener: EventListenerOrEventListenerObject, capture?: boolean) => {
         if (capture && listeners.get(type) === listener) listeners.delete(type);
       },
-    } as HTMLElement;
+    };
     const disposable = attachTerminalPasteHandler(container, (value) => {
       sent.push(value);
-    });
+    }, eventTarget);
     const pasteListener = listeners.get('paste');
     if (typeof pasteListener !== 'function') throw new Error('paste listener missing');
 
     pasteListener({
+      target: outside,
+      preventDefault: () => undefined,
+      clipboardData: {
+        getData: (type: string) => (type === 'text/plain' ? 'ignored' : ''),
+      },
+    } as unknown as ClipboardEvent);
+    pasteListener({
+      target: terminalChild,
       preventDefault: () => undefined,
       clipboardData: {
         getData: (type: string) => (type === 'text/plain' ? 'uptime' : ''),
