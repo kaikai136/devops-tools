@@ -91,9 +91,15 @@ describe('useHostManager facade contract', () => {
   it('preserves the complete public return contract and representative behavior', () => {
     const getItem = vi.fn(() => null);
     const setItem = vi.fn();
+    const openedWindow = { opener: {}, location: { replace: vi.fn() } };
+    const open = vi.fn(() => openedWindow);
     vi.stubGlobal('window', {
       localStorage: { getItem, setItem },
-      open: vi.fn(),
+      open,
+      screenX: 0,
+      outerWidth: 1280,
+      screenY: 0,
+      outerHeight: 900,
     });
 
     const scope = effectScope();
@@ -192,15 +198,17 @@ describe('useHostManager facade contract', () => {
       creator: '',
     });
     expect(window.open).toHaveBeenCalledWith(
-      '/host-terminal.html?host=7',
+      'about:blank',
       'host-terminal-7',
       expect.stringContaining('popup=yes'),
     );
     expect(window.open).toHaveBeenCalledWith(
-      '/host-terminal.html?host=7',
+      'about:blank',
       'host-terminal-7',
       expect.stringContaining('width=980'),
     );
+    expect(openedWindow.opener).toBeNull();
+    expect(openedWindow.location.replace).toHaveBeenCalledWith('/host-terminal.html?host=7');
 
     scope.stop();
   });

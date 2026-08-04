@@ -103,6 +103,16 @@ export function useHostEditor({
     },
   );
 
+  function openPopupWindow(url: string, targetName: string, features?: string) {
+    const target = window.open('about:blank', targetName, features);
+    if (!target) {
+      showToast('Web 终端', '浏览器阻止了新窗口，请允许弹窗后重试。');
+      return;
+    }
+    target.opener = null;
+    target.location.replace(url);
+  }
+
   function openWebTerminal(host?: ManagedHost) {
     const params = new URLSearchParams();
     if (host) {
@@ -111,10 +121,7 @@ export function useHostEditor({
       params.set('group', String(selectedHostGroup.value));
     }
     const url = `/terminal.html${params.toString() ? `?${params.toString()}` : ''}`;
-    const target = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!target) {
-      showToast('Web 终端', '浏览器阻止了新窗口，请允许弹窗后重试。');
-    }
+    openPopupWindow(url, '_blank');
   }
 
   function openSimpleHostTerminal(host: ManagedHost) {
@@ -125,8 +132,6 @@ export function useHostEditor({
     const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
     const features = [
       'popup=yes',
-      'noopener',
-      'noreferrer',
       `width=${width}`,
       `height=${height}`,
       `left=${left}`,
@@ -134,10 +139,7 @@ export function useHostEditor({
       'resizable=yes',
       'scrollbars=no',
     ].join(',');
-    const target = window.open(`/host-terminal.html?${params.toString()}`, `host-terminal-${host.id}`, features);
-    if (!target) {
-      showToast('Web 终端', '浏览器阻止了新窗口，请允许弹窗后重试。');
-    }
+    openPopupWindow(`/host-terminal.html?${params.toString()}`, `host-terminal-${host.id}`, features);
   }
 
   async function addManagedHost(group: number | null = selectedHostGroup.value ?? flatHostGroups.value[0]?.key ?? null) {
