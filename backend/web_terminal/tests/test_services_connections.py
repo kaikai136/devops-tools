@@ -150,7 +150,7 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
             result = connection.send_command("whoami")
 
         self.assertEqual(result, "result")
-        channel.send.assert_called_once_with("whoami\n")
+        channel.sendall.assert_called_once_with("whoami\n")
         read_available.assert_called_once_with(timeout=30.0, idle_timeout=0.35)
 
     def test_live_connection_command_uses_terminal_settings_read_timeouts(self):
@@ -178,6 +178,26 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         with self.assertRaises(services.TerminalConnectionError) as raised:
             connection.send_data("pwd")
         self.assertEqual(str(raised.exception), "SSH \u4f1a\u8bdd\u5df2\u5173\u95ed\uff0c\u8bf7\u91cd\u65b0\u8fde\u63a5\u4e3b\u673a\u3002")
+
+    def test_live_connection_sends_terminal_input_completely(self):
+        channel = MagicMock(closed=False)
+        connection = services.LiveTerminalConnection(MagicMock(), channel)
+        data = "printf 'hello'\n" * 1000
+
+        connection.send_data(data)
+
+        channel.sendall.assert_called_once_with(data)
+        channel.send.assert_not_called()
+
+    def test_live_connection_preserves_utf8_split_across_recv_chunks(self):
+        chunks = [b"\xe4\xbd", b"\xa0\xe5\xa5\xbd"]
+        channel = MagicMock(closed=False)
+        channel.recv_ready.return_value = True
+        channel.recv.side_effect = chunks
+        connection = services.LiveTerminalConnection(MagicMock(), channel)
+
+        self.assertEqual(connection.read_raw(), "")
+        self.assertEqual(connection.read_raw(), "你好")
 
 
     def test_connections_can_be_imported_before_services_package(self):

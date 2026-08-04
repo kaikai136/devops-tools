@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import codecs
 from dataclasses import dataclass
 import io
 import threading
@@ -18,6 +19,7 @@ class LiveTerminalConnection:
         self.channel = channel
         self.lock = threading.Lock()
         self.terminal_settings = normalize_terminal_settings(terminal_settings)
+        self.output_decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
     def read_available(self, timeout: float = 4.0, idle_timeout: float = 0.35) -> str:
         return normalize_terminal_output(self.read_available_raw(timeout=timeout, idle_timeout=idle_timeout))
@@ -39,19 +41,24 @@ class LiveTerminalConnection:
                 break
             time.sleep(0.05)
 
-        return b"".join(chunks).decode("utf-8", errors="replace")
+        return self._decode_output(b"".join(chunks))
 
     def read_raw(self, max_bytes: int = 65535) -> str:
         if not self.channel.recv_ready():
             return ""
-        return self.channel.recv(max_bytes).decode("utf-8", errors="replace")
+        return self._decode_output(self.channel.recv(max_bytes))
+
+    def _decode_output(self, data: bytes) -> str:
+        if not data:
+            return ""
+        return self.output_decoder.decode(data, final=False)
 
     def send_data(self, data: str) -> None:
         with self.lock:
             if self.channel.closed:
                 raise TerminalConnectionError("SSH 会话已关闭，请重新连接主机。")
             if data:
-                self.channel.send(data)
+                self.channel.sendall(data)
 
     def send_command(self, command: str) -> str:
         self.send_data(command + "\n")

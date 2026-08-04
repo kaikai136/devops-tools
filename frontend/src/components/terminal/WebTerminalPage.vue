@@ -2694,7 +2694,7 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   }
 
   if (message.type === 'output') {
-    tab.terminal.write(highlightTerminalOutput(message.data ?? '', tab.highlightState));
+    tab.terminal.write(message.data ?? '');
     if (tab.id !== activeTabId.value) {
       markTabUnread(tab.id);
     }
