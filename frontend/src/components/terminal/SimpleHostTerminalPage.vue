@@ -27,6 +27,7 @@ import {
   MOUSE_DOUBLE_CLICK_INTERRUPT_SUPPRESSION_MS,
   MOUSE_SELECTION_INTERRUPT_SUPPRESSION_MS,
   TERMINAL_FONT_SIZE_STORAGE_KEY,
+  attachTerminalPasteHandler,
   collectTerminalSearchMatches,
   createTerminalScreenOptions,
   getClipboardTextFromPasteEvent,
@@ -293,6 +294,7 @@ function connectSsh(selectedHost: TerminalHost) {
     }
   }));
   attachTerminalMouseSelectionGuards(terminalRef.value);
+  terminalDisposables.push(attachTerminalPasteHandler(terminalRef.value, sendTextToTerminal));
 
   observeResize(terminalRef.value);
   fitActiveSession();

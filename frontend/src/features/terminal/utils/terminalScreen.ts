@@ -85,6 +85,17 @@ export function getClipboardTextFromPasteEvent(event: TerminalPasteEvent) {
   return text;
 }
 
+export function attachTerminalPasteHandler(container: HTMLElement, sendText: (value: string) => void) {
+  const handlePaste = (event: ClipboardEvent) => {
+    const text = getClipboardTextFromPasteEvent(event);
+    if (text) sendText(text);
+  };
+  container.addEventListener('paste', handlePaste, true);
+  return {
+    dispose: () => container.removeEventListener('paste', handlePaste, true),
+  };
+}
+
 export function getSendableTerminalData(data: string, suppressInterruptUntil: number, now = Date.now()) {
   if (!data.includes(CONTROL_C) || now > suppressInterruptUntil) return data;
   return data.split(CONTROL_C).join('');

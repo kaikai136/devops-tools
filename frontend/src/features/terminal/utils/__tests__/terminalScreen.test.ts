@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  attachTerminalPasteHandler,
   getClipboardTextFromPasteEvent,
   createTerminalScreenOptions,
   getTerminalVisibleText,
@@ -107,5 +108,34 @@ describe('terminal screen helpers', () => {
     };
 
     expect(getClipboardTextFromPasteEvent(event)).toBe('whoami');
+  });
+
+  it('attaches a capture paste listener and disposes it', () => {
+    const sent: string[] = [];
+    const listeners = new Map<string, EventListenerOrEventListenerObject>();
+    const container = {
+      addEventListener: (type: string, listener: EventListenerOrEventListenerObject, capture?: boolean) => {
+        if (capture) listeners.set(type, listener);
+      },
+      removeEventListener: (type: string, listener: EventListenerOrEventListenerObject, capture?: boolean) => {
+        if (capture && listeners.get(type) === listener) listeners.delete(type);
+      },
+    } as HTMLElement;
+    const disposable = attachTerminalPasteHandler(container, (value) => {
+      sent.push(value);
+    });
+    const pasteListener = listeners.get('paste');
+    if (typeof pasteListener !== 'function') throw new Error('paste listener missing');
+
+    pasteListener({
+      preventDefault: () => undefined,
+      clipboardData: {
+        getData: (type: string) => (type === 'text/plain' ? 'uptime' : ''),
+      },
+    } as unknown as ClipboardEvent);
+
+    expect(sent).toEqual(['uptime']);
+    disposable.dispose();
+    expect(listeners.has('paste')).toBe(false);
   });
 });

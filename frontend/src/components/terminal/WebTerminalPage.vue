@@ -37,7 +37,7 @@ import {
   formatRdpConnectionErrorMessage,
   parseTerminalHostQuery,
 } from '../../features/terminal/utils/protocol';
-import { getClipboardTextFromPasteEvent } from '../../features/terminal/utils/terminalScreen';
+import { attachTerminalPasteHandler, getClipboardTextFromPasteEvent } from '../../features/terminal/utils/terminalScreen';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
 import { getSystemSettingOrNull } from '../../services/system';
@@ -2363,6 +2363,7 @@ function mountTerminal(tab: TerminalTab) {
 
   tab.terminal.open(container);
   tab.mounted = true;
+  tab.disposables.push(attachTerminalPasteHandler(container, (value) => sendTextToTerminal(value, tab)));
   tab.disposables.push(
     tab.terminal.onData((data) => {
       if (tab.status === 'closed' || tab.status === 'error') {
