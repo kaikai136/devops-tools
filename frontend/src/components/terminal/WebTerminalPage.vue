@@ -37,6 +37,7 @@ import {
   formatRdpConnectionErrorMessage,
   parseTerminalHostQuery,
 } from '../../features/terminal/utils/protocol';
+import { getClipboardTextFromPasteEvent } from '../../features/terminal/utils/terminalScreen';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
 import { getSystemSettingOrNull } from '../../services/system';
@@ -1436,6 +1437,12 @@ async function pasteClipboardToTerminal(tab: TerminalTab | null) {
   }
 }
 
+function handleTerminalPaste(tab: TerminalTab, event: ClipboardEvent) {
+  if (!isTerminalTabReady(tab)) return;
+  const value = getClipboardTextFromPasteEvent(event);
+  if (value) sendTextToTerminal(value, tab);
+}
+
 function sendTextToTerminal(value: string, tab: TerminalTab | null) {
   sendTerminalInput(tab, value, { focus: true });
 }
@@ -2650,6 +2657,9 @@ function handleSocketMessage(tab: TerminalTab, event: MessageEvent<string>) {
   }
 
   if (message.type === 'error') {
+    if (message.message === '不支持的终端消息类型') {
+      return;
+    }
     if (message.message === '请先登录') {
       handleTerminalAuthExpired(new ApiUnauthorizedError(message.message));
       return;
@@ -3644,6 +3654,7 @@ function readTerminalQuickCommandPanelCollapsed() {
             <div
               :ref="(element) => setTerminalContainer(tab.id, element)"
               :class="tab.kind === 'rdp' ? 'terminal-rdp-host' : 'terminal-xterm-host'"
+              @paste="handleTerminalPaste(tab, $event)"
             ></div>
             <div v-if="tab.kind === 'rdp' && tab.rdpErrorMessage" class="terminal-rdp-status-overlay">
               <strong>RDP connection failed</strong>

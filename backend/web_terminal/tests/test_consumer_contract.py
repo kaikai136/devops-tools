@@ -173,6 +173,15 @@ class TerminalConsumerContractTests(SimpleTestCase):
         payload = json.loads(consumer.send.call_args.kwargs["text_data"])
         self.assertEqual(payload, {"type": "pong"})
 
+    def test_receive_ignores_unknown_message_types_without_user_visible_error(self):
+        consumer = self._consumer()
+        consumer.connection = Mock()
+
+        consumer.receive(text_data=json.dumps({"type": "pong"}))
+
+        consumer.send.assert_not_called()
+        consumer.close.assert_not_called()
+
     def test_idle_check_closes_after_configured_minutes(self):
         consumer = self._consumer()
         consumer.terminal_settings = {"idleDisconnectMinutes": 1}

@@ -40,6 +40,13 @@ interface TerminalBufferTextReader {
   };
 }
 
+interface TerminalPasteEvent {
+  preventDefault(): void;
+  clipboardData?: {
+    getData(type: string): string;
+  } | null;
+}
+
 export function createTerminalScreenOptions(fontSize: number, scrollback = 5000): ITerminalOptions {
   return {
     cursorBlink: true,
@@ -70,6 +77,12 @@ export function handleTerminalCopyShortcut(
     clipboard?.writeText(selection).catch(() => undefined);
   }
   return false;
+}
+
+export function getClipboardTextFromPasteEvent(event: TerminalPasteEvent) {
+  const text = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || '';
+  if (text) event.preventDefault();
+  return text;
 }
 
 export function getSendableTerminalData(data: string, suppressInterruptUntil: number, now = Date.now()) {

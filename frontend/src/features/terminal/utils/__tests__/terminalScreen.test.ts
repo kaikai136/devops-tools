@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getClipboardTextFromPasteEvent,
   createTerminalScreenOptions,
   getTerminalVisibleText,
   handleTerminalCopyShortcut,
@@ -80,5 +81,31 @@ describe('terminal screen helpers', () => {
 
   it('normalizes multiline selected text for single-line paste', () => {
     expect(toSingleLineTerminalText('  ps aux\n\n grep nginx\r\n')).toBe('ps aux grep nginx');
+  });
+
+  it('reads plain text from a paste event and prevents browser-only paste', () => {
+    let prevented = false;
+    const event = {
+      preventDefault: () => {
+        prevented = true;
+      },
+      clipboardData: {
+        getData: (type: string) => (type === 'text/plain' ? 'echo pasted' : ''),
+      },
+    };
+
+    expect(getClipboardTextFromPasteEvent(event)).toBe('echo pasted');
+    expect(prevented).toBe(true);
+  });
+
+  it('falls back to generic clipboard text from a paste event', () => {
+    const event = {
+      preventDefault: () => undefined,
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? 'whoami' : ''),
+      },
+    };
+
+    expect(getClipboardTextFromPasteEvent(event)).toBe('whoami');
   });
 });

@@ -153,7 +153,7 @@ class TerminalConsumer(WebsocketConsumer):
                 self._record_resize(cols, rows)
                 self.connection.resize(cols, rows)
             else:
-                self._send_error("不支持的终端消息类型")
+                logger.debug("Ignoring unsupported terminal message type: %r", message_type)
         except (TypeError, ValueError):
             self._send_error("终端窗口尺寸不正确")
         except Exception as error:

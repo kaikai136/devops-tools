@@ -29,6 +29,7 @@ import {
   TERMINAL_FONT_SIZE_STORAGE_KEY,
   collectTerminalSearchMatches,
   createTerminalScreenOptions,
+  getClipboardTextFromPasteEvent,
   getSendableTerminalData,
   getTerminalBufferText,
   getTerminalSearchOptions,
@@ -358,6 +359,9 @@ function handleSshMessage(event: MessageEvent<string>) {
     return;
   }
   if (message.type === 'error') {
+    if (message.message === '不支持的终端消息类型') {
+      return;
+    }
     status.value = 'error';
     statusText.value = '错误';
     errorMessage.value = '';
@@ -433,6 +437,12 @@ async function pasteClipboardToTerminal() {
   } catch {
     // Keep the menu action quiet when the browser blocks clipboard reads.
   }
+}
+
+function handleTerminalPaste(event: ClipboardEvent) {
+  if (!isSshReady()) return;
+  const value = getClipboardTextFromPasteEvent(event);
+  if (value) sendTextToTerminal(value);
 }
 
 function attachTerminalMouseSelectionGuards(container: HTMLElement) {
@@ -990,6 +1000,7 @@ function rdpErrorMessage(error?: unknown) {
         ref="terminalRef"
         class="simple-host-terminal-xterm"
         @contextmenu="openSshContextMenu($event)"
+        @paste="handleTerminalPaste($event)"
       ></div>
       <div
         v-if="isSearchOpen && protocol === 'ssh'"
