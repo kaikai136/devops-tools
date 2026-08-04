@@ -241,6 +241,51 @@ button {
   color: #334155;
 }
 
+.simple-host-terminal-paste-prompt {
+  position: fixed;
+  z-index: 90;
+  display: grid;
+  gap: 8px;
+  width: 320px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
+  padding: 10px;
+  color: #334155;
+}
+
+.simple-host-terminal-paste-prompt span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.simple-host-terminal-paste-prompt textarea {
+  min-height: 74px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 8px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+.simple-host-terminal-paste-prompt div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.simple-host-terminal-paste-prompt button {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f2a44;
+  padding: 5px 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .simple-host-terminal-context-row {
   position: relative;
 }

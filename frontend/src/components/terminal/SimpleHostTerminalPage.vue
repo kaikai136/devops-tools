@@ -30,6 +30,7 @@ import {
   attachTerminalPasteHandler,
   collectTerminalSearchMatches,
   createTerminalScreenOptions,
+  getClipboardTextFromPasteEvent,
   getSendableTerminalData,
   getTerminalBufferText,
   getTerminalSearchOptions,
@@ -67,6 +68,13 @@ interface SimpleTerminalContextMenuState {
   selectedText: string;
 }
 
+interface SimplePastePromptState {
+  visible: boolean;
+  x: number;
+  y: number;
+  value: string;
+}
+
 interface SimpleTerminalContextMenuItem {
   id: string;
   label: string;
@@ -98,12 +106,19 @@ const searchQuery = ref('');
 const searchResultIndex = ref(-1);
 const searchResultCount = ref(0);
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const pasteInputRef = ref<HTMLTextAreaElement | null>(null);
 const terminalFontSize = ref(readTerminalFontSize());
 const terminalContextMenu = ref<SimpleTerminalContextMenuState>({
   visible: false,
   x: 0,
   y: 0,
   selectedText: '',
+});
+const pastePrompt = ref<SimplePastePromptState>({
+  visible: false,
+  x: 0,
+  y: 0,
+  value: '',
 });
 
 let xterm: Terminal | null = null;
@@ -132,6 +147,8 @@ const terminalContextMenuItems = computed<SimpleTerminalContextMenuItem[]>(() =>
   const selectedText = terminalContextMenu.value.selectedText.trim();
   const hasSelection = Boolean(selectedText);
   const ready = isSshReady();
+  const menuX = terminalContextMenu.value.x;
+  const menuY = terminalContextMenu.value.y;
   const items: SimpleTerminalContextMenuItem[] = [];
 
   if (hasSelection) {
@@ -166,7 +183,7 @@ const terminalContextMenuItems = computed<SimpleTerminalContextMenuItem[]>(() =>
     );
   } else {
     items.push(
-      { id: 'paste', label: '粘贴', icon: 'clipboard', enabled: ready, shortcut: 'Ctrl+Shift+V', action: pasteClipboardToTerminal },
+      { id: 'paste', label: '粘贴', icon: 'clipboard', enabled: ready, shortcut: 'Ctrl+Shift+V', action: () => pasteClipboardToTerminal(menuX, menuY) },
       { id: 'find', label: '查找...', icon: 'search', enabled: Boolean(xterm), shortcut: 'Ctrl+Shift+F', action: () => openSearch() },
     );
   }
@@ -427,14 +444,44 @@ async function copyText(value: string) {
   await writeTextToClipboard(value);
 }
 
-async function pasteClipboardToTerminal() {
+async function pasteClipboardToTerminal(x?: number, y?: number) {
   if (!isSshReady()) return;
+  let value = '';
   try {
-    const value = await navigator.clipboard?.readText();
-    if (value) sendTextToTerminal(value);
+    value = (await navigator.clipboard?.readText()) ?? '';
   } catch {
-    // Keep the menu action quiet when the browser blocks clipboard reads.
+    // Browser clipboard reads are blocked on insecure HTTP origins.
   }
+  if (value) {
+    sendTextToTerminal(value);
+    return;
+  }
+  openPastePrompt(x, y);
+}
+
+function openPastePrompt(x = window.innerWidth / 2 - 160, y = window.innerHeight / 2 - 80) {
+  const padding = 12;
+  pastePrompt.value = {
+    visible: true,
+    x: Math.max(padding, Math.min(x, window.innerWidth - 340)),
+    y: Math.max(padding, Math.min(y, window.innerHeight - 156)),
+    value: '',
+  };
+  void nextTick(() => pasteInputRef.value?.focus());
+}
+
+function closePastePrompt() {
+  pastePrompt.value = { visible: false, x: 0, y: 0, value: '' };
+}
+
+function submitPastePrompt(value = pastePrompt.value.value) {
+  if (value && isSshReady()) sendTextToTerminal(value);
+  closePastePrompt();
+}
+
+function handlePastePromptPaste(event: ClipboardEvent) {
+  const value = getClipboardTextFromPasteEvent(event);
+  if (value) submitPastePrompt(value);
 }
 
 function attachTerminalMouseSelectionGuards(container: HTMLElement) {
@@ -772,6 +819,10 @@ async function runContextMenuItem(item: SimpleTerminalContextMenuItem) {
 
 function handleWindowKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    if (pastePrompt.value.visible) {
+      closePastePrompt();
+      return;
+    }
     if (isSearchOpen.value) {
       closeSearch();
       return;
@@ -1071,6 +1122,27 @@ function rdpErrorMessage(error?: unknown) {
               <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
             </button>
           </div>
+        </div>
+      </div>
+      <div
+        v-if="pastePrompt.visible"
+        class="simple-host-terminal-paste-prompt"
+        :style="{ left: `${pastePrompt.x}px`, top: `${pastePrompt.y}px` }"
+        @click.stop
+        @contextmenu.stop
+      >
+        <span>在此粘贴后自动发送到终端</span>
+        <textarea
+          ref="pasteInputRef"
+          v-model="pastePrompt.value"
+          placeholder="按 Ctrl+V，或右键选择粘贴"
+          @paste="handlePastePromptPaste"
+          @keydown.esc.prevent.stop="closePastePrompt"
+          @keydown.ctrl.enter.prevent="submitPastePrompt()"
+        ></textarea>
+        <div>
+          <button type="button" @click="submitPastePrompt()">发送</button>
+          <button type="button" @click="closePastePrompt">取消</button>
         </div>
       </div>
     </section>

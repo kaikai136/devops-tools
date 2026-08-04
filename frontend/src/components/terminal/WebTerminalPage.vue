@@ -37,7 +37,7 @@ import {
   formatRdpConnectionErrorMessage,
   parseTerminalHostQuery,
 } from '../../features/terminal/utils/protocol';
-import { attachTerminalPasteHandler, writeTextToClipboard } from '../../features/terminal/utils/terminalScreen';
+import { attachTerminalPasteHandler, getClipboardTextFromPasteEvent, writeTextToClipboard } from '../../features/terminal/utils/terminalScreen';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
 import { getSystemSettingOrNull } from '../../services/system';
@@ -199,6 +199,14 @@ interface TerminalTabContextMenuState {
   x: number;
   y: number;
   tabId: string | null;
+}
+
+interface TerminalPastePromptState {
+  visible: boolean;
+  x: number;
+  y: number;
+  tabId: string | null;
+  value: string;
 }
 
 interface TerminalTabColorOption {
@@ -435,6 +443,13 @@ const terminalTabContextMenu = ref<TerminalTabContextMenuState>({
   y: 0,
   tabId: null,
 });
+const terminalPastePrompt = ref<TerminalPastePromptState>({
+  visible: false,
+  x: 0,
+  y: 0,
+  tabId: null,
+  value: '',
+});
 const terminalMonitorData = ref<TerminalMonitorResponse | null>(null);
 const isTerminalMonitorLoading = ref(false);
 const terminalMonitorError = ref('');
@@ -484,6 +499,7 @@ const terminalSearchQuery = ref('');
 const terminalSearchResultIndex = ref(-1);
 const terminalSearchResultCount = ref(0);
 const terminalSearchInputRef = ref<HTMLInputElement | null>(null);
+const terminalPasteInputRef = ref<HTMLTextAreaElement | null>(null);
 const terminalTabsRef = ref<HTMLElement | null>(null);
 const canScrollTerminalTabsLeft = ref(false);
 const canScrollTerminalTabsRight = ref(false);
@@ -599,6 +615,8 @@ const terminalQuickCommandPanelStyle = computed<Record<string, string>>(() => ({
 const terminalContextMenuItems = computed<TerminalContextMenuItem[]>(() => {
   const tab = getTerminalContextMenuTab();
   const selectedText = terminalContextMenu.value.selectedText.trim();
+  const menuX = terminalContextMenu.value.x;
+  const menuY = terminalContextMenu.value.y;
   const hasSelection = Boolean(selectedText);
   const isReady = Boolean(tab && isTerminalTabReady(tab));
   const items: TerminalContextMenuItem[] = [];
@@ -649,7 +667,7 @@ const terminalContextMenuItems = computed<TerminalContextMenuItem[]>(() => {
     );
   } else {
     items.push(
-      { id: 'paste', label: '粘贴', icon: 'clipboard', enabled: isReady, shortcut: 'Ctrl+Shift+V', action: () => pasteClipboardToTerminal(tab) },
+      { id: 'paste', label: '粘贴', icon: 'clipboard', enabled: isReady, shortcut: 'Ctrl+Shift+V', action: () => pasteClipboardToTerminal(tab, menuX, menuY) },
       { id: 'find', label: '查找...', icon: 'search', enabled: true, shortcut: 'Ctrl+Shift+F', action: () => promptFindTerminalText() },
       {
         id: 'quick-commands',
@@ -1312,6 +1330,7 @@ function sendQuickCommandToTerminal(command: TerminalQuickCommand, execute: bool
 function closeTerminalContextMenus() {
   closeTerminalContextMenu();
   closeTerminalTabContextMenu();
+  closeTerminalPastePrompt();
   closeTerminalTabMenu();
   closeTerminalSplitMenu();
 }
@@ -1423,14 +1442,46 @@ async function copyTerminalContextText(value: string) {
   await writeTextToClipboard(value);
 }
 
-async function pasteClipboardToTerminal(tab: TerminalTab | null) {
+async function pasteClipboardToTerminal(tab: TerminalTab | null, x?: number, y?: number) {
   if (!isTerminalTabReady(tab)) return;
+  let value = '';
   try {
-    const value = await navigator.clipboard?.readText();
-    if (value) sendTextToTerminal(value, tab);
+    value = (await navigator.clipboard?.readText()) ?? '';
   } catch {
-    // Keep the menu action quiet when the browser blocks clipboard reads.
+    // Browser clipboard reads are blocked on insecure HTTP origins.
   }
+  if (value) {
+    sendTextToTerminal(value, tab);
+    return;
+  }
+  openTerminalPastePrompt(tab, x, y);
+}
+
+function openTerminalPastePrompt(tab: TerminalTab, x = window.innerWidth / 2 - 160, y = window.innerHeight / 2 - 80) {
+  const padding = 12;
+  terminalPastePrompt.value = {
+    visible: true,
+    x: Math.max(padding, Math.min(x, window.innerWidth - 340)),
+    y: Math.max(padding, Math.min(y, window.innerHeight - 156)),
+    tabId: tab.id,
+    value: '',
+  };
+  void nextTick(() => terminalPasteInputRef.value?.focus());
+}
+
+function closeTerminalPastePrompt() {
+  terminalPastePrompt.value = { visible: false, x: 0, y: 0, tabId: null, value: '' };
+}
+
+function submitTerminalPastePrompt(value = terminalPastePrompt.value.value) {
+  const tab = terminalPastePrompt.value.tabId ? getTabById(terminalPastePrompt.value.tabId) : activeTab.value;
+  if (value && isTerminalTabReady(tab)) sendTextToTerminal(value, tab);
+  closeTerminalPastePrompt();
+}
+
+function handleTerminalPastePromptPaste(event: ClipboardEvent) {
+  const value = getClipboardTextFromPasteEvent(event);
+  if (value) submitTerminalPastePrompt(value);
 }
 
 function sendTextToTerminal(value: string, tab: TerminalTab | null) {
@@ -2175,7 +2226,17 @@ onBeforeUnmount(() => {
 });
 
 function closeTerminalContextMenusOnEscape(event: KeyboardEvent) {
+  const key = event.key.toLowerCase();
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'v') {
+    event.preventDefault();
+    void pasteClipboardToTerminal(activeTab.value);
+    return;
+  }
   if (event.key !== 'Escape') return;
+  if (terminalPastePrompt.value.visible) {
+    closeTerminalPastePrompt();
+    return;
+  }
   if (isTerminalSearchOpen.value) {
     closeTerminalSearch();
     return;
@@ -3708,6 +3769,27 @@ function readTerminalQuickCommandPanelCollapsed() {
                 <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
               </button>
             </div>
+          </div>
+        </div>
+        <div
+          v-if="terminalPastePrompt.visible"
+          class="terminal-paste-prompt"
+          :style="{ left: `${terminalPastePrompt.x}px`, top: `${terminalPastePrompt.y}px` }"
+          @click.stop
+          @contextmenu.stop
+        >
+          <span>在此粘贴后自动发送到终端</span>
+          <textarea
+            ref="terminalPasteInputRef"
+            v-model="terminalPastePrompt.value"
+            placeholder="按 Ctrl+V，或右键选择粘贴"
+            @paste="handleTerminalPastePromptPaste"
+            @keydown.esc.prevent.stop="closeTerminalPastePrompt"
+            @keydown.ctrl.enter.prevent="submitTerminalPastePrompt()"
+          ></textarea>
+          <div>
+            <button type="button" @click="submitTerminalPastePrompt()">发送</button>
+            <button type="button" @click="closeTerminalPastePrompt">取消</button>
           </div>
         </div>
         <aside v-if="isTerminalMonitorPanelOpen" class="terminal-monitor-panel terminal-monitor-drawer">
