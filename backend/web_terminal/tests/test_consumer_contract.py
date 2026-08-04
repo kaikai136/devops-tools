@@ -195,6 +195,26 @@ class TerminalConsumerContractTests(SimpleTestCase):
 
         consumer._send_to_consumer.assert_not_called()
 
+    def test_server_heartbeat_sends_pong_when_due(self):
+        consumer = self._consumer()
+        consumer.terminal_settings = {"webSocketHeartbeatSeconds": 3}
+        consumer._send_to_consumer = Mock()
+
+        next_due = consumer._send_websocket_heartbeat_if_due(now=10.0, next_due=9.0)
+
+        consumer._send_to_consumer.assert_called_once_with({"type": "terminal.pong"})
+        self.assertEqual(next_due, 13.0)
+
+    def test_server_heartbeat_is_disabled_when_seconds_is_zero(self):
+        consumer = self._consumer()
+        consumer.terminal_settings = {"webSocketHeartbeatSeconds": 0}
+        consumer._send_to_consumer = Mock()
+
+        next_due = consumer._send_websocket_heartbeat_if_due(now=10.0, next_due=0.0)
+
+        consumer._send_to_consumer.assert_not_called()
+        self.assertEqual(next_due, 0.0)
+
     def test_outbound_events_keep_serialized_json_keys(self):
         consumer = self._consumer()
 

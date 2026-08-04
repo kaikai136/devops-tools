@@ -180,6 +180,9 @@ class TerminalConsumer(WebsocketConsumer):
     def terminal_cwd(self, event):
         self.send(text_data=json.dumps({"type": "cwd", "path": event["path"]}, ensure_ascii=False))
 
+    def terminal_pong(self, event):
+        self.send(text_data=json.dumps({"type": "pong"}, ensure_ascii=False))
+
     def terminal_closed(self, event):
         self.send(text_data=json.dumps({"type": "closed", "reason": event["reason"]}, ensure_ascii=False))
         self.close()
@@ -191,9 +194,14 @@ class TerminalConsumer(WebsocketConsumer):
         assert self.connection is not None
 
         next_auth_check = 0.0
+        next_websocket_heartbeat = 0.0
         while not self.stop_reader.is_set():
             try:
                 now = time.monotonic()
+                next_websocket_heartbeat = self._send_websocket_heartbeat_if_due(
+                    now=now,
+                    next_due=next_websocket_heartbeat,
+                )
                 if now >= next_auth_check:
                     next_auth_check = now + 1.0
                     if not self._is_authenticated():
@@ -242,6 +250,17 @@ class TerminalConsumer(WebsocketConsumer):
             return False
         self._send_to_consumer({"type": "terminal.closed", "reason": "终端闲置超时，连接已关闭"})
         return True
+
+    def _send_websocket_heartbeat_if_due(self, *, now: float, next_due: float) -> float:
+        heartbeat_seconds = int(self._terminal_setting("webSocketHeartbeatSeconds"))
+        if heartbeat_seconds <= 0:
+            return next_due
+        if next_due <= 0:
+            return now + heartbeat_seconds
+        if now < next_due:
+            return next_due
+        self._send_to_consumer({"type": "terminal.pong"})
+        return now + heartbeat_seconds
 
     def _terminal_setting(self, key: str):
         settings_value = getattr(self, "terminal_settings", None)
