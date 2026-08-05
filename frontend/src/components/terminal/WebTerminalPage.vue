@@ -37,7 +37,12 @@ import {
   formatRdpConnectionErrorMessage,
   parseTerminalHostQuery,
 } from '../../features/terminal/utils/protocol';
-import { attachTerminalPasteHandler, getClipboardTextFromPasteEvent, writeTextToClipboard } from '../../features/terminal/utils/terminalScreen';
+import {
+  attachTerminalPasteHandler,
+  getClipboardTextFromPasteEvent,
+  normalizeTerminalPasteText,
+  writeTextToClipboard,
+} from '../../features/terminal/utils/terminalScreen';
 import { AUTH_LOGOUT_EVENT_KEY } from '../../composables/app/useAuthSession';
 import { getCurrentUser } from '../../services/auth';
 import { getSystemSettingOrNull } from '../../services/system';
@@ -950,7 +955,7 @@ async function pasteClipboardToTerminalMultiExecutionTargets() {
   if (!canSendToTerminalMultiExecutionTargets.value) return;
   try {
     const value = await navigator.clipboard?.readText();
-    if (value) sendTerminalInputToMultiExecutionTargets(value);
+    if (value) sendPastedTextToMultiExecutionTargets(value);
   } catch {
     // Keep the multi-paste action quiet when the browser blocks clipboard reads.
   }
@@ -1451,7 +1456,7 @@ async function pasteClipboardToTerminal(tab: TerminalTab | null, x?: number, y?:
     // Browser clipboard reads are blocked on insecure HTTP origins.
   }
   if (value) {
-    sendTextToTerminal(value, tab);
+    sendPastedTextToTerminal(value, tab);
     return;
   }
   openTerminalPastePrompt(tab, x, y);
@@ -1475,7 +1480,7 @@ function closeTerminalPastePrompt() {
 
 function submitTerminalPastePrompt(value = terminalPastePrompt.value.value) {
   const tab = terminalPastePrompt.value.tabId ? getTabById(terminalPastePrompt.value.tabId) : activeTab.value;
-  if (value && isTerminalTabReady(tab)) sendTextToTerminal(value, tab);
+  if (value && isTerminalTabReady(tab)) sendPastedTextToTerminal(value, tab);
   closeTerminalPastePrompt();
 }
 
@@ -1488,8 +1493,16 @@ function sendTextToTerminal(value: string, tab: TerminalTab | null) {
   sendTerminalInput(tab, value, { focus: true });
 }
 
+function sendPastedTextToTerminal(value: string, tab: TerminalTab | null) {
+  sendTextToTerminal(normalizeTerminalPasteText(value), tab);
+}
+
 function sendControlToTerminal(value: string, tab: TerminalTab | null) {
   sendTextToTerminal(value, tab);
+}
+
+function sendPastedTextToMultiExecutionTargets(value: string) {
+  sendTerminalInputToMultiExecutionTargets(normalizeTerminalPasteText(value));
 }
 
 function toSingleLineTerminalText(value: string) {
@@ -2414,7 +2427,7 @@ function mountTerminal(tab: TerminalTab) {
 
   tab.terminal.open(container);
   tab.mounted = true;
-  tab.disposables.push(attachTerminalPasteHandler(container, (value) => sendTextToTerminal(value, tab)));
+  tab.disposables.push(attachTerminalPasteHandler(container, (value) => sendPastedTextToTerminal(value, tab)));
   tab.disposables.push(
     tab.terminal.onData((data) => {
       if (tab.status === 'closed' || tab.status === 'error') {

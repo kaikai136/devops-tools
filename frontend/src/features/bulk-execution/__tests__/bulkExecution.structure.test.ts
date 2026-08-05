@@ -132,6 +132,23 @@ describe('bulk execution frontend contract', () => {
     expect(pickerModal).not.toContain('@click.self');
   });
 
+  it('renders selected targets as compact metadata rows with a dedicated remove action', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+
+    expect(panel).toContain('bulk-selected-target-main');
+    expect(panel).toContain('bulk-selected-target-name');
+    expect(panel).toContain('bulk-selected-target-meta');
+    expect(panel).toContain('bulk-selected-target-ip');
+    expect(panel).toContain('bulk-selected-target-user');
+    expect(panel).toContain('bulk-selected-target-group');
+    expect(panel).toContain('bulk-selected-target-remove');
+    expect(panel).toContain('aria-label="移除目标机器"');
+    expect(styles).toContain('grid-template-columns: minmax(0, 1fr) 34px');
+    expect(styles).toContain('.bulk-selected-target-meta');
+    expect(styles).toContain('.bulk-selected-target-remove');
+  });
+
   it('keeps view navigation in the top actions with record before execute and upload', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const actions = panel.match(/<div class="bulk-execution-actions">[\s\S]*?<\/div>/)?.[0] ?? '';

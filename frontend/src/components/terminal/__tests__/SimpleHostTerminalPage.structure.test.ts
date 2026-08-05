@@ -32,6 +32,7 @@ describe('SimpleHostTerminalPage structure', () => {
     expect(script).toContain('SearchAddon');
     expect(script).toContain('createTerminalScreenOptions(readTerminalFontSize(), terminalSettings.value.scrollbackLines)');
     expect(script).toContain('attachTerminalPasteHandler');
+    expect(script).toContain('normalizeTerminalPasteText');
     expect(script).toContain('handleTerminalCopyShortcut');
     expect(script).toContain('writeTextToClipboard');
     expect(script).toContain('getSendableTerminalData');

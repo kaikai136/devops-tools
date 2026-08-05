@@ -36,6 +36,7 @@ import {
   getTerminalSearchOptions,
   getTerminalVisibleText,
   handleTerminalCopyShortcut,
+  normalizeTerminalPasteText,
   sanitizeTerminalLogFileName,
   selectTerminalSearchMatch,
   toSingleLineTerminalText,
@@ -311,7 +312,7 @@ function connectSsh(selectedHost: TerminalHost) {
     }
   }));
   attachTerminalMouseSelectionGuards(terminalRef.value);
-  terminalDisposables.push(attachTerminalPasteHandler(terminalRef.value, sendTextToTerminal));
+  terminalDisposables.push(attachTerminalPasteHandler(terminalRef.value, (value) => sendPastedTextToTerminal(value)));
 
   observeResize(terminalRef.value);
   fitActiveSession();
@@ -435,6 +436,10 @@ function sendTextToTerminal(value: string) {
   if (sendTerminalInput(value)) xterm?.focus();
 }
 
+function sendPastedTextToTerminal(value: string) {
+  sendTextToTerminal(normalizeTerminalPasteText(value));
+}
+
 function sendControlToTerminal(value: string) {
   sendTextToTerminal(value);
 }
@@ -453,7 +458,7 @@ async function pasteClipboardToTerminal(x?: number, y?: number) {
     // Browser clipboard reads are blocked on insecure HTTP origins.
   }
   if (value) {
-    sendTextToTerminal(value);
+    sendPastedTextToTerminal(value);
     return;
   }
   openPastePrompt(x, y);
@@ -475,7 +480,7 @@ function closePastePrompt() {
 }
 
 function submitPastePrompt(value = pastePrompt.value.value) {
-  if (value && isSshReady()) sendTextToTerminal(value);
+  if (value && isSshReady()) sendPastedTextToTerminal(value);
   closePastePrompt();
 }
 

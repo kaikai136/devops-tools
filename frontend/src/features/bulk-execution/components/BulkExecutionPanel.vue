@@ -895,9 +895,17 @@ function formatFileSize(value: number) {
             </div>
             <div v-else class="bulk-selected-target-list">
               <div v-for="target in selectedTargets" :key="target.id" class="bulk-selected-target-row">
-                <strong>{{ target.name }}</strong>
-                <span>{{ target.privateIp }} · {{ target.loginUser }} · {{ target.groupName || '-' }}</span>
-                <button type="button" :disabled="isCreating" @click="removeSelectedTarget(target.id)"><AppIcon name="x" :size="14" /></button>
+                <div class="bulk-selected-target-main">
+                  <strong class="bulk-selected-target-name">{{ target.name }}</strong>
+                  <span class="bulk-selected-target-meta">
+                    <span class="bulk-selected-target-ip">{{ target.privateIp || '-' }}</span>
+                    <span class="bulk-selected-target-user">{{ target.loginUser || '-' }}</span>
+                    <span class="bulk-selected-target-group">{{ target.groupName || '-' }}</span>
+                  </span>
+                </div>
+                <button class="bulk-selected-target-remove" type="button" aria-label="移除目标机器" :disabled="isCreating" @click="removeSelectedTarget(target.id)">
+                  <AppIcon name="x" :size="14" />
+                </button>
               </div>
               <button class="bulk-clear-targets" type="button" :disabled="isCreating" @click="clearSelectedTargets">清空选择</button>
             </div>
@@ -975,9 +983,17 @@ function formatFileSize(value: number) {
             </div>
             <div v-else class="bulk-selected-target-list">
               <div v-for="target in selectedTargets" :key="target.id" class="bulk-selected-target-row">
-                <strong>{{ target.name }}</strong>
-                <span>{{ target.privateIp }} · {{ target.loginUser }} · {{ target.groupName || '-' }}</span>
-                <button type="button" :disabled="isUploading || isCheckingUpload" @click="removeSelectedTarget(target.id)"><AppIcon name="x" :size="14" /></button>
+                <div class="bulk-selected-target-main">
+                  <strong class="bulk-selected-target-name">{{ target.name }}</strong>
+                  <span class="bulk-selected-target-meta">
+                    <span class="bulk-selected-target-ip">{{ target.privateIp || '-' }}</span>
+                    <span class="bulk-selected-target-user">{{ target.loginUser || '-' }}</span>
+                    <span class="bulk-selected-target-group">{{ target.groupName || '-' }}</span>
+                  </span>
+                </div>
+                <button class="bulk-selected-target-remove" type="button" aria-label="移除目标机器" :disabled="isUploading || isCheckingUpload" @click="removeSelectedTarget(target.id)">
+                  <AppIcon name="x" :size="14" />
+                </button>
               </div>
               <button class="bulk-clear-targets" type="button" :disabled="isUploading || isCheckingUpload" @click="clearSelectedTargets">清空选择</button>
             </div>

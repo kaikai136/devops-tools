@@ -6,6 +6,7 @@ import {
   createTerminalScreenOptions,
   getTerminalVisibleText,
   handleTerminalCopyShortcut,
+  normalizeTerminalPasteText,
   toSingleLineTerminalText,
   writeTextToClipboard,
 } from '../terminalScreen';
@@ -116,6 +117,23 @@ describe('terminal screen helpers', () => {
 
   it('normalizes multiline selected text for single-line paste', () => {
     expect(toSingleLineTerminalText('  ps aux\n\n grep nginx\r\n')).toBe('ps aux grep nginx');
+  });
+
+  it('collapses backslash-continued shell snippets before terminal paste', () => {
+    const pasted = [
+      'ctr -n k8s.io images pull \\',
+      '  --plain-http \\',
+      "  --user 'admin:Smart123' \\",
+      '  10.19.29.2:7890/k8s/doris.be-ubuntu:3.0.3',
+    ].join('\n');
+
+    expect(normalizeTerminalPasteText(pasted)).toBe(
+      "ctr -n k8s.io images pull --plain-http --user 'admin:Smart123' 10.19.29.2:7890/k8s/doris.be-ubuntu:3.0.3",
+    );
+  });
+
+  it('keeps ordinary multiline paste intact', () => {
+    expect(normalizeTerminalPasteText('echo one\nprintf two')).toBe('echo one\nprintf two');
   });
 
   it('reads plain text from a paste event and prevents browser-only paste', () => {

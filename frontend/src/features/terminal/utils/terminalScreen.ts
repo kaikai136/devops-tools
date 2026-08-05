@@ -155,6 +155,21 @@ export function toSingleLineTerminalText(value: string) {
   return value.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+export function normalizeTerminalPasteText(value: string) {
+  const normalized = value.replace(/\r\n?/g, '\n');
+  if (!normalized.includes('\n')) return normalized;
+
+  const lines = normalized.split('\n');
+  const contentLines = lines.filter((line) => line.trim().length > 0);
+  if (contentLines.length <= 1) return normalized;
+  if (!contentLines.slice(0, -1).every((line) => /\\\s*$/.test(line))) return normalized;
+
+  return contentLines
+    .map((line) => line.replace(/^\s+/, '').replace(/\s*\\\s*$/, ''))
+    .join(' ')
+    .trim();
+}
+
 export function getTerminalVisibleText(terminal: TerminalBufferTextReader) {
   const buffer = terminal.buffer.active;
   const start = buffer.viewportY;

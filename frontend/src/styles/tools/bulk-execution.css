@@ -921,6 +921,7 @@
 .bulk-selected-target-list {
   max-height: 330px;
   overflow: auto;
+  padding-right: 2px;
 }
 
 .bulk-selected-target-row,
@@ -935,12 +936,28 @@
 }
 
 .bulk-selected-target-row {
-  grid-template-columns: minmax(0, 1fr) 28px;
-  padding: 9px;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 8px;
+  min-height: 58px;
+  padding: 8px 8px 8px 10px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.bulk-selected-target-row strong,
-.bulk-selected-target-row span,
+.bulk-selected-target-row:hover {
+  border-color: #a8c5ee;
+  box-shadow: 0 8px 18px rgba(31, 78, 143, 0.08);
+  transform: translateY(-1px);
+}
+
+.bulk-selected-target-main {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.bulk-selected-target-name,
+.bulk-selected-target-meta,
+.bulk-selected-target-meta span,
 .bulk-target-picker-row strong,
 .bulk-target-picker-row span,
 .bulk-target-group-row strong {
@@ -950,17 +967,47 @@
   white-space: nowrap;
 }
 
-.bulk-selected-target-row span,
+.bulk-selected-target-name {
+  color: var(--bulk-ink);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.bulk-selected-target-meta {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.95fr) minmax(54px, 0.55fr) minmax(70px, 0.72fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.bulk-selected-target-meta span {
+  min-height: 22px;
+  border: 1px solid #e0e8f2;
+  border-radius: 4px;
+  background: #f7faff;
+  padding: 3px 6px;
+  color: var(--bulk-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .bulk-target-picker-row span {
   color: var(--bulk-muted);
   font-size: 12px;
 }
 
-.bulk-selected-target-row button {
-  grid-row: span 2;
-  width: 28px;
-  height: 28px;
+.bulk-selected-target-remove {
+  width: 30px;
+  height: 30px;
   padding: 0;
+  border-color: #f2c5c0;
+  background: #fff;
+  color: var(--bulk-danger);
+}
+
+.bulk-selected-target-remove:hover:not(:disabled) {
+  border-color: var(--bulk-danger);
+  background: #fff1f2;
 }
 
 .bulk-clear-targets {
@@ -1365,6 +1412,16 @@
   border-color: var(--workspace-border);
   background: var(--workspace-surface-muted);
   color: var(--workspace-text);
+}
+
+.workspace-dark :where(.bulk-selected-target-meta span, .bulk-selected-target-remove) {
+  border-color: var(--workspace-border);
+  background: #111c2f;
+  color: var(--workspace-text-muted, #9fb3cd);
+}
+
+.workspace-dark .bulk-selected-target-remove {
+  color: #fca5a5;
 }
 
 .workspace-dark :where(.bulk-record-grid thead th, .bulk-keyword-filter input, .bulk-host-filter select, .bulk-status-filter select, .bulk-record-actions button) {

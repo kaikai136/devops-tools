@@ -14,4 +14,10 @@ describe('WebTerminalPage structure', () => {
     expect(script).toContain("tab.terminal.write(message.data ?? '')");
     expect(script).not.toContain('tab.terminal.write(highlightTerminalOutput');
   });
+
+  it('normalizes pasted shell command snippets before sending them to terminals', () => {
+    const script = parseSfc(source(), { filename: 'WebTerminalPage.vue' }).descriptor.scriptSetup?.content ?? '';
+
+    expect(script).toContain('normalizeTerminalPasteText');
+  });
 });
