@@ -43,10 +43,10 @@ export function createBulkFileUploadTask(payload: BulkFileUploadCreatePayload) {
   form.append('targetIds', JSON.stringify(payload.targetIds));
   form.append('remoteDirectory', payload.remoteDirectory);
   form.append('overwrite', String(Boolean(payload.overwrite)));
+  form.append('name', payload.name);
   for (const file of files) {
     form.append('files', file);
   }
-  if (payload.name) form.append('name', payload.name);
   return apiPostForm<BulkExecutionTask>(`${baseUrl}/tasks/`, form);
 }
 

@@ -109,7 +109,7 @@ export interface BulkExecutionCreatePayload {
   targetIds: number[];
   command: string;
   executionType: Exclude<BulkExecutionType, 'file_upload'>;
-  name?: string;
+  name: string;
 }
 
 export interface BulkFileUploadCreatePayload {
@@ -118,7 +118,7 @@ export interface BulkFileUploadCreatePayload {
   files: File[];
   file?: File;
   overwrite?: boolean;
-  name?: string;
+  name: string;
 }
 
 export interface BulkUploadDuplicateFiles {

@@ -71,6 +71,7 @@ const scriptPresets: Array<{ key: string; label: string; type: Exclude<BulkExecu
 ];
 
 const taskPageSizeOptions = [10, 20, 50];
+const MAX_SCRIPT_LENGTH = 200000;
 
 const { activeTool, canUsePageAction, showToast, requestConfirm } = useAppContext();
 
@@ -98,12 +99,14 @@ const isUploading = ref(false);
 const isCheckingUpload = ref(false);
 const isControlBusy = ref(false);
 const uploadFileInput = ref<HTMLInputElement | null>(null);
+const scriptFileInput = ref<HTMLInputElement | null>(null);
 const keyword = ref('');
 const statusFilter = ref('');
 const hostFilter = ref<number | ''>('');
 const taskName = ref('');
 const executionType = ref<Exclude<BulkExecutionType, 'file_upload'>>('shell');
 const commandInput = ref('');
+const scriptSourceName = ref('');
 const selectedUploadFiles = ref<File[]>([]);
 const remoteDirectory = ref('/tmp/');
 const uploadCheckResult = ref<BulkUploadCheckResult | null>(null);
@@ -140,12 +143,20 @@ const duplicateFiles = computed(() => uploadCheckResult.value?.duplicateFiles ??
 const unreachableTargets = computed(() => uploadCheckResult.value?.unreachableTargets ?? []);
 const usableUploadTargetIds = computed(() => uploadCheckResult.value?.usableTargetIds ?? [...selectedTargetIds.value]);
 const uploadHasWarnings = computed(() => duplicateFiles.value.length > 0 || unreachableTargets.value.length > 0);
-const canCreateTask = computed(() => canExecute.value && selectedTargetIds.value.size > 0 && commandInput.value.trim().length > 0 && !isCreating.value);
+const canCreateTask = computed(
+  () => canExecute.value && taskName.value.trim().length > 0 && selectedTargetIds.value.size > 0 && commandInput.value.trim().length > 0 && !isCreating.value,
+);
 const canCheckUpload = computed(
   () => canExecute.value && selectedTargetIds.value.size > 0 && selectedUploadFiles.value.length > 0 && remoteDirectory.value.trim().length > 0 && !isCheckingUpload.value,
 );
 const canCreateUpload = computed(
-  () => canExecute.value && selectedUploadFiles.value.length > 0 && usableUploadTargetIds.value.length > 0 && Boolean(uploadCheckResult.value) && !isUploading.value,
+  () =>
+    canExecute.value &&
+    taskName.value.trim().length > 0 &&
+    selectedUploadFiles.value.length > 0 &&
+    usableUploadTargetIds.value.length > 0 &&
+    Boolean(uploadCheckResult.value) &&
+    !isUploading.value,
 );
 const taskTotalPages = computed(() => Math.max(1, Math.ceil(taskTotal.value / taskPageSize.value)));
 const taskPageStart = computed(() => (taskTotal.value ? (taskPage.value - 1) * taskPageSize.value + 1 : 0));
@@ -166,6 +177,8 @@ const commandPlaceholder = computed(() =>
     ? '- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Check hostname\n      ansible.builtin.command: hostname'
     : 'set -e\nhostname\nuptime',
 );
+const scriptFileAccept = computed(() => (executionType.value === 'playbook' ? '.yml,.yaml' : '.sh'));
+const scriptUploadButtonLabel = computed(() => (executionType.value === 'playbook' ? '上传 YAML' : '上传 SH'));
 
 onMounted(async () => {
   await refreshAll();
@@ -457,11 +470,12 @@ async function createTask() {
       targetIds: [...selectedTargetIds.value],
       command: commandInput.value,
       executionType: executionType.value,
-      name: taskName.value.trim() || undefined,
+      name: taskName.value.trim(),
     });
     taskName.value = '';
     executionType.value = 'shell';
     commandInput.value = '';
+    scriptSourceName.value = '';
     selectedTargetIds.value = new Set();
     taskPage.value = 1;
     await loadTasks();
@@ -479,9 +493,11 @@ function rerunTask(task: BulkExecutionTaskDetail) {
     switchBulkView('upload');
     taskName.value = task.name;
     remoteDirectory.value = task.remoteDirectory || '/tmp/';
+    scriptSourceName.value = '';
   } else {
     executionType.value = task.executionType;
     commandInput.value = task.command;
+    scriptSourceName.value = '';
     taskName.value = task.name;
     switchBulkView('execute');
   }
@@ -496,6 +512,37 @@ async function rerunTaskFromList(taskId: number) {
 async function deleteTaskFromList(taskId: number) {
   await selectTask(taskId, true, false);
   deleteSelectedTask();
+}
+
+function triggerScriptFileSelect() {
+  scriptFileInput.value?.click();
+}
+
+async function onScriptFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!isScriptFileAllowed(file.name)) {
+    showToast('脚本类型不匹配', executionType.value === 'playbook' ? '请上传 .yml 或 .yaml 文件。' : '请上传 .sh 脚本文件。', 'error');
+    return;
+  }
+  try {
+    const content = await file.text();
+    if (content.length > MAX_SCRIPT_LENGTH) {
+      showToast('脚本过长', `脚本内容不能超过 ${MAX_SCRIPT_LENGTH} 个字符。`, 'error');
+      return;
+    }
+    commandInput.value = content;
+    scriptSourceName.value = file.name;
+  } catch (error) {
+    showToast('脚本读取失败', errorMessage(error), 'error');
+  }
+}
+
+function isScriptFileAllowed(fileName: string) {
+  const normalized = fileName.toLowerCase();
+  return executionType.value === 'playbook' ? /\.ya?ml$/.test(normalized) : /\.sh$/.test(normalized);
 }
 
 function triggerUploadFileSelect() {
@@ -574,12 +621,14 @@ async function createUploadTask() {
       remoteDirectory: remoteDirectory.value.trim() || '/tmp/',
       files: selectedUploadFiles.value,
       overwrite: overwriteConfirmed.value,
-      name: taskName.value.trim() || undefined,
+      name: taskName.value.trim(),
     });
+    taskName.value = '';
     selectedUploadFiles.value = [];
     remoteDirectory.value = '/tmp/';
     uploadCheckResult.value = null;
     overwriteConfirmed.value = false;
+    scriptSourceName.value = '';
     selectedTargetIds.value = new Set();
     taskPage.value = 1;
     await loadTasks();
@@ -594,6 +643,7 @@ async function createUploadTask() {
 
 function setExecutionType(type: Exclude<BulkExecutionType, 'file_upload'>) {
   executionType.value = type;
+  scriptSourceName.value = '';
   if (!commandInput.value.trim()) {
     commandInput.value = type === 'playbook' ? scriptPresets.find((preset) => preset.type === 'playbook')?.command ?? '' : '';
   }
@@ -602,7 +652,7 @@ function setExecutionType(type: Exclude<BulkExecutionType, 'file_upload'>) {
 function applyScriptPreset(preset: (typeof scriptPresets)[number]) {
   executionType.value = preset.type;
   commandInput.value = preset.command;
-  if (!taskName.value.trim()) taskName.value = preset.label;
+  scriptSourceName.value = '';
 }
 
 async function cancelSelectedTask() {
@@ -865,19 +915,30 @@ function formatFileSize(value: number) {
                 Playbook 脚本
               </button>
             </div>
-            <label>
+            <label class="bulk-task-name-field">
               <span>任务名称</span>
-              <input v-model="taskName" maxlength="180" placeholder="留空自动生成" :disabled="isCreating" />
+              <input v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isCreating" required />
             </label>
             <div class="bulk-script-presets">
               <button v-for="preset in scriptPresets" :key="preset.key" type="button" @click="applyScriptPreset(preset)">
                 {{ preset.label }}
               </button>
             </div>
-            <label class="bulk-script-editor">
-              <span>{{ executionTypeLabels[executionType] }}</span>
-              <textarea v-model="commandInput" class="commandInput" rows="16" maxlength="4096" :placeholder="commandPlaceholder" :disabled="isCreating"></textarea>
-            </label>
+            <div class="bulk-script-editor">
+              <input ref="scriptFileInput" hidden type="file" :accept="scriptFileAccept" @change="onScriptFileChange" />
+              <div class="bulk-script-editor-head">
+                <span>{{ executionTypeLabels[executionType] }}</span>
+                <button class="bulk-script-upload-button" type="button" :disabled="isCreating" @click="triggerScriptFileSelect">
+                  <AppIcon name="upload" :size="14" />
+                  {{ scriptUploadButtonLabel }}
+                </button>
+              </div>
+              <div v-if="scriptSourceName" class="bulk-script-source">
+                <AppIcon name="file" :size="14" />
+                <span>{{ scriptSourceName }}</span>
+              </div>
+              <textarea v-model="commandInput" class="commandInput" rows="16" :maxlength="MAX_SCRIPT_LENGTH" :placeholder="commandPlaceholder" :disabled="isCreating"></textarea>
+            </div>
           </section>
 
           <section class="bulk-target-summary">
@@ -920,6 +981,10 @@ function formatFileSize(value: number) {
       <section v-show="activeBulkView === 'upload'" class="bulk-upload-view">
         <div class="bulk-create-workbench">
           <section class="bulk-script-composer bulk-upload-composer">
+            <label class="bulk-task-name-field">
+              <span>任务名称</span>
+              <input v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isUploading" required />
+            </label>
             <input ref="uploadFileInput" hidden type="file" multiple @change="onUploadFileChange" />
             <button
               class="bulk-upload-dropzone"
@@ -1128,7 +1193,7 @@ function formatFileSize(value: number) {
                     </div>
                   </div>
                   <div>
-                    <strong>stdout</strong>
+                    <strong>{{ selectedTask.executionType === 'playbook' ? 'Ansible 日志' : 'stdout' }}</strong>
                     <pre>{{ result.stdout || '无标准输出' }}</pre>
                   </div>
                   <div>

@@ -180,6 +180,20 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual(result.login_user, "root")
         start_task.assert_called_once_with(task.id)
 
+    def test_create_task_requires_task_name(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        with patch("bulk_execution.views.start_bulk_execution_task") as start_task:
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={"targetIds": [self.linux.id], "command": "uptime", "name": "  "},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(BulkExecutionTask.objects.exists())
+        start_task.assert_not_called()
+
     def test_create_task_accepts_playbook_execution_type(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute")
         playbook = "- hosts: all\n  tasks:\n    - ansible.builtin.ping:\n"
@@ -195,6 +209,22 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual(response.json()["executionType"], "playbook")
         task = BulkExecutionTask.objects.get(name="ping playbook")
         self.assertEqual(task.execution_type, BulkExecutionTask.EXECUTION_PLAYBOOK)
+
+    def test_create_task_accepts_long_playbook_scripts(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        playbook = "- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Long playbook\n      ansible.builtin.debug:\n        msg: '" + ("x" * 5000) + "'\n"
+
+        with patch("bulk_execution.views.start_bulk_execution_task"):
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={"targetIds": [self.linux.id], "command": playbook, "executionType": "playbook", "name": "long playbook"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        task = BulkExecutionTask.objects.get(name="long playbook")
+        self.assertEqual(task.execution_type, BulkExecutionTask.EXECUTION_PLAYBOOK)
+        self.assertEqual(task.command, playbook)
 
     @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-test-"))
     def test_create_file_upload_task_accepts_multipart_file_and_selected_targets(self):
@@ -229,6 +259,26 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual(task.results.get().host, self.linux)
         start_task.assert_called_once_with(task.id)
 
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-name-test-"))
+    def test_create_file_upload_task_requires_task_name(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        upload = SimpleUploadedFile("deploy.txt", b"hello from ops\n", content_type="text/plain")
+
+        with patch("bulk_execution.views.start_bulk_execution_task") as start_task:
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={
+                    "targetIds": json.dumps([self.linux.id]),
+                    "remoteDirectory": "/tmp/",
+                    "file": upload,
+                    "name": " ",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(BulkExecutionTask.objects.exists())
+        start_task.assert_not_called()
+
     @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-multi-test-"))
     def test_create_file_upload_task_accepts_multiple_files_and_exposes_transfer_details(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute", "action_bulkExecution_refresh")
@@ -242,6 +292,7 @@ class BulkExecutionApiTests(TestCase):
                     "executionType": "file_upload",
                     "targetIds": json.dumps([self.linux.id, self.windows.id]),
                     "remoteDirectory": "/opt/app/",
+                    "name": "bundle upload",
                     "overwrite": "true",
                     "files": [deploy, config],
                 },
@@ -322,7 +373,7 @@ class BulkExecutionApiTests(TestCase):
 
         response = self.client.post(
             "/api/bulk-execution/tasks/",
-            data={"targetIds": [self.linux.id], "command": "uptime", "executionType": "python"},
+            data={"targetIds": [self.linux.id], "command": "uptime", "executionType": "python", "name": "unknown execution"},
             content_type="application/json",
         )
 
@@ -339,7 +390,7 @@ class BulkExecutionApiTests(TestCase):
         with patch("bulk_execution.views.start_bulk_execution_task"):
             create = self.client.post(
                 "/api/bulk-execution/tasks/",
-                data={"targetIds": [self.linux.id], "command": "hostname"},
+                data={"targetIds": [self.linux.id], "command": "hostname", "name": "history detail"},
                 content_type="application/json",
             )
         task_id = create.json()["id"]
@@ -438,7 +489,37 @@ class BulkExecutionRunnerTests(TestCase):
 
         task.refresh_from_db()
         self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
-        self.assertEqual(task.results.get().stdout, "api-01\n")
+        self.assertIn("ok: [host_1]", task.results.get().stdout)
+        self.assertIn("api-01", task.results.get().stdout)
+
+    def test_playbook_task_records_ansible_style_log(self):
+        playbook = "- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Check hostname\n      ansible.builtin.command: hostname\n"
+        task = create_bulk_execution_task(
+            self.user,
+            {"targetIds": [self.host.id], "command": playbook, "name": "ansible style log", "executionType": "playbook"},
+        )
+
+        def fake_run(**kwargs):
+            kwargs["event_handler"]({"event": "playbook_on_play_start", "event_data": {"play": "all"}})
+            kwargs["event_handler"]({"event": "playbook_on_task_start", "event_data": {"task": "Check hostname"}})
+            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
+            kwargs["event_handler"](
+                {
+                    "event": "runner_on_ok",
+                    "event_data": {"host": "host_1", "res": {"stdout": "api-01\n", "stderr": "", "rc": 0, "changed": False}},
+                }
+            )
+            return SimpleNamespace(status="successful", rc=0)
+
+        with patch("bulk_execution.services.run_ansible_playbook", side_effect=fake_run):
+            run_bulk_execution_task(task.id)
+
+        result = task.results.get()
+        self.assertIn("PLAY [all]", result.stdout)
+        self.assertIn("TASK [Check hostname]", result.stdout)
+        self.assertIn("ok: [host_1]", result.stdout)
+        self.assertIn("api-01", result.stdout)
+        self.assertEqual(result.stderr, "")
 
     @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-runner-test-"))
     def test_file_upload_task_runs_ansible_copy_module(self):
@@ -477,7 +558,7 @@ class BulkExecutionRunnerTests(TestCase):
 
         task = create_bulk_file_upload_task(
             self.user,
-            {"targetIds": [self.host.id], "remoteDirectory": "/srv/app", "overwrite": True},
+            {"targetIds": [self.host.id], "remoteDirectory": "/srv/app", "overwrite": True, "name": "bundle upload"},
             [deploy, config],
         )
         calls = []
@@ -513,7 +594,7 @@ class BulkExecutionRunnerTests(TestCase):
             self.assertFalse(upload_file.file.storage.exists(upload_file.file.name))
 
     def test_runner_failure_event_marks_task_failed(self):
-        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false"})
+        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false", "name": "nonzero failure"})
 
         def fake_run(**kwargs):
             kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
@@ -549,7 +630,7 @@ class BulkExecutionRunnerTests(TestCase):
             verify_status="verified",
             os="ubuntu",
         )
-        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id, host2.id], "command": "ls"})
+        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id, host2.id], "command": "ls", "name": "polluted retry"})
 
         calls = []
 
@@ -599,7 +680,7 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertEqual(recovered.error, "")
 
     def test_genuine_command_failure_is_not_retried_with_raw(self):
-        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false"})
+        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false", "name": "genuine failure"})
         modules = []
 
         def fake_run(**kwargs):
@@ -620,7 +701,7 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertEqual(task.results.get().status, BulkExecutionResult.STATUS_FAILED)
 
     def test_cancel_requested_callback_marks_unfinished_results_skipped(self):
-        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "sleep 60"})
+        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "sleep 60", "name": "cancel sleep"})
         task.cancel_requested = True
         task.status = BulkExecutionTask.STATUS_RUNNING
         task.started_at = timezone.now()
@@ -641,7 +722,7 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertIn("canceled", result.error.lower())
 
     def test_task_with_no_available_inventory_fails_instead_of_staying_running(self):
-        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "hostname"})
+        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "hostname", "name": "missing host"})
         self.host.delete()
 
         with patch("bulk_execution.services.run_ansible_shell") as runner:

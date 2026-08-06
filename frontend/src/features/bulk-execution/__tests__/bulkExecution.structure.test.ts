@@ -99,6 +99,7 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('requestConfirm');
     expect(panel).toContain('stdout');
     expect(panel).toContain('stderr');
+    expect(panel).toContain("selectedTask.executionType === 'playbook' ? 'Ansible 日志' : 'stdout'");
     expect(panel).toContain('setInterval');
   });
 
@@ -132,7 +133,7 @@ describe('bulk execution frontend contract', () => {
     expect(pickerModal).not.toContain('@click.self');
   });
 
-  it('renders selected targets as compact metadata rows with a dedicated remove action', () => {
+  it('renders selected targets as single-line rows with inline metadata and a dedicated remove action', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const styles = readSource('styles/tools/bulk-execution.css');
 
@@ -145,6 +146,7 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('bulk-selected-target-remove');
     expect(panel).toContain('aria-label="移除目标机器"');
     expect(styles).toContain('grid-template-columns: minmax(0, 1fr) 34px');
+    expect(styles).toContain('.bulk-selected-target-main {\n  display: flex;');
     expect(styles).toContain('.bulk-selected-target-meta');
     expect(styles).toContain('.bulk-selected-target-remove');
   });
@@ -246,5 +248,18 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('Playbook');
     expect(panel).toContain('scriptPresets');
     expect(panel).toContain('executionType: executionType.value');
+    expect(panel).toContain('taskName.value.trim().length > 0');
+    expect(panel).toContain('name: taskName.value.trim()');
+    expect(panel).toContain('scriptFileInput');
+    expect(panel).toContain('scriptSourceName');
+    expect(panel).toContain('scriptFileAccept');
+    expect(panel).toContain('triggerScriptFileSelect');
+    expect(panel).toContain('onScriptFileChange');
+    expect(panel).toContain('file.text()');
+    expect(panel).toContain('bulk-script-source');
+    expect(panel).toContain('bulk-script-upload-button');
+    expect(panel).toContain('placeholder="请输入任务名称"');
+    expect(panel).toContain('required');
+    expect(panel).toContain('MAX_SCRIPT_LENGTH = 200000');
   });
 });

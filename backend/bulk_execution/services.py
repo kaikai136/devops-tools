@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import tempfile
@@ -20,7 +21,7 @@ from web_terminal.services.file_parsers import join_remote_path, normalize_remot
 
 from .models import BulkExecutionResult, BulkExecutionTask, BulkExecutionTransferItem, BulkExecutionUploadFile
 
-MAX_COMMAND_LENGTH = 4096
+MAX_COMMAND_LENGTH = 200000
 OUTPUT_LIMIT = 200_000
 DEFAULT_MAX_TARGETS = 50
 DEFAULT_FORKS = 10
@@ -83,6 +84,7 @@ def create_bulk_execution_task(user, payload: dict) -> BulkExecutionTask:
     if execution_type not in {BulkExecutionTask.EXECUTION_SHELL, BulkExecutionTask.EXECUTION_PLAYBOOK}:
         raise ValueError("Unsupported execution type")
 
+    task_name = require_task_name(payload)
     raw_command = str(payload.get("command", ""))
     if not raw_command.strip():
         raise ValueError("Please enter a command")
@@ -97,7 +99,7 @@ def create_bulk_execution_task(user, payload: dict) -> BulkExecutionTask:
 
     with transaction.atomic():
         task = BulkExecutionTask.objects.create(
-            name=str(payload.get("name", "")).strip() or f"Bulk execution {timezone.localtime().strftime('%Y-%m-%d %H:%M:%S')}",
+            name=task_name,
             command=command,
             execution_type=execution_type,
             created_by=user if getattr(user, "is_authenticated", False) else None,
@@ -135,6 +137,7 @@ def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExec
         raise ValueError("No executable Linux SSH hosts selected")
 
     overwrite = parse_bool(payload.get("overwrite") or payload.get("uploadOverwrite") or payload.get("upload_overwrite"))
+    task_name = require_task_name(payload)
     uploaded_specs = []
     stored_names: list[str] = []
     try:
@@ -160,7 +163,7 @@ def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExec
 
         with transaction.atomic():
             task = BulkExecutionTask.objects.create(
-                name=str(payload.get("name", "")).strip() or f"File upload {timezone.localtime().strftime('%Y-%m-%d %H:%M:%S')}",
+                name=task_name,
                 command=f"Upload {summary_filename} to {command_target}",
                 execution_type=BulkExecutionTask.EXECUTION_FILE_UPLOAD,
                 remote_directory=remote_directory,
@@ -187,6 +190,13 @@ def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExec
                 default_storage.delete(stored_name)
         raise
     return task
+
+
+def require_task_name(payload: dict) -> str:
+    name = str(payload.get("name", "")).strip()
+    if not name:
+        raise ValueError("Please enter a task name")
+    return name
 
 
 def normalize_uploaded_files(uploaded_file) -> list:
@@ -451,6 +461,7 @@ def run_playbook(task, result_by_inventory, temp_dir, inventory, config):
     project_dir.mkdir(parents=True, exist_ok=True)
     playbook_path = project_dir / "playbook.yml"
     playbook_path.write_text(task.command, encoding="utf-8")
+    event_context: dict[str, Any] = {"current_play": "", "current_task": "", "host_headers": {}}
     return run_ansible_playbook(
         private_data_dir=temp_dir,
         inventory=inventory,
@@ -459,7 +470,7 @@ def run_playbook(task, result_by_inventory, temp_dir, inventory, config):
         timeout=int(config["timeoutSeconds"]),
         quiet=True,
         envvars={"ANSIBLE_HOST_KEY_CHECKING": "False"},
-        event_handler=lambda event: handle_runner_event(task.id, result_by_inventory, event),
+        event_handler=lambda event: handle_playbook_event(task.id, result_by_inventory, event_context, event),
         cancel_callback=lambda: is_cancel_requested(task.id),
     )
 
@@ -698,6 +709,129 @@ def build_runner_inventory(results: list[BulkExecutionResult], temp_dir: Path) -
 
 def is_cancel_requested(task_id: int) -> bool:
     return bool(BulkExecutionTask.objects.filter(id=task_id, cancel_requested=True).exists())
+
+
+def handle_playbook_event(task_id: int, result_by_inventory: dict[str, BulkExecutionResult], context: dict[str, Any], event: dict[str, Any]) -> bool:
+    event_name = str(event.get("event", ""))
+    event_data = event.get("event_data") if isinstance(event.get("event_data"), dict) else {}
+
+    if event_name == "playbook_on_play_start":
+        context["current_play"] = event_label(event_data, "play", "name", default="all")
+        context["current_task"] = ""
+        return True
+
+    if event_name == "playbook_on_task_start":
+        context["current_task"] = event_label(event_data, "task", "name", "task_action", default="task")
+        return True
+
+    result = result_by_inventory.get(str(event_data.get("host", "")))
+    if result is None:
+        return True
+
+    if event_name == "runner_on_start":
+        result.status = BulkExecutionResult.STATUS_RUNNING
+        result.started_at = result.started_at or timezone.now()
+        result.finished_at = None
+        result.error = ""
+        result.save(update_fields=["status", "started_at", "finished_at", "error"])
+        return True
+
+    if event_name in {"runner_on_ok", "runner_on_failed", "runner_on_unreachable", "runner_on_skipped"}:
+        res = event_data.get("res") if isinstance(event_data.get("res"), dict) else {}
+        if event_name == "runner_on_ok":
+            status = BulkExecutionResult.STATUS_SUCCESS
+        elif event_name == "runner_on_skipped":
+            status = BulkExecutionResult.STATUS_SKIPPED
+        else:
+            status = BulkExecutionResult.STATUS_FAILED
+
+        event_output = format_playbook_event_output(context, event_name, event_data, result, res)
+        stdout, stdout_truncated = append_limited_output(result.stdout, event_output)
+        stderr, stderr_truncated = truncate_output(str(res.get("stderr", "") or ""))
+        result.status = status
+        result.stdout = stdout
+        result.stderr = stderr
+        result.exit_code = safe_int(res.get("rc"))
+        result.output_truncated = result.output_truncated or stdout_truncated or stderr_truncated
+        result.error = result_error(event_name, res)
+        result.started_at = result.started_at or timezone.now()
+        result.finished_at = timezone.now()
+        result.save(
+            update_fields=[
+                "status",
+                "stdout",
+                "stderr",
+                "exit_code",
+                "output_truncated",
+                "error",
+                "started_at",
+                "finished_at",
+            ]
+        )
+        refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
+    return True
+
+
+def event_label(event_data: dict[str, Any], *keys: str, default: str) -> str:
+    for key in keys:
+        value = event_data.get(key)
+        if value:
+            return str(value)
+    return default
+
+
+def format_playbook_event_output(context: dict[str, Any], event_name: str, event_data: dict[str, Any], result: BulkExecutionResult, res: dict[str, Any]) -> str:
+    lines: list[str] = []
+    play = event_label(event_data, "play", default=str(context.get("current_play") or "all"))
+    task = event_label(event_data, "task", default=str(context.get("current_task") or "task"))
+    headers = context.setdefault("host_headers", {}).setdefault(result.inventory_name, {"play": "", "task": ""})
+
+    if play and headers.get("play") != play:
+        lines.append(ansible_banner("PLAY", play))
+        headers["play"] = play
+        headers["task"] = ""
+    if task and headers.get("task") != task:
+        lines.append(ansible_banner("TASK", task))
+        headers["task"] = task
+
+    lines.append(ansible_result_line(event_name, result.inventory_name, res))
+    command_stdout = str(res.get("stdout", "") or "").rstrip("\n")
+    if command_stdout:
+        lines.append(command_stdout)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def ansible_banner(kind: str, label: str) -> str:
+    title = f"{kind} [{label}] "
+    return title + ("*" * max(0, 72 - len(title)))
+
+
+def ansible_result_line(event_name: str, inventory_name: str, res: dict[str, Any]) -> str:
+    if event_name == "runner_on_ok":
+        state = "changed" if res.get("changed") else "ok"
+        return f"{state}: [{inventory_name}]"
+    if event_name == "runner_on_skipped":
+        return f"skipping: [{inventory_name}]" + ansible_result_payload(res)
+    if event_name == "runner_on_unreachable":
+        return f"fatal: [{inventory_name}]: UNREACHABLE!" + ansible_result_payload(res)
+    return f"fatal: [{inventory_name}]: FAILED!" + ansible_result_payload(res)
+
+
+def ansible_result_payload(res: dict[str, Any]) -> str:
+    payload = {
+        key: value
+        for key, value in res.items()
+        if key not in {"stdout", "stdout_lines"} and value not in ("", None, [], {})
+    }
+    if not payload:
+        return ""
+    return " => " + json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def append_limited_output(current: str, addition: str) -> tuple[str, bool]:
+    if not addition:
+        return current, False
+    return truncate_output(append_output(current, addition))
 
 
 def handle_runner_event(task_id: int, result_by_inventory: dict[str, BulkExecutionResult], event: dict[str, Any]) -> bool:
