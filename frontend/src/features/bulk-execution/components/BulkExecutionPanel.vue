@@ -171,6 +171,15 @@ const selectedTaskProgress = computed(() => {
   if (!selectedTask.value || selectedTask.value.targetCount <= 0) return 0;
   return Math.round((selectedTask.value.completedCount / selectedTask.value.targetCount) * 100);
 });
+const playbookLogOutput = computed(() => {
+  if (!selectedTask.value || selectedTask.value.executionType !== 'playbook') return '';
+  return buildPlaybookLogOutput(selectedTask.value);
+});
+const selectedTaskLogLines = computed(() => {
+  const output = playbookLogOutput.value;
+  const lines = output.split(/\r?\n/);
+  return lines.length && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
+});
 const selectedTaskExecutionType = computed(() => selectedTask.value ? executionTypeLabels[selectedTask.value.executionType] : '');
 const commandPlaceholder = computed(() =>
   executionType.value === 'playbook'
@@ -702,6 +711,48 @@ function isResultExpanded(resultId: number) {
   return expandedResultIds.value.has(resultId);
 }
 
+function buildPlaybookLogOutput(task: BulkExecutionTaskDetail) {
+  if (task.logOutput?.trim()) return task.logOutput;
+  const blocks: string[] = [];
+  if (task.error?.trim()) blocks.push(`error: [task] ${task.error.trim()}`);
+  for (const result of task.results) {
+    const fallback = formatPlaybookResultFallback(result);
+    if (fallback) blocks.push(fallback);
+  }
+  return blocks.join('\n');
+}
+
+function formatPlaybookResultFallback(result: BulkExecutionResult) {
+  const label = result.hostIp || result.hostName || `host-${result.id}`;
+  const stdout = result.stdout?.trimEnd();
+  const stderr = result.stderr?.trimEnd();
+  const error = result.error?.trim();
+  const blocks: string[] = [];
+  if (stdout) blocks.push(stdout);
+  if (stderr) blocks.push(`stderr: [${label}]\n${stderr}`);
+  if (error && !logContains(stdout, error) && !logContains(stderr, error)) {
+    const prefix = result.status === 'failed' ? `fatal: [${label}]: FAILED! => ` : `error: [${label}] `;
+    blocks.push(`${prefix}${error}`);
+  }
+  if (!blocks.length && result.status === 'failed') blocks.push(`fatal: [${label}]: FAILED! => No result returned by Ansible`);
+  return blocks.join('\n');
+}
+
+function logContains(output: string | undefined, needle: string) {
+  return Boolean(output && output.includes(needle));
+}
+
+function ansibleLogLineClass(line: string) {
+  const normalized = line.trim().toLowerCase();
+  if (!normalized) return 'is-empty';
+  if (normalized.startsWith('play ') || normalized.startsWith('task ') || normalized.startsWith('play recap')) return 'is-heading';
+  if (normalized.startsWith('fatal:') || /\b(unreachable|failed)=[1-9]\d*/.test(normalized)) return 'is-error';
+  if (normalized.startsWith('changed:') || /\bchanged=[1-9]\d*/.test(normalized)) return 'is-changed';
+  if (normalized.startsWith('ok:') || /\bok=[1-9]\d*/.test(normalized)) return 'is-success';
+  if (normalized.startsWith('skipping:')) return 'is-muted';
+  return '';
+}
+
 function startPolling() {
   stopPolling();
   pollTimer = window.setInterval(async () => {
@@ -1161,7 +1212,27 @@ function formatFileSize(value: number) {
             <p v-if="selectedTask.error" class="bulk-error">{{ selectedTask.error }}</p>
             <div class="bulk-progress"><span :style="{ width: `${selectedTaskProgress}%` }"></span></div>
 
-            <div class="bulk-result-table">
+            <section v-if="selectedTask.executionType === 'playbook'" class="bulk-ansible-log-panel">
+              <header class="bulk-ansible-log-header">
+                <strong>Ansible 执行日志</strong>
+                <span v-if="selectedTask.logOutputTruncated">日志已截断</span>
+                <span v-else>{{ selectedTask.status === 'running' ? '实时输出中' : '执行记录' }}</span>
+              </header>
+              <div v-if="selectedTaskLogLines.length" class="bulk-ansible-log" role="log" aria-live="polite">
+                <div
+                  v-for="(line, index) in selectedTaskLogLines"
+                  :key="`${index}-${line}`"
+                  class="bulk-ansible-log-line"
+                  :class="ansibleLogLineClass(line)"
+                >
+                  <span class="bulk-ansible-log-gutter">{{ String(index + 1).padStart(3, '0') }}</span>
+                  <span>{{ line || ' ' }}</span>
+                </div>
+              </div>
+              <div v-else class="bulk-ansible-log-empty">{{ selectedTask.status === 'running' || selectedTask.status === 'queued' ? '等待 Ansible 输出...' : '暂无 Ansible 输出' }}</div>
+            </section>
+
+            <div v-else class="bulk-result-table">
               <div class="bulk-result-row head">
                 <span>主机</span>
                 <span>IP</span>

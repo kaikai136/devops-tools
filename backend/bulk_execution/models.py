@@ -42,6 +42,8 @@ class BulkExecutionTask(models.Model):
     failed_count = models.PositiveIntegerField(default=0)
     skipped_count = models.PositiveIntegerField(default=0)
     error = models.TextField(blank=True)
+    log_output = models.TextField(blank=True)
+    log_output_truncated = models.BooleanField(default=False)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

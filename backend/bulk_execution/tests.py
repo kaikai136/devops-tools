@@ -509,17 +509,37 @@ class BulkExecutionRunnerTests(TestCase):
                     "event_data": {"host": "host_1", "res": {"stdout": "api-01\n", "stderr": "", "rc": 0, "changed": False}},
                 }
             )
+            kwargs["event_handler"](
+                {
+                    "event": "playbook_on_stats",
+                    "event_data": {
+                        "ok": {"host_1": 1},
+                        "changed": {"host_1": 0},
+                        "failures": {"host_1": 0},
+                        "dark": {"host_1": 0},
+                        "skipped": {"host_1": 0},
+                        "rescued": {"host_1": 0},
+                        "ignored": {"host_1": 0},
+                    },
+                }
+            )
             return SimpleNamespace(status="successful", rc=0)
 
         with patch("bulk_execution.services.run_ansible_playbook", side_effect=fake_run):
             run_bulk_execution_task(task.id)
 
+        task.refresh_from_db()
         result = task.results.get()
         self.assertIn("PLAY [all]", result.stdout)
         self.assertIn("TASK [Check hostname]", result.stdout)
         self.assertIn("ok: [host_1]", result.stdout)
         self.assertIn("api-01", result.stdout)
         self.assertEqual(result.stderr, "")
+        self.assertIn("PLAY [all]", task.log_output)
+        self.assertIn("TASK [Check hostname]", task.log_output)
+        self.assertIn("ok: [10.1.0.10]", task.log_output)
+        self.assertIn("PLAY RECAP", task.log_output)
+        self.assertIn("ok=1", task.log_output)
 
     @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-runner-test-"))
     def test_file_upload_task_runs_ansible_copy_module(self):

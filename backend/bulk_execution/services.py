@@ -391,7 +391,9 @@ def run_bulk_execution_task(task_id: int) -> None:
     task.started_at = task.started_at or timezone.now()
     task.finished_at = None
     task.error = ""
-    task.save(update_fields=["status", "started_at", "finished_at", "error"])
+    task.log_output = ""
+    task.log_output_truncated = False
+    task.save(update_fields=["status", "started_at", "finished_at", "error", "log_output", "log_output_truncated"])
 
     results = list(task.results.select_related("host").all())
     result_by_inventory = {result.inventory_name: result for result in results}
@@ -718,10 +720,16 @@ def handle_playbook_event(task_id: int, result_by_inventory: dict[str, BulkExecu
     if event_name == "playbook_on_play_start":
         context["current_play"] = event_label(event_data, "play", "name", default="all")
         context["current_task"] = ""
+        append_playbook_task_log(task_id, context, f"{ansible_banner('PLAY', context['current_play'])}\n")
         return True
 
     if event_name == "playbook_on_task_start":
         context["current_task"] = event_label(event_data, "task", "name", "task_action", default="task")
+        append_playbook_task_log(task_id, context, f"{ansible_banner('TASK', context['current_task'])}\n")
+        return True
+
+    if event_name == "playbook_on_stats":
+        append_playbook_recap(task_id, context, result_by_inventory, event_data)
         return True
 
     result = result_by_inventory.get(str(event_data.get("host", "")))
@@ -746,6 +754,7 @@ def handle_playbook_event(task_id: int, result_by_inventory: dict[str, BulkExecu
             status = BulkExecutionResult.STATUS_FAILED
 
         event_output = format_playbook_event_output(context, event_name, event_data, result, res)
+        append_playbook_task_log(task_id, context, format_playbook_task_output(event_name, result, res))
         stdout, stdout_truncated = append_limited_output(result.stdout, event_output)
         stderr, stderr_truncated = truncate_output(str(res.get("stderr", "") or ""))
         result.status = status
@@ -770,6 +779,58 @@ def handle_playbook_event(task_id: int, result_by_inventory: dict[str, BulkExecu
         )
         refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
     return True
+
+
+def append_playbook_task_log(task_id: int, context: dict[str, Any], addition: str) -> None:
+    if not addition:
+        return
+    output, truncated = append_limited_output(str(context.get("log_output") or ""), addition)
+    context["log_output"] = output
+    context["log_output_truncated"] = bool(context.get("log_output_truncated")) or truncated
+    BulkExecutionTask.objects.filter(id=task_id).update(
+        log_output=output,
+        log_output_truncated=context["log_output_truncated"],
+    )
+
+
+def append_playbook_recap(
+    task_id: int,
+    context: dict[str, Any],
+    result_by_inventory: dict[str, BulkExecutionResult],
+    stats: dict[str, Any],
+) -> None:
+    if context.get("recap_emitted"):
+        return
+    lines = [f"PLAY RECAP {'*' * 65}"]
+    for inventory_name, result in result_by_inventory.items():
+        label = str(result.host_ip or inventory_name)
+        lines.append(
+            f"{label:<15} : "
+            f"ok={recap_count(stats, 'ok', inventory_name)} "
+            f"changed={recap_count(stats, 'changed', inventory_name)} "
+            f"unreachable={recap_count(stats, 'dark', inventory_name) or recap_count(stats, 'unreachable', inventory_name)} "
+            f"failed={recap_count(stats, 'failures', inventory_name)} "
+            f"skipped={recap_count(stats, 'skipped', inventory_name)} "
+            f"rescued={recap_count(stats, 'rescued', inventory_name)} "
+            f"ignored={recap_count(stats, 'ignored', inventory_name)}"
+        )
+    append_playbook_task_log(task_id, context, "\n".join(lines) + "\n")
+    context["recap_emitted"] = True
+
+
+def recap_count(stats: dict[str, Any], key: str, inventory_name: str) -> int:
+    values = stats.get(key)
+    if not isinstance(values, dict):
+        return 0
+    return safe_int(values.get(inventory_name)) or 0
+
+
+def format_playbook_task_output(event_name: str, result: BulkExecutionResult, res: dict[str, Any]) -> str:
+    lines = [ansible_result_line(event_name, str(result.host_ip or result.inventory_name), res)]
+    command_stdout = str(res.get("stdout", "") or "").rstrip("\n")
+    if command_stdout:
+        lines.append(command_stdout)
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def event_label(event_data: dict[str, Any], *keys: str, default: str) -> str:

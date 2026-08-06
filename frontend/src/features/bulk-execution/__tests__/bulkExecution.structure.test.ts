@@ -79,6 +79,7 @@ describe('bulk execution frontend contract', () => {
 
   it('defines the redesigned page surface with history, execute, and upload views', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const types = readSource('features/bulk-execution/types.ts');
 
     expect(panel).toContain('bulk-execution-page');
     expect(panel).toContain('activeBulkView');
@@ -100,7 +101,23 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('stdout');
     expect(panel).toContain('stderr');
     expect(panel).toContain("selectedTask.executionType === 'playbook' ? 'Ansible 日志' : 'stdout'");
+    expect(types).toContain('logOutput');
+    expect(panel).toContain('bulk-ansible-log');
+    expect(panel).toContain('ansibleLogLineClass');
+    expect(panel).toContain('v-if="selectedTask.executionType === \'playbook\'"');
     expect(panel).toContain('setInterval');
+  });
+
+  it('falls back to host-level playbook output when the task log is empty', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+
+    expect(panel).toContain('playbookLogOutput');
+    expect(panel).toContain('task.logOutput?.trim()');
+    expect(panel).toContain('formatPlaybookResultFallback');
+    expect(panel).toContain('result.stdout');
+    expect(panel).toContain('result.stderr');
+    expect(panel).toContain('result.error');
+    expect(panel).toContain('No result returned by Ansible');
   });
 
   it('uses a confirm-only target picker modal instead of rendering the full host list inline', () => {

@@ -94,6 +94,8 @@ export interface BulkExecutionTask {
 }
 
 export interface BulkExecutionTaskDetail extends BulkExecutionTask {
+  logOutput: string;
+  logOutputTruncated: boolean;
   uploadFiles: BulkExecutionUploadFile[];
   results: BulkExecutionResult[];
 }

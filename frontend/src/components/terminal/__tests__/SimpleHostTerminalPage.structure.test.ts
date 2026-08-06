@@ -48,4 +48,12 @@ describe('SimpleHostTerminalPage structure', () => {
     expect(template).toContain('simple-host-terminal-context-menu');
     expect(template).toContain('@contextmenu="openSshContextMenu($event)"');
   });
+
+  it('actively syncs SSH terminal size after standalone fits', () => {
+    const script = parseSfc(source(), { filename: 'SimpleHostTerminalPage.vue' }).descriptor.scriptSetup?.content ?? '';
+
+    expect(script).toContain('sendActiveSshResize');
+    expect(script).toMatch(/fitAddon\?\.fit\(\);\s*sendActiveSshResize\(\)/);
+    expect(script).toContain("sshSocket.send(JSON.stringify({ type: 'resize', cols: xterm.cols, rows: xterm.rows }))");
+  });
 });

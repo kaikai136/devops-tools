@@ -993,6 +993,7 @@ function fitActiveSession() {
   if (protocol.value === 'ssh') {
     try {
       fitAddon?.fit();
+      sendActiveSshResize();
     } catch {
       // xterm can briefly report zero-size containers during first paint.
     }
@@ -1007,6 +1008,11 @@ function fitActiveSession() {
   if (!width || !height) return;
   const scale = Math.min(container.clientWidth / width, container.clientHeight / height);
   if (Number.isFinite(scale) && scale > 0) display.scale(scale);
+}
+
+function sendActiveSshResize() {
+  if (!xterm || sshSocket?.readyState !== WebSocket.OPEN) return;
+  sshSocket.send(JSON.stringify({ type: 'resize', cols: xterm.cols, rows: xterm.rows }));
 }
 
 function setError(message: string) {
