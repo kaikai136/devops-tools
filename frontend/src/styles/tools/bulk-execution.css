@@ -449,13 +449,14 @@
 .bulk-detail-backdrop {
   align-items: center;
   justify-content: center;
-  padding: 28px;
+  padding: 16px;
 }
 
 .bulk-task-detail-modal {
   position: relative;
-  width: min(1280px, calc(100vw - 56px));
-  max-height: min(820px, calc(100vh - 56px));
+  width: min(1520px, calc(100vw - 32px));
+  height: min(900px, calc(100vh - 32px));
+  max-height: min(900px, calc(100vh - 32px));
   box-shadow: 0 24px 72px rgba(15, 23, 42, 0.28);
 }
 
@@ -561,8 +562,10 @@
 }
 
 .bulk-command-block {
-  max-height: 110px;
-  padding: 10px;
+  max-height: clamp(170px, 24vh, 280px);
+  padding: 10px 12px;
+  white-space: pre;
+  word-break: normal;
 }
 
 .bulk-upload-detail-switch {

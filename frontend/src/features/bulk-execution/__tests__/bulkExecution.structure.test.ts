@@ -108,6 +108,19 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('setInterval');
   });
 
+  it('keeps task detail large with a scrollable shell command block', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+
+    expect(panel).toContain('bulk-task-detail-modal');
+    expect(panel).toContain('bulk-command-block');
+    expect(styles).toContain('width: min(1520px, calc(100vw - 32px))');
+    expect(styles).toContain('height: min(900px, calc(100vh - 32px))');
+    expect(styles).toContain('max-height: clamp(170px, 24vh, 280px)');
+    expect(styles).toContain('white-space: pre');
+    expect(styles).toContain('word-break: normal');
+  });
+
   it('falls back to host-level playbook output when the task log is empty', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
 

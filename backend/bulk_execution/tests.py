@@ -893,6 +893,25 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(result.error, "boom")
 
+    def test_plain_shell_empty_output_is_success_even_with_nonzero_exit_code(self):
+        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "grep missing /proc/mounts", "name": "empty grep"})
+
+        with patch("bulk_execution.services.run_plain_ssh_command", return_value=("", "", 1)), patch(
+            "bulk_execution.services.run_ansible_shell"
+        ) as ansible_runner:
+            run_bulk_execution_task(task.id)
+
+        ansible_runner.assert_not_called()
+        task.refresh_from_db()
+        result = task.results.get()
+        self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
+        self.assertEqual(task.success_count, 1)
+        self.assertEqual(result.status, BulkExecutionResult.STATUS_SUCCESS)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.error, "")
+
     @override_settings(BULK_EXECUTION_FORKS=1)
     def test_shell_task_runs_each_host_with_plain_ssh_without_ansible(self):
         host2 = ManagedHost.objects.create(

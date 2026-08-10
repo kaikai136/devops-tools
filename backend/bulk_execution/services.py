@@ -612,11 +612,14 @@ def run_plain_shell_result(task_id: int, result_id: int, command: str, timeout: 
         stdout_text, stderr_text, exit_code = run_plain_ssh_command(result.host, command, timeout)
         stdout, stdout_truncated = truncate_output(stdout_text)
         stderr, stderr_truncated = truncate_output(stderr_text)
-        result.status = BulkExecutionResult.STATUS_SUCCESS if exit_code == 0 else BulkExecutionResult.STATUS_FAILED
+        has_output = bool(stdout_text.strip() or stderr_text.strip())
+        shell_success = exit_code == 0 or not has_output
+        effective_exit_code = 0 if shell_success and exit_code != 0 and not has_output else exit_code
+        result.status = BulkExecutionResult.STATUS_SUCCESS if shell_success else BulkExecutionResult.STATUS_FAILED
         result.stdout = stdout
         result.stderr = stderr
-        result.exit_code = exit_code
-        result.error = "" if exit_code == 0 else stderr or f"远程命令退出码 {exit_code}"
+        result.exit_code = effective_exit_code
+        result.error = "" if shell_success else stderr or f"远程命令退出码 {exit_code}"
         result.output_truncated = stdout_truncated or stderr_truncated
         result.finished_at = timezone.now()
         result.save(
