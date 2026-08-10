@@ -39,14 +39,19 @@ export function createBulkExecutionTask(payload: BulkExecutionCreatePayload) {
 export function createBulkFileUploadTask(payload: BulkFileUploadCreatePayload) {
   const form = new FormData();
   const files = payload.files?.length ? payload.files : payload.file ? [payload.file] : [];
+  const relativePaths =
+    payload.relativePaths?.length === files.length
+      ? payload.relativePaths
+      : files.map((file) => (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name);
   form.append('executionType', 'file_upload');
   form.append('targetIds', JSON.stringify(payload.targetIds));
   form.append('remoteDirectory', payload.remoteDirectory);
   form.append('overwrite', String(Boolean(payload.overwrite)));
   form.append('name', payload.name);
-  for (const file of files) {
+  files.forEach((file, index) => {
     form.append('files', file);
-  }
+    form.append('relativePaths', relativePaths[index] || file.name);
+  });
   return apiPostForm<BulkExecutionTask>(`${baseUrl}/tasks/`, form);
 }
 

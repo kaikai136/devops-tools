@@ -23,12 +23,24 @@ import type {
   BulkExecutionTask,
   BulkExecutionTaskDetail,
   BulkExecutionType,
+  BulkExecutionUploadFile,
   BulkTransferItem,
   BulkUploadCheckResult,
 } from '../types';
 
 type BulkView = 'history' | 'execute' | 'upload';
+type UploadDetailView = 'hosts' | 'files' | 'directory';
 type TargetGroupRow = { group: BulkExecutionTargetGroup; level: number; hasChildren: boolean; expanded: boolean };
+type UploadFileTreeNode = {
+  key: string;
+  name: string;
+  type: 'directory' | 'file';
+  level: number;
+  size: number;
+  file?: BulkExecutionUploadFile;
+  children: UploadFileTreeNode[];
+};
+type UploadFileTreeRow = UploadFileTreeNode & { expanded: boolean; hasChildren: boolean };
 
 const DRAFT_TARGET_IDS_KEY = 'ops-tool.bulk-execution.draft-target-ids';
 const uploadTargetIdsKey = 'ops-tool.bulk-execution.upload-target-ids';
@@ -91,6 +103,8 @@ const targetGroupFilter = ref<number | null>(null);
 const targetPickerKeyword = ref('');
 const collapsedTargetGroups = ref<Set<number>>(new Set());
 const expandedResultIds = ref<Set<number>>(new Set());
+const uploadDetailView = ref<UploadDetailView>('hosts');
+const expandedUploadFolderKeys = ref<Set<string>>(new Set());
 const isTaskDetailOpen = ref(false);
 const isLoading = ref(false);
 const isTargetsLoading = ref(false);
@@ -99,6 +113,7 @@ const isUploading = ref(false);
 const isCheckingUpload = ref(false);
 const isControlBusy = ref(false);
 const uploadFileInput = ref<HTMLInputElement | null>(null);
+const uploadFolderInput = ref<HTMLInputElement | null>(null);
 const scriptFileInput = ref<HTMLInputElement | null>(null);
 const keyword = ref('');
 const statusFilter = ref('');
@@ -143,21 +158,9 @@ const duplicateFiles = computed(() => uploadCheckResult.value?.duplicateFiles ??
 const unreachableTargets = computed(() => uploadCheckResult.value?.unreachableTargets ?? []);
 const usableUploadTargetIds = computed(() => uploadCheckResult.value?.usableTargetIds ?? [...selectedTargetIds.value]);
 const uploadHasWarnings = computed(() => duplicateFiles.value.length > 0 || unreachableTargets.value.length > 0);
-const canCreateTask = computed(
-  () => canExecute.value && taskName.value.trim().length > 0 && selectedTargetIds.value.size > 0 && commandInput.value.trim().length > 0 && !isCreating.value,
-);
-const canCheckUpload = computed(
-  () => canExecute.value && selectedTargetIds.value.size > 0 && selectedUploadFiles.value.length > 0 && remoteDirectory.value.trim().length > 0 && !isCheckingUpload.value,
-);
-const canCreateUpload = computed(
-  () =>
-    canExecute.value &&
-    taskName.value.trim().length > 0 &&
-    selectedUploadFiles.value.length > 0 &&
-    usableUploadTargetIds.value.length > 0 &&
-    Boolean(uploadCheckResult.value) &&
-    !isUploading.value,
-);
+const canCreateTask = computed(() => canExecute.value && !isCreating.value);
+const canCheckUpload = computed(() => canExecute.value && !isCheckingUpload.value && !isUploading.value);
+const canCreateUpload = computed(() => canExecute.value && !isCheckingUpload.value && !isUploading.value);
 const taskTotalPages = computed(() => Math.max(1, Math.ceil(taskTotal.value / taskPageSize.value)));
 const taskPageStart = computed(() => (taskTotal.value ? (taskPage.value - 1) * taskPageSize.value + 1 : 0));
 const taskPageEnd = computed(() => Math.min(taskPage.value * taskPageSize.value, taskTotal.value));
@@ -180,6 +183,8 @@ const selectedTaskLogLines = computed(() => {
   const lines = output.split(/\r?\n/);
   return lines.length && lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
 });
+const selectedTaskUploadSize = computed(() => selectedTask.value?.uploadSize || selectedTask.value?.uploadFiles.reduce((total, file) => total + file.size, 0) || 0);
+const uploadFileTreeRows = computed(() => flattenUploadFileTree(buildUploadFileTree(selectedTask.value?.uploadFiles ?? []), expandedUploadFolderKeys.value));
 const selectedTaskExecutionType = computed(() => selectedTask.value ? executionTypeLabels[selectedTask.value.executionType] : '');
 const commandPlaceholder = computed(() =>
   executionType.value === 'playbook'
@@ -263,6 +268,7 @@ async function loadTasks() {
       selectedTaskId.value = null;
       selectedTask.value = null;
       expandedResultIds.value = new Set();
+      resetUploadDetailView();
       return;
     }
     if (!selectedTaskId.value || !taskHistory.value.some((task) => task.id === selectedTaskId.value)) {
@@ -276,6 +282,7 @@ async function loadTasks() {
 
 async function selectTask(taskId: number, showError = true, activateHistory = true) {
   const requestId = ++taskRequestId;
+  const shouldResetUploadDetail = selectedTask.value?.id !== taskId;
   selectedTaskId.value = taskId;
   if (activateHistory) activeBulkView.value = 'history';
   try {
@@ -286,21 +293,33 @@ async function selectTask(taskId: number, showError = true, activateHistory = tr
       uploadFiles: detail.uploadFiles ?? [],
       results: detail.results.map((result) => ({ ...result, transfers: result.transfers ?? [] })),
     };
+    if (shouldResetUploadDetail) resetUploadDetailView();
     expandedResultIds.value = new Set([...expandedResultIds.value].filter((id) => detail.results.some((result) => result.id === id)));
   } catch (error) {
     if (requestId !== taskRequestId || selectedTaskId.value !== taskId) return;
     selectedTask.value = null;
+    resetUploadDetailView();
     if (showError) showToast('任务详情加载失败', errorMessage(error), 'error');
   }
 }
 
 async function openTaskDetail(taskId: number) {
+  resetUploadDetailView();
   await selectTask(taskId, true, false);
   if (selectedTask.value?.id === taskId) isTaskDetailOpen.value = true;
 }
 
 function closeTaskDetail() {
   isTaskDetailOpen.value = false;
+}
+
+function resetUploadDetailView() {
+  uploadDetailView.value = 'hosts';
+  expandedUploadFolderKeys.value = new Set();
+}
+
+function setUploadDetailView(view: UploadDetailView) {
+  uploadDetailView.value = view;
 }
 
 function applyDraftTargetIds() {
@@ -400,6 +419,72 @@ function collectTargetGroupIds(group: BulkExecutionTargetGroup): Set<number> {
   return ids;
 }
 
+function buildUploadFileTree(files: BulkExecutionUploadFile[]): UploadFileTreeNode[] {
+  const root: UploadFileTreeNode = { key: '', name: '', type: 'directory', level: -1, size: 0, children: [] };
+  const folders = new Map<string, UploadFileTreeNode>([['', root]]);
+
+  for (const file of files) {
+    const parts = String(file.filename || '').replace(/\\/g, '/').split('/').filter(Boolean);
+    const pathParts = parts.length ? parts : [file.filename || '-'];
+    let parent = root;
+    let currentPath = '';
+
+    pathParts.forEach((part, index) => {
+      const isFile = index === pathParts.length - 1;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      if (isFile) {
+        parent.children.push({
+          key: `file:${file.id}:${currentPath}`,
+          name: part,
+          type: 'file',
+          level: index,
+          size: file.size,
+          file,
+          children: [],
+        });
+        return;
+      }
+
+      let folder = folders.get(currentPath);
+      if (!folder) {
+        folder = {
+          key: currentPath,
+          name: part,
+          type: 'directory',
+          level: index,
+          size: 0,
+          children: [],
+        };
+        folders.set(currentPath, folder);
+        parent.children.push(folder);
+      }
+      folder.size += file.size;
+      parent = folder;
+    });
+  }
+
+  return root.children;
+}
+
+function flattenUploadFileTree(nodes: UploadFileTreeNode[], expandedKeys: Set<string>): UploadFileTreeRow[] {
+  const rows: UploadFileTreeRow[] = [];
+  const visit = (node: UploadFileTreeNode) => {
+    const expanded = expandedKeys.has(node.key);
+    rows.push({ ...node, expanded, hasChildren: node.children.length > 0 });
+    if (node.type === 'directory' && expanded) node.children.forEach(visit);
+  };
+  nodes.forEach(visit);
+  return rows;
+}
+
+function toggleUploadFolder(row: UploadFileTreeNode) {
+  if (row.type !== 'directory' || !row.children.length) return;
+  const next = new Set(expandedUploadFolderKeys.value);
+  if (next.has(row.key)) next.delete(row.key);
+  else next.add(row.key);
+  expandedUploadFolderKeys.value = next;
+}
+
 function openTargetPicker() {
   draftTargetIds.value = new Set(selectedTargetIds.value);
   targetPickerKeyword.value = '';
@@ -462,8 +547,29 @@ function clearSelectedTargets() {
   selectedTargetIds.value = new Set();
 }
 
+function showMissingField(message: string) {
+  showToast('请填写必填项', message, 'error');
+  return false;
+}
+
+function validateExecuteForm() {
+  if (!(taskName.value.trim().length > 0)) return showMissingField('请填写任务名称');
+  if (!selectedTargetIds.value.size) return showMissingField('请选择目标机器');
+  if (!commandInput.value.trim()) return showMissingField('请填写脚本内容');
+  return true;
+}
+
+function validateUploadForm() {
+  if (!(taskName.value.trim().length > 0)) return showMissingField('请填写任务名称');
+  if (!selectedTargetIds.value.size) return showMissingField('请选择目标机器');
+  if (!selectedUploadFiles.value.length) return showMissingField('请选择上传文件或文件夹');
+  if (!remoteDirectory.value.trim()) return showMissingField('请填写远程目录');
+  return true;
+}
+
 function createTaskWithConfirmation() {
   if (!canCreateTask.value) return;
+  if (!validateExecuteForm()) return;
   const run = async () => {
     await createTask();
   };
@@ -558,21 +664,48 @@ function triggerUploadFileSelect() {
   uploadFileInput.value?.click();
 }
 
+function triggerUploadFolderSelect() {
+  uploadFolderInput.value?.click();
+}
+
 function onUploadFileChange(event: Event) {
+  if (isUploading.value) return;
   const files = Array.from((event.target as HTMLInputElement).files ?? []);
-  if (files.length) selectedUploadFiles.value = mergeFiles(selectedUploadFiles.value, files);
+  if (files.length) {
+    selectedUploadFiles.value = mergeFiles(selectedUploadFiles.value, files);
+  }
+  (event.target as HTMLInputElement).value = '';
+}
+
+function onUploadFolderChange(event: Event) {
+  if (isUploading.value) return;
+  const files = Array.from((event.target as HTMLInputElement).files ?? []);
+  if (files.length) {
+    selectedUploadFiles.value = mergeFiles(selectedUploadFiles.value, files);
+  }
   (event.target as HTMLInputElement).value = '';
 }
 
 function onUploadDrop(event: DragEvent) {
+  if (isUploading.value) return;
   const files = Array.from(event.dataTransfer?.files ?? []);
-  if (files.length) selectedUploadFiles.value = mergeFiles(selectedUploadFiles.value, files);
+  if (files.length) {
+    selectedUploadFiles.value = mergeFiles(selectedUploadFiles.value, files);
+  }
+}
+
+function relativePathForFile(file: File) {
+  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
 }
 
 function mergeFiles(current: File[], incoming: File[]) {
   const next = [...current];
   for (const file of incoming) {
-    if (!next.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
+    const relativePath = relativePathForFile(file);
+    const existingIndex = next.findIndex((item) => relativePathForFile(item) === relativePath);
+    if (existingIndex >= 0) {
+      next[existingIndex] = file;
+    } else {
       next.push(file);
     }
   }
@@ -581,7 +714,8 @@ function mergeFiles(current: File[], incoming: File[]) {
 
 function removeUploadFile(index: number) {
   if (isUploading.value) return;
-  selectedUploadFiles.value = selectedUploadFiles.value.filter((_, itemIndex) => itemIndex !== index);
+  const next = selectedUploadFiles.value.filter((_, itemIndex) => itemIndex !== index);
+  selectedUploadFiles.value = next;
 }
 
 function clearUploadFiles() {
@@ -591,12 +725,13 @@ function clearUploadFiles() {
 
 async function checkBulkUpload() {
   if (!canCheckUpload.value) return;
+  if (!validateUploadForm()) return;
   isCheckingUpload.value = true;
   try {
     uploadCheckResult.value = await checkBulkFileUpload({
       targetIds: [...selectedTargetIds.value],
       remoteDirectory: remoteDirectory.value.trim() || '/tmp/',
-      filenames: selectedUploadFiles.value.map((file) => file.name),
+      filenames: selectedUploadFiles.value.map(relativePathForFile),
       totalSize: uploadTotalSize.value,
     });
     overwriteConfirmed.value = !uploadHasWarnings.value;
@@ -610,6 +745,8 @@ async function checkBulkUpload() {
 }
 
 async function submitUploadFlow() {
+  if (!canCreateUpload.value) return;
+  if (!validateUploadForm()) return;
   if (!uploadCheckResult.value) {
     await checkBulkUpload();
     return;
@@ -619,6 +756,15 @@ async function submitUploadFlow() {
 
 async function createUploadTask() {
   if (!canCreateUpload.value) return;
+  if (!validateUploadForm()) return;
+  if (!uploadCheckResult.value) {
+    await checkBulkUpload();
+    return;
+  }
+  if (!usableUploadTargetIds.value.length) {
+    showToast('没有可上传主机', '所选主机当前都无法连接。', 'error');
+    return;
+  }
   if (uploadHasWarnings.value && !overwriteConfirmed.value) {
     showToast('需要确认覆盖', '请确认后再开始上传。', 'error');
     return;
@@ -629,6 +775,7 @@ async function createUploadTask() {
       targetIds: usableUploadTargetIds.value,
       remoteDirectory: remoteDirectory.value.trim() || '/tmp/',
       files: selectedUploadFiles.value,
+      relativePaths: selectedUploadFiles.value.map(relativePathForFile),
       overwrite: overwriteConfirmed.value,
       name: taskName.value.trim(),
     });
@@ -967,7 +1114,7 @@ function formatFileSize(value: number) {
               </button>
             </div>
             <label class="bulk-task-name-field">
-              <span>任务名称</span>
+              <span>任务名称<em class="required-marker">*</em></span>
               <input v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isCreating" required />
             </label>
             <div class="bulk-script-presets">
@@ -978,7 +1125,7 @@ function formatFileSize(value: number) {
             <div class="bulk-script-editor">
               <input ref="scriptFileInput" hidden type="file" :accept="scriptFileAccept" @change="onScriptFileChange" />
               <div class="bulk-script-editor-head">
-                <span>{{ executionTypeLabels[executionType] }}</span>
+                <span>{{ executionTypeLabels[executionType] }}<em class="required-marker">*</em></span>
                 <button class="bulk-script-upload-button" type="button" :disabled="isCreating" @click="triggerScriptFileSelect">
                   <AppIcon name="upload" :size="14" />
                   {{ scriptUploadButtonLabel }}
@@ -995,7 +1142,7 @@ function formatFileSize(value: number) {
           <section class="bulk-target-summary">
             <header>
               <div>
-                <h3>目标机器</h3>
+                <h3>目标机器<em class="required-marker">*</em></h3>
                 <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
               </div>
               <button type="button" :disabled="isTargetsLoading" @click="openTargetPicker"><AppIcon name="server" :size="15" />选择机器</button>
@@ -1033,33 +1180,46 @@ function formatFileSize(value: number) {
         <div class="bulk-create-workbench">
           <section class="bulk-script-composer bulk-upload-composer">
             <label class="bulk-task-name-field">
-              <span>任务名称</span>
+              <span>任务名称<em class="required-marker">*</em></span>
               <input v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isUploading" required />
             </label>
             <input ref="uploadFileInput" hidden type="file" multiple @change="onUploadFileChange" />
-            <button
+            <input ref="uploadFolderInput" hidden type="file" webkitdirectory directory multiple @change="onUploadFolderChange" />
+            <div
               class="bulk-upload-dropzone"
-              type="button"
-              :disabled="isUploading"
-              @click="triggerUploadFileSelect"
               @dragover.prevent
               @drop.prevent="onUploadDrop"
             >
               <AppIcon name="upload" :size="38" />
-              <strong>{{ selectedUploadFiles.length ? `${selectedUploadFiles.length} 个文件` : '选择文件' }}</strong>
-              <span>{{ selectedUploadFiles.length ? formatFileSize(uploadTotalSize) : '支持多个文件上传' }}</span>
-            </button>
-            <div v-if="selectedUploadFiles.length" class="bulk-upload-file-stack">
-              <div v-for="(file, index) in selectedUploadFiles" :key="`${file.name}-${file.size}-${file.lastModified}`" class="bulk-upload-file-row">
-                <span>{{ file.name }}</span>
-                <em>{{ formatFileSize(file.size) }}</em>
-                <button type="button" :disabled="isUploading" @click="removeUploadFile(index)"><AppIcon name="x" :size="14" /></button>
+              <strong>{{ selectedUploadFiles.length ? `${selectedUploadFiles.length} 个文件` : '选择文件或文件夹' }}<em class="required-marker">*</em></strong>
+              <span>{{ selectedUploadFiles.length ? formatFileSize(uploadTotalSize) : '支持多文件和文件夹上传，并保留本地目录层级' }}</span>
+              <div class="bulk-upload-select-actions">
+                <button type="button" :disabled="isUploading" @click="triggerUploadFileSelect">
+                  <AppIcon name="file" :size="14" />
+                  选择文件
+                </button>
+                <button type="button" :disabled="isUploading" @click="triggerUploadFolderSelect">
+                  <AppIcon name="folder" :size="14" />
+                  选择文件夹
+                </button>
               </div>
-              <button type="button" :disabled="isUploading" @click="clearUploadFiles">清空文件</button>
+            </div>
+            <div v-if="selectedUploadFiles.length" class="bulk-upload-file-stack">
+              <div class="bulk-upload-file-summary">
+                <span>{{ selectedUploadFiles.length }} 个文件 · {{ formatFileSize(uploadTotalSize) }}</span>
+                <button class="bulk-upload-clear-files" type="button" :disabled="isUploading" @click="clearUploadFiles">清空文件</button>
+              </div>
+              <div class="bulk-upload-file-list-scroll">
+                <div v-for="(file, index) in selectedUploadFiles" :key="`${relativePathForFile(file)}-${file.size}-${file.lastModified}`" class="bulk-upload-file-row">
+                  <span class="bulk-upload-file-name" :title="relativePathForFile(file)">{{ relativePathForFile(file) }}</span>
+                  <em>{{ formatFileSize(file.size) }}</em>
+                  <button type="button" :disabled="isUploading" @click="removeUploadFile(index)"><AppIcon name="x" :size="14" /></button>
+                </div>
+              </div>
             </div>
 
             <label class="bulk-upload-path">
-              <span>远程目录</span>
+              <span>远程目录<em class="required-marker">*</em></span>
               <input v-model="remoteDirectory" :disabled="isUploading" placeholder="/tmp/" />
             </label>
             <p class="bulk-upload-hint">上传前会检查主机连接和同名文件；确认后将覆盖已存在的同名文件。</p>
@@ -1087,7 +1247,7 @@ function formatFileSize(value: number) {
           <section class="bulk-target-summary">
             <header>
               <div>
-                <h3>目标机器</h3>
+                <h3>目标机器<em class="required-marker">*</em></h3>
                 <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
               </div>
               <button type="button" :disabled="isTargetsLoading || isUploading" @click="openTargetPicker"><AppIcon name="server" :size="15" />选择机器</button>
@@ -1201,13 +1361,20 @@ function formatFileSize(value: number) {
               </div>
             </header>
             <pre class="bulk-command-block">{{ selectedTask.command }}</pre>
-            <div v-if="selectedTask.executionType === 'file_upload'" class="bulk-upload-summary">
-              <span>文件 {{ selectedTask.uploadFilename || '-' }}</span>
-              <span>目录 {{ selectedTask.remoteDirectory || '-' }}</span>
-              <span>大小 {{ formatFileSize(selectedTask.uploadSize || 0) }}</span>
-            </div>
-            <div v-if="selectedTask.uploadFiles?.length" class="bulk-upload-file-list">
-              <span v-for="file in selectedTask.uploadFiles" :key="file.id">{{ file.filename }} · {{ formatFileSize(file.size) }}</span>
+            <div v-if="selectedTask.executionType === 'file_upload'" class="bulk-upload-detail-switch">
+              <button type="button" :class="{ active: uploadDetailView === 'hosts' }" @click="setUploadDetailView('hosts')">
+                <AppIcon name="server" :size="14" />
+                主机列表
+              </button>
+              <button type="button" :class="{ active: uploadDetailView === 'files' }" @click="setUploadDetailView('files')">
+                <AppIcon name="folder" :size="14" />
+                上传文件
+              </button>
+              <button type="button" :class="{ active: uploadDetailView === 'directory' }" @click="setUploadDetailView('directory')">
+                <AppIcon name="terminal" :size="14" />
+                远程目录
+              </button>
+              <span class="bulk-upload-detail-size">大小 {{ formatFileSize(selectedTaskUploadSize) }}</span>
             </div>
             <p v-if="selectedTask.error" class="bulk-error">{{ selectedTask.error }}</p>
             <div class="bulk-progress"><span :style="{ width: `${selectedTaskProgress}%` }"></span></div>
@@ -1231,6 +1398,32 @@ function formatFileSize(value: number) {
               </div>
               <div v-else class="bulk-ansible-log-empty">{{ selectedTask.status === 'running' || selectedTask.status === 'queued' ? '等待 Ansible 输出...' : '暂无 Ansible 输出' }}</div>
             </section>
+
+            <div v-else-if="selectedTask.executionType === 'file_upload' && uploadDetailView === 'files'" class="bulk-upload-detail-tree">
+              <button
+                v-for="row in uploadFileTreeRows"
+                :key="row.key"
+                class="bulk-upload-tree-row"
+                :class="{ 'is-folder': row.type === 'directory', 'is-file': row.type === 'file', 'is-expanded': row.expanded }"
+                type="button"
+                :disabled="row.type !== 'directory'"
+                @click="toggleUploadFolder(row)"
+              >
+                <span class="bulk-upload-tree-indent" :style="{ width: `${row.level * 18}px` }"></span>
+                <span class="bulk-upload-tree-toggle">
+                  <AppIcon v-if="row.type === 'directory'" :name="row.expanded ? 'chevronDown' : 'chevronRight'" :size="14" />
+                </span>
+                <AppIcon :name="row.type === 'directory' ? (row.expanded ? 'folderOpen' : 'folder') : 'file'" :size="14" />
+                <strong :title="row.file?.filename || row.name">{{ row.name }}</strong>
+                <em>{{ row.type === 'file' ? formatFileSize(row.size) : '文件夹' }}</em>
+              </button>
+              <div v-if="!uploadFileTreeRows.length" class="bulk-empty">暂无上传文件</div>
+            </div>
+
+            <div v-else-if="selectedTask.executionType === 'file_upload' && uploadDetailView === 'directory'" class="bulk-upload-detail-directory">
+              <strong>远程目录</strong>
+              <code>{{ selectedTask.remoteDirectory || '-' }}</code>
+            </div>
 
             <div v-else class="bulk-result-table">
               <div class="bulk-result-row head">

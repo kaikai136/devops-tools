@@ -565,21 +565,159 @@
   padding: 10px;
 }
 
-.bulk-upload-summary {
+.bulk-upload-detail-switch {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
-.bulk-upload-summary span {
-  min-height: 26px;
+.bulk-upload-detail-switch button,
+.bulk-upload-detail-size {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid #d6dfeb;
-  border-radius: 999px;
+  border-radius: 4px;
   background: #f8fafc;
   padding: 4px 10px;
   color: var(--bulk-muted);
+  font: inherit;
   font-size: 12px;
   font-weight: 800;
+}
+
+.bulk-upload-detail-switch button {
+  color: #1e4f8f;
+  cursor: pointer;
+}
+
+.bulk-upload-detail-switch button.active {
+  border-color: var(--bulk-primary);
+  background: #eaf2ff;
+  color: #174ea6;
+}
+
+.bulk-upload-detail-size {
+  cursor: default;
+}
+
+.bulk-upload-detail-tree {
+  display: block;
+  max-height: min(340px, 42vh);
+  overflow: auto;
+  border: 1px solid var(--bulk-soft-line);
+  border-radius: 5px;
+  background: #fff;
+}
+
+.bulk-upload-tree-row {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 34px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  border: 0;
+  border-bottom: 1px solid var(--bulk-soft-line);
+  background: #fff;
+  padding: 0 8px;
+  color: var(--bulk-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  appearance: none;
+}
+
+.bulk-upload-tree-row:last-of-type {
+  border-bottom: 0;
+}
+
+.bulk-upload-tree-row:disabled {
+  background: #fff;
+  color: var(--bulk-ink);
+  cursor: default;
+  opacity: 1;
+}
+
+.bulk-upload-tree-row.is-folder:hover:not(:disabled) {
+  background: #f6f9ff;
+}
+
+.bulk-upload-tree-row > * {
+  min-width: 0;
+}
+
+.bulk-upload-tree-indent {
+  display: block;
+  flex: 0 0 auto;
+  height: 1px;
+}
+
+.bulk-upload-tree-toggle {
+  display: grid;
+  flex: 0 0 18px;
+  width: 18px;
+  place-items: center;
+  color: #64748b;
+}
+
+.bulk-upload-tree-row > .app-icon {
+  flex: 0 0 auto;
+}
+
+.bulk-upload-tree-row.is-folder > .app-icon {
+  color: #d97706;
+}
+
+.bulk-upload-tree-row.is-expanded > .app-icon {
+  color: #b45309;
+}
+
+.bulk-upload-tree-row strong {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bulk-upload-tree-row em {
+  margin-left: auto;
+  color: var(--bulk-muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bulk-upload-detail-directory {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--bulk-soft-line);
+  border-radius: 5px;
+  background: #fff;
+  padding: 12px;
+}
+
+.bulk-upload-detail-directory strong {
+  color: var(--bulk-ink);
+  font-size: 13px;
+}
+
+.bulk-upload-detail-directory code {
+  overflow: auto;
+  border: 1px solid #d6dfeb;
+  border-radius: 4px;
+  background: #f8fafc;
+  padding: 8px 10px;
+  color: #334155;
+  font-family: var(--bulk-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12px;
 }
 
 .bulk-progress {
@@ -862,6 +1000,13 @@
 .bulk-script-composer {
   align-content: start;
   gap: 12px;
+}
+
+.required-marker {
+  margin-left: 3px;
+  color: var(--bulk-danger);
+  font-style: normal;
+  font-weight: 900;
 }
 
 .bulk-mode-tabs {
@@ -1356,7 +1501,6 @@
   border-radius: 6px;
   background: #f8fbff;
   color: var(--bulk-muted);
-  cursor: pointer;
   font: inherit;
 }
 
@@ -1373,28 +1517,74 @@
   font-size: 14px;
 }
 
+.bulk-upload-select-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.bulk-upload-select-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #b7c6d9;
+  border-radius: 5px;
+  background: #fff;
+  color: #1e4f8f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .bulk-upload-file-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 28px;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--bulk-soft-line);
-  border-radius: 5px;
+  min-height: 36px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--bulk-soft-line);
   background: #fff;
   color: var(--bulk-ink);
   font-size: 13px;
   font-weight: 800;
 }
 
-.bulk-upload-file-stack {
-  display: grid;
-  gap: 8px;
+.bulk-upload-file-row:last-child {
+  border-bottom: 0;
 }
 
-.bulk-upload-file-stack > button {
-  justify-self: start;
+.bulk-upload-file-stack {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bulk-upload-file-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--bulk-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bulk-upload-file-summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bulk-upload-clear-files {
   min-height: 30px;
   border: 1px solid #b7c6d9;
   border-radius: 4px;
@@ -1406,21 +1596,17 @@
   font-weight: 800;
 }
 
-.bulk-upload-file-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.bulk-upload-clear-files {
+  color: #1e4f8f;
 }
 
-.bulk-upload-file-list span {
-  min-height: 24px;
-  border: 1px solid #d6dfeb;
-  border-radius: 999px;
-  background: #f8fafc;
-  padding: 3px 9px;
-  color: var(--bulk-muted);
-  font-size: 12px;
-  font-weight: 800;
+.bulk-upload-file-list-scroll {
+  max-height: clamp(136px, 24vh, 220px);
+  min-width: 0;
+  border: 1px solid var(--bulk-soft-line);
+  border-radius: 5px;
+  background: #fff;
+  overflow-y: auto;
 }
 
 .bulk-upload-file-row span,
@@ -1602,13 +1788,13 @@
   color: var(--workspace-text);
 }
 
-.workspace-dark :where(.bulk-upload-summary span, .bulk-upload-dropzone, .bulk-upload-file-row, .bulk-upload-file-row button) {
+.workspace-dark :where(.bulk-upload-detail-switch button, .bulk-upload-detail-size, .bulk-upload-detail-tree, .bulk-upload-tree-row, .bulk-upload-detail-directory, .bulk-upload-detail-directory code, .bulk-upload-dropzone, .bulk-upload-select-actions button, .bulk-upload-file-list-scroll, .bulk-upload-file-row, .bulk-upload-file-row button) {
   border-color: var(--workspace-border);
   background: var(--workspace-surface-muted);
   color: var(--workspace-text);
 }
 
-.workspace-dark .bulk-mode-tabs button.active {
+.workspace-dark :where(.bulk-mode-tabs button.active, .bulk-upload-detail-switch button.active) {
   border-color: rgba(56, 189, 248, 0.55);
   background: #183052;
 }

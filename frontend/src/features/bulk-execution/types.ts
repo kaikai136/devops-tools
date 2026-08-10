@@ -119,6 +119,7 @@ export interface BulkFileUploadCreatePayload {
   remoteDirectory: string;
   files: File[];
   file?: File;
+  relativePaths?: string[];
   overwrite?: boolean;
   name: string;
 }

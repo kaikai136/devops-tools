@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import tempfile
 import threading
@@ -17,13 +18,19 @@ from django.utils import timezone
 
 from host_management.models import ManagedHost
 from web_terminal.services.commands import run_one_shot_ssh_command
-from web_terminal.services.file_parsers import join_remote_path, normalize_remote_file_name, normalize_remote_file_path
+from web_terminal.services.file_parsers import (
+    join_remote_path,
+    normalize_remote_file_name,
+    normalize_remote_file_path,
+    normalize_remote_relative_file_path,
+    parent_remote_path,
+)
 
 from .models import BulkExecutionResult, BulkExecutionTask, BulkExecutionTransferItem, BulkExecutionUploadFile
 
 MAX_COMMAND_LENGTH = 200000
 OUTPUT_LIMIT = 200_000
-DEFAULT_MAX_TARGETS = 50
+DEFAULT_MAX_TARGETS = 500
 DEFAULT_FORKS = 10
 DEFAULT_TIMEOUT_SECONDS = 300
 
@@ -68,13 +75,17 @@ def bulk_execution_settings() -> dict[str, int | bool]:
     }
 
 
+def validate_max_targets(target_ids: list, max_targets: int) -> None:
+    if len(target_ids) > max_targets:
+        raise ValueError(f"每次最多选择 {max_targets} 台主机")
+
+
 def create_bulk_execution_task(user, payload: dict) -> BulkExecutionTask:
     target_ids = payload.get("targetIds") or payload.get("target_ids") or payload.get("hostIds") or []
     if not isinstance(target_ids, list) or not target_ids:
         raise ValueError("Please select Linux SSH hosts")
     config = bulk_execution_settings()
-    if len(target_ids) > int(config["maxTargets"]):
-        raise ValueError(f"Select at most {config['maxTargets']} hosts")
+    validate_max_targets(target_ids, int(config["maxTargets"]))
     try:
         target_ids = [int(item) for item in target_ids]
     except (TypeError, ValueError):
@@ -128,8 +139,7 @@ def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExec
 
     target_ids = parse_target_ids(payload.get("targetIds") or payload.get("target_ids") or payload.get("hostIds") or [])
     config = bulk_execution_settings()
-    if len(target_ids) > int(config["maxTargets"]):
-        raise ValueError(f"Select at most {config['maxTargets']} hosts")
+    validate_max_targets(target_ids, int(config["maxTargets"]))
 
     remote_directory = normalize_remote_directory(str(payload.get("remoteDirectory") or payload.get("remote_directory") or "/tmp/"))
     hosts = executable_hosts_for_target_ids(target_ids)
@@ -138,15 +148,17 @@ def create_bulk_file_upload_task(user, payload: dict, uploaded_file) -> BulkExec
 
     overwrite = parse_bool(payload.get("overwrite") or payload.get("uploadOverwrite") or payload.get("upload_overwrite"))
     task_name = require_task_name(payload)
+    relative_paths = relative_paths_for_upload(payload, uploaded_files)
     uploaded_specs = []
     stored_names: list[str] = []
     try:
-        for item in uploaded_files:
-            filename = normalize_remote_file_name(getattr(item, "name", ""))
+        for item, filename in zip(uploaded_files, relative_paths):
             if any(spec["filename"] == filename for spec in uploaded_specs):
                 raise ValueError(f"Duplicate upload filename: {filename}")
             remote_path = join_remote_path(remote_directory, filename)
-            stored_name = default_storage.save(f"bulk_execution_uploads/{uuid.uuid4().hex}_{filename}", item)
+            if len(remote_path) > BulkExecutionUploadFile._meta.get_field("remote_path").max_length:
+                raise ValueError("Upload remote path is too long")
+            stored_name = default_storage.save(upload_storage_name(filename), item)
             stored_names.append(stored_name)
             uploaded_specs.append(
                 {
@@ -205,6 +217,62 @@ def normalize_uploaded_files(uploaded_file) -> list:
     if isinstance(uploaded_file, (list, tuple)):
         return [item for item in uploaded_file if item is not None]
     return [uploaded_file]
+
+
+def payload_list_value(payload: dict, *keys: str):
+    for key in keys:
+        if hasattr(payload, "getlist"):
+            values = payload.getlist(key)
+            if values:
+                return values
+        value = payload.get(key) if isinstance(payload, dict) or hasattr(payload, "get") else None
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def relative_paths_for_upload(payload: dict, uploaded_files: list) -> list[str]:
+    raw_paths = payload_list_value(payload, "relativePaths", "relative_paths")
+    if raw_paths is None:
+        raw_paths = [getattr(item, "name", "") for item in uploaded_files]
+    elif isinstance(raw_paths, str):
+        try:
+            decoded = json.loads(raw_paths)
+        except (TypeError, ValueError):
+            decoded = [raw_paths]
+        raw_paths = decoded
+    if not isinstance(raw_paths, list) or len(raw_paths) != len(uploaded_files):
+        raise ValueError("Uploaded file information is incomplete")
+    return [normalize_upload_relative_path(str(value)) for value in raw_paths]
+
+
+def normalize_upload_relative_path(value: str) -> str:
+    raw_path = str(value or "").strip().replace("\\", "/")
+    if not raw_path or raw_path.startswith("/") or "\x00" in raw_path or "\n" in raw_path or "\r" in raw_path:
+        raise ValueError("Upload relative path is invalid")
+    if re.match(r"^[A-Za-z]:", raw_path):
+        raise ValueError("Upload relative path is invalid")
+    raw_parts = raw_path.split("/")
+    if any(part in {"", ".", ".."} for part in raw_parts):
+        raise ValueError("Upload relative path is invalid")
+    normalized = normalize_remote_relative_file_path(raw_path)
+    parts = [normalize_remote_file_name(part) for part in normalized.split("/")]
+    relative_path = "/".join(parts)
+    if len(relative_path) > BulkExecutionUploadFile._meta.get_field("filename").max_length:
+        raise ValueError("Upload relative path is too long")
+    return relative_path
+
+
+def upload_storage_name(filename: str) -> str:
+    basename = normalize_remote_file_name(filename)
+    extension = os.path.splitext(basename)[1]
+    prefix = "bulk_execution_uploads/"
+    max_length = min(
+        BulkExecutionUploadFile._meta.get_field("file").max_length,
+        BulkExecutionTask._meta.get_field("upload_file").max_length,
+    )
+    extension_budget = max(0, max_length - len(prefix) - 32)
+    return f"{prefix}{uuid.uuid4().hex}{extension[:extension_budget]}"
 
 
 def parse_bool(value) -> bool:
@@ -275,10 +343,17 @@ def normalize_remote_directory(value: str) -> str:
 
 def check_bulk_file_upload_targets(payload: dict) -> dict:
     target_ids = parse_target_ids(payload.get("targetIds") or payload.get("target_ids") or payload.get("hostIds") or [])
-    filenames_value = payload.get("filenames") or payload.get("names") or []
+    config = bulk_execution_settings()
+    validate_max_targets(target_ids, int(config["maxTargets"]))
+    filenames_value = payload_list_value(payload, "filenames", "names") or []
+    if isinstance(filenames_value, str):
+        try:
+            filenames_value = json.loads(filenames_value)
+        except (TypeError, ValueError):
+            filenames_value = [filenames_value]
     if not isinstance(filenames_value, list) or not filenames_value:
         raise ValueError("Please select files to upload")
-    filenames = [normalize_remote_file_name(str(name)) for name in filenames_value]
+    filenames = [normalize_upload_relative_path(str(name)) for name in filenames_value]
     remote_directory = normalize_remote_directory(str(payload.get("remoteDirectory") or payload.get("remote_directory") or "/tmp/"))
     hosts = executable_hosts_for_target_ids(target_ids)
 
@@ -513,21 +588,119 @@ def run_file_upload(task, result_by_inventory, temp_dir, inventory, config):
 
 
 def run_upload_file_item(task, upload_file: BulkExecutionUploadFile, result_by_inventory, temp_dir, inventory, config):
+    copy_inventory = inventory
+    if upload_file_needs_parent_directory(upload_file):
+        directory_result = run_upload_parent_directory(task, upload_file, result_by_inventory, temp_dir, inventory, config)
+        if getattr(directory_result, "status", "") == "canceled" or is_cancel_requested(task.id):
+            return directory_result
+        copy_inventory = upload_copy_inventory(upload_file, result_by_inventory, inventory)
+        if not copy_inventory["all"]["hosts"]:
+            return directory_result
+
     source_path = upload_file.file.path
     force = "yes" if task.upload_overwrite else "no"
     return run_ansible_shell(
         private_data_dir=temp_dir,
-        inventory=inventory,
+        inventory=copy_inventory,
         module="ansible.builtin.copy",
         module_args=f"src={shlex.quote(source_path)} dest={shlex.quote(upload_file.remote_path)} force={force}",
         host_pattern="all",
-        forks=max(1, min(len(inventory["all"]["hosts"]), int(config["forks"]))),
+        forks=max(1, min(len(copy_inventory["all"]["hosts"]), int(config["forks"]))),
         timeout=int(config["timeoutSeconds"]),
         quiet=True,
         envvars={"ANSIBLE_HOST_KEY_CHECKING": "False"},
         event_handler=lambda event: handle_file_upload_event(task.id, result_by_inventory, upload_file, event),
         cancel_callback=lambda: is_cancel_requested(task.id),
     )
+
+
+def upload_file_needs_parent_directory(upload_file: BulkExecutionUploadFile) -> bool:
+    return "/" in str(upload_file.filename or "")
+
+
+def run_upload_parent_directory(task, upload_file: BulkExecutionUploadFile, result_by_inventory, temp_dir, inventory, config):
+    parent = parent_remote_path(upload_file.remote_path)
+    return run_ansible_shell(
+        private_data_dir=temp_dir,
+        inventory=inventory,
+        module="ansible.builtin.file",
+        module_args=f"path={shlex.quote(parent)} state=directory",
+        host_pattern="all",
+        forks=max(1, min(len(inventory["all"]["hosts"]), int(config["forks"]))),
+        timeout=int(config["timeoutSeconds"]),
+        quiet=True,
+        envvars={"ANSIBLE_HOST_KEY_CHECKING": "False"},
+        event_handler=lambda event: handle_file_upload_directory_event(task.id, result_by_inventory, upload_file, event),
+        cancel_callback=lambda: is_cancel_requested(task.id),
+    )
+
+
+def upload_copy_inventory(upload_file: BulkExecutionUploadFile, result_by_inventory: dict[str, BulkExecutionResult], inventory: dict[str, Any]) -> dict[str, Any]:
+    blocked_result_ids = set(
+        upload_file.transfers.filter(
+            status__in=[BulkExecutionTransferItem.STATUS_FAILED, BulkExecutionTransferItem.STATUS_SKIPPED]
+        ).values_list("result_id", flat=True)
+    )
+    hosts = {
+        inventory_name: variables
+        for inventory_name, variables in inventory["all"]["hosts"].items()
+        if result_by_inventory.get(inventory_name) and result_by_inventory[inventory_name].id not in blocked_result_ids
+    }
+    return {"all": {"hosts": hosts}}
+
+
+def handle_file_upload_directory_event(
+    task_id: int,
+    result_by_inventory: dict[str, BulkExecutionResult],
+    upload_file: BulkExecutionUploadFile,
+    event: dict[str, Any],
+) -> bool:
+    event_name = str(event.get("event", ""))
+    event_data = event.get("event_data") if isinstance(event.get("event_data"), dict) else {}
+    result = result_by_inventory.get(str(event_data.get("host", "")))
+    if result is None:
+        return True
+
+    transfer = BulkExecutionTransferItem.objects.filter(result=result, upload_file=upload_file).first()
+    if transfer is None:
+        return True
+
+    if event_name == "runner_on_start":
+        transfer.status = BulkExecutionTransferItem.STATUS_RUNNING
+        transfer.started_at = transfer.started_at or timezone.now()
+        transfer.finished_at = None
+        transfer.error = ""
+        transfer.save(update_fields=["status", "started_at", "finished_at", "error"])
+        result.status = BulkExecutionResult.STATUS_RUNNING
+        result.started_at = result.started_at or timezone.now()
+        result.finished_at = None
+        result.error = ""
+        result.save(update_fields=["status", "started_at", "finished_at", "error"])
+        return True
+
+    if event_name in {"runner_on_failed", "runner_on_unreachable", "runner_on_skipped"}:
+        res = event_data.get("res") if isinstance(event_data.get("res"), dict) else {}
+        transfer.status = (
+            BulkExecutionTransferItem.STATUS_SKIPPED
+            if event_name == "runner_on_skipped"
+            else BulkExecutionTransferItem.STATUS_FAILED
+        )
+        transfer.error = result_error(event_name, res)
+        transfer.started_at = transfer.started_at or timezone.now()
+        transfer.finished_at = timezone.now()
+        transfer.save(update_fields=["status", "error", "started_at", "finished_at"])
+
+        result.status = (
+            BulkExecutionResult.STATUS_SKIPPED
+            if event_name == "runner_on_skipped"
+            else BulkExecutionResult.STATUS_FAILED
+        )
+        result.error = transfer.error
+        result.started_at = result.started_at or timezone.now()
+        result.finished_at = timezone.now()
+        result.save(update_fields=["status", "error", "started_at", "finished_at"])
+        refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
+    return True
 
 
 def handle_file_upload_event(task_id: int, result_by_inventory: dict[str, BulkExecutionResult], upload_file: BulkExecutionUploadFile, event: dict[str, Any]) -> bool:

@@ -244,6 +244,51 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('开始上传');
   });
 
+  it('marks required bulk fields and validates actions on click', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+
+    expect(panel).toContain('required-marker');
+    expect(panel).toContain('validateExecuteForm');
+    expect(panel).toContain('validateUploadForm');
+    expect(panel).toContain('请填写任务名称');
+    expect(panel).toContain('请选择目标机器');
+    expect(panel).toContain('请填写脚本内容');
+    expect(panel).toContain('请选择上传文件或文件夹');
+    expect(panel).toContain('请填写远程目录');
+    expect(panel).toContain('@click="createTaskWithConfirmation"');
+    expect(panel).toContain('@click="submitUploadFlow"');
+  });
+
+  it('supports folder selection and preserves relative paths through upload APIs', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const api = readSource('features/bulk-execution/api/bulkExecution.ts');
+    const types = readSource('features/bulk-execution/types.ts');
+
+    expect(panel).toContain('uploadFolderInput');
+    expect(panel).toContain('webkitdirectory');
+    expect(panel).toContain('webkitRelativePath');
+    expect(panel).toContain('relativePaths');
+    expect(panel).toContain('relativePathForFile');
+    expect(api).toContain("form.append('relativePaths'");
+    expect(types).toContain('relativePaths');
+  });
+
+  it('shows the selected upload files as a direct compact scroll list so the remote directory remains visible', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+
+    expect(panel).not.toContain('isUploadFileListExpanded');
+    expect(panel).not.toContain('toggleUploadFileList');
+    expect(panel).toContain('bulk-upload-file-summary');
+    expect(panel).toContain('bulk-upload-file-list-scroll');
+    expect(panel).toContain('bulk-upload-file-name');
+    expect(panel).not.toContain('文件列表');
+    expect(styles).toContain('.bulk-upload-file-list-scroll');
+    expect(styles).toContain('overflow-y: auto');
+    expect(styles).toContain('max-height: clamp');
+    expect(styles).not.toContain('gap: 8px;\n  max-height: clamp');
+  });
+
   it('renders upload transfer details on each task result', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const types = readSource('features/bulk-execution/types.ts');
@@ -252,6 +297,38 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('result.transfers');
     expect(panel).toContain('bulk-transfer-matrix');
     expect(panel).toContain('transfer.remotePath');
+  });
+
+  it('switches upload task detail between hosts, file tree, and remote directory with size as read-only summary', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+    const detailSwitch = panel.match(/<div v-if="selectedTask.executionType === 'file_upload'" class="bulk-upload-detail-switch"[\s\S]*?<\/div>/)?.[0] ?? '';
+
+    expect(panel).toContain("type UploadDetailView = 'hosts' | 'files' | 'directory'");
+    expect(panel).toContain("const uploadDetailView = ref<UploadDetailView>('hosts')");
+    expect(panel).toContain('expandedUploadFolderKeys');
+    expect(panel).toContain('buildUploadFileTree');
+    expect(panel).toContain('uploadFileTreeRows');
+    expect(panel).toContain('toggleUploadFolder');
+    expect(detailSwitch).toContain("setUploadDetailView('hosts')");
+    expect(detailSwitch).toContain("setUploadDetailView('files')");
+    expect(detailSwitch).toContain("setUploadDetailView('directory')");
+    expect(detailSwitch).toContain('bulk-upload-detail-size');
+    expect(detailSwitch).not.toContain("setUploadDetailView('size')");
+    expect(detailSwitch.indexOf("setUploadDetailView('hosts')")).toBeLessThan(detailSwitch.indexOf("setUploadDetailView('files')"));
+    expect(detailSwitch.indexOf("setUploadDetailView('files')")).toBeLessThan(detailSwitch.indexOf("setUploadDetailView('directory')"));
+    expect(detailSwitch.indexOf("setUploadDetailView('directory')")).toBeLessThan(detailSwitch.indexOf('bulk-upload-detail-size'));
+    expect(panel).toContain("uploadDetailView === 'files'");
+    expect(panel).toContain('bulk-upload-detail-tree');
+    expect(panel).toContain('bulk-upload-tree-row');
+    expect(panel).toContain("'folderOpen'");
+    expect(panel).not.toContain('class="bulk-upload-file-list"');
+    expect(styles).toContain('.bulk-upload-detail-switch');
+    expect(styles).toContain('.bulk-upload-detail-tree');
+    expect(styles).toContain('.bulk-upload-tree-row');
+    expect(styles).toContain('.bulk-upload-tree-toggle');
+    expect(styles).toContain('display: flex');
+    expect(styles).toContain('justify-content: flex-start');
   });
 
   it('supports shell scripts and playbook scripts in the task composer', () => {

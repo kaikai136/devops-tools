@@ -12,7 +12,7 @@ from django.utils import timezone
 from host_management.models import HostGroup, ManagedHost
 from system_management.services import ensure_feature_permissions
 
-from .models import BulkExecutionResult, BulkExecutionTask
+from .models import BulkExecutionResult, BulkExecutionTask, BulkExecutionTransferItem, BulkExecutionUploadFile
 from .services import create_bulk_execution_task, run_bulk_execution_task
 
 
@@ -180,6 +180,39 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual(result.login_user, "root")
         start_task.assert_called_once_with(task.id)
 
+    @override_settings(BULK_EXECUTION_MAX_TARGETS=500)
+    def test_create_task_accepts_more_than_fifty_targets_when_configured(self):
+        extra_hosts = [
+            ManagedHost(
+                name=f"linux-bulk-{index:03d}",
+                group=self.group,
+                private_ip=f"10.8.0.{index}",
+                login_user="root",
+                login_password="secret",
+                verified=True,
+                verify_status="verified",
+                os="ubuntu",
+            )
+            for index in range(1, 116)
+        ]
+        ManagedHost.objects.bulk_create(extra_hosts)
+        target_ids = [self.linux.id, self.key_host.id] + list(ManagedHost.objects.filter(name__startswith="linux-bulk-").values_list("id", flat=True))
+
+        self.assertEqual(len(target_ids), 117)
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        with patch("bulk_execution.views.start_bulk_execution_task") as start_task:
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={"targetIds": target_ids, "command": "hostname", "name": "bulk 117 hosts"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["targetCount"], 117)
+        task = BulkExecutionTask.objects.get(name="bulk 117 hosts")
+        self.assertEqual(task.results.count(), 117)
+        start_task.assert_called_once_with(task.id)
+
     def test_create_task_requires_task_name(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute")
 
@@ -318,6 +351,112 @@ class BulkExecutionApiTests(TestCase):
         self.assertEqual([item["remotePath"] for item in detail_payload["uploadFiles"]], ["/opt/app/deploy.txt", "/opt/app/config.yml"])
         self.assertEqual([item["remotePath"] for item in detail_payload["results"][0]["transfers"]], ["/opt/app/deploy.txt", "/opt/app/config.yml"])
 
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-relative-test-"))
+    def test_create_file_upload_task_preserves_relative_paths(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        config = SimpleUploadedFile("app.yml", b"name: api\n", content_type="text/yaml")
+        script = SimpleUploadedFile("start.sh", b"#!/bin/sh\n", content_type="text/plain")
+
+        with patch("bulk_execution.views.start_bulk_execution_task"):
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={
+                    "executionType": "file_upload",
+                    "targetIds": json.dumps([self.linux.id]),
+                    "remoteDirectory": "/tmp/",
+                    "name": "release upload",
+                    "files": [config, script],
+                    "relativePaths": ["release/config/app.yml", "release/bin/start.sh"],
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        task = BulkExecutionTask.objects.get(name="release upload")
+        upload_files = list(task.upload_files.order_by("id"))
+        self.assertEqual([item.filename for item in upload_files], ["release/config/app.yml", "release/bin/start.sh"])
+        self.assertEqual(
+            [item.remote_path for item in upload_files],
+            ["/tmp/release/config/app.yml", "/tmp/release/bin/start.sh"],
+        )
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-storage-name-test-"))
+    def test_create_file_upload_task_uses_bounded_flat_storage_name_for_nested_paths(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        upload = SimpleUploadedFile("application-settings.yml", b"name: api\n", content_type="text/yaml")
+        relative_path = "release/config/environments/production/us-east/application-settings.yml"
+
+        with patch("bulk_execution.views.start_bulk_execution_task"):
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={
+                    "executionType": "file_upload",
+                    "targetIds": json.dumps([self.linux.id]),
+                    "remoteDirectory": "/tmp/",
+                    "name": "long nested upload",
+                    "files": [upload],
+                    "relativePaths": [relative_path],
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        task = BulkExecutionTask.objects.get(name="long nested upload")
+        upload_file = task.upload_files.get()
+        storage_prefix = "bulk_execution_uploads/"
+        self.assertEqual(upload_file.filename, relative_path)
+        self.assertEqual(upload_file.remote_path, f"/tmp/{relative_path}")
+        self.assertTrue(upload_file.file.name.startswith(storage_prefix))
+        self.assertNotIn("/", upload_file.file.name.removeprefix(storage_prefix))
+        self.assertLessEqual(len(upload_file.file.name), BulkExecutionUploadFile._meta.get_field("file").max_length)
+        self.assertEqual(task.upload_file.name, upload_file.file.name)
+        self.assertLessEqual(len(task.upload_file.name), BulkExecutionTask._meta.get_field("upload_file").max_length)
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-folder-size-test-"))
+    def test_create_file_upload_task_accepts_folder_with_more_than_default_django_file_limit(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+        file_count = 122
+        uploads = [SimpleUploadedFile(f"folder/file-{index}.txt", b"payload", content_type="text/plain") for index in range(file_count)]
+        relative_paths = [f"folder/file-{index}.txt" for index in range(file_count)]
+
+        with patch("bulk_execution.views.start_bulk_execution_task"):
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={
+                    "executionType": "file_upload",
+                    "targetIds": json.dumps([self.linux.id]),
+                    "remoteDirectory": "/tmp/",
+                    "name": "folder upload",
+                    "files": uploads,
+                    "relativePaths": relative_paths,
+                },
+            )
+
+        self.assertEqual(response.status_code, 201)
+        task = BulkExecutionTask.objects.get(name="folder upload")
+        self.assertEqual(task.upload_files.count(), file_count)
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-relative-unsafe-test-"))
+    def test_create_file_upload_task_rejects_unsafe_relative_paths(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        for relative_path in ["/etc/passwd", "../secret", "release/../../secret", "C:/secret", "C:secret"]:
+            upload = SimpleUploadedFile("payload.txt", b"payload", content_type="text/plain")
+            with patch("bulk_execution.views.start_bulk_execution_task") as start_task:
+                response = self.client.post(
+                    "/api/bulk-execution/tasks/",
+                    data={
+                        "executionType": "file_upload",
+                        "targetIds": json.dumps([self.linux.id]),
+                        "remoteDirectory": "/tmp/",
+                        "name": "unsafe upload",
+                        "files": [upload],
+                        "relativePaths": [relative_path],
+                    },
+                )
+
+            self.assertEqual(response.status_code, 400, relative_path)
+            self.assertFalse(BulkExecutionTask.objects.filter(name="unsafe upload").exists())
+            start_task.assert_not_called()
+
     def test_upload_check_reports_connected_targets_unreachable_targets_and_duplicate_files(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute")
 
@@ -357,6 +496,29 @@ class BulkExecutionApiTests(TestCase):
                 }
             ],
         )
+
+    def test_upload_check_preserves_nested_relative_paths_for_duplicates(self):
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        def fake_inspect(host, remote_directory, filenames):
+            self.assertEqual(remote_directory, "/opt/app")
+            self.assertEqual(filenames, ["release/config/app.yml", "release/bin/start.sh"])
+            return {"connected": True, "presentFiles": ["release/config/app.yml"], "error": ""}
+
+        with patch("bulk_execution.services.inspect_bulk_upload_target", side_effect=fake_inspect, create=True):
+            response = self.client.post(
+                "/api/bulk-execution/uploads/check/",
+                data={
+                    "targetIds": [self.linux.id],
+                    "remoteDirectory": "/opt/app/",
+                    "filenames": ["release/config/app.yml", "release/bin/start.sh"],
+                    "totalSize": 16,
+                },
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["duplicateFiles"][0]["filenames"], ["release/config/app.yml"])
 
     def test_create_file_upload_task_requires_uploaded_file(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute")
@@ -612,6 +774,85 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertEqual([transfer.remote_path for transfer in transfers], ["/srv/app/deploy.txt", "/srv/app/config.yml"])
         for upload_file in task.upload_files.all():
             self.assertFalse(upload_file.file.storage.exists(upload_file.file.name))
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-runner-relative-test-"))
+    def test_file_upload_creates_remote_parent_directory_before_copy(self):
+        config = SimpleUploadedFile("app.yml", b"name: api\n", content_type="text/yaml")
+        from .services import create_bulk_file_upload_task
+
+        task = create_bulk_file_upload_task(
+            self.user,
+            {
+                "targetIds": [self.host.id],
+                "remoteDirectory": "/srv/app",
+                "overwrite": True,
+                "name": "nested upload",
+                "relativePaths": ["release/config/app.yml"],
+            },
+            [config],
+        )
+        calls = []
+
+        def fake_run(**kwargs):
+            calls.append((kwargs["module"], kwargs["module_args"]))
+            if kwargs["module"] == "ansible.builtin.file":
+                kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
+                kwargs["event_handler"](
+                    {"event": "runner_on_ok", "event_data": {"host": "host_1", "res": {"stdout": "", "stderr": "", "rc": 0}}}
+                )
+                return SimpleNamespace(status="successful", rc=0)
+            self.assertEqual(kwargs["module"], "ansible.builtin.copy")
+            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
+            kwargs["event_handler"](
+                {"event": "runner_on_ok", "event_data": {"host": "host_1", "res": {"stdout": "copied\n", "stderr": "", "rc": 0}}}
+            )
+            return SimpleNamespace(status="successful", rc=0)
+
+        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+            run_bulk_execution_task(task.id)
+
+        self.assertEqual(calls[0], ("ansible.builtin.file", "path=/srv/app/release/config state=directory"))
+        self.assertEqual(calls[1][0], "ansible.builtin.copy")
+        self.assertIn("dest=/srv/app/release/config/app.yml", calls[1][1])
+        task.refresh_from_db()
+        self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
+        self.assertEqual(task.results.get().stdout, "copied\n")
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="bulk-upload-runner-relative-fail-test-"))
+    def test_file_upload_parent_directory_failure_marks_transfer_failed(self):
+        config = SimpleUploadedFile("app.yml", b"name: api\n", content_type="text/yaml")
+        from .services import create_bulk_file_upload_task
+
+        task = create_bulk_file_upload_task(
+            self.user,
+            {
+                "targetIds": [self.host.id],
+                "remoteDirectory": "/srv/app",
+                "name": "mkdir failed upload",
+                "relativePaths": ["release/config/app.yml"],
+            },
+            [config],
+        )
+
+        def fake_run(**kwargs):
+            if kwargs["module"] == "ansible.builtin.copy":
+                raise AssertionError("copy should not run when remote parent directory creation fails")
+            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
+            kwargs["event_handler"](
+                {"event": "runner_on_failed", "event_data": {"host": "host_1", "res": {"stdout": "", "stderr": "", "rc": 1, "msg": "mkdir denied"}}}
+            )
+            return SimpleNamespace(status="failed", rc=2)
+
+        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+            run_bulk_execution_task(task.id)
+
+        task.refresh_from_db()
+        result = task.results.get()
+        transfer = result.transfers.get()
+        self.assertEqual(task.status, BulkExecutionTask.STATUS_FAILED)
+        self.assertEqual(result.status, BulkExecutionResult.STATUS_FAILED)
+        self.assertEqual(transfer.status, BulkExecutionTransferItem.STATUS_FAILED)
+        self.assertEqual(transfer.error, "mkdir denied")
 
     def test_runner_failure_event_marks_task_failed(self):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false", "name": "nonzero failure"})
