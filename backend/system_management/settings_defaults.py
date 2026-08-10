@@ -38,6 +38,7 @@ DEFAULT_TERMINAL_SETTINGS = {
     "defaultRows": 36,
     "defaultFontSize": 17,
     "scrollbackLines": 5000,
+    "bulkExecutionMaxTargets": 500,
 }
 
 TERMINAL_SETTINGS_FIELD_LIMITS = {
@@ -61,4 +62,5 @@ TERMINAL_SETTINGS_FIELD_LIMITS = {
     "defaultRows": (10, 120),
     "defaultFontSize": (10, 24),
     "scrollbackLines": (100, 50000),
+    "bulkExecutionMaxTargets": (1, 1000),
 }

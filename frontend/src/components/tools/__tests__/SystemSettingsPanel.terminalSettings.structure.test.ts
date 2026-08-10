@@ -38,5 +38,7 @@ describe('SystemSettingsPanel terminal settings structure', () => {
     expect(template).toContain('defaultRows');
     expect(template).toContain('defaultFontSize');
     expect(template).toContain('scrollbackLines');
+    expect(template).toContain('bulkExecutionMaxTargets');
+    expect(template).toContain('max="1000"');
   });
 });

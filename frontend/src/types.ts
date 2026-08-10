@@ -294,6 +294,7 @@ export interface TerminalSettingsConfig {
   defaultRows: number;
   defaultFontSize: number;
   scrollbackLines: number;
+  bulkExecutionMaxTargets: number;
 }
 
 export interface SiteIdentityConfig {

@@ -74,7 +74,7 @@ const settingsTabs: Array<{ key: SettingsTabKey; label: string; title: string; s
   { key: 'logRetention', label: '日志保留', title: '日志保留', subtitle: '统一管理审计日志和 RDP 录像留存', icon: 'rows' },
   { key: 'securityScan', label: '安全扫描', title: '安全扫描', subtitle: '在线漏洞源访问开关', icon: 'shield' },
   { key: 'watermark', label: '水印', title: '水印配置', subtitle: '水印模板与应用页面', icon: 'image' },
-  { key: 'terminal', label: '终端', title: '终端设置', subtitle: 'Web SSH 连接、保活与显示默认值', icon: 'terminal' },
+  { key: 'terminal', label: '终端', title: '终端设置', subtitle: 'Web SSH 连接、保活、显示默认值与批量执行', icon: 'terminal' },
 ];
 
 const activeTab = ref<SettingsTabKey>('identity');
@@ -715,7 +715,7 @@ onMounted(() => {
         <section v-else-if="activeTab === 'terminal'" class="settings-section single">
           <header>
             <h3>终端设置</h3>
-            <span>仅作用于 Web SSH 终端</span>
+            <span>作用于 Web SSH 终端和批量执行</span>
           </header>
           <div class="terminal-settings-groups">
             <section>
@@ -827,6 +827,16 @@ onMounted(() => {
                 </label>
               </div>
             </section>
+
+            <section>
+              <h4>批量执行</h4>
+              <div class="settings-field-grid terminal-settings-field-grid">
+                <label>
+                  <span>最大主机数</span>
+                  <input v-model.number="terminalSettingsDraft.bulkExecutionMaxTargets" :disabled="!canSave" type="number" min="1" max="1000" />
+                </label>
+              </div>
+            </section>
           </div>
         </section>
       </article>
@@ -920,6 +930,8 @@ onMounted(() => {
               <strong>{{ terminalSettingsDraft.idleDisconnectMinutes ? `${terminalSettingsDraft.idleDisconnectMinutes} 分钟` : '不自动断开' }}</strong>
               <span>默认终端</span>
               <strong>{{ terminalSettingsDraft.defaultCols }}x{{ terminalSettingsDraft.defaultRows }} · {{ terminalSettingsDraft.defaultFontSize }}px · {{ terminalSettingsDraft.scrollbackLines }} 行</strong>
+              <span>批量执行上限</span>
+              <strong>{{ terminalSettingsDraft.bulkExecutionMaxTargets }} 台主机</strong>
             </section>
           </template>
         </div>

@@ -1066,6 +1066,7 @@ class SystemSettingsApiTests(TestCase):
                 "defaultRows": 36,
                 "defaultFontSize": 17,
                 "scrollbackLines": 5000,
+                "bulkExecutionMaxTargets": 500,
             },
         )
 
@@ -1077,6 +1078,7 @@ class SystemSettingsApiTests(TestCase):
             "sshConnectAttempts": True,
             "sshRetryDelayMs": -1,
             "defaultFontSize": 40,
+            "bulkExecutionMaxTargets": 1001,
         }.items():
             with self.subTest(field=field, value=value):
                 response = self.client.post(

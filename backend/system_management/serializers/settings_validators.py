@@ -272,6 +272,7 @@ def validate_terminal_settings_value(value):
         "defaultRows": "默认行数",
         "defaultFontSize": "默认字号",
         "scrollbackLines": "滚屏行数",
+        "bulkExecutionMaxTargets": "批量执行最大主机数",
     }
     for field, fallback in DEFAULT_TERMINAL_SETTINGS.items():
         minimum, maximum = TERMINAL_SETTINGS_FIELD_LIMITS[field]

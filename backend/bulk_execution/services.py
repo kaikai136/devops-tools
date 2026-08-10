@@ -67,8 +67,19 @@ def list_executable_targets() -> list[ManagedHost]:
 
 
 def bulk_execution_settings() -> dict[str, int | bool]:
+    max_targets = int(getattr(settings, "BULK_EXECUTION_MAX_TARGETS", DEFAULT_MAX_TARGETS))
+    try:
+        from system_management.services import get_database_setting_value
+        from system_management.settings_defaults import TERMINAL_SETTINGS_FIELD_LIMITS
+
+        terminal_settings = get_database_setting_value("terminal_settings")
+        if isinstance(terminal_settings, dict) and "bulkExecutionMaxTargets" in terminal_settings:
+            minimum, maximum = TERMINAL_SETTINGS_FIELD_LIMITS["bulkExecutionMaxTargets"]
+            max_targets = max(minimum, min(maximum, int(terminal_settings["bulkExecutionMaxTargets"])))
+    except (OperationalError, ProgrammingError, TypeError, ValueError):
+        max_targets = int(getattr(settings, "BULK_EXECUTION_MAX_TARGETS", DEFAULT_MAX_TARGETS))
     return {
-        "maxTargets": int(getattr(settings, "BULK_EXECUTION_MAX_TARGETS", DEFAULT_MAX_TARGETS)),
+        "maxTargets": max(1, max_targets),
         "forks": int(getattr(settings, "BULK_EXECUTION_FORKS", DEFAULT_FORKS)),
         "timeoutSeconds": int(getattr(settings, "BULK_EXECUTION_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)),
         "runAsync": bool(getattr(settings, "BULK_EXECUTION_RUN_ASYNC", True)),

@@ -10,6 +10,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from host_management.models import HostGroup, ManagedHost
+from system_management.models import SystemSetting
 from system_management.services import ensure_feature_permissions
 
 from .models import BulkExecutionResult, BulkExecutionTask, BulkExecutionTransferItem, BulkExecutionUploadFile
@@ -212,6 +213,32 @@ class BulkExecutionApiTests(TestCase):
         task = BulkExecutionTask.objects.get(name="bulk 117 hosts")
         self.assertEqual(task.results.count(), 117)
         start_task.assert_called_once_with(task.id)
+
+    def test_create_task_uses_terminal_settings_max_targets(self):
+        extra_host = ManagedHost.objects.create(
+            name="linux-extra",
+            group=self.group,
+            private_ip="10.0.0.16",
+            login_user="root",
+            login_password="secret",
+            verified=True,
+            verify_status="verified",
+            os="ubuntu",
+        )
+        SystemSetting.objects.create(key="terminal_settings", value={"bulkExecutionMaxTargets": 2})
+        self.grant("access_bulkExecution", "action_bulkExecution_execute")
+
+        with patch("bulk_execution.views.start_bulk_execution_task") as start_task:
+            response = self.client.post(
+                "/api/bulk-execution/tasks/",
+                data={"targetIds": [self.linux.id, self.key_host.id, extra_host.id], "command": "hostname", "name": "too many"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "每次最多选择 2 台主机")
+        self.assertFalse(BulkExecutionTask.objects.filter(name="too many").exists())
+        start_task.assert_not_called()
 
     def test_create_task_requires_task_name(self):
         self.grant("access_bulkExecution", "action_bulkExecution_execute")
