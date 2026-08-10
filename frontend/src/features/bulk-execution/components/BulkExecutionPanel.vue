@@ -66,7 +66,7 @@ const historyStatusOptions: Array<{ value: BulkExecutionStatus | ''; label: stri
 ];
 
 const executionTypeLabels: Record<BulkExecutionType, string> = {
-  shell: 'Shell 脚本',
+  shell: '普通 Shell',
   playbook: 'Playbook 脚本',
   file_upload: '文件上传',
 };
@@ -193,6 +193,7 @@ const commandPlaceholder = computed(() =>
 );
 const scriptFileAccept = computed(() => (executionType.value === 'playbook' ? '.yml,.yaml' : '.sh'));
 const scriptUploadButtonLabel = computed(() => (executionType.value === 'playbook' ? '上传 YAML' : '上传 SH'));
+const executeActionLabel = computed(() => (executionType.value === 'playbook' ? '执行 Playbook' : '执行 Shell'));
 
 onMounted(async () => {
   await refreshAll();
@@ -574,7 +575,7 @@ function createTaskWithConfirmation() {
     await createTask();
   };
   const message = `将对 ${selectedTargetIds.value.size} 台主机执行 ${executionTypeLabels[executionType.value]}：\n${commandInput.value.trim()}`;
-  if (requestConfirm) requestConfirm('确认批量执行', message, '执行脚本', run);
+  if (requestConfirm) requestConfirm('确认批量执行', message, executeActionLabel.value, run);
   else if (window.confirm(message)) void run();
 }
 
@@ -1106,7 +1107,7 @@ function formatFileSize(value: number) {
             <div class="bulk-mode-tabs" role="tablist" aria-label="执行类型">
               <button type="button" :class="{ active: executionType === 'shell' }" @click="setExecutionType('shell')">
                 <AppIcon name="terminal" :size="15" />
-                Shell 脚本
+                普通 Shell
               </button>
               <button type="button" :class="{ active: executionType === 'playbook' }" @click="setExecutionType('playbook')">
                 <AppIcon name="rows" :size="15" />
@@ -1172,7 +1173,7 @@ function formatFileSize(value: number) {
         </div>
         <footer class="bulk-workbench-footer">
           <button type="button" :disabled="isCreating" @click="switchBulkView('history')">返回记录</button>
-          <button class="primary" type="button" :disabled="!canCreateTask" @click="createTaskWithConfirmation">{{ isCreating ? '创建中...' : '执行脚本' }}</button>
+          <button class="primary" type="button" :disabled="!canCreateTask" @click="createTaskWithConfirmation">{{ isCreating ? '创建中...' : executeActionLabel }}</button>
         </footer>
       </section>
 

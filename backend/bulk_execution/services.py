@@ -7,7 +7,9 @@ import shlex
 import tempfile
 import threading
 import uuid
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from django.conf import settings
@@ -18,6 +20,7 @@ from django.utils import timezone
 
 from host_management.models import ManagedHost
 from web_terminal.services.commands import run_one_shot_ssh_command
+from web_terminal.services.connections import open_ssh_client
 from web_terminal.services.file_parsers import (
     join_remote_path,
     normalize_remote_file_name,
@@ -33,18 +36,6 @@ OUTPUT_LIMIT = 200_000
 DEFAULT_MAX_TARGETS = 500
 DEFAULT_FORKS = 10
 DEFAULT_TIMEOUT_SECONDS = 300
-
-# Signatures of an Ansible module-wrapper failure caused by the target host writing
-# extra text to stdout on non-interactive login (e.g. a shell banner in ~/.bashrc),
-# which corrupts the JSON the Python module returns. Hosts that fail with any of these
-# are retried with the raw module, which runs the command directly over SSH without a
-# Python wrapper and is therefore immune to stdout pollution.
-MODULE_POLLUTION_SIGNATURES = (
-    "No start of json char found",
-    "Module result deserialization failed",
-    "MODULE FAILURE",
-    "Expecting value",
-)
 
 _interrupted_tasks_checked = False
 
@@ -498,23 +489,17 @@ def run_bulk_execution_task(task_id: int) -> None:
             elif task.execution_type == BulkExecutionTask.EXECUTION_FILE_UPLOAD:
                 runner_result = run_file_upload(task, result_by_inventory, temp_dir, inventory, config)
             else:
-                runner_result = run_command_module(
-                    task, result_by_inventory, temp_dir, inventory, config, module="ansible.builtin.shell"
-                )
+                runner_result = run_plain_shell_task(task, results, config)
             task.refresh_from_db(fields=["cancel_requested"])
             canceled = bool(task.cancel_requested) or getattr(runner_result, "status", "") == "canceled"
-            if not canceled and task.execution_type == BulkExecutionTask.EXECUTION_SHELL:
-                # Fallback: hosts whose shell module output was polluted (e.g. a login banner
-                # on stdout) fail JSON deserialization. Re-run just those with the raw module,
-                # which runs the command directly over SSH without a Python wrapper.
-                retry_polluted_results_with_raw(task, result_by_inventory, temp_dir, inventory, config)
         if canceled:
             mark_unfinished_transfers(task, BulkExecutionTransferItem.STATUS_SKIPPED, "Task canceled")
             mark_unfinished_results(task, BulkExecutionResult.STATUS_SKIPPED, "Task canceled")
             task.status = BulkExecutionTask.STATUS_CANCELED
         else:
-            mark_unfinished_transfers(task, BulkExecutionTransferItem.STATUS_FAILED, "No result returned by Ansible")
-            mark_unfinished_results(task, BulkExecutionResult.STATUS_FAILED, "No result returned by Ansible")
+            no_result_error = "No result returned by Ansible" if task.execution_type in {BulkExecutionTask.EXECUTION_PLAYBOOK, BulkExecutionTask.EXECUTION_FILE_UPLOAD} else "No result returned"
+            mark_unfinished_transfers(task, BulkExecutionTransferItem.STATUS_FAILED, no_result_error)
+            mark_unfinished_results(task, BulkExecutionResult.STATUS_FAILED, no_result_error)
             task.status = final_task_status(task)
     except Exception as error:
         task.status = BulkExecutionTask.STATUS_FAILED
@@ -528,20 +513,163 @@ def run_bulk_execution_task(task_id: int) -> None:
         cleanup_upload_file(task)
 
 
-def run_command_module(task, result_by_inventory, temp_dir, inventory, config, *, module):
-    return run_ansible_shell(
-        private_data_dir=temp_dir,
-        inventory=inventory,
-        module=module,
-        module_args=task.command,
-        host_pattern="all",
-        forks=max(1, min(len(inventory["all"]["hosts"]), int(config["forks"]))),
-        timeout=int(config["timeoutSeconds"]),
-        quiet=True,
-        envvars={"ANSIBLE_HOST_KEY_CHECKING": "False"},
-        event_handler=lambda event: handle_runner_event(task.id, result_by_inventory, event),
-        cancel_callback=lambda: is_cancel_requested(task.id),
+def run_plain_shell_task(task: BulkExecutionTask, results: list[BulkExecutionResult], config: dict[str, int | bool]):
+    result_ids = [result.id for result in results if result.host_id]
+    missing_results = [result for result in results if not result.host_id]
+    for result in missing_results:
+        mark_result(result, BulkExecutionResult.STATUS_SKIPPED, error="Host no longer exists")
+
+    forks = max(1, min(len(result_ids) or 1, int(config["forks"])))
+    timeout = int(config["timeoutSeconds"])
+    if forks == 1:
+        canceled = False
+        for result_id in result_ids:
+            if is_cancel_requested(task.id):
+                canceled = True
+                mark_plain_shell_result_skipped(task.id, result_id, "Task canceled")
+                continue
+            if run_plain_shell_result(task.id, result_id, task.command, timeout) == "canceled":
+                canceled = True
+        return SimpleNamespace(status="canceled" if canceled else "successful", rc=1 if canceled else 0)
+
+    running = {}
+    pending = list(result_ids)
+    canceled = False
+
+    with ThreadPoolExecutor(max_workers=forks, thread_name_prefix=f"bulk-shell-{task.id}") as executor:
+        while pending or running:
+            while pending and len(running) < forks:
+                if is_cancel_requested(task.id):
+                    canceled = True
+                    mark_pending_plain_shell_results(pending)
+                    pending = []
+                    break
+                result_id = pending.pop(0)
+                future = executor.submit(run_plain_shell_result, task.id, result_id, task.command, timeout)
+                running[future] = result_id
+
+            if not running:
+                break
+
+            done, _ = wait(running, return_when=FIRST_COMPLETED)
+            for future in done:
+                result_id = running.pop(future)
+                try:
+                    if future.result() == "canceled":
+                        canceled = True
+                except Exception as error:
+                    mark_plain_shell_result_failed(task.id, result_id, str(error))
+                if is_cancel_requested(task.id):
+                    canceled = True
+
+    return SimpleNamespace(status="canceled" if canceled else "successful", rc=1 if canceled else 0)
+
+
+def mark_pending_plain_shell_results(result_ids: list[int]) -> None:
+    now = timezone.now()
+    BulkExecutionResult.objects.filter(id__in=result_ids, status=BulkExecutionResult.STATUS_PENDING).update(
+        status=BulkExecutionResult.STATUS_SKIPPED,
+        error="Task canceled",
+        started_at=now,
+        finished_at=now,
     )
+
+
+def run_plain_shell_result(task_id: int, result_id: int, command: str, timeout: int) -> str:
+    close_old_connections()
+    try:
+        if is_cancel_requested(task_id):
+            mark_plain_shell_result_skipped(task_id, result_id, "Task canceled")
+            return "canceled"
+
+        result = BulkExecutionResult.objects.select_related("host").get(id=result_id)
+        if result.host is None:
+            mark_result(result, BulkExecutionResult.STATUS_SKIPPED, error="Host no longer exists")
+            refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
+            return "skipped"
+
+        result.status = BulkExecutionResult.STATUS_RUNNING
+        result.started_at = result.started_at or timezone.now()
+        result.finished_at = None
+        result.stdout = ""
+        result.stderr = ""
+        result.exit_code = None
+        result.error = ""
+        result.output_truncated = False
+        result.save(
+            update_fields=[
+                "status",
+                "started_at",
+                "finished_at",
+                "stdout",
+                "stderr",
+                "exit_code",
+                "error",
+                "output_truncated",
+            ]
+        )
+
+        stdout_text, stderr_text, exit_code = run_plain_ssh_command(result.host, command, timeout)
+        stdout, stdout_truncated = truncate_output(stdout_text)
+        stderr, stderr_truncated = truncate_output(stderr_text)
+        result.status = BulkExecutionResult.STATUS_SUCCESS if exit_code == 0 else BulkExecutionResult.STATUS_FAILED
+        result.stdout = stdout
+        result.stderr = stderr
+        result.exit_code = exit_code
+        result.error = "" if exit_code == 0 else stderr or f"远程命令退出码 {exit_code}"
+        result.output_truncated = stdout_truncated or stderr_truncated
+        result.finished_at = timezone.now()
+        result.save(
+            update_fields=[
+                "status",
+                "stdout",
+                "stderr",
+                "exit_code",
+                "error",
+                "output_truncated",
+                "finished_at",
+            ]
+        )
+        refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
+        return "completed"
+    except Exception as error:
+        mark_plain_shell_result_failed(task_id, result_id, str(error))
+        return "failed"
+    finally:
+        close_old_connections()
+
+
+def run_plain_ssh_command(host: ManagedHost, command: str, timeout: int) -> tuple[str, str, int]:
+    client = open_ssh_client(host)
+    try:
+        stdin, stdout, stderr = client.exec_command(command, timeout=max(1, timeout))
+        stdin.close()
+        stdout_bytes = stdout.read()
+        stderr_bytes = stderr.read()
+        exit_code = stdout.channel.recv_exit_status()
+        return (
+            stdout_bytes.decode("utf-8", errors="replace"),
+            stderr_bytes.decode("utf-8", errors="replace"),
+            int(exit_code),
+        )
+    finally:
+        client.close()
+
+
+def mark_plain_shell_result_skipped(task_id: int, result_id: int, error: str) -> None:
+    result = BulkExecutionResult.objects.get(id=result_id)
+    mark_result(result, BulkExecutionResult.STATUS_SKIPPED, error=error)
+    refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
+
+
+def mark_plain_shell_result_failed(task_id: int, result_id: int, error: str) -> None:
+    result = BulkExecutionResult.objects.get(id=result_id)
+    result.status = BulkExecutionResult.STATUS_FAILED
+    result.error = error
+    result.started_at = result.started_at or timezone.now()
+    result.finished_at = timezone.now()
+    result.save(update_fields=["status", "error", "started_at", "finished_at"])
+    refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
 
 
 def run_playbook(task, result_by_inventory, temp_dir, inventory, config):
@@ -822,31 +950,6 @@ def cleanup_upload_files(task: BulkExecutionTask) -> None:
         pass
 
 
-def polluted_inventory_names(task: BulkExecutionTask) -> list[str]:
-    names: list[str] = []
-    # Query directly instead of task.results.all(): the task was loaded with
-    # prefetch_related("results"), so task.results.all() would return the stale
-    # (pre-run) cache rather than the statuses the event handler just saved.
-    failed = BulkExecutionResult.objects.filter(task_id=task.id, status=BulkExecutionResult.STATUS_FAILED)
-    for result in failed:
-        blob = "\n".join((result.error or "", result.stderr or "", result.stdout or ""))
-        if any(signature in blob for signature in MODULE_POLLUTION_SIGNATURES):
-            names.append(result.inventory_name)
-    return names
-
-
-def retry_polluted_results_with_raw(task, result_by_inventory, temp_dir, inventory, config) -> None:
-    names = polluted_inventory_names(task)
-    all_hosts = inventory["all"]["hosts"]
-    sub_hosts = {name: all_hosts[name] for name in names if name in all_hosts}
-    if not sub_hosts:
-        return
-    sub_inventory = {"all": {"hosts": sub_hosts}}
-    # handle_runner_event overwrites these results (clears the old error on runner_on_start,
-    # records the raw stdout/rc on completion), so the earlier module failure is replaced.
-    run_command_module(task, result_by_inventory, temp_dir, sub_inventory, config, module="ansible.builtin.raw")
-
-
 def run_ansible_shell(**kwargs):
     try:
         import ansible_runner
@@ -1077,55 +1180,6 @@ def append_limited_output(current: str, addition: str) -> tuple[str, bool]:
     if not addition:
         return current, False
     return truncate_output(append_output(current, addition))
-
-
-def handle_runner_event(task_id: int, result_by_inventory: dict[str, BulkExecutionResult], event: dict[str, Any]) -> bool:
-    event_name = str(event.get("event", ""))
-    event_data = event.get("event_data") if isinstance(event.get("event_data"), dict) else {}
-    result = result_by_inventory.get(str(event_data.get("host", "")))
-    if result is None:
-        return True
-
-    if event_name == "runner_on_start":
-        result.status = BulkExecutionResult.STATUS_RUNNING
-        result.started_at = result.started_at or timezone.now()
-        result.finished_at = None
-        result.error = ""
-        result.save(update_fields=["status", "started_at", "finished_at", "error"])
-        return True
-
-    if event_name in {"runner_on_ok", "runner_on_failed", "runner_on_unreachable", "runner_on_skipped"}:
-        res = event_data.get("res") if isinstance(event_data.get("res"), dict) else {}
-        if event_name == "runner_on_ok":
-            status = BulkExecutionResult.STATUS_SUCCESS
-        elif event_name == "runner_on_skipped":
-            status = BulkExecutionResult.STATUS_SKIPPED
-        else:
-            status = BulkExecutionResult.STATUS_FAILED
-        stdout, stdout_truncated = truncate_output(str(res.get("stdout", "") or ""))
-        stderr, stderr_truncated = truncate_output(str(res.get("stderr", "") or ""))
-        result.status = status
-        result.stdout = stdout
-        result.stderr = stderr
-        result.exit_code = safe_int(res.get("rc"))
-        result.output_truncated = stdout_truncated or stderr_truncated
-        result.error = result_error(event_name, res)
-        result.started_at = result.started_at or timezone.now()
-        result.finished_at = timezone.now()
-        result.save(
-            update_fields=[
-                "status",
-                "stdout",
-                "stderr",
-                "exit_code",
-                "output_truncated",
-                "error",
-                "started_at",
-                "finished_at",
-            ]
-        )
-        refresh_task_counts(BulkExecutionTask.objects.get(id=task_id))
-    return True
 
 
 def result_error(event_name: str, result_payload: dict[str, Any]) -> str:

@@ -622,25 +622,19 @@ class BulkExecutionRunnerTests(TestCase):
     def test_runner_events_update_result_output_and_task_counts(self):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "hostname", "name": "hostnames"})
 
-        def fake_run(**kwargs):
-            self.assertEqual(kwargs["module"], "ansible.builtin.shell")
-            self.assertEqual(kwargs["module_args"], "hostname")
-            self.assertEqual(kwargs["host_pattern"], "all")
-            self.assertEqual(kwargs["forks"], 1)
-            self.assertEqual(kwargs["timeout"], 300)
-            self.assertFalse(kwargs["cancel_callback"]())
-            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
-            kwargs["event_handler"](
-                {
-                    "event": "runner_on_ok",
-                    "event_data": {"host": "host_1", "res": {"stdout": "api-01\n", "stderr": "", "rc": 0}},
-                }
-            )
-            return SimpleNamespace(status="successful", rc=0)
+        def fake_run(host, command, timeout):
+            self.assertEqual(host.id, self.host.id)
+            self.assertEqual(command, "hostname")
+            self.assertEqual(timeout, 300)
+            return "api-01\n", "", 0
 
-        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+        with patch("bulk_execution.services.run_plain_ssh_command", side_effect=fake_run) as shell_runner, patch(
+            "bulk_execution.services.run_ansible_shell"
+        ) as ansible_runner:
             run_bulk_execution_task(task.id)
 
+        shell_runner.assert_called_once()
+        ansible_runner.assert_not_called()
         task.refresh_from_db()
         result = task.results.get()
         self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
@@ -884,19 +878,12 @@ class BulkExecutionRunnerTests(TestCase):
     def test_runner_failure_event_marks_task_failed(self):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false", "name": "nonzero failure"})
 
-        def fake_run(**kwargs):
-            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
-            kwargs["event_handler"](
-                {
-                    "event": "runner_on_failed",
-                    "event_data": {"host": "host_1", "res": {"stdout": "", "stderr": "boom", "rc": 1, "msg": "non-zero"}},
-                }
-            )
-            return SimpleNamespace(status="failed", rc=2)
-
-        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+        with patch("bulk_execution.services.run_plain_ssh_command", return_value=("", "boom", 1)), patch(
+            "bulk_execution.services.run_ansible_shell"
+        ) as ansible_runner:
             run_bulk_execution_task(task.id)
 
+        ansible_runner.assert_not_called()
         task.refresh_from_db()
         result = task.results.get()
         self.assertEqual(task.status, BulkExecutionTask.STATUS_FAILED)
@@ -904,9 +891,10 @@ class BulkExecutionRunnerTests(TestCase):
         self.assertEqual(result.status, BulkExecutionResult.STATUS_FAILED)
         self.assertEqual(result.stderr, "boom")
         self.assertEqual(result.exit_code, 1)
-        self.assertEqual(result.error, "non-zero")
+        self.assertEqual(result.error, "boom")
 
-    def test_polluted_host_is_retried_with_raw_module(self):
+    @override_settings(BULK_EXECUTION_FORKS=1)
+    def test_shell_task_runs_each_host_with_plain_ssh_without_ansible(self):
         host2 = ManagedHost.objects.create(
             name="api-02",
             group=self.group,
@@ -918,72 +906,42 @@ class BulkExecutionRunnerTests(TestCase):
             verify_status="verified",
             os="ubuntu",
         )
-        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id, host2.id], "command": "ls", "name": "polluted retry"})
-
+        task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id, host2.id], "command": "ls", "name": "plain shell"})
         calls = []
 
-        def fake_run(**kwargs):
-            module = kwargs["module"]
-            hosts = list(kwargs["inventory"]["all"]["hosts"].keys())
-            calls.append((module, hosts))
-            if module == "ansible.builtin.shell":
-                kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
-                kwargs["event_handler"](
-                    {"event": "runner_on_ok", "event_data": {"host": "host_1", "res": {"stdout": "file-a\n", "stderr": "", "rc": 0}}}
-                )
-                kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_2"}})
-                kwargs["event_handler"](
-                    {
-                        "event": "runner_on_failed",
-                        "event_data": {
-                            "host": "host_2",
-                            "res": {"stdout": "", "stderr": "", "rc": 1, "msg": "MODULE FAILURE\nModule result deserialization failed: No start of json char found"},
-                        },
-                    }
-                )
-                return SimpleNamespace(status="failed", rc=2)
-            # raw fallback should target only the polluted host
-            self.assertEqual(module, "ansible.builtin.raw")
-            self.assertEqual(hosts, ["host_2"])
-            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_2"}})
-            kwargs["event_handler"](
-                {"event": "runner_on_ok", "event_data": {"host": "host_2", "res": {"stdout": "file-b\n", "stderr": "", "rc": 0}}}
-            )
-            return SimpleNamespace(status="successful", rc=0)
+        def fake_run(host, command, timeout):
+            calls.append((host.name, command, timeout))
+            return (f"{host.name}\n", "", 0)
 
-        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+        with patch("bulk_execution.services.run_plain_ssh_command", side_effect=fake_run), patch(
+            "bulk_execution.services.run_ansible_shell"
+        ) as ansible_runner:
             run_bulk_execution_task(task.id)
 
+        ansible_runner.assert_not_called()
         task.refresh_from_db()
-        self.assertEqual([module for module, _ in calls], ["ansible.builtin.shell", "ansible.builtin.raw"])
+        self.assertEqual(sorted(calls), [("api-01", "ls", 300), ("api-02", "ls", 300)])
         self.assertEqual(task.status, BulkExecutionTask.STATUS_COMPLETED)
         self.assertEqual(task.success_count, 2)
         self.assertEqual(task.failed_count, 0)
         clean = task.results.get(inventory_name="host_1")
-        recovered = task.results.get(inventory_name="host_2")
+        second = task.results.get(inventory_name="host_2")
         self.assertEqual(clean.status, BulkExecutionResult.STATUS_SUCCESS)
-        self.assertEqual(clean.stdout, "file-a\n")
-        self.assertEqual(recovered.status, BulkExecutionResult.STATUS_SUCCESS)
-        self.assertEqual(recovered.stdout, "file-b\n")
-        self.assertEqual(recovered.error, "")
+        self.assertEqual(clean.stdout, "api-01\n")
+        self.assertEqual(second.status, BulkExecutionResult.STATUS_SUCCESS)
+        self.assertEqual(second.stdout, "api-02\n")
+        self.assertEqual(second.error, "")
 
-    def test_genuine_command_failure_is_not_retried_with_raw(self):
+    def test_shell_command_failure_is_not_retried_with_ansible_raw(self):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "false", "name": "genuine failure"})
-        modules = []
 
-        def fake_run(**kwargs):
-            modules.append(kwargs["module"])
-            kwargs["event_handler"]({"event": "runner_on_start", "event_data": {"host": "host_1"}})
-            kwargs["event_handler"](
-                {"event": "runner_on_failed", "event_data": {"host": "host_1", "res": {"stdout": "", "stderr": "boom", "rc": 1, "msg": "non-zero return code"}}}
-            )
-            return SimpleNamespace(status="failed", rc=2)
-
-        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+        with patch("bulk_execution.services.run_plain_ssh_command", return_value=("", "boom", 1)) as shell_runner, patch(
+            "bulk_execution.services.run_ansible_shell"
+        ) as ansible_runner:
             run_bulk_execution_task(task.id)
 
-        # A real command failure has no module-pollution signature, so no raw retry happens.
-        self.assertEqual(modules, ["ansible.builtin.shell"])
+        shell_runner.assert_called_once()
+        ansible_runner.assert_not_called()
         task.refresh_from_db()
         self.assertEqual(task.status, BulkExecutionTask.STATUS_FAILED)
         self.assertEqual(task.results.get().status, BulkExecutionResult.STATUS_FAILED)
@@ -995,13 +953,11 @@ class BulkExecutionRunnerTests(TestCase):
         task.started_at = timezone.now()
         task.save(update_fields=["cancel_requested", "status", "started_at"])
 
-        def fake_run(**kwargs):
-            self.assertTrue(kwargs["cancel_callback"]())
-            return SimpleNamespace(status="canceled", rc=254)
-
-        with patch("bulk_execution.services.run_ansible_shell", side_effect=fake_run):
+        with patch("bulk_execution.services.run_plain_ssh_command") as shell_runner, patch("bulk_execution.services.run_ansible_shell") as ansible_runner:
             run_bulk_execution_task(task.id)
 
+        shell_runner.assert_not_called()
+        ansible_runner.assert_not_called()
         task.refresh_from_db()
         result = task.results.get()
         self.assertEqual(task.status, BulkExecutionTask.STATUS_CANCELED)
@@ -1013,10 +969,11 @@ class BulkExecutionRunnerTests(TestCase):
         task = create_bulk_execution_task(self.user, {"targetIds": [self.host.id], "command": "hostname", "name": "missing host"})
         self.host.delete()
 
-        with patch("bulk_execution.services.run_ansible_shell") as runner:
+        with patch("bulk_execution.services.run_plain_ssh_command") as shell_runner, patch("bulk_execution.services.run_ansible_shell") as ansible_runner:
             run_bulk_execution_task(task.id)
 
-        runner.assert_not_called()
+        shell_runner.assert_not_called()
+        ansible_runner.assert_not_called()
         task.refresh_from_db()
         result = task.results.get()
         self.assertEqual(task.status, BulkExecutionTask.STATUS_FAILED)
