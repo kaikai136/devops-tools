@@ -50,6 +50,18 @@ CWD_HOOK_ECHO_FRAGMENTS = tuple(
 
 AUDIT_OUTPUT_FLUSH_CHARS = 65536
 
+ALTERNATE_SCREEN_ENTER_SEQUENCES = (
+    "\x1b[?47h",
+    "\x1b[?1047h",
+    "\x1b[?1049h",
+)
+
+ALTERNATE_SCREEN_EXIT_SEQUENCES = (
+    "\x1b[?47l",
+    "\x1b[?1047l",
+    "\x1b[?1049l",
+)
+
 INTERACTIVE_TERMINAL_COMMANDS = {
     'bash',
     'fish',
@@ -148,6 +160,26 @@ def filter_changed_cwd_paths(paths: list[str], current_path: str) -> tuple[list[
         current_path = path
 
     return changed_paths, current_path
+
+
+def alternate_screen_state_after_output(active: bool, output: str) -> bool:
+    latest_index = -1
+    next_active = active
+    for sequence in ALTERNATE_SCREEN_ENTER_SEQUENCES:
+        index = output.rfind(sequence)
+        if index > latest_index:
+            latest_index = index
+            next_active = True
+    for sequence in ALTERNATE_SCREEN_EXIT_SEQUENCES:
+        index = output.rfind(sequence)
+        if index > latest_index:
+            latest_index = index
+            next_active = False
+    return next_active
+
+
+def output_has_alternate_screen_sequence(output: str) -> bool:
+    return any(sequence in output for sequence in (*ALTERNATE_SCREEN_ENTER_SEQUENCES, *ALTERNATE_SCREEN_EXIT_SEQUENCES))
 
 def strip_cwd_hook_install_echo(output: str) -> str:
     cleaned = output.replace("\x1b[200~", "").replace("\x1b[201~", "")

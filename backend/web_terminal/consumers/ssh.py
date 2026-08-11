@@ -33,9 +33,11 @@ from .protocol import (
     CWD_HOOK_ECHO_OFF,
     CWD_HOOK_ECHO_ON,
     CWD_HOOK_INSTALL_SCRIPT,
+    alternate_screen_state_after_output,
     command_buffer_after_input,
     filter_changed_cwd_paths,
     is_interactive_terminal_command,
+    output_has_alternate_screen_sequence,
     strip_cwd_hook_install_echo,
     strip_cwd_markers_with_pending,
 )
@@ -62,6 +64,7 @@ class TerminalConsumer(WebsocketConsumer):
     recording_lock: threading.Lock
     terminal_settings: dict
     last_activity_monotonic: float
+    alternate_screen_active: bool
 
     def connect(self):
         self.terminal_settings = get_terminal_settings()
@@ -78,6 +81,7 @@ class TerminalConsumer(WebsocketConsumer):
         self.recording_events = []
         self.recording_last_event_at = None
         self.recording_lock = threading.Lock()
+        self.alternate_screen_active = False
         self.accept()
 
         if not self._is_authenticated():
@@ -387,14 +391,14 @@ class TerminalConsumer(WebsocketConsumer):
             return
         try:
             self._append_recording_event("i", data)
+            if self.alternate_screen_active:
+                return
             self.command_buffer, commands = command_buffer_after_input(self.command_buffer, data)
             for command in commands:
                 self._flush_pending_audit_output()
                 self.pending_command_audit = create_command_audit(self.session, command, user=self.scope.get("user"))
                 if is_interactive_terminal_command(command):
-                    self.pending_command_audit = None
-                    self.pending_command_output_chunks = []
-                    self.pending_command_output_size = 0
+                    self._clear_pending_command_audit()
         except Exception:
             self._disable_audit_session("Terminal input audit failed")
 
@@ -403,6 +407,14 @@ class TerminalConsumer(WebsocketConsumer):
             return
         try:
             self._append_recording_event("o", output)
+            next_alternate_screen_active = alternate_screen_state_after_output(self.alternate_screen_active, output)
+            if next_alternate_screen_active != self.alternate_screen_active:
+                self.command_buffer = ""
+            if self.alternate_screen_active or next_alternate_screen_active or output_has_alternate_screen_sequence(output):
+                self.alternate_screen_active = next_alternate_screen_active
+                self._clear_pending_command_audit()
+                return
+            self.alternate_screen_active = next_alternate_screen_active
             if self.pending_command_audit:
                 self.pending_command_output_chunks.append(output)
                 self.pending_command_output_size += len(output)
@@ -449,6 +461,11 @@ class TerminalConsumer(WebsocketConsumer):
         except Exception:
             self._disable_audit_session("Terminal command output audit flush failed")
             return
+        self.pending_command_output_chunks = []
+        self.pending_command_output_size = 0
+
+    def _clear_pending_command_audit(self):
+        self.pending_command_audit = None
         self.pending_command_output_chunks = []
         self.pending_command_output_size = 0
 

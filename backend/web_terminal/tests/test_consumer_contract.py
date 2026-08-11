@@ -10,9 +10,11 @@ from django.test import SimpleTestCase
 from host_management.models import ManagedHost
 from web_terminal.consumers import RdpTerminalConsumer, TerminalConsumer
 from web_terminal.consumers.protocol import (
+    alternate_screen_state_after_output,
     command_buffer_after_input,
     filter_changed_cwd_paths,
     is_interactive_terminal_command,
+    output_has_alternate_screen_sequence,
     split_complete_guacamole_messages,
     strip_cwd_markers_with_pending,
 )
@@ -61,6 +63,12 @@ class ConsumerProtocolTests(SimpleTestCase):
         self.assertTrue(is_interactive_terminal_command("env TERM=xterm vim /tmp/app.conf"))
         self.assertTrue(is_interactive_terminal_command("/usr/bin/less /var/log/messages"))
         self.assertFalse(is_interactive_terminal_command("cat /tmp/app.conf"))
+
+    def test_alternate_screen_detector_tracks_fullscreen_terminal_apps(self):
+        self.assertTrue(alternate_screen_state_after_output(False, "\x1b[?1049h"))
+        self.assertFalse(alternate_screen_state_after_output(True, "\x1b[?1049l"))
+        self.assertFalse(alternate_screen_state_after_output(False, "\x1b[?1049hredraw\x1b[?1049l"))
+        self.assertTrue(output_has_alternate_screen_sequence("\x1b[?1049hredraw\x1b[?1049l"))
 
     def test_guacamole_splitter_preserves_incomplete_instruction(self):
         first = guacamole_instruction("sync", "1")
@@ -256,6 +264,7 @@ class TerminalConsumerContractTests(SimpleTestCase):
     def test_vim_command_does_not_flush_screen_output_to_command_audit(self, create_audit, append_output):
         consumer = self._consumer()
         consumer.session = Mock()
+        consumer.alternate_screen_active = False
         consumer.command_buffer = ""
         consumer.pending_command_audit = None
         consumer.pending_command_output_chunks = []
@@ -271,6 +280,27 @@ class TerminalConsumerContractTests(SimpleTestCase):
         append_output.assert_not_called()
         self.assertIsNone(consumer.pending_command_audit)
         self.assertEqual(consumer.pending_command_output_chunks, [])
+
+    @patch("web_terminal.consumers.ssh.create_command_audit")
+    def test_vim_alternate_screen_input_is_not_treated_as_shell_commands(self, create_audit):
+        consumer = self._consumer()
+        consumer.session = Mock()
+        consumer.alternate_screen_active = False
+        consumer.command_buffer = ""
+        consumer.pending_command_audit = None
+        consumer.pending_command_output_chunks = []
+        consumer.pending_command_output_size = 0
+        consumer._append_recording_event = Mock()
+
+        consumer._record_input("vim /tmp/app.conf\r")
+        consumer._record_output("\x1b[?1049h")
+        consumer._record_input("iinside vim\r")
+        consumer._record_output("\x1b[?1049l")
+        consumer._record_input("echo after\r")
+
+        self.assertEqual(create_audit.call_count, 2)
+        self.assertEqual(create_audit.call_args_list[0].args[1], "vim /tmp/app.conf")
+        self.assertEqual(create_audit.call_args_list[1].args[1], "echo after")
 
 
 class RdpTerminalConsumerContractTests(SimpleTestCase):
