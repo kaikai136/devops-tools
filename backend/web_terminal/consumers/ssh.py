@@ -6,6 +6,7 @@ import threading
 import time
 
 from asgiref.sync import async_to_sync
+from channels.exceptions import ChannelFull
 from channels.generic.websocket import WebsocketConsumer
 from django.utils import timezone
 
@@ -30,14 +31,17 @@ from ..services import (
 )
 from .protocol import (
     AUDIT_OUTPUT_FLUSH_CHARS,
+    CHANNEL_SEND_RETRY_ATTEMPTS,
     CWD_HOOK_ECHO_OFF,
     CWD_HOOK_ECHO_ON,
     CWD_HOOK_INSTALL_SCRIPT,
     alternate_screen_state_after_output,
+    channel_send_retry_delay_seconds,
     command_buffer_after_input,
     filter_changed_cwd_paths,
     is_interactive_terminal_command,
     output_has_alternate_screen_sequence,
+    should_continue_coalescing_output,
     strip_cwd_hook_install_echo,
     strip_cwd_markers_with_pending,
 )
@@ -218,6 +222,7 @@ class TerminalConsumer(WebsocketConsumer):
 
                 output = self.connection.read_raw()
                 if output:
+                    output = self._coalesce_available_output(output)
                     if time.monotonic() < self.suppress_internal_echo_until:
                         output = strip_cwd_hook_install_echo(output)
                     cleaned_output, cwd_paths, self.pending_output = strip_cwd_markers_with_pending(self.pending_output + output)
@@ -245,6 +250,20 @@ class TerminalConsumer(WebsocketConsumer):
                 return
 
             time.sleep(float(self._terminal_setting("readerPollIntervalMs")) / 1000)
+
+    def _coalesce_available_output(self, output: str) -> str:
+        if self.connection is None:
+            return output
+        chunks = [output]
+        size = len(output)
+        started = time.monotonic()
+        while should_continue_coalescing_output(size, (time.monotonic() - started) * 1000):
+            extra = self.connection.read_raw()
+            if not extra:
+                break
+            chunks.append(extra)
+            size += len(extra)
+        return "".join(chunks)
 
     def _close_if_idle(self, *, now: float | None = None) -> bool:
         idle_minutes = int(self._terminal_setting("idleDisconnectMinutes"))
@@ -276,10 +295,23 @@ class TerminalConsumer(WebsocketConsumer):
     def _send_to_consumer(self, event: dict):
         if self.channel_layer is None:
             return
-        try:
-            async_to_sync(self.channel_layer.send)(self.channel_name, event)
-        except Exception:
-            self.stop_reader.set()
+        for attempt in range(CHANNEL_SEND_RETRY_ATTEMPTS):
+            if self.stop_reader.is_set():
+                return
+            try:
+                async_to_sync(self.channel_layer.send)(self.channel_name, event)
+                return
+            except ChannelFull:
+                # 队列被全屏重绘打满属于背压,重试等待前端消费,不能直接终止读取线程。
+                time.sleep(channel_send_retry_delay_seconds(attempt))
+            except Exception:
+                self.stop_reader.set()
+                return
+        logger.warning(
+            "Terminal channel %s stayed full; dropped one %s event.",
+            self.channel_name,
+            event.get("type"),
+        )
 
     def _send_error(self, message: str):
         self.send(text_data=json.dumps({"type": "error", "message": message}, ensure_ascii=False))

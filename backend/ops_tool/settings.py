@@ -253,6 +253,8 @@ REDIS_PORT = config_int("REDIS_PORT", 6379)
 REDIS_PASSWORD = config_value("REDIS_PASSWORD", "")
 REDIS_DB = config_int("REDIS_DB", 5)
 REDIS_KEY_PREFIX = config_value("REDIS_KEY_PREFIX", "opstool")
+# Web 终端跑 vim/top 等全屏程序时输出量很大,默认单通道容量 100 会被打满。
+CHANNEL_LAYER_CAPACITY = config_int("CHANNEL_LAYER_CAPACITY", 2000)
 
 
 def build_redis_url(db: int) -> str:
@@ -283,6 +285,7 @@ if REDIS_ENABLED:
             "CONFIG": {
                 "hosts": [REDIS_URL],
                 "prefix": f"{REDIS_KEY_PREFIX}:asgi",
+                "capacity": CHANNEL_LAYER_CAPACITY,
             },
         }
     }
@@ -296,5 +299,6 @@ else:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer",
+            "CONFIG": {"capacity": CHANNEL_LAYER_CAPACITY},
         }
     }

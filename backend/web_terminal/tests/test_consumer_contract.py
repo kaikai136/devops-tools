@@ -5,16 +5,22 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from channels.exceptions import ChannelFull
 from django.test import SimpleTestCase
 
 from host_management.models import ManagedHost
 from web_terminal.consumers import RdpTerminalConsumer, TerminalConsumer
 from web_terminal.consumers.protocol import (
+    CHANNEL_SEND_RETRY_DELAY_MS,
+    OUTPUT_COALESCE_MAX_CHARS,
+    OUTPUT_COALESCE_WINDOW_MS,
     alternate_screen_state_after_output,
+    channel_send_retry_delay_seconds,
     command_buffer_after_input,
     filter_changed_cwd_paths,
     is_interactive_terminal_command,
     output_has_alternate_screen_sequence,
+    should_continue_coalescing_output,
     split_complete_guacamole_messages,
     strip_cwd_markers_with_pending,
 )
@@ -69,6 +75,15 @@ class ConsumerProtocolTests(SimpleTestCase):
         self.assertFalse(alternate_screen_state_after_output(True, "\x1b[?1049l"))
         self.assertFalse(alternate_screen_state_after_output(False, "\x1b[?1049hredraw\x1b[?1049l"))
         self.assertTrue(output_has_alternate_screen_sequence("\x1b[?1049hredraw\x1b[?1049l"))
+
+    def test_output_coalescing_stops_at_size_and_time_budget(self):
+        self.assertTrue(should_continue_coalescing_output(1024, 1.0))
+        self.assertFalse(should_continue_coalescing_output(OUTPUT_COALESCE_MAX_CHARS, 1.0))
+        self.assertFalse(should_continue_coalescing_output(1024, OUTPUT_COALESCE_WINDOW_MS))
+
+    def test_channel_send_retry_delay_backs_off_per_attempt(self):
+        self.assertLess(channel_send_retry_delay_seconds(0), channel_send_retry_delay_seconds(1))
+        self.assertEqual(channel_send_retry_delay_seconds(0), CHANNEL_SEND_RETRY_DELAY_MS / 1000)
 
     def test_guacamole_splitter_preserves_incomplete_instruction(self):
         first = guacamole_instruction("sync", "1")
@@ -258,6 +273,49 @@ class TerminalConsumerContractTests(SimpleTestCase):
             ],
         )
         consumer.close.assert_called_once_with()
+
+    def test_full_channel_retries_instead_of_killing_the_reader_thread(self):
+        consumer = self._consumer()
+        consumer.stop_reader = threading.Event()
+        consumer.channel_name = "terminal.test"
+        consumer.channel_layer = Mock()
+        sends = [ChannelFull(), ChannelFull(), None]
+
+        def send(channel_name, event):
+            result = sends.pop(0)
+            if isinstance(result, Exception):
+                raise result
+
+        with patch("web_terminal.consumers.ssh.async_to_sync", return_value=send):
+            with patch("web_terminal.consumers.ssh.time.sleep") as sleep:
+                consumer._send_to_consumer({"type": "terminal.output", "data": "redraw"})
+
+        self.assertEqual(sends, [])
+        self.assertEqual(sleep.call_count, 2)
+        self.assertFalse(consumer.stop_reader.is_set())
+
+    def test_unexpected_channel_error_still_stops_the_reader_thread(self):
+        consumer = self._consumer()
+        consumer.stop_reader = threading.Event()
+        consumer.channel_name = "terminal.test"
+        consumer.channel_layer = Mock()
+
+        def send(channel_name, event):
+            raise RuntimeError("channel layer down")
+
+        with patch("web_terminal.consumers.ssh.async_to_sync", return_value=send):
+            consumer._send_to_consumer({"type": "terminal.output", "data": "redraw"})
+
+        self.assertTrue(consumer.stop_reader.is_set())
+
+    def test_reader_coalesces_burst_output_into_one_payload(self):
+        consumer = self._consumer()
+        consumer.connection = Mock()
+        consumer.connection.read_raw.side_effect = ["screen", "redraw", ""]
+
+        merged = consumer._coalesce_available_output("vim ")
+
+        self.assertEqual(merged, "vim screenredraw")
 
     @patch("web_terminal.consumers.ssh.append_audit_output")
     @patch("web_terminal.consumers.ssh.create_command_audit")

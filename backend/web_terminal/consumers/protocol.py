@@ -50,6 +50,16 @@ CWD_HOOK_ECHO_FRAGMENTS = tuple(
 
 AUDIT_OUTPUT_FLUSH_CHARS = 65536
 
+# vim 等全屏程序重绘时 SSH 会把一屏内容拆成很多小片段返回,逐片推送会让
+# channel layer 的单通道队列(默认容量 100)被瞬间打满,因此先在读取线程内合并。
+OUTPUT_COALESCE_MAX_CHARS = 262144
+
+OUTPUT_COALESCE_WINDOW_MS = 20
+
+CHANNEL_SEND_RETRY_ATTEMPTS = 8
+
+CHANNEL_SEND_RETRY_DELAY_MS = 20
+
 ALTERNATE_SCREEN_ENTER_SEQUENCES = (
     "\x1b[?47h",
     "\x1b[?1047h",
@@ -176,6 +186,14 @@ def alternate_screen_state_after_output(active: bool, output: str) -> bool:
             latest_index = index
             next_active = False
     return next_active
+
+
+def should_continue_coalescing_output(size: int, elapsed_ms: float) -> bool:
+    return size < OUTPUT_COALESCE_MAX_CHARS and elapsed_ms < OUTPUT_COALESCE_WINDOW_MS
+
+
+def channel_send_retry_delay_seconds(attempt: int) -> float:
+    return CHANNEL_SEND_RETRY_DELAY_MS * (attempt + 1) / 1000
 
 
 def output_has_alternate_screen_sequence(output: str) -> bool:
