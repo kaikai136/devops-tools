@@ -5,8 +5,6 @@ import logging
 import threading
 import time
 
-from asgiref.sync import async_to_sync
-from channels.exceptions import ChannelFull
 from channels.generic.websocket import WebsocketConsumer
 from django.utils import timezone
 
@@ -31,12 +29,10 @@ from ..services import (
 )
 from .protocol import (
     AUDIT_OUTPUT_FLUSH_CHARS,
-    CHANNEL_SEND_RETRY_ATTEMPTS,
     CWD_HOOK_ECHO_OFF,
     CWD_HOOK_ECHO_ON,
     CWD_HOOK_INSTALL_SCRIPT,
     alternate_screen_state_after_output,
-    channel_send_retry_delay_seconds,
     command_buffer_after_input,
     filter_changed_cwd_paths,
     is_interactive_terminal_command,
@@ -293,25 +289,17 @@ class TerminalConsumer(WebsocketConsumer):
         return DEFAULT_TERMINAL_SETTINGS[key]
 
     def _send_to_consumer(self, event: dict):
-        if self.channel_layer is None:
+        # 直接派发给本实例的处理方法,不绕 channel layer。self.send 底层的 base_send 是在
+        # daphne 事件循环上构造的 async_to_sync,跨线程调用会安全地投递回该循环;而在读取线程里
+        # 现场构造 async_to_sync 会为每条输出新建事件循环和 Redis 连接,vim 整屏重绘时直接压死。
+        handler = getattr(self, event["type"].replace(".", "_"), None)
+        if handler is None:
+            logger.debug("Ignoring terminal event without a handler: %r", event["type"])
             return
-        for attempt in range(CHANNEL_SEND_RETRY_ATTEMPTS):
-            if self.stop_reader.is_set():
-                return
-            try:
-                async_to_sync(self.channel_layer.send)(self.channel_name, event)
-                return
-            except ChannelFull:
-                # 队列被全屏重绘打满属于背压,重试等待前端消费,不能直接终止读取线程。
-                time.sleep(channel_send_retry_delay_seconds(attempt))
-            except Exception:
-                self.stop_reader.set()
-                return
-        logger.warning(
-            "Terminal channel %s stayed full; dropped one %s event.",
-            self.channel_name,
-            event.get("type"),
-        )
+        try:
+            handler(event)
+        except Exception:
+            self.stop_reader.set()
 
     def _send_error(self, message: str):
         self.send(text_data=json.dumps({"type": "error", "message": message}, ensure_ascii=False))

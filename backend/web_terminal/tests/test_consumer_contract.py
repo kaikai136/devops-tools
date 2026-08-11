@@ -5,17 +5,14 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from channels.exceptions import ChannelFull
 from django.test import SimpleTestCase
 
 from host_management.models import ManagedHost
 from web_terminal.consumers import RdpTerminalConsumer, TerminalConsumer
 from web_terminal.consumers.protocol import (
-    CHANNEL_SEND_RETRY_DELAY_MS,
     OUTPUT_COALESCE_MAX_CHARS,
     OUTPUT_COALESCE_WINDOW_MS,
     alternate_screen_state_after_output,
-    channel_send_retry_delay_seconds,
     command_buffer_after_input,
     filter_changed_cwd_paths,
     is_interactive_terminal_command,
@@ -81,10 +78,6 @@ class ConsumerProtocolTests(SimpleTestCase):
         self.assertFalse(should_continue_coalescing_output(OUTPUT_COALESCE_MAX_CHARS, 1.0))
         self.assertFalse(should_continue_coalescing_output(1024, OUTPUT_COALESCE_WINDOW_MS))
 
-    def test_channel_send_retry_delay_backs_off_per_attempt(self):
-        self.assertLess(channel_send_retry_delay_seconds(0), channel_send_retry_delay_seconds(1))
-        self.assertEqual(channel_send_retry_delay_seconds(0), CHANNEL_SEND_RETRY_DELAY_MS / 1000)
-
     def test_guacamole_splitter_preserves_incomplete_instruction(self):
         first = guacamole_instruction("sync", "1")
         second = guacamole_instruction("size", "1280", "720")
@@ -110,6 +103,9 @@ class TerminalConsumerContractTests(SimpleTestCase):
         consumer.send = Mock()
         consumer.close = Mock()
         return consumer
+
+    def _sent_payloads(self, consumer: TerminalConsumer) -> list[str]:
+        return [call.kwargs["text_data"] for call in consumer.send.call_args_list]
 
     def test_connect_accepts_then_rejects_unauthenticated_user(self):
         consumer = self._consumer(authenticated=False)
@@ -274,37 +270,43 @@ class TerminalConsumerContractTests(SimpleTestCase):
         )
         consumer.close.assert_called_once_with()
 
-    def test_full_channel_retries_instead_of_killing_the_reader_thread(self):
+    def test_reader_events_dispatch_locally_without_touching_the_channel_layer(self):
         consumer = self._consumer()
         consumer.stop_reader = threading.Event()
         consumer.channel_name = "terminal.test"
         consumer.channel_layer = Mock()
-        sends = [ChannelFull(), ChannelFull(), None]
 
-        def send(channel_name, event):
-            result = sends.pop(0)
-            if isinstance(result, Exception):
-                raise result
+        consumer._send_to_consumer({"type": "terminal.output", "data": "redraw"})
+        consumer._send_to_consumer({"type": "terminal.cwd", "path": "/srv"})
 
-        with patch("web_terminal.consumers.ssh.async_to_sync", return_value=send):
-            with patch("web_terminal.consumers.ssh.time.sleep") as sleep:
-                consumer._send_to_consumer({"type": "terminal.output", "data": "redraw"})
-
-        self.assertEqual(sends, [])
-        self.assertEqual(sleep.call_count, 2)
+        consumer.channel_layer.send.assert_not_called()
+        self.assertEqual(
+            [json.loads(payload) for payload in self._sent_payloads(consumer)],
+            [
+                {"type": "output", "data": "redraw"},
+                {"type": "cwd", "path": "/srv"},
+            ],
+        )
         self.assertFalse(consumer.stop_reader.is_set())
 
-    def test_unexpected_channel_error_still_stops_the_reader_thread(self):
+    def test_reader_event_without_handler_is_ignored_and_keeps_reader_alive(self):
         consumer = self._consumer()
         consumer.stop_reader = threading.Event()
-        consumer.channel_name = "terminal.test"
         consumer.channel_layer = Mock()
 
-        def send(channel_name, event):
-            raise RuntimeError("channel layer down")
+        consumer._send_to_consumer({"type": "terminal.unknown"})
 
-        with patch("web_terminal.consumers.ssh.async_to_sync", return_value=send):
-            consumer._send_to_consumer({"type": "terminal.output", "data": "redraw"})
+        consumer.channel_layer.send.assert_not_called()
+        self.assertEqual(self._sent_payloads(consumer), [])
+        self.assertFalse(consumer.stop_reader.is_set())
+
+    def test_failed_websocket_send_stops_the_reader_thread(self):
+        consumer = self._consumer()
+        consumer.stop_reader = threading.Event()
+        consumer.channel_layer = Mock()
+        consumer.send = Mock(side_effect=RuntimeError("websocket closed"))
+
+        consumer._send_to_consumer({"type": "terminal.output", "data": "redraw"})
 
         self.assertTrue(consumer.stop_reader.is_set())
 
