@@ -163,9 +163,34 @@ describe('bulk execution frontend contract', () => {
     expect(pickerModal).not.toContain('@click.self');
   });
 
+  it('renders the target picker results as a dense host-style list instead of spaced cards', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+    const pickerListStyles = styles.match(/\.bulk-target-picker-list \{[\s\S]*?\}/)?.[0] ?? '';
+    const pickerRowStyles = styles.match(/\.bulk-target-picker-row \{[\s\S]*?\}/)?.[0] ?? '';
+
+    expect(panel).toContain('bulk-target-picker-row');
+    expect(panel).toContain('toggleAllPickerTargetsFromEvent');
+    expect(pickerListStyles).toContain('gap: 0');
+    expect(pickerListStyles).toContain('border: 1px solid var(--bulk-soft-line)');
+    expect(pickerListStyles).toContain('background: var(--bulk-panel)');
+    expect(pickerListStyles).toContain('overflow-y: auto');
+    expect(pickerRowStyles).toContain('grid-template-columns: 18px minmax(0, 1fr) minmax(92px, 120px) minmax(92px, 116px) minmax(84px, 110px)');
+    expect(pickerRowStyles).toContain('min-height: 36px');
+    expect(pickerRowStyles).toContain('border-bottom: 1px solid var(--bulk-soft-line)');
+    expect(pickerRowStyles).toContain('border-radius: 0');
+    expect(pickerRowStyles).toContain('padding: 0 10px');
+    expect(pickerRowStyles).not.toContain('border: 1px solid #d6dfeb');
+    expect(pickerRowStyles).not.toContain('gap: 4px 8px');
+  });
+
   it('renders selected targets as single-line rows with inline metadata and a dedicated remove action', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const styles = readSource('styles/tools/bulk-execution.css');
+    const selectedTargetListStyles = styles.match(/\.bulk-selected-target-list \{[\s\S]*?\}/)?.[0] ?? '';
+    const selectedTargetRowStyles = styles.match(/\.bulk-selected-target-row \{[\s\S]*?\}/)?.[0] ?? '';
+    const selectedTargetMainStyles = styles.match(/\.bulk-selected-target-main \{[\s\S]*?\}/)?.[0] ?? '';
+    const selectedTargetMetaStyles = styles.match(/\.bulk-selected-target-meta \{[\s\S]*?\}/)?.[0] ?? '';
 
     expect(panel).toContain('bulk-selected-target-main');
     expect(panel).toContain('bulk-selected-target-name');
@@ -175,9 +200,16 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('bulk-selected-target-group');
     expect(panel).toContain('bulk-selected-target-remove');
     expect(panel).toContain('aria-label="移除目标机器"');
-    expect(styles).toContain('grid-template-columns: minmax(0, 1fr) 34px');
-    expect(styles).toContain('.bulk-selected-target-main {\n  display: flex;');
-    expect(styles).toContain('.bulk-selected-target-meta');
+    expect(selectedTargetListStyles).toContain('max-height: 330px');
+    expect(selectedTargetListStyles).toContain('border: 1px solid var(--bulk-soft-line)');
+    expect(selectedTargetListStyles).toContain('overflow-y: auto');
+    expect(selectedTargetListStyles).toContain('gap: 0');
+    expect(selectedTargetRowStyles).toContain('grid-template-columns: minmax(0, 1fr) minmax(92px, 116px) minmax(64px, 84px) minmax(84px, 110px) 34px');
+    expect(selectedTargetRowStyles).toContain('border-bottom: 1px solid var(--bulk-soft-line)');
+    expect(selectedTargetRowStyles).toContain('border-radius: 0');
+    expect(selectedTargetRowStyles).not.toContain('transform: translateY(-1px)');
+    expect(selectedTargetMainStyles).toContain('display: contents');
+    expect(selectedTargetMetaStyles).toContain('display: contents');
     expect(styles).toContain('.bulk-selected-target-remove');
   });
 
@@ -198,8 +230,11 @@ describe('bulk execution frontend contract', () => {
 
   it('keeps history filters aligned in the record toolbar before refresh without the duplicate execute action', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
     const toolbar = panel.match(/<header class="bulk-record-toolbar">[\s\S]*?<\/header>/)?.[0] ?? '';
     const actions = panel.match(/<div class="bulk-record-actions">[\s\S]*?<\/div>/)?.[0] ?? '';
+    const toolbarStyles = styles.match(/\.bulk-record-toolbar \{[\s\S]*?\}/)?.[0] ?? '';
+    const actionsStyles = styles.match(/\.bulk-record-actions \{[\s\S]*?\}/)?.[0] ?? '';
 
     expect(panel).not.toContain('<section class="bulk-execution-filters">');
     expect(actions).toContain('bulk-keyword-filter');
@@ -217,6 +252,63 @@ describe('bulk execution frontend contract', () => {
     expect(toolbar).not.toContain('bulk-status-tabs');
     expect(toolbar).not.toContain('openCreateDialog');
     expect(toolbar).not.toContain('>批量执行</button>');
+    expect(toolbarStyles).toContain('grid-template-columns: minmax(0, 1fr) auto');
+    expect(actionsStyles).toContain('display: flex');
+    expect(actionsStyles).toContain('align-items: center');
+    expect(actionsStyles).toContain('flex-wrap: nowrap');
+    expect(styles).toContain('.bulk-keyword-filter,');
+    expect(styles).toContain('--bulk-control-h: 36px');
+    expect(styles).toContain('box-sizing: border-box');
+    expect(panel).toContain("{ value: '', label: '全部状态' }");
+
+    const filterStyles = styles.match(/\.bulk-keyword-filter,\s*\.bulk-host-filter,\s*\.bulk-status-filter \{[\s\S]*?\}/)?.[0] ?? '';
+    const controlStyles = styles.match(/\.bulk-keyword-filter input,\s*\.bulk-host-filter select,\s*\.bulk-status-filter select \{[\s\S]*?\}/)?.[0] ?? '';
+    const buttonStyles = styles.match(/\.bulk-record-actions button \{[\s\S]*?\}/)?.[0] ?? '';
+
+    for (const block of [filterStyles, controlStyles, buttonStyles]) {
+      expect(block).toContain('height: var(--bulk-control-h)');
+      expect(block).toContain('min-height: var(--bulk-control-h)');
+      expect(block).toContain('margin: 0');
+    }
+    expect(filterStyles).toContain('align-self: center');
+    expect(buttonStyles).toContain('align-self: center');
+  });
+
+  it('selects execution records with host-list style checkboxes and shows a bottom bulk delete bar', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+    const recordTable = panel.match(/<div class="bulk-record-table">[\s\S]*?<\/div>\s*<footer class="bulk-record-footer">/)?.[0] ?? '';
+
+    expect(panel).toContain('const selectedRecordTaskIds = ref<Set<number>>(new Set())');
+    expect(panel).toContain('visibleRecordTaskIds');
+    expect(panel).toContain('allVisibleRecordsSelected');
+    expect(panel).toContain('someVisibleRecordsSelected');
+    expect(panel).toContain('toggleAllVisibleRecordTasks');
+    expect(panel).toContain('toggleRecordTaskSelection');
+    expect(panel).toContain('clearSelectedRecordTasks');
+    expect(panel).toContain('deleteSelectedRecordTasks');
+    expect(recordTable).toContain('bulk-record-select-cell');
+    expect(recordTable).toContain(':checked="allVisibleRecordsSelected"');
+    expect(recordTable).toContain(':indeterminate.prop="someVisibleRecordsSelected && !allVisibleRecordsSelected"');
+    expect(recordTable).toContain('@change="toggleAllVisibleRecordTasks"');
+    expect(recordTable).toContain(':checked="selectedRecordTaskIds.has(task.id)"');
+    expect(recordTable).toContain('@change.stop="toggleRecordTaskSelection(task.id, $event)"');
+    expect(recordTable).not.toContain(':checked="selectedTaskId === task.id"');
+    expect(panel).not.toContain(":class=\"{ 'has-record-selection': selectedRecordTaskIds.size }\"");
+    expect(panel).toContain('host-bulk-action-bar bulk-record-bulk-action-bar');
+    expect(panel).toContain('已选择 {{ selectedRecordTaskIds.size }} 个任务');
+    expect(panel).toContain('@click="clearSelectedRecordTasks"');
+    expect(panel).toContain('@click="deleteSelectedRecordTasks"');
+    expect(panel).toContain('取消所选');
+    expect(panel).toContain('删除所选');
+    expect(styles).toContain('.bulk-record-select-cell');
+    expect(styles).toContain('.bulk-record-bulk-action-bar');
+    expect(styles).not.toContain('.bulk-record-panel.has-record-selection .bulk-record-footer');
+    expect(styles).not.toContain('padding-bottom: 112px');
+    expect(styles).toContain('position: absolute');
+    expect(styles).toContain('bottom: 14px');
+    expect(styles).toContain('transform: translateX(-50%)');
+    expect(styles).not.toContain('pointer-events: none');
   });
 
   it('paginates bulk task history with the shared footer pattern and right-side task statistics', () => {
@@ -316,6 +408,7 @@ describe('bulk execution frontend contract', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const styles = readSource('styles/tools/bulk-execution.css');
     const detailSwitch = panel.match(/<div v-if="selectedTask.executionType === 'file_upload'" class="bulk-upload-detail-switch"[\s\S]*?<\/div>/)?.[0] ?? '';
+    const treeStyles = styles.match(/\.bulk-upload-detail-tree \{[\s\S]*?\}/)?.[0] ?? '';
 
     expect(panel).toContain("type UploadDetailView = 'hosts' | 'files' | 'directory'");
     expect(panel).toContain("const uploadDetailView = ref<UploadDetailView>('hosts')");
@@ -337,7 +430,11 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain("'folderOpen'");
     expect(panel).not.toContain('class="bulk-upload-file-list"');
     expect(styles).toContain('.bulk-upload-detail-switch');
-    expect(styles).toContain('.bulk-upload-detail-tree');
+    expect(treeStyles).toContain('display: block');
+    expect(treeStyles).toContain('flex: 1 1 auto');
+    expect(treeStyles).toContain('min-height: 0');
+    expect(treeStyles).toContain('overflow: auto');
+    expect(treeStyles).not.toContain('max-height: min(340px, 42vh)');
     expect(styles).toContain('.bulk-upload-tree-row');
     expect(styles).toContain('.bulk-upload-tree-toggle');
     expect(styles).toContain('display: flex');
@@ -368,5 +465,23 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('placeholder="请输入任务名称"');
     expect(panel).toContain('required');
     expect(panel).toContain('MAX_SCRIPT_LENGTH = 200000');
+  });
+
+  it('keeps task polling lightweight and shows success and failure counts in the status column', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const loadTasksStart = panel.indexOf('async function loadTasks() {');
+    const selectTaskStart = panel.indexOf('async function selectTask(');
+    const listLoader = loadTasksStart >= 0 && selectTaskStart > loadTasksStart ? panel.slice(loadTasksStart, selectTaskStart) : '';
+    const polling = panel.match(/function startPolling\(\)[\s\S]*?function stopPolling/)?.[0] ?? '';
+    const taskRow = panel.match(/<tr[\s\S]*?v-for="task in taskHistory"[\s\S]*?<\/tr>/)?.[0] ?? '';
+
+    expect(listLoader).not.toContain('await selectTask(');
+    expect(panel).toContain('const pollInFlight = ref(false)');
+    expect(polling).toContain('if (pollInFlight.value) return');
+    expect(polling).toContain('isTaskDetailOpen.value');
+    expect(polling).toContain('5000');
+    expect(panel).toContain('function taskResultSummary(task: BulkExecutionTask)');
+    expect(taskRow).toContain('{{ taskResultSummary(task) }}');
+    expect(taskRow).not.toContain('{{ statusLabel(task.status) }}');
   });
 });

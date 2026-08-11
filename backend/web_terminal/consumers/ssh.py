@@ -35,6 +35,7 @@ from .protocol import (
     CWD_HOOK_INSTALL_SCRIPT,
     command_buffer_after_input,
     filter_changed_cwd_paths,
+    is_interactive_terminal_command,
     strip_cwd_hook_install_echo,
     strip_cwd_markers_with_pending,
 )
@@ -390,6 +391,10 @@ class TerminalConsumer(WebsocketConsumer):
             for command in commands:
                 self._flush_pending_audit_output()
                 self.pending_command_audit = create_command_audit(self.session, command, user=self.scope.get("user"))
+                if is_interactive_terminal_command(command):
+                    self.pending_command_audit = None
+                    self.pending_command_output_chunks = []
+                    self.pending_command_output_size = 0
         except Exception:
             self._disable_audit_session("Terminal input audit failed")
 

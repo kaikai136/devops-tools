@@ -12,6 +12,7 @@ from web_terminal.consumers import RdpTerminalConsumer, TerminalConsumer
 from web_terminal.consumers.protocol import (
     command_buffer_after_input,
     filter_changed_cwd_paths,
+    is_interactive_terminal_command,
     split_complete_guacamole_messages,
     strip_cwd_markers_with_pending,
 )
@@ -52,6 +53,14 @@ class ConsumerProtocolTests(SimpleTestCase):
 
         self.assertEqual(buffer, "")
         self.assertEqual(commands, ["echo ok", "nex!", "^C"])
+
+    def test_interactive_terminal_command_detector_catches_editors_and_pagers(self):
+        self.assertTrue(is_interactive_terminal_command("vim /tmp/app.conf"))
+        self.assertTrue(is_interactive_terminal_command("sudo vim /tmp/app.conf"))
+        self.assertTrue(is_interactive_terminal_command("sudo -E vim /tmp/app.conf"))
+        self.assertTrue(is_interactive_terminal_command("env TERM=xterm vim /tmp/app.conf"))
+        self.assertTrue(is_interactive_terminal_command("/usr/bin/less /var/log/messages"))
+        self.assertFalse(is_interactive_terminal_command("cat /tmp/app.conf"))
 
     def test_guacamole_splitter_preserves_incomplete_instruction(self):
         first = guacamole_instruction("sync", "1")
@@ -241,6 +250,27 @@ class TerminalConsumerContractTests(SimpleTestCase):
             ],
         )
         consumer.close.assert_called_once_with()
+
+    @patch("web_terminal.consumers.ssh.append_audit_output")
+    @patch("web_terminal.consumers.ssh.create_command_audit")
+    def test_vim_command_does_not_flush_screen_output_to_command_audit(self, create_audit, append_output):
+        consumer = self._consumer()
+        consumer.session = Mock()
+        consumer.command_buffer = ""
+        consumer.pending_command_audit = None
+        consumer.pending_command_output_chunks = []
+        consumer.pending_command_output_size = 0
+        consumer._append_recording_event = Mock()
+        audit = Mock()
+        create_audit.return_value = audit
+
+        consumer._record_input("vim /tmp/app.conf\r")
+        consumer._record_output("screen redraw\r\n" * 6000)
+
+        create_audit.assert_called_once()
+        append_output.assert_not_called()
+        self.assertIsNone(consumer.pending_command_audit)
+        self.assertEqual(consumer.pending_command_output_chunks, [])
 
 
 class RdpTerminalConsumerContractTests(SimpleTestCase):

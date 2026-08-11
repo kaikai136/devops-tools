@@ -57,7 +57,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const historyStatusOptions: Array<{ value: BulkExecutionStatus | ''; label: string }> = [
-  { value: '', label: '全部' },
+  { value: '', label: '全部状态' },
   { value: 'queued', label: '未开始' },
   { value: 'running', label: '执行中' },
   { value: 'completed', label: '已完成' },
@@ -96,6 +96,7 @@ const taskPage = ref(1);
 const taskPageSize = ref(10);
 const selectedTask = ref<BulkExecutionTaskDetail | null>(null);
 const selectedTaskId = ref<number | null>(null);
+const selectedRecordTaskIds = ref<Set<number>>(new Set());
 const selectedTargetIds = ref<Set<number>>(new Set());
 const isTargetPickerOpen = ref(false);
 const draftTargetIds = ref<Set<number>>(new Set());
@@ -127,6 +128,7 @@ const remoteDirectory = ref('/tmp/');
 const uploadCheckResult = ref<BulkUploadCheckResult | null>(null);
 const overwriteConfirmed = ref(false);
 let pollTimer: number | null = null;
+const pollInFlight = ref(false);
 let taskRequestId = 0;
 
 const canExecute = computed(() => canUsePageAction('bulkExecution', 'execute'));
@@ -169,6 +171,9 @@ const pageNumbers = computed(() => {
   const to = Math.min(taskTotalPages.value, taskPage.value + 2);
   return Array.from({ length: to - from + 1 }, (_, index) => from + index);
 });
+const visibleRecordTaskIds = computed(() => taskHistory.value.map((task) => task.id));
+const allVisibleRecordsSelected = computed(() => visibleRecordTaskIds.value.length > 0 && visibleRecordTaskIds.value.every((id) => selectedRecordTaskIds.value.has(id)));
+const someVisibleRecordsSelected = computed(() => visibleRecordTaskIds.value.some((id) => selectedRecordTaskIds.value.has(id)));
 const selectedTaskCanCancel = computed(() => Boolean(selectedTask.value && ['queued', 'running'].includes(selectedTask.value.status)));
 const selectedTaskProgress = computed(() => {
   if (!selectedTask.value || selectedTask.value.targetCount <= 0) return 0;
@@ -265,9 +270,11 @@ async function loadTasks() {
       return;
     }
     taskHistory.value = page.results;
+    syncSelectedRecordTasks();
     if (!taskHistory.value.length) {
       selectedTaskId.value = null;
       selectedTask.value = null;
+      selectedRecordTaskIds.value = new Set();
       expandedResultIds.value = new Set();
       resetUploadDetailView();
       return;
@@ -275,7 +282,6 @@ async function loadTasks() {
     if (!selectedTaskId.value || !taskHistory.value.some((task) => task.id === selectedTaskId.value)) {
       selectedTaskId.value = taskHistory.value[0].id;
     }
-    if (selectedTaskId.value) await selectTask(selectedTaskId.value, false, false);
   } catch (error) {
     showToast('任务历史加载失败', errorMessage(error), 'error');
   }
@@ -370,6 +376,7 @@ function setHistoryStatus(status: BulkExecutionStatus | '') {
 
 function applyHistoryFilters() {
   taskPage.value = 1;
+  selectedRecordTaskIds.value = new Set();
   void loadTasks();
 }
 
@@ -377,13 +384,42 @@ function setTaskPage(nextPage: number) {
   const normalized = Math.min(Math.max(1, nextPage), taskTotalPages.value);
   if (taskPage.value === normalized) return;
   taskPage.value = normalized;
+  selectedRecordTaskIds.value = new Set();
   void loadTasks();
 }
 
 function setTaskPageSize(event: Event) {
   taskPageSize.value = Number((event.target as HTMLSelectElement).value);
   taskPage.value = 1;
+  selectedRecordTaskIds.value = new Set();
   void loadTasks();
+}
+
+function syncSelectedRecordTasks() {
+  const visibleIds = new Set(taskHistory.value.map((task) => task.id));
+  selectedRecordTaskIds.value = new Set([...selectedRecordTaskIds.value].filter((id) => visibleIds.has(id)));
+}
+
+function toggleRecordTaskSelection(taskId: number, event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const next = new Set(selectedRecordTaskIds.value);
+  if (checked) next.add(taskId);
+  else next.delete(taskId);
+  selectedRecordTaskIds.value = next;
+}
+
+function toggleAllVisibleRecordTasks(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked;
+  const next = new Set(selectedRecordTaskIds.value);
+  for (const id of visibleRecordTaskIds.value) {
+    if (checked) next.add(id);
+    else next.delete(id);
+  }
+  selectedRecordTaskIds.value = next;
+}
+
+function clearSelectedRecordTasks() {
+  selectedRecordTaskIds.value = new Set();
 }
 
 function openCreateDialog() {
@@ -848,6 +884,33 @@ function deleteSelectedTask() {
   else void run();
 }
 
+function deleteSelectedRecordTasks() {
+  const taskIds = [...selectedRecordTaskIds.value];
+  if (!taskIds.length || !canDelete.value || isControlBusy.value) return;
+  const run = async () => {
+    isControlBusy.value = true;
+    try {
+      await Promise.all(taskIds.map((taskId) => deleteBulkExecutionTask(taskId)));
+      if (selectedTaskId.value && taskIds.includes(selectedTaskId.value)) {
+        selectedTaskId.value = null;
+        selectedTask.value = null;
+        isTaskDetailOpen.value = false;
+        resetUploadDetailView();
+      }
+      selectedRecordTaskIds.value = new Set();
+      await loadTasks();
+      showToast('任务已删除', `已删除 ${taskIds.length} 个批量执行任务。`, 'success');
+    } catch (error) {
+      showToast('批量删除失败', errorMessage(error), 'error');
+    } finally {
+      isControlBusy.value = false;
+    }
+  };
+  const message = `将删除选中的 ${taskIds.length} 个批量执行任务，同时移除每台主机的执行结果。`;
+  if (requestConfirm) requestConfirm('删除所选执行记录', message, '删除所选', run);
+  else void run();
+}
+
 function toggleResult(resultId: number) {
   const next = new Set(expandedResultIds.value);
   if (next.has(resultId)) next.delete(resultId);
@@ -905,9 +968,16 @@ function startPolling() {
   stopPolling();
   pollTimer = window.setInterval(async () => {
     if (!hasRunningTask.value) return;
-    await loadTasks();
-    if (selectedTaskId.value) await selectTask(selectedTaskId.value, false, false);
-  }, 3000);
+    if (pollInFlight.value) return;
+    const taskToRefresh = isTaskDetailOpen.value && isTaskRunning(selectedTask.value) && selectedTaskId.value ? selectedTaskId.value : null;
+    pollInFlight.value = true;
+    try {
+      await loadTasks();
+      if (taskToRefresh && isTaskDetailOpen.value) await selectTask(taskToRefresh, false, false);
+    } finally {
+      pollInFlight.value = false;
+    }
+  }, 5000);
 }
 
 function stopPolling() {
@@ -919,6 +989,10 @@ function stopPolling() {
 
 function statusLabel(status: BulkExecutionStatus | BulkExecutionResultStatus) {
   return statusLabels[status] ?? status;
+}
+
+function isTaskRunning(task: Pick<BulkExecutionTask, 'status'> | BulkExecutionTaskDetail | null | undefined) {
+  return task?.status === 'queued' || task?.status === 'running';
 }
 
 function transferProgress(transfers: BulkTransferItem[]) {
@@ -954,6 +1028,10 @@ function taskExitSummary(task: BulkExecutionTask) {
   if (task.failedCount > 0) return `失败 ${task.failedCount}`;
   if (task.skippedCount > 0) return `跳过 ${task.skippedCount}`;
   return '-';
+}
+
+function taskResultSummary(task: BulkExecutionTask) {
+  return `成功 ${task.successCount ?? 0} / 失败 ${task.failedCount ?? 0}`;
 }
 
 function formatFileSize(value: number) {
@@ -1021,7 +1099,17 @@ function formatFileSize(value: number) {
               </colgroup>
               <thead>
                 <tr>
-                  <th scope="col"><span class="bulk-sr-only">选择</span></th>
+                  <th scope="col" class="is-center">
+                    <label class="bulk-record-select-cell" aria-label="选择当前页执行记录">
+                      <input
+                        type="checkbox"
+                        :checked="allVisibleRecordsSelected"
+                        :disabled="!visibleRecordTaskIds.length"
+                        :indeterminate.prop="someVisibleRecordsSelected && !allVisibleRecordsSelected"
+                        @change="toggleAllVisibleRecordTasks"
+                      />
+                    </label>
+                  </th>
                   <th scope="col">执行机器</th>
                   <th scope="col">执行命令</th>
                   <th scope="col" class="is-center">状态</th>
@@ -1041,13 +1129,15 @@ function formatFileSize(value: number) {
                   :class="{ active: selectedTaskId === task.id }"
                   @click="selectTask(task.id, true, false)"
                 >
-                  <td class="is-center">
-                    <input type="checkbox" :checked="selectedTaskId === task.id" tabindex="-1" readonly />
+                  <td class="is-center" @click.stop>
+                    <label class="bulk-record-select-cell" :aria-label="`选择任务 ${task.name}`">
+                      <input type="checkbox" :checked="selectedRecordTaskIds.has(task.id)" @change.stop="toggleRecordTaskSelection(task.id, $event)" />
+                    </label>
                   </td>
                   <td class="cell-host" :title="taskHostSummary(task)">{{ taskHostSummary(task) }}</td>
                   <td class="cell-command" :title="task.command">{{ task.command }}</td>
-                  <td class="is-center">
-                    <span class="bulk-status" :class="`status-${task.status}`">{{ statusLabel(task.status) }}</span>
+                  <td class="is-center cell-status-summary" :title="taskResultSummary(task)">
+                    {{ taskResultSummary(task) }}
                   </td>
                   <td class="is-center">{{ taskExitSummary(task) }}</td>
                   <td class="is-center">{{ formatDuration(task) }}</td>
@@ -1097,6 +1187,22 @@ function formatFileSize(value: number) {
               <div class="bulk-record-stats">{{ taskTotal }} 个任务 · {{ targets.length }} 台可执行主机</div>
             </div>
           </footer>
+          <div v-if="selectedRecordTaskIds.size" class="host-bulk-action-bar bulk-record-bulk-action-bar" @click.stop>
+            <div class="host-bulk-action-info">
+              <span class="host-bulk-action-icon"><AppIcon name="info" :size="16" /></span>
+              <div class="host-bulk-action-copy">
+                <strong>批量操作</strong>
+                <span class="host-bulk-action-count">已选择 {{ selectedRecordTaskIds.size }} 个任务</span>
+              </div>
+            </div>
+            <div class="host-bulk-action-buttons">
+              <button class="host-bulk-button host-bulk-button-cancel" type="button" :disabled="isControlBusy" @click="clearSelectedRecordTasks">取消所选</button>
+              <button v-if="canDelete" class="host-bulk-button host-bulk-button-delete" type="button" :disabled="isControlBusy" @click="deleteSelectedRecordTasks">
+                <AppIcon name="trash" :size="14" />
+                删除所选
+              </button>
+            </div>
+          </div>
         </section>
 
       </section>
@@ -1322,18 +1428,25 @@ function formatFileSize(value: number) {
             </aside>
             <section class="bulk-target-picker-list-panel">
               <header>
-                <label>
-                  <input type="checkbox" :checked="allPickerTargetsSelected" :disabled="!pickerTargets.length" @change="toggleAllPickerTargetsFromEvent" />
-                  全选当前列表
-                </label>
                 <input v-model="targetPickerKeyword" type="search" placeholder="搜索主机 / IP / 分组" />
                 <span>已选 {{ draftSelectedTargets.length }} / {{ targets.length }}</span>
               </header>
               <div class="bulk-target-picker-list">
+                <div class="bulk-target-picker-row head">
+                  <label class="bulk-target-picker-check" aria-label="全选当前列表">
+                    <input type="checkbox" :checked="allPickerTargetsSelected" :disabled="!pickerTargets.length" @change="toggleAllPickerTargetsFromEvent" />
+                  </label>
+                  <span>主机</span>
+                  <span>IP地址</span>
+                  <span>用户</span>
+                  <span>分组</span>
+                </div>
                 <label v-for="target in pickerTargets" :key="target.id" class="bulk-target-picker-row">
                   <input type="checkbox" :checked="draftTargetIds.has(target.id)" @change="toggleDraftTargetFromEvent(target.id, $event)" />
-                  <strong>{{ target.name }}</strong>
-                  <span>{{ target.privateIp }} · {{ target.loginUser }} · {{ target.groupName || '-' }}</span>
+                  <strong :title="target.name">{{ target.name }}</strong>
+                  <span :title="target.privateIp || '-'">{{ target.privateIp || '-' }}</span>
+                  <span :title="target.loginUser || '-'">{{ target.loginUser || '-' }}</span>
+                  <span :title="target.groupName || '-'">{{ target.groupName || '-' }}</span>
                 </label>
                 <div v-if="!pickerTargets.length" class="bulk-empty">{{ isTargetsLoading ? '加载中...' : '暂无匹配的可执行 Linux SSH 主机' }}</div>
               </div>

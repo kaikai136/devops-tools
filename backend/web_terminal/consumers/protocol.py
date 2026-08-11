@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+import shlex
+
 from ..services import find_guacamole_instruction_end
 
 
@@ -47,6 +49,66 @@ CWD_HOOK_ECHO_FRAGMENTS = tuple(
 )
 
 AUDIT_OUTPUT_FLUSH_CHARS = 65536
+
+INTERACTIVE_TERMINAL_COMMANDS = {
+    'bash',
+    'fish',
+    'fzf',
+    'htop',
+    'less',
+    'man',
+    'mc',
+    'more',
+    'most',
+    'mysql',
+    'nano',
+    'nvim',
+    'nvimdiff',
+    'psql',
+    'ranger',
+    'sh',
+    'sqlite3',
+    'ssh',
+    'sudoedit',
+    'telnet',
+    'top',
+    'view',
+    'vigr',
+    'vipw',
+    'vi',
+    'vim',
+    'vimdiff',
+    'vimtutor',
+    'visudo',
+    'watch',
+    'zsh',
+}
+
+COMMAND_WRAPPER_PREFIXES = {'env', 'nice', 'nohup', 'setsid', 'sudo', 'timeout'}
+ENV_OPTIONS_WITH_ARGUMENT = {'-S', '--split-string', '-u', '--unset'}
+NICE_OPTIONS_WITH_ARGUMENT = {'-n', '--adjustment'}
+SUDO_OPTIONS_WITH_ARGUMENT = {
+    '-C',
+    '--chdir',
+    '--chroot',
+    '--close-from',
+    '-D',
+    '-g',
+    '--group',
+    '-h',
+    '--host',
+    '-p',
+    '--prompt',
+    '-R',
+    '-r',
+    '--role',
+    '-T',
+    '-t',
+    '--type',
+    '-u',
+    '--user',
+}
+TIMEOUT_OPTIONS_WITH_ARGUMENT = {'-k', '--kill-after', '-s', '--signal'}
 
 def strip_cwd_markers(output: str) -> tuple[str, list[str]]:
     cleaned, paths, pending = strip_cwd_markers_with_pending(output)
@@ -124,6 +186,78 @@ def command_buffer_after_input(buffer: str, data: str) -> tuple[str, list[str]]:
         if char >= " ":
             buffer += char
     return buffer, commands
+
+
+def is_interactive_terminal_command(command: str) -> bool:
+    normalized = command.strip()
+    if not normalized:
+        return False
+
+    try:
+        tokens = shlex.split(normalized, posix=True)
+    except ValueError:
+        tokens = normalized.split()
+
+    if not tokens:
+        return False
+
+    index = 0
+    while index < len(tokens):
+        head = tokens[index].rsplit('/', 1)[-1].lower()
+        if head not in COMMAND_WRAPPER_PREFIXES:
+            break
+
+        index += 1
+        index = skip_command_wrapper_arguments(tokens, index, head)
+
+    if index >= len(tokens):
+        return False
+
+    command_name = tokens[index].rsplit('/', 1)[-1].lower()
+    return command_name in INTERACTIVE_TERMINAL_COMMANDS
+
+
+def skip_command_wrapper_arguments(tokens: list[str], index: int, wrapper: str) -> int:
+    if wrapper == 'env':
+        while index < len(tokens):
+            token = tokens[index]
+            if token.startswith('-'):
+                index = skip_option(tokens, index, ENV_OPTIONS_WITH_ARGUMENT)
+                continue
+            if '=' in token and token.split('=', 1)[0]:
+                index += 1
+                continue
+            break
+        return index
+
+    if wrapper == 'nice':
+        return skip_options(tokens, index, NICE_OPTIONS_WITH_ARGUMENT)
+
+    if wrapper == 'sudo':
+        return skip_options(tokens, index, SUDO_OPTIONS_WITH_ARGUMENT)
+
+    if wrapper == 'timeout':
+        index = skip_options(tokens, index, TIMEOUT_OPTIONS_WITH_ARGUMENT)
+        if index < len(tokens) and not tokens[index].startswith('-'):
+            index += 1
+        return index
+
+    return skip_options(tokens, index, set())
+
+
+def skip_options(tokens: list[str], index: int, options_with_argument: set[str]) -> int:
+    while index < len(tokens) and tokens[index].startswith('-'):
+        index = skip_option(tokens, index, options_with_argument)
+    return index
+
+
+def skip_option(tokens: list[str], index: int, options_with_argument: set[str]) -> int:
+    token = tokens[index]
+    option_name = token.split('=', 1)[0]
+    index += 1
+    if option_name in options_with_argument and '=' not in token and index < len(tokens):
+        index += 1
+    return index
 
 
 def split_complete_guacamole_messages(data: str) -> tuple[list[str], str]:
