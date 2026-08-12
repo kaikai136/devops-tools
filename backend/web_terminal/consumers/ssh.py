@@ -280,7 +280,6 @@ class TerminalConsumer(WebsocketConsumer):
             return now + heartbeat_seconds
         if now < next_due:
             return next_due
-        self._send_to_consumer({"type": "terminal.pong"})
         return now + heartbeat_seconds
 
     def _terminal_setting(self, key: str):

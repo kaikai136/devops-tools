@@ -232,14 +232,14 @@ class TerminalConsumerContractTests(SimpleTestCase):
 
         consumer._send_to_consumer.assert_not_called()
 
-    def test_server_heartbeat_sends_pong_when_due(self):
+    def test_server_heartbeat_scheduler_does_not_emit_reader_thread_messages(self):
         consumer = self._consumer()
         consumer.terminal_settings = {"webSocketHeartbeatSeconds": 3}
         consumer._send_to_consumer = Mock()
 
         next_due = consumer._send_websocket_heartbeat_if_due(now=10.0, next_due=9.0)
 
-        consumer._send_to_consumer.assert_called_once_with({"type": "terminal.pong"})
+        consumer._send_to_consumer.assert_not_called()
         self.assertEqual(next_due, 13.0)
 
     def test_server_heartbeat_is_disabled_when_seconds_is_zero(self):
