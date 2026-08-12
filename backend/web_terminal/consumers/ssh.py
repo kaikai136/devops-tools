@@ -291,7 +291,7 @@ class TerminalConsumer(WebsocketConsumer):
     def _send_to_consumer(self, event: dict):
         # 直接派发给本实例的处理方法,不绕 channel layer。self.send 底层的 base_send 是在
         # daphne 事件循环上构造的 async_to_sync,跨线程调用会安全地投递回该循环;而在读取线程里
-        # 现场构造 async_to_sync 会为每条输出新建事件循环和 Redis 连接,vim 整屏重绘时直接压死。
+        # 现场构造 async_to_sync 会为每条输出新建事件循环和通道后端连接,vim 整屏重绘时直接压死。
         handler = getattr(self, event["type"].replace(".", "_"), None)
         if handler is None:
             logger.debug("Ignoring terminal event without a handler: %r", event["type"])
@@ -350,7 +350,7 @@ class TerminalConsumer(WebsocketConsumer):
             return bool(session.exists(session_key))
         except Exception:
             # 会话存储读取失败不等于用户已登出。connect() 已经校验过身份,登出/过期会让 exists()
-            # 正常返回 False,所以这里把异常按"暂时查不到"处理并保持连接;否则 Redis 或数据库
+            # 正常返回 False,所以这里把异常按"暂时查不到"处理并保持连接;否则会话存储或数据库
             # 抖动一次,就会把正在使用的终端断成"请先登录"。
             logger.exception("Terminal session lookup failed; keeping the existing terminal session open.")
             return True

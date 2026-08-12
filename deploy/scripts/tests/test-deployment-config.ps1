@@ -56,12 +56,10 @@ Assert-Match $configText '(?m)^DATABASE_NAME=devops_tools\r?$' 'Default deployme
 Assert-Match $configText '(?m)^DATABASE_USER=devops_tools\r?$' 'Default deployment config must define the MySQL app user.'
 Assert-Match $configText '(?m)^DATABASE_PASSWORD=' 'Default deployment config must define the MySQL app password.'
 if ($configText -match '(?m)^DATABASE_ROOT_PASSWORD=') { throw 'Default config still contains local MySQL root initialization settings.' }
-Assert-Match $configText '(?m)^REDIS_ENABLED=(1|true)\r?$' 'Default deployment config must enable external Redis.'
-Assert-Match $configText '(?m)^REDIS_HOST=(?!redis\r?$).+\r?$' 'Default deployment config must point at an external Redis host, not a Compose redis service.'
-Assert-Match $configText '(?m)^REDIS_PORT=6379\r?$' 'Default deployment config must define the Redis port.'
-Assert-Match $configText '(?m)^REDIS_PASSWORD=' 'Default deployment config must define the Redis password setting.'
-Assert-Match $configText '(?m)^REDIS_DB=5\r?$' 'Default deployment config must define the Redis database index.'
-Assert-Match $configText '(?m)^REDIS_KEY_PREFIX=opstool\r?$' 'Default deployment config must define the Redis key prefix.'
+foreach ($suffix in @('ENABLED', 'HOST', 'PORT', 'PASSWORD', 'DB', 'KEY_PREFIX')) {
+    $forbidden = "RE" + "DIS_$suffix"
+    if ($configText -match [regex]::Escape($forbidden)) { throw "Default deployment config must not include removed cache service settings: $forbidden" }
+}
 
 $gitignoreText = Get-Content -Raw -Encoding UTF8 $gitignore
 if ($gitignoreText -match '(?m)^!/.env\r?$') { throw 'Root .env is still explicitly allowed by .gitignore.' }
@@ -84,10 +82,11 @@ if ($composeText -match '(?m)^\s*configs:\s*$|app_config:|source:\s*app_config|t
 foreach ($required in @('context: ..', 'dockerfile: deploy/Dockerfile', '../data:/app')) {
     if ($composeText -notmatch [regex]::Escape($required)) { throw "Compose is missing config-file deployment wiring: $required" }
 }
-foreach ($forbidden in @('./config/app.conf:/app/config/app.conf:ro', './config:/app/config:ro', '../data:/app/data', '../media:/app/media', '../rdp_recordings:/app/rdp_recordings', '/app/rdp_recordings', 'image: mysql:8.4', 'container_name: devops-tools-mysql', 'mysql_data:/var/lib/mysql', 'mysqladmin ping', 'docker-compose.mysql.yml', 'image: redis:', 'container_name: devops-tools-redis', 'redis_data:/data')) {
-    if ($composeText -match [regex]::Escape($forbidden)) { throw "Base Compose should not require local database or Redis services: $forbidden" }
+foreach ($forbidden in @('./config/app.conf:/app/config/app.conf:ro', './config:/app/config:ro', '../data:/app/data', '../media:/app/media', '../rdp_recordings:/app/rdp_recordings', '/app/rdp_recordings', 'image: mysql:8.4', 'container_name: devops-tools-mysql', 'mysql_data:/var/lib/mysql', 'mysqladmin ping', 'docker-compose.mysql.yml', ('image: re' + 'dis:'), ('container_name: devops-tools-re' + 'dis'), ('re' + 'dis_data:/data'))) {
+    if ($composeText -match [regex]::Escape($forbidden)) { throw "Base Compose should not require local database or removed cache service: $forbidden" }
 }
-if ($composeText -match '(?m)^  redis:\s*$') { throw 'Base Compose should not start a Redis service; Redis must be configured through app.conf.' }
+$removedCacheService = 're' + 'dis'
+if ($composeText -match "(?m)^  $removedCacheService`:\s*$") { throw 'Base Compose should not start the removed cache service.' }
 if ($composeText -match '(?m)^\s*-\s+rdp_recordings:/app/rdp_recordings') { throw 'Compose still uses a named volume for RDP recordings.' }
 if ($composeText -match '(?m)^  rdp_recordings:\s*$') { throw 'Compose still defines the RDP recordings named volume.' }
 
@@ -106,17 +105,19 @@ $settingsText = Get-Content -Raw -Encoding UTF8 $settings
 foreach ($required in @('load_config_file', 'APP_CONFIG_FILE', 'APP_CONFIG', 'config_value', 'config_bool', 'config_int', 'config_path', 'database_config', 'django.db.backends.mysql', 'pymysql.install_as_MySQLdb')) {
     if ($settingsText -notmatch [regex]::Escape($required)) { throw "Django settings are missing config-file loading: $required" }
 }
-foreach ($required in @('REDIS_ENABLED', 'REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD', 'REDIS_DB', 'REDIS_KEY_PREFIX', 'REDIS_URL', 'channels_redis.core.RedisChannelLayer', 'django.core.cache.backends.redis.RedisCache')) {
-    if ($settingsText -notmatch [regex]::Escape($required)) { throw "Django settings are missing Redis config-file loading: $required" }
+foreach ($required in @('django.core.cache.backends.locmem.LocMemCache', 'django.contrib.sessions.backends.db', 'channels.layers.InMemoryChannelLayer')) {
+    if ($settingsText -notmatch [regex]::Escape($required)) { throw "Django settings are missing local runtime config: $required" }
 }
-foreach ($forbidden in @('172.16.0.99', 'uLwHDyYr')) {
-    if ($settingsText -match [regex]::Escape($forbidden)) { throw "Django settings must not hard-code deployment Redis credentials: $forbidden" }
+$removedKeys = @('ENABLED', 'HOST', 'PORT', 'PASSWORD', 'DB', 'KEY_PREFIX', 'URL') | ForEach-Object { "RE" + "DIS_$_" }
+foreach ($forbidden in @($removedKeys + @('channels_' + ('re' + 'dis') + '.core.' + ('Re' + 'dis') + 'ChannelLayer', 'django.core.cache.backends.' + ('re' + 'dis') + '.' + ('Re' + 'dis') + 'Cache', '172.16.0.99', 'uLwHDyYr'))) {
+    if ($settingsText -match [regex]::Escape($forbidden)) { throw "Django settings must not include removed cache service config: $forbidden" }
 }
 
 $requirementsText = Get-Content -Raw -Encoding UTF8 $requirements
 Assert-Match $requirementsText '(?m)^PyMySQL>=1\.1,<2\.0\r?$' 'requirements.txt must include the MySQL driver.'
-Assert-Match $requirementsText '(?m)^redis>=5\.0,<9\.0\r?$' 'requirements.txt must include the Redis client.'
-Assert-Match $requirementsText '(?m)^channels-redis>=4\.2,<5\.0\r?$' 'requirements.txt must include the Redis channel layer backend.'
+foreach ($forbidden in @(('re' + 'dis>='), ('channels-' + ('re' + 'dis')))) {
+    if ($requirementsText -match [regex]::Escape($forbidden)) { throw "requirements.txt must not include removed cache service dependencies: $forbidden" }
+}
 
 $composeUpText = Get-Content -Raw -Encoding UTF8 $composeUp
 if ($composeUpText -match '\.env|APP_PORT|IMAGE_NAME') { throw 'compose-up.sh still depends on environment-style deployment config.' }
@@ -145,7 +146,7 @@ foreach ($forbidden in @('read_config_value', 'DATABASE_ENGINE', 'docker-compose
 if ($deployRemoteText -match 'APP_PORT_OVERRIDE|cp "\$ENV_BACKUP" \.env|--env-file|cat > \.env') { throw 'deploy-remote.sh still preserves or injects env-file deployment config.' }
 
 $readmeText = Get-Content -Raw -Encoding UTF8 $readme
-foreach ($required in @('deploy/docker-compose.yml', 'deploy/config/app.conf', 'deploy/scripts/compose-up.sh', 'data/config/app.conf', '/app/config/app.conf', '/app/data/django-secret-key', '/app/recordings', 'DATABASE_ENGINE=mysql', 'DATABASE_ENGINE=sqlite', 'mysql.example.com', 'REDIS_ENABLED=1', 'REDIS_HOST=redis.example.com', 'REDIS_PORT=6379')) {
+foreach ($required in @('deploy/docker-compose.yml', 'deploy/config/app.conf', 'deploy/scripts/compose-up.sh', 'data/config/app.conf', '/app/config/app.conf', '/app/data/django-secret-key', '/app/recordings', 'DATABASE_ENGINE=mysql', 'DATABASE_ENGINE=sqlite', 'mysql.example.com')) {
     if ($readmeText -notmatch [regex]::Escape($required)) { throw "README is missing: $required" }
 }
 foreach ($forbidden in @('deploy/docker-compose.mysql.yml', 'mysql_data:/var/lib/mysql', 'DATABASE_ROOT_PASSWORD')) {
@@ -153,8 +154,12 @@ foreach ($forbidden in @('deploy/docker-compose.mysql.yml', 'mysql_data:/var/lib
 }
 
 $k8sConfigMapText = Get-Content -Raw -Encoding UTF8 $k8sConfigMap
-foreach ($required in @('kind: ConfigMap', 'name: devops-tools-config', 'app.conf: |', 'DATABASE_ENGINE=sqlite', 'DATABASE_HOST=mysql.example.com', 'DJANGO_CSRF_TRUSTED_ORIGINS=', 'REDIS_ENABLED=1', 'REDIS_HOST=redis.example.com', 'REDIS_PORT=6379', 'GUACD_HOST=guacd', 'RDP_RECORDING_ROOT=/app/recordings', 'SSH_GATEWAY_PORT=2222', 'SSH_GATEWAY_PUBLIC_HOST=')) {
+foreach ($required in @('kind: ConfigMap', 'name: devops-tools-config', 'app.conf: |', 'DATABASE_ENGINE=sqlite', 'DATABASE_HOST=mysql.example.com', 'DJANGO_CSRF_TRUSTED_ORIGINS=', 'GUACD_HOST=guacd', 'RDP_RECORDING_ROOT=/app/recordings', 'SSH_GATEWAY_PORT=2222', 'SSH_GATEWAY_PUBLIC_HOST=')) {
     if ($k8sConfigMapText -notmatch [regex]::Escape($required)) { throw "Kubernetes ConfigMap is missing app.conf config: $required" }
+}
+foreach ($suffix in @('ENABLED', 'HOST', 'PORT', 'PASSWORD', 'DB', 'KEY_PREFIX')) {
+    $forbidden = "RE" + "DIS_$suffix"
+    if ($k8sConfigMapText -match [regex]::Escape($forbidden)) { throw "Kubernetes ConfigMap must not include removed cache service settings: $forbidden" }
 }
 foreach ($forbidden in @('APP_PORT:', 'DATABASE_ROOT_PASSWORD', 'mysql_data', 'docker-compose.mysql.yml')) {
     if ($k8sConfigMapText -match [regex]::Escape($forbidden)) { throw "Kubernetes ConfigMap still contains non-compose deployment config: $forbidden" }

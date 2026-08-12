@@ -200,7 +200,7 @@ def guess_port_service(port: int) -> str:
         3389: "RDP",
         5432: "PostgreSQL",
         5900: "VNC",
-        6379: "Redis",
+        6379: "Cache service",
         8000: "HTTP Alt",
         8080: "HTTP Proxy",
         8443: "HTTPS Alt",

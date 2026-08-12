@@ -91,12 +91,10 @@ django-vue/
 
 ### 本地配置文件
 
-本地手动启动统一读取 `config/local.app.conf`。这个文件会被后端 `backend/start-wsl.ps1` 和前端 `frontend/vite.config.ts` 共同使用，用来配置本地端口、数据库、Redis、媒体目录、RDP、SSH 网关、批量执行和缓存参数。
 
 常用本地启动项：
 
 ```conf
-# Redis/cache   mysql   端口
 ```
 
 本地配置只放安全默认值。生产和 Docker Compose 部署不要改这个文件，部署环境继续使用 `data/config/app.conf`。
@@ -179,7 +177,6 @@ docker build -f deploy/Dockerfile -t devops-tools:latest .
 bash deploy/scripts/build-image.sh devops-tools:latest
 ```
 
-Compose 启动时，`deploy/scripts/compose-up.sh` 会在首次运行时把 `deploy/config/app.conf` 复制为 `data/config/app.conf`。之后请编辑 `data/config/app.conf`，不要把生产数据库、Redis、Django 密钥等私有配置写入镜像或提交到仓库。
 
 ### 拉取后配置并启动
 
@@ -192,7 +189,6 @@ vim data/config/app.conf
 bash deploy/scripts/compose-up.sh
 ```
 
-`data/config/app.conf` 中的 `DATABASE_ENGINE` 决定应用使用远程 MySQL 还是 SQLite。Redis 连接也由 `REDIS_*` 配置项指定。Compose 只启动 app、ssh-gateway 和 guacd，不部署本地 MySQL 或 Redis。
 
 如果手动执行 Docker Compose，MySQL 和 SQLite 模式都使用同一个基础 Compose 文件：
 
@@ -201,7 +197,6 @@ docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml ps
 ```
 
-使用远程 MySQL 时，将 `DATABASE_ENGINE=mysql`，并把 `DATABASE_HOST`、`DATABASE_PORT`、`DATABASE_NAME`、`DATABASE_USER`、`DATABASE_PASSWORD` 改成远程 MySQL 的真实连接信息。使用 SQLite 时，将 `DATABASE_ENGINE=sqlite`，并按需调整 `DJANGO_DB_PATH`。部署环境保持 `REDIS_ENABLED=1`，并把 `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_DB` 改成外部 Redis 的真实连接信息。
 
 部署完成后访问：
 
@@ -243,12 +238,6 @@ DATABASE_NAME=devops_tools
 DATABASE_USER=devops_tools
 DATABASE_PASSWORD=devops-tools-password
 
-REDIS_ENABLED=1
-REDIS_HOST=redis.example.com
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=5
-REDIS_KEY_PREFIX=opstool
 
 DJANGO_DB_PATH=/app/data/db.sqlite3
 
@@ -309,12 +298,6 @@ DATABASE_PORT=3306
 DATABASE_NAME=devops_tools
 DATABASE_USER=devops_tools
 DATABASE_PASSWORD=请替换为强随机数据库密码
-REDIS_ENABLED=1
-REDIS_HOST=redis.example.com
-REDIS_PORT=6379
-REDIS_PASSWORD=请替换为 Redis 密码
-REDIS_DB=5
-REDIS_KEY_PREFIX=opstool
 SSH_GATEWAY_PUBLIC_HOST=ops.example.com
 ```
 
@@ -336,12 +319,6 @@ SSH_GATEWAY_PUBLIC_HOST=ops.example.com
 | `DATABASE_USER` | `devops_tools` | 远程 MySQL 应用用户。 |
 | `DATABASE_PASSWORD` | `devops-tools-password` | 远程 MySQL 应用用户密码，生产环境必须修改。 |
 | `DJANGO_DB_PATH` | `/app/data/db.sqlite3` | SQLite 数据库路径，仅 `DATABASE_ENGINE=sqlite` 时使用。 |
-| `REDIS_ENABLED` | `1` | 是否启用 Redis 缓存、Session 缓存和 Channels 后端。部署环境保持启用。 |
-| `REDIS_HOST` | `redis.example.com` | 外部 Redis 服务地址。Compose 不启动 Redis 容器，生产环境必须改为真实主机名或 IP。 |
-| `REDIS_PORT` | `6379` | 外部 Redis 服务端口。 |
-| `REDIS_PASSWORD` | 空 | 外部 Redis 密码；无密码时留空，生产环境按实际 Redis 配置填写。 |
-| `REDIS_DB` | `5` | Redis 数据库编号。 |
-| `REDIS_KEY_PREFIX` | `opstool` | Redis key 前缀，用于隔离同一 Redis 内的不同应用数据。 |
 | `DJANGO_MEDIA_ROOT` | `/app/media` | 容器内上传文件目录。 |
 | `GUACD_HOST` | `guacd` | guacd 服务地址。Compose 内默认使用服务名。 |
 | `GUACD_PORT` | `4822` | guacd 服务端口。 |
@@ -382,13 +359,11 @@ cp -a data data.backup
 
 ## Kubernetes 部署
 
-`deploy/k8s/` 的清单已按 Docker Compose 的运行方式整理：应用不再通过 `env` / `envFrom` 读取部署变量，而是把 ConfigMap 中的 `app.conf` 只读挂载到容器内 `/app/config/app.conf`。k8s 同样只部署 app、ssh-gateway 和 guacd；MySQL 和 Redis 都通过 `app.conf` 中的远程连接信息访问，不在集群内创建本地 MySQL 或 Redis。
 
 部署前先编辑 `deploy/k8s/configmap.yaml` 里的 `app.conf`：
 
 - 使用远程 MySQL：保留 `DATABASE_ENGINE=mysql`，修改 `DATABASE_HOST`、`DATABASE_PORT`、`DATABASE_NAME`、`DATABASE_USER`、`DATABASE_PASSWORD`。
 - 使用 SQLite：改为 `DATABASE_ENGINE=sqlite`，并确认 `DJANGO_DB_PATH=/app/data/db.sqlite3`。
-- 使用外部 Redis：保持 `REDIS_ENABLED=1`，修改 `REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_DB`。
 - 通过 NodePort 暴露时，默认 Web 端口是 `30271`，SSH 网关端口是 `30222`；如需调整，同时修改 `deploy/k8s/service.yaml` 和 `SSH_GATEWAY_PUBLIC_PORT`。
 
 应用清单：
@@ -515,7 +490,6 @@ docker compose -f deploy/docker-compose.yml exec app python manage.py shell
 
 - 生产环境必须设置强随机 `DJANGO_SECRET_KEY`。
 - 如果使用远程 MySQL，生产环境必须修改 `DATABASE_HOST`、`DATABASE_USER` 和 `DATABASE_PASSWORD`，确保它们指向可访问的远程数据库。
-- 生产环境必须修改 `REDIS_HOST`、`REDIS_PASSWORD` 和 `REDIS_DB`，确保它们指向可访问的外部 Redis。
 - `DJANGO_ALLOWED_HOSTS` 和 `DJANGO_CSRF_TRUSTED_ORIGINS` 需要按实际域名/IP/端口配置。
 - Web RDP 功能依赖 `guacamole/guacd:1.5.5` 容器，请确认 guacd 服务正常启动。
 - SSH 终端依赖目标主机网络可达，并需要正确的登录账号、密码或密钥配置。

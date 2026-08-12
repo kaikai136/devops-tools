@@ -28,14 +28,6 @@ data:
     DATABASE_USER=devops_tools
     DATABASE_PASSWORD=devops-tools-password
 
-    # Redis is external in Kubernetes deployments. Update these values before use.
-    REDIS_ENABLED=1
-    REDIS_HOST=redis.example.com
-    REDIS_PORT=6379
-    REDIS_PASSWORD=
-    REDIS_DB=5
-    REDIS_KEY_PREFIX=opstool
-
     # Used only when DATABASE_ENGINE=sqlite.
     DJANGO_DB_PATH=/app/data/db.sqlite3
 

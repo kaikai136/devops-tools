@@ -151,14 +151,9 @@ class ConfigFileTests(SimpleTestCase):
 
         self.assertEqual(path, Path("/repo/backend/db.sqlite3"))
 
-    def test_redis_channel_layer_disables_socket_timeout_for_blocking_reads(self):
+    def test_runtime_uses_local_cache_db_sessions_and_inmemory_channels(self):
         from ops_tool import settings
 
-        channel_layers = settings.redis_channel_layers_config("redis://redis.example.com:6379/5", "opstool")
-
-        redis_config = channel_layers["default"]["CONFIG"]
-        self.assertEqual(
-            redis_config["hosts"],
-            [{"address": "redis://redis.example.com:6379/5", "socket_timeout": None}],
-        )
-        self.assertEqual(redis_config["prefix"], "opstool:asgi")
+        self.assertEqual(settings.CACHES["default"]["BACKEND"], "django.core.cache.backends.locmem.LocMemCache")
+        self.assertEqual(settings.SESSION_ENGINE, "django.contrib.sessions.backends.db")
+        self.assertEqual(settings.CHANNEL_LAYERS["default"]["BACKEND"], "channels.layers.InMemoryChannelLayer")

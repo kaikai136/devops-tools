@@ -312,7 +312,7 @@ class TerminalConsumerContractTests(SimpleTestCase):
 
     def test_session_store_failure_keeps_the_terminal_authenticated(self):
         consumer = self._consumer()
-        consumer.scope["session"].exists.side_effect = RuntimeError("redis unreachable")
+        consumer.scope["session"].exists.side_effect = RuntimeError("session store unreachable")
 
         with self.assertLogs("web_terminal.consumers.ssh", level="ERROR"):
             self.assertTrue(consumer._is_authenticated())

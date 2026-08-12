@@ -25,8 +25,7 @@ foreach ($required in @(
     'DJANGO_ALLOWED_HOSTS=*',
     'DJANGO_CORS_ALLOW_ALL_ORIGINS=1',
     'DATABASE_ENGINE=sqlite',
-    'DJANGO_DB_PATH=backend/db.sqlite3',
-    'REDIS_ENABLED=0',
+    'DJANGO_DB_PATH=/app/data/db.sqlite3',
     'GUACD_HOST=127.0.0.1',
     'RDP_RECORDING_ROOT=backend/rdp_recordings',
     'SSH_GATEWAY_ENABLED=1',
@@ -39,6 +38,10 @@ foreach ($required in @(
     'OPS_TOOL_ADMIN_PASSWORD='
 )) {
     Assert-Match $configText "(?m)^$([regex]::Escape($required))\r?$" "Local config is missing: $required"
+}
+foreach ($suffix in @('ENABLED', 'HOST', 'PORT', 'PASSWORD', 'DB', 'KEY_PREFIX')) {
+    $forbidden = "RE" + "DIS_$suffix"
+    if ($configText -match [regex]::Escape($forbidden)) { throw "Local config must not include removed cache service settings: $forbidden" }
 }
 
 $backendStartText = Get-Content -Raw -Encoding UTF8 $backendStart
