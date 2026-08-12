@@ -310,6 +310,19 @@ class TerminalConsumerContractTests(SimpleTestCase):
 
         self.assertTrue(consumer.stop_reader.is_set())
 
+    def test_session_store_failure_keeps_the_terminal_authenticated(self):
+        consumer = self._consumer()
+        consumer.scope["session"].exists.side_effect = RuntimeError("redis unreachable")
+
+        with self.assertLogs("web_terminal.consumers.ssh", level="ERROR"):
+            self.assertTrue(consumer._is_authenticated())
+
+    def test_deleted_session_still_fails_the_authentication_check(self):
+        consumer = self._consumer()
+        consumer.scope["session"].exists.return_value = False
+
+        self.assertFalse(consumer._is_authenticated())
+
     def test_reader_coalesces_burst_output_into_one_payload(self):
         consumer = self._consumer()
         consumer.connection = Mock()

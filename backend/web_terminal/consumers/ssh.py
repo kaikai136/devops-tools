@@ -241,6 +241,7 @@ class TerminalConsumer(WebsocketConsumer):
                     return
             except Exception as error:
                 if not self.stop_reader.is_set():
+                    logger.exception("Terminal reader thread failed; closing the SSH session.")
                     self._send_to_consumer({"type": "terminal.error", "message": f"读取 SSH 输出失败：{error}"})
                     self._send_to_consumer({"type": "terminal.closed", "reason": "SSH 会话已关闭"})
                 return
@@ -299,6 +300,7 @@ class TerminalConsumer(WebsocketConsumer):
         try:
             handler(event)
         except Exception:
+            logger.exception("Terminal websocket send failed for %r; stopping the reader thread.", event["type"])
             self.stop_reader.set()
 
     def _send_error(self, message: str):
@@ -348,7 +350,11 @@ class TerminalConsumer(WebsocketConsumer):
         try:
             return bool(session.exists(session_key))
         except Exception:
-            return False
+            # 会话存储读取失败不等于用户已登出。connect() 已经校验过身份,登出/过期会让 exists()
+            # 正常返回 False,所以这里把异常按"暂时查不到"处理并保持连接;否则 Redis 或数据库
+            # 抖动一次,就会把正在使用的终端断成"请先登录"。
+            logger.exception("Terminal session lookup failed; keeping the existing terminal session open.")
+            return True
 
     def _has_terminal_permission(self) -> bool:
         return has_feature_permission(self.scope.get("user"), "hosts", "terminal")
@@ -362,6 +368,7 @@ class TerminalConsumer(WebsocketConsumer):
                 idle_timeout=float(self._terminal_setting("initialReadIdleTimeoutMs")) / 1000,
             )
         except Exception:
+            logger.exception("Terminal initial output read failed; continuing without a banner.")
             return
         if not output:
             return
