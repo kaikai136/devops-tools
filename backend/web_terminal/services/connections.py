@@ -84,6 +84,7 @@ LIVE_TERMINALS: dict[str, LiveTerminalConnection] = {}
 
 DEFAULT_TERMINAL_COLS = 120
 DEFAULT_TERMINAL_ROWS = 36
+DEFAULT_SSH_TERMINAL_TYPE = "vt100"
 SSH_CONNECT_ATTEMPTS = 3
 SSH_CONNECT_TIMEOUT = 15
 SSH_BANNER_TIMEOUT = 30
@@ -126,7 +127,7 @@ def open_live_terminal(host: ManagedHost, cols: int = 120, rows: int = 36, termi
     effective_settings = normalize_terminal_settings(terminal_settings)
     client = open_ssh_client(host, terminal_settings=effective_settings)
     try:
-        channel = client.invoke_shell(term="xterm", width=cols, height=rows)
+        channel = client.invoke_shell(term=DEFAULT_SSH_TERMINAL_TYPE, width=cols, height=rows)
         channel.settimeout(0.0)
         return LiveTerminalConnection(client, channel, terminal_settings=effective_settings)
     except Exception as error:

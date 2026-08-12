@@ -260,6 +260,18 @@ def build_redis_url(db: int) -> str:
     return f"redis://{auth}{REDIS_HOST}:{REDIS_PORT}/{db}"
 
 
+def redis_channel_layers_config(redis_url: str, key_prefix: str) -> dict:
+    return {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [{"address": redis_url, "socket_timeout": None}],
+                "prefix": f"{key_prefix}:asgi",
+            },
+        }
+    }
+
+
 REDIS_URL = build_redis_url(REDIS_DB)
 
 # 缓存 TTL(秒)集中管理,替代散落在各处的魔法值。
@@ -277,15 +289,7 @@ if REDIS_ENABLED:
     }
     SESSION_ENGINE = "django.contrib.sessions.backends.cached_db"
     SESSION_CACHE_ALIAS = "default"
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [REDIS_URL],
-                "prefix": f"{REDIS_KEY_PREFIX}:asgi",
-            },
-        }
-    }
+    CHANNEL_LAYERS = redis_channel_layers_config(REDIS_URL, REDIS_KEY_PREFIX)
 else:
     CACHES = {
         "default": {

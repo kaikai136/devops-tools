@@ -150,3 +150,15 @@ class ConfigFileTests(SimpleTestCase):
             settings.APP_CONFIG_FILE = original_config_file
 
         self.assertEqual(path, Path("/repo/backend/db.sqlite3"))
+
+    def test_redis_channel_layer_disables_socket_timeout_for_blocking_reads(self):
+        from ops_tool import settings
+
+        channel_layers = settings.redis_channel_layers_config("redis://redis.example.com:6379/5", "opstool")
+
+        redis_config = channel_layers["default"]["CONFIG"]
+        self.assertEqual(
+            redis_config["hosts"],
+            [{"address": "redis://redis.example.com:6379/5", "socket_timeout": None}],
+        )
+        self.assertEqual(redis_config["prefix"], "opstool:asgi")

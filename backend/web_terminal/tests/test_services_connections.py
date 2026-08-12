@@ -118,7 +118,7 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         for client in clients:
             client.close.assert_called_once_with()
 
-    def test_open_live_terminal_uses_current_shell_parameters_and_zero_timeout(self):
+    def test_open_live_terminal_uses_compatible_shell_parameters_and_zero_timeout(self):
         client = MagicMock()
         channel = client.invoke_shell.return_value
 
@@ -128,7 +128,7 @@ class TerminalConnectionCharacterizationTests(SimpleTestCase):
         self.assertIsInstance(connection, services.LiveTerminalConnection)
         self.assertIs(connection.client, client)
         self.assertIs(connection.channel, channel)
-        client.invoke_shell.assert_called_once_with(term="xterm", width=132, height=48)
+        client.invoke_shell.assert_called_once_with(term="vt100", width=132, height=48)
         channel.settimeout.assert_called_once_with(0.0)
 
     def test_open_live_terminal_closes_client_and_translates_shell_error(self):
