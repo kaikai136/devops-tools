@@ -193,6 +193,8 @@ def output_has_alternate_screen_sequence(output: str) -> bool:
 
 def strip_cwd_hook_install_echo(output: str) -> str:
     cleaned = output.replace("\x1b[200~", "").replace("\x1b[201~", "")
+    cleaned = cleaned.replace(CWD_HOOK_ECHO_OFF + CWD_HOOK_INSTALL_SCRIPT + CWD_HOOK_ECHO_ON, "")
+    cleaned = cleaned.replace(CWD_HOOK_INSTALL_SCRIPT, "")
     internal_lines = {fragment.strip() for fragment in CWD_HOOK_ECHO_FRAGMENTS}
     visible_lines: list[str] = []
     for line in cleaned.splitlines(keepends=True):

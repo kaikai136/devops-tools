@@ -1,6 +1,6 @@
 services:
   migrate:
-    image: registry.cn-beijing.aliyuncs.com/kaikai136/devops-tools:v2.1.2-vt100-terminal
+    image: registry.cn-beijing.aliyuncs.com/kaikai136/devops-tools:v2.1.2-local-cache-cwdhook
     container_name: devops-tools-migrate
     restart: "no"
     init: true
@@ -20,7 +20,7 @@ services:
 
 
   app:
-    image: registry.cn-beijing.aliyuncs.com/kaikai136/devops-tools:v2.1.2-vt100-terminal
+    image: registry.cn-beijing.aliyuncs.com/kaikai136/devops-tools:v2.1.2-local-cache-cwdhook
     container_name: devops-tools
     restart: unless-stopped
     init: true

@@ -383,23 +383,12 @@ class TerminalConsumer(WebsocketConsumer):
     def _install_cwd_hook(self):
         if self.connection is None:
             return
-        echo_disabled = False
         try:
             self.suppress_internal_echo_until = time.monotonic() + (float(self._terminal_setting("cwdHookSuppressEchoMs")) / 1000)
-            self.connection.send_data(CWD_HOOK_ECHO_OFF)
-            echo_disabled = True
-            self._drain_cwd_hook_output()
-            self.connection.send_data(CWD_HOOK_INSTALL_SCRIPT)
+            self.connection.send_data(CWD_HOOK_ECHO_OFF + CWD_HOOK_INSTALL_SCRIPT + CWD_HOOK_ECHO_ON)
             self._drain_cwd_hook_output()
         except Exception:
             pass
-        finally:
-            if echo_disabled and self.connection is not None:
-                try:
-                    self.connection.send_data(CWD_HOOK_ECHO_ON)
-                    self._drain_cwd_hook_output()
-                except Exception:
-                    pass
 
     def _drain_cwd_hook_output(self):
         if self.connection is None:

@@ -139,7 +139,7 @@ tmpfs tmpfs 1000 1 999 1% /run
         self.assertIn('if [ "$PWD" != "$__captain_last_cwd" ]; then', CWD_HOOK_SCRIPT)
         self.assertNotIn("\n__captain_emit_cwd\n", CWD_HOOK_SCRIPT)
 
-    def test_install_cwd_hook_uses_single_line_script_and_drains_only_install_output(self):
+    def test_install_cwd_hook_sends_echo_guard_and_script_together(self):
         class FakeConnection:
             def __init__(self):
                 self.sent = []
@@ -158,8 +158,8 @@ tmpfs tmpfs 1000 1 999 1% /run
 
         consumer._install_cwd_hook()
 
-        self.assertEqual(consumer.connection.sent, [CWD_HOOK_ECHO_OFF, CWD_HOOK_INSTALL_SCRIPT, CWD_HOOK_ECHO_ON])
-        self.assertEqual(consumer.connection.read_count, 3)
+        self.assertEqual(consumer.connection.sent, [CWD_HOOK_ECHO_OFF + CWD_HOOK_INSTALL_SCRIPT + CWD_HOOK_ECHO_ON])
+        self.assertEqual(consumer.connection.read_count, 1)
         self.assertNotIn("\nif ", CWD_HOOK_INSTALL_SCRIPT)
         self.assertGreater(consumer.suppress_internal_echo_until, 0)
 
@@ -184,6 +184,11 @@ tmpfs tmpfs 1000 1 999 1% /run
 
     def test_strip_cwd_hook_install_echo_removes_internal_script(self):
         output = f"prompt\r\n{CWD_HOOK_ECHO_OFF}{CWD_HOOK_SCRIPT}{CWD_HOOK_ECHO_ON}ready\r\n"
+
+        self.assertEqual(strip_cwd_hook_install_echo(output), "prompt\r\nready\r\n")
+
+    def test_strip_cwd_hook_install_echo_removes_combined_install_script(self):
+        output = f"prompt\r\n{CWD_HOOK_ECHO_OFF}{CWD_HOOK_INSTALL_SCRIPT}{CWD_HOOK_ECHO_ON}ready\r\n"
 
         self.assertEqual(strip_cwd_hook_install_echo(output), "prompt\r\nready\r\n")
 
