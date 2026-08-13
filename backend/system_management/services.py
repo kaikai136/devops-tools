@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.contrib.sessions.models import Session
 from django.db.models import Count
 from django.http import HttpRequest
 from django.utils import timezone
@@ -188,6 +189,23 @@ def get_auth_session_settings() -> dict:
         except (TypeError, ValueError):
             number = DEFAULT_AUTH_SESSION["loginExpiryMinutes"]
     return {"loginExpiryMinutes": max(minimum, min(maximum, number))}
+
+
+def refresh_existing_auth_sessions() -> int:
+    expiry = get_auth_session_settings()["loginExpiryMinutes"]
+    now = timezone.now().timestamp()
+    updated = 0
+    for session in Session.objects.all().iterator():
+        data = session.get_decoded()
+        if data.get("_auth_user_id") is None:
+            continue
+        data["ops_auth_started_at"] = now
+        data["ops_auth_expires_at"] = now + (expiry * 60)
+        session.session_data = Session.objects.encode(data)
+        session.expire_date = timezone.now() + timezone.timedelta(seconds=expiry * 60)
+        session.save(update_fields=["session_data", "expire_date"])
+        updated += 1
+    return updated
 
 
 def get_database_setting_value(key: str) -> dict | None:

@@ -6,8 +6,8 @@ from accounts.permissions import require_login
 from operations.responses import get_object_or_error, serializer_bad_request
 
 from ..models import SystemSetting
-from ..serializers import DISPLAY_SETTING_KEYS, PUBLIC_DISPLAY_SETTING_KEYS, SystemSettingSerializer
-from ..services import record_operation_log
+from ..serializers import AUTH_SESSION_SETTING_KEY, DISPLAY_SETTING_KEYS, PUBLIC_DISPLAY_SETTING_KEYS, SystemSettingSerializer
+from ..services import record_operation_log, refresh_existing_auth_sessions
 from .common import require_system_permission
 
 
@@ -24,6 +24,8 @@ def system_settings(request):
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
     setting = serializer.save()
+    if setting.key == AUTH_SESSION_SETTING_KEY:
+        refresh_existing_auth_sessions()
     record_operation_log(request, "系统设置", "新增设置", setting.key, setting.label or setting.description)
     return Response(SystemSettingSerializer(setting).data, status=status.HTTP_201_CREATED)
 
@@ -60,5 +62,7 @@ def system_setting_detail(request, setting_key: str):
     if not serializer.is_valid():
         return serializer_bad_request(serializer)
     saved_setting = serializer.save()
+    if saved_setting.key == AUTH_SESSION_SETTING_KEY:
+        refresh_existing_auth_sessions()
     record_operation_log(request, "系统设置", "保存设置", saved_setting.key, saved_setting.label or saved_setting.description)
     return Response(SystemSettingSerializer(saved_setting).data)

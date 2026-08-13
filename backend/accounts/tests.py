@@ -164,6 +164,24 @@ class SliderChallengeTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["error"], "请先登录")
 
+    def test_changed_session_expiry_applies_to_existing_login(self):
+        SystemSetting.objects.create(key="auth_session", value={"loginExpiryMinutes": 480})
+        token = self.complete_slider()
+        self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": token},
+            content_type="application/json",
+        )
+        SystemSetting.objects.filter(key="auth_session").update(value={"loginExpiryMinutes": 1})
+        session = self.client.session
+        session["ops_auth_started_at"] = timezone.now().timestamp() - 61
+        session.save()
+
+        response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 401)
+        self.assertIn("error", response.json())
+
     def test_disabled_user_login_returns_unlock_contact_message(self):
         self.user.is_active = False
         self.user.save(update_fields=["is_active"])

@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
+from django.contrib.sessions.backends.db import SessionStore
+from django.contrib.sessions.models import Session
 from django.core.management import call_command
 from django.test import RequestFactory, TestCase
 from django.utils import timezone
@@ -1045,6 +1047,27 @@ class SystemSettingsApiTests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["value"]["loginExpiryMinutes"], 1440)
+
+    def test_auth_session_update_expires_existing_logged_in_sessions(self):
+        SystemSetting.objects.create(key="auth_session", value={"loginExpiryMinutes": 480})
+        store = SessionStore()
+        store["_auth_user_id"] = str(self.operator.id)
+        store["_auth_user_backend"] = "django.contrib.auth.backends.ModelBackend"
+        store.save()
+
+        response = self.client.put(
+            "/api/system/settings/auth_session/",
+            data={"value": {"loginExpiryMinutes": 1}},
+            content_type="application/json",
+        )
+        session = Session.objects.get(session_key=store.session_key)
+        data = session.get_decoded()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["value"]["loginExpiryMinutes"], 1)
+        self.assertIn("_auth_user_id", data)
+        self.assertLessEqual(data["ops_auth_started_at"] - timezone.now().timestamp(), 1)
+        self.assertLessEqual(data["ops_auth_expires_at"] - timezone.now().timestamp(), 61)
 
     def test_auth_session_setting_rejects_invalid_expiry_minutes(self):
         for value in [0, 43201, "1.5", True]:
