@@ -9,6 +9,7 @@ from channels.generic.websocket import WebsocketConsumer
 from django.utils import timezone
 
 from accounts.permissions import has_feature_permission
+from accounts.session_expiry import is_authenticated_session_expired
 from host_management.models import ManagedHost
 from system_management.services import get_terminal_settings
 from system_management.settings_defaults import DEFAULT_TERMINAL_SETTINGS
@@ -347,6 +348,8 @@ class TerminalConsumer(WebsocketConsumer):
             return False
 
         try:
+            if is_authenticated_session_expired(session):
+                return False
             return bool(session.exists(session_key))
         except Exception:
             # 会话存储读取失败不等于用户已登出。connect() 已经校验过身份,登出/过期会让 exists()

@@ -4,7 +4,9 @@ from urllib.parse import urlparse
 from rest_framework import serializers
 
 from .constants import (
+    AUTH_SESSION_FIELD_LIMITS,
     DASHBOARD_HERO_FONT_CHOICES,
+    DEFAULT_AUTH_SESSION,
     DEFAULT_DASHBOARD_HERO,
     DEFAULT_LAYOUT_FOOTER,
     DEFAULT_LOG_RETENTION,
@@ -284,3 +286,17 @@ def validate_terminal_settings_value(value):
             field_label=labels[field],
         )
     return cleaned
+
+
+def validate_auth_session_value(value):
+    raw = _require_setting_object(value, "登录会话")
+    minimum, maximum = AUTH_SESSION_FIELD_LIMITS["loginExpiryMinutes"]
+    return {
+        "loginExpiryMinutes": _clean_strict_int(
+            raw.get("loginExpiryMinutes"),
+            DEFAULT_AUTH_SESSION["loginExpiryMinutes"],
+            minimum=minimum,
+            maximum=maximum,
+            field_label="系统登录过期时间",
+        )
+    }

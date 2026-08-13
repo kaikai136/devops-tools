@@ -245,6 +245,39 @@
   grid-column: 1 / -1;
 }
 
+.settings-field-grid label.span-3 {
+  grid-column: 1 / -1;
+}
+
+.merged-system-settings {
+  gap: 20px;
+}
+
+.merged-system-settings > section {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border-top: 1px solid rgba(229, 235, 243, 0.72);
+  padding-top: 18px;
+}
+
+.merged-system-settings > section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.compact-settings-field-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 18px;
+}
+
+.expiry-duration-field > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 8px;
+  min-width: 0;
+}
+
 .dashboard-hero-field-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 22px 24px;
@@ -650,6 +683,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .compact-settings-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .system-settings-tabs {
     justify-content: flex-start;
     margin-bottom: 18px;
@@ -706,6 +743,10 @@
   }
 
   .terminal-settings-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-settings-field-grid {
     grid-template-columns: 1fr;
   }
 

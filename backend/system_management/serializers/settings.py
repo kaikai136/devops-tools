@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from ..models import SystemSetting
 from .constants import (
+    AUTH_SESSION_SETTING_KEY,
     DASHBOARD_HERO_SETTING_KEY,
     LAYOUT_FOOTER_SETTING_KEY,
     LOG_RETENTION_SETTING_KEY,
@@ -12,6 +13,7 @@ from .constants import (
     WATERMARK_SETTING_KEY,
 )
 from .settings_validators import (
+    validate_auth_session_value,
     validate_dashboard_hero_value,
     validate_layout_footer_value,
     validate_log_retention_value,
@@ -55,4 +57,6 @@ class SystemSettingSerializer(serializers.ModelSerializer):
             attrs["value"] = validate_log_retention_value(value)
         elif key == TERMINAL_SETTINGS_SETTING_KEY:
             attrs["value"] = validate_terminal_settings_value(value)
+        elif key == AUTH_SESSION_SETTING_KEY:
+            attrs["value"] = validate_auth_session_value(value)
         return attrs

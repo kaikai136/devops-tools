@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 import pyotp
 
 from .models import UserProfile
@@ -123,6 +124,45 @@ class SliderChallengeTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["user"]["username"], "operator")
+
+    def test_login_uses_configured_session_expiry_for_remember_choices(self):
+        SystemSetting.objects.create(key="auth_session", value={"loginExpiryMinutes": 30})
+        remember_false_token = self.complete_slider()
+        remember_false_response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": remember_false_token},
+            content_type="application/json",
+        )
+        remember_false_expiry = self.client.session["ops_auth_expires_at"]
+        self.client.logout()
+        remember_true_token = self.complete_slider()
+        remember_true_response = self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": True, "sliderToken": remember_true_token},
+            content_type="application/json",
+        )
+        remember_true_expiry = self.client.session["ops_auth_expires_at"]
+
+        self.assertEqual(remember_false_response.status_code, 200)
+        self.assertEqual(remember_true_response.status_code, 200)
+        self.assertAlmostEqual(remember_false_expiry, remember_true_expiry, delta=5)
+        self.assertLessEqual(remember_false_expiry - timezone.now().timestamp(), 30 * 60 + 5)
+
+    def test_expired_configured_session_requires_login(self):
+        token = self.complete_slider()
+        self.client.post(
+            "/api/auth/login/",
+            data={"account": "operator", "password": "UserPass123", "remember": False, "sliderToken": token},
+            content_type="application/json",
+        )
+        session = self.client.session
+        session["ops_auth_expires_at"] = timezone.now().timestamp() - 1
+        session.save()
+
+        response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json()["error"], "请先登录")
 
     def test_disabled_user_login_returns_unlock_contact_message(self):
         self.user.is_active = False
@@ -415,6 +455,7 @@ class TwoFactorLoginTests(TestCase):
         self.assertEqual(me_response.status_code, 401)
 
     def test_two_factor_login_completes_session(self):
+        SystemSetting.objects.create(key="auth_session", value={"loginExpiryMinutes": 45})
         profile = self.enable_two_factor()
         token = self.complete_slider()
         login_response = self.client.post(
@@ -432,6 +473,7 @@ class TwoFactorLoginTests(TestCase):
 
         self.assertEqual(verify_response.status_code, 200)
         self.assertEqual(verify_response.json()["user"]["username"], "operator")
+        self.assertLessEqual(self.client.session["ops_auth_expires_at"] - timezone.now().timestamp(), 45 * 60 + 5)
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
 
     def test_required_two_factor_login_returns_setup_payload(self):
@@ -452,6 +494,7 @@ class TwoFactorLoginTests(TestCase):
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 401)
 
     def test_two_factor_setup_login_completes_session(self):
+        SystemSetting.objects.create(key="auth_session", value={"loginExpiryMinutes": 60})
         profile = UserProfile.objects.create(user=self.user, totp_required=True)
         token = self.complete_slider()
         login_response = self.client.post(
@@ -472,6 +515,7 @@ class TwoFactorLoginTests(TestCase):
         self.assertTrue(profile.totp_enabled)
         self.assertFalse(profile.totp_required)
         self.assertEqual(profile.totp_secret, secret)
+        self.assertLessEqual(self.client.session["ops_auth_expires_at"] - timezone.now().timestamp(), 60 * 60 + 5)
         self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
 
     def test_legacy_reset_flag_is_treated_as_setup_required(self):

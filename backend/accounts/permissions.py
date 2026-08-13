@@ -1,8 +1,12 @@
 from rest_framework import status
 from rest_framework.response import Response
 
+from .session_expiry import logout_if_session_expired
+
 
 def require_login(request):
+    if getattr(request, "user", None) is not None and request.user.is_authenticated and logout_if_session_expired(request):
+        return Response({"error": "请先登录"}, status=status.HTTP_401_UNAUTHORIZED)
     if not request.user.is_authenticated:
         return Response({"error": "请先登录"}, status=status.HTTP_401_UNAUTHORIZED)
     return None

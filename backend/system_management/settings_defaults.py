@@ -8,6 +8,14 @@ DEFAULT_LOG_RETENTION = {
     "rdpRecordingDays": 30,
 }
 
+DEFAULT_AUTH_SESSION = {
+    "loginExpiryMinutes": 480,
+}
+
+AUTH_SESSION_FIELD_LIMITS = {
+    "loginExpiryMinutes": (1, 43200),
+}
+
 LOG_RETENTION_DAY_FIELDS = {
     "loginLogsDays",
     "operationLogsDays",

@@ -6,7 +6,7 @@ const settings = readFileSync(new URL('../src/composables/features/useSiteSettin
 const panel = readFileSync(new URL('../src/components/tools/SystemSettingsPanel.vue', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/styles/tools/system-settings.css', import.meta.url), 'utf8');
 
-const dashboardSection = panel.match(/<section v-else-if="activeTab === 'dashboard'"[\s\S]*?<section v-else-if="activeTab === 'login'"/)?.[0] ?? '';
+const dashboardSection = panel.match(/<section v-else-if="activeTab === 'dashboard'"[\s\S]*?<section v-else-if="activeTab === 'logRetention'"/)?.[0] ?? '';
 
 test('dashboard hero font weights match Chinese fonts supported by the typing SVG service', () => {
   assert.match(settings, /fontWeight:\s*900,/);

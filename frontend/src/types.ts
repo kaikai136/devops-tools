@@ -297,6 +297,10 @@ export interface TerminalSettingsConfig {
   bulkExecutionMaxTargets: number;
 }
 
+export interface AuthSessionConfig {
+  loginExpiryMinutes: number;
+}
+
 export interface SiteIdentityConfig {
   appName: string;
   appShortName: string;

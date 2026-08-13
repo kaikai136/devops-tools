@@ -8,6 +8,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from accounts.permissions import require_login
+from accounts.session_expiry import apply_configured_session_expiry
 from accounts.session_lock import is_session_locked, lock_session, unlock_session
 from operations.responses import bad_request
 from system_management.models import LoginLog
@@ -158,7 +159,7 @@ def auth_login(request):
 
     login(request, user)
     unlock_session(request)
-    request.session.set_expiry(60 * 60 * 24 * 14 if remember else 0)
+    apply_configured_session_expiry(request)
     record_login_log(request, username, LoginLog.STATUS_SUCCESS, "登录成功", user)
     return Response({"user": user_payload(user)})
 
@@ -209,7 +210,7 @@ def auth_login_2fa_setup(request):
     )
     login(request, user)
     unlock_session(request)
-    request.session.set_expiry(60 * 60 * 24 * 14 if bool(pending.get("remember")) else 0)
+    apply_configured_session_expiry(request)
     record_login_log(request, user.username, LoginLog.STATUS_SUCCESS, "登录成功", user)
     return Response({"user": user_payload(user)})
 
@@ -237,7 +238,7 @@ def auth_login_2fa(request):
 
     login(request, user)
     unlock_session(request)
-    request.session.set_expiry(60 * 60 * 24 * 14 if bool(pending.get("remember")) else 0)
+    apply_configured_session_expiry(request)
     record_login_log(request, user.username, LoginLog.STATUS_SUCCESS, "登录成功", user)
     return Response({"user": user_payload(user)})
 

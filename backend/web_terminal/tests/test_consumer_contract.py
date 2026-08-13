@@ -92,6 +92,7 @@ class TerminalConsumerContractTests(SimpleTestCase):
     def _consumer(self, *, authenticated: bool = True) -> TerminalConsumer:
         consumer = TerminalConsumer()
         session = Mock(session_key="session-key")
+        session.get.return_value = None
         session.exists.return_value = True
         user = SimpleNamespace(is_authenticated=authenticated, is_staff=authenticated, is_superuser=False)
         consumer.scope = {
@@ -323,6 +324,14 @@ class TerminalConsumerContractTests(SimpleTestCase):
 
         self.assertFalse(consumer._is_authenticated())
 
+    @patch("web_terminal.consumers.ssh.is_authenticated_session_expired", return_value=True)
+    def test_expired_session_fails_the_authentication_check(self, is_expired):
+        consumer = self._consumer()
+
+        self.assertFalse(consumer._is_authenticated())
+
+        is_expired.assert_called_once_with(consumer.scope["session"])
+
     def test_reader_coalesces_burst_output_into_one_payload(self):
         consumer = self._consumer()
         consumer.connection = Mock()
@@ -380,6 +389,7 @@ class RdpTerminalConsumerContractTests(SimpleTestCase):
     def _consumer(self, *, authenticated: bool = True) -> RdpTerminalConsumer:
         consumer = RdpTerminalConsumer()
         session = Mock(session_key="session-key")
+        session.get.return_value = None
         session.exists.return_value = True
         user = SimpleNamespace(is_authenticated=authenticated, is_staff=authenticated, is_superuser=False)
         consumer.scope = {
@@ -464,3 +474,15 @@ class RdpTerminalConsumerContractTests(SimpleTestCase):
 
         consumer._mark_session_error.assert_called_once_with("socket closed")
         consumer.close.assert_called_once_with(code=1011)
+
+    def test_rdp_reader_closes_when_session_expires(self):
+        consumer = self._consumer()
+        consumer.stop_reader = threading.Event()
+        consumer.guacd_socket = Mock()
+        consumer._is_authenticated = Mock(return_value=False)
+
+        consumer._read_guacd_output()
+
+        consumer._is_authenticated.assert_called_once_with()
+        consumer.guacd_socket.recv.assert_not_called()
+        consumer.close.assert_called_once_with(code=4401)

@@ -1026,6 +1026,37 @@ class SystemSettingsApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_auth_session_setting_defaults_missing_fields(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={"key": "auth_session", "label": "登录会话", "value": {}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["value"], {"loginExpiryMinutes": 480})
+
+    def test_auth_session_setting_accepts_custom_expiry_minutes(self):
+        response = self.client.post(
+            "/api/system/settings/",
+            data={"key": "auth_session", "label": "登录会话", "value": {"loginExpiryMinutes": 1440}},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["value"]["loginExpiryMinutes"], 1440)
+
+    def test_auth_session_setting_rejects_invalid_expiry_minutes(self):
+        for value in [0, 43201, "1.5", True]:
+            with self.subTest(value=value):
+                response = self.client.post(
+                    "/api/system/settings/",
+                    data={"key": "auth_session", "value": {"loginExpiryMinutes": value}},
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 400)
+
     def test_terminal_settings_defaults_missing_fields_and_accepts_zero_disables(self):
         response = self.client.post(
             "/api/system/settings/",

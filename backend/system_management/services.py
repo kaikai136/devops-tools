@@ -12,7 +12,7 @@ from django.http import HttpRequest
 from django.utils import timezone
 
 from .models import LoginLog, OperationLog, SystemSetting
-from .settings_defaults import DEFAULT_LOG_RETENTION, DEFAULT_TERMINAL_SETTINGS, TERMINAL_SETTINGS_FIELD_LIMITS
+from .settings_defaults import AUTH_SESSION_FIELD_LIMITS, DEFAULT_AUTH_SESSION, DEFAULT_LOG_RETENTION, DEFAULT_TERMINAL_SETTINGS, TERMINAL_SETTINGS_FIELD_LIMITS
 
 FEATURE_PERMISSIONS_CACHE_KEY = "system.feature_permissions_ready.v1"
 FEATURE_PERMISSION_CACHE_SECONDS = getattr(settings, "FEATURE_PERMISSION_CACHE_SECONDS", 300)
@@ -172,6 +172,22 @@ def get_terminal_settings() -> dict:
                 number = fallback
         normalized[field] = max(minimum, min(maximum, number))
     return normalized
+
+
+def get_auth_session_settings() -> dict:
+    value = get_database_setting_value("auth_session")
+    if value is None:
+        return DEFAULT_AUTH_SESSION.copy()
+    minimum, maximum = AUTH_SESSION_FIELD_LIMITS["loginExpiryMinutes"]
+    raw_value = value.get("loginExpiryMinutes", DEFAULT_AUTH_SESSION["loginExpiryMinutes"])
+    if isinstance(raw_value, bool):
+        number = DEFAULT_AUTH_SESSION["loginExpiryMinutes"]
+    else:
+        try:
+            number = int(raw_value)
+        except (TypeError, ValueError):
+            number = DEFAULT_AUTH_SESSION["loginExpiryMinutes"]
+    return {"loginExpiryMinutes": max(minimum, min(maximum, number))}
 
 
 def get_database_setting_value(key: str) -> dict | None:

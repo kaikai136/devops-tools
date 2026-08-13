@@ -14,13 +14,16 @@ import { createSystemSetting, getSystemSettingOrNull, updateSystemSetting } from
 import { createDefaultTerminalSettings, normalizeTerminalSettings } from '../../utils/terminalSettings';
 import AppIcon from '@shared/components/AppIcon.vue';
 import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
-import type { LogRetentionConfig, TerminalSettingsConfig } from '../../types';
+import type { AuthSessionConfig, LogRetentionConfig, TerminalSettingsConfig } from '../../types';
 
-type SettingsTabKey = 'identity' | 'dashboard' | 'login' | 'footer' | 'logRetention' | 'securityScan' | 'watermark' | 'terminal';
-type SettingsTabIcon = 'bookmark' | 'dashboard' | 'monitor' | 'rows' | 'image' | 'shield' | 'terminal';
+type SettingsTabKey = 'system' | 'dashboard' | 'logRetention' | 'securityScan' | 'watermark' | 'terminal';
+type SettingsTabIcon = 'settings' | 'dashboard' | 'rows' | 'image' | 'shield' | 'terminal';
+type LoginExpiryUnit = 'minutes' | 'hours' | 'days';
+const AUTH_SESSION_SETTING_KEY = 'auth_session';
 const LOG_RETENTION_SETTING_KEY = 'log_retention';
 const SECURITY_SCAN_SETTING_KEY = 'security_scan';
 const TERMINAL_SETTINGS_SETTING_KEY = 'terminal_settings';
+const defaultAuthSession: AuthSessionConfig = { loginExpiryMinutes: 480 };
 const defaultLogRetention: LogRetentionConfig = {
   loginLogsDays: 180,
   operationLogsDays: 180,
@@ -67,17 +70,23 @@ const {
 } = useAppContext();
 
 const settingsTabs: Array<{ key: SettingsTabKey; label: string; title: string; subtitle: string; icon: SettingsTabIcon }> = [
-  { key: 'identity', label: '品牌变量', title: '品牌变量', subtitle: '名称、Logo、图标与 2FA 发行方', icon: 'bookmark' },
+  { key: 'system', label: '系统设置', title: '系统设置', subtitle: '品牌、登录页、页脚与登录会话', icon: 'settings' },
   { key: 'dashboard', label: '仪表盘', title: '仪表盘动态文字', subtitle: 'Hero 文案、样式与打字动画', icon: 'dashboard' },
-  { key: 'login', label: '登录页', title: '登录页文案', subtitle: '欢迎标题、徽标和版权模板', icon: 'monitor' },
-  { key: 'footer', label: '页脚', title: '页脚配置', subtitle: '工作台底部文案、链接与样式', icon: 'rows' },
   { key: 'logRetention', label: '日志保留', title: '日志保留', subtitle: '统一管理审计日志和 RDP 录像留存', icon: 'rows' },
   { key: 'securityScan', label: '安全扫描', title: '安全扫描', subtitle: '在线漏洞源访问开关', icon: 'shield' },
   { key: 'watermark', label: '水印', title: '水印配置', subtitle: '水印模板与应用页面', icon: 'image' },
   { key: 'terminal', label: '终端', title: '终端设置', subtitle: 'Web SSH 连接、保活、显示默认值与批量执行', icon: 'terminal' },
 ];
 
-const activeTab = ref<SettingsTabKey>('identity');
+const activeTab = ref<SettingsTabKey>('system');
+const authSessionConfig = ref<AuthSessionConfig>({ ...defaultAuthSession });
+const authSessionDraft = ref<AuthSessionConfig>({ ...defaultAuthSession });
+const authSessionSettingExists = ref(false);
+const authSessionLoading = ref(false);
+const authSessionSaving = ref(false);
+const authSessionMessage = ref('');
+const loginExpiryValue = ref(8);
+const loginExpiryUnit = ref<LoginExpiryUnit>('hours');
 const logRetentionDraft = ref<LogRetentionConfig>({ ...defaultLogRetention });
 const logRetentionSettingExists = ref(false);
 const logRetentionLoading = ref(false);
@@ -96,7 +105,9 @@ const terminalSettingsMessage = ref('');
 const canSave = computed(() => canUsePageAction('systemSettings', 'save'));
 const currentTab = computed(() => settingsTabs.find((tab) => tab.key === activeTab.value) ?? settingsTabs[0]);
 const currentBusy = computed(() =>
-  activeTab.value === 'watermark'
+  activeTab.value === 'system'
+    ? siteSettingsSaving.value || authSessionSaving.value
+    : activeTab.value === 'watermark'
     ? watermarkSaving.value
     : activeTab.value === 'logRetention'
       ? logRetentionSaving.value
@@ -107,7 +118,9 @@ const currentBusy = computed(() =>
           : siteSettingsSaving.value,
 );
 const currentLoading = computed(() =>
-  activeTab.value === 'watermark'
+  activeTab.value === 'system'
+    ? siteSettingsLoading.value || authSessionLoading.value
+    : activeTab.value === 'watermark'
     ? watermarkLoading.value
     : activeTab.value === 'logRetention'
       ? logRetentionLoading.value
@@ -118,7 +131,9 @@ const currentLoading = computed(() =>
           : siteSettingsLoading.value,
 );
 const currentMessage = computed(() =>
-  activeTab.value === 'watermark'
+  activeTab.value === 'system'
+    ? siteSettingsMessage.value || authSessionMessage.value
+    : activeTab.value === 'watermark'
     ? watermarkMessage.value
     : activeTab.value === 'logRetention'
       ? logRetentionMessage.value
@@ -152,13 +167,115 @@ const previewLoginBadge = computed(() => renderTemplate(loginContentDraft.value.
 const previewLoginTitle = computed(() => renderTemplate(loginContentDraft.value.title, previewVariables.value));
 const previewLoginDescription = computed(() => renderTemplate(loginContentDraft.value.description, previewVariables.value));
 const previewLoginCopyright = computed(() => renderTemplate(loginContentDraft.value.copyrightTemplate, previewVariables.value));
+const loginExpiryInputMax = computed(() => {
+  if (loginExpiryUnit.value === 'days') return 30;
+  if (loginExpiryUnit.value === 'hours') return 720;
+  return 43200;
+});
+
+function normalizeAuthSession(value: unknown): AuthSessionConfig {
+  const raw = typeof value === 'object' && value !== null ? (value as Partial<AuthSessionConfig>) : {};
+  const minutes = Number(raw.loginExpiryMinutes);
+  return {
+    loginExpiryMinutes: Number.isInteger(minutes) ? Math.min(43200, Math.max(1, minutes)) : defaultAuthSession.loginExpiryMinutes,
+  };
+}
+
+function syncAuthSessionDisplay() {
+  const minutes = authSessionDraft.value.loginExpiryMinutes;
+  if (minutes % 1440 === 0) {
+    loginExpiryValue.value = minutes / 1440;
+    loginExpiryUnit.value = 'days';
+  } else if (minutes % 60 === 0) {
+    loginExpiryValue.value = minutes / 60;
+    loginExpiryUnit.value = 'hours';
+  } else {
+    loginExpiryValue.value = minutes;
+    loginExpiryUnit.value = 'minutes';
+  }
+}
+
+function authSessionMinutesFromDisplay() {
+  const value = Math.max(1, Math.round(Number(loginExpiryValue.value) || 1));
+  const multiplier = loginExpiryUnit.value === 'days' ? 1440 : loginExpiryUnit.value === 'hours' ? 60 : 1;
+  return Math.min(43200, Math.max(1, value * multiplier));
+}
+
+async function loadAuthSessionSetting() {
+  authSessionLoading.value = true;
+  authSessionMessage.value = '';
+  try {
+    const setting = await getSystemSettingOrNull(AUTH_SESSION_SETTING_KEY);
+    authSessionSettingExists.value = Boolean(setting);
+    authSessionConfig.value = normalizeAuthSession(setting?.value);
+    authSessionDraft.value = { ...authSessionConfig.value };
+    syncAuthSessionDisplay();
+  } catch (error) {
+    authSessionMessage.value = error instanceof Error ? error.message : '登录会话设置加载失败';
+  } finally {
+    authSessionLoading.value = false;
+  }
+}
+
+async function loadSystemSettings() {
+  await Promise.all([
+    loadSiteIdentitySetting(),
+    loadLoginContentSetting(),
+    loadLayoutFooterSetting(),
+    loadAuthSessionSetting(),
+  ]);
+}
+
+async function saveAuthSessionSetting() {
+  authSessionSaving.value = true;
+  authSessionMessage.value = '';
+  const normalized = { loginExpiryMinutes: authSessionMinutesFromDisplay() };
+  const payload = {
+    key: AUTH_SESSION_SETTING_KEY,
+    label: '登录会话',
+    description: '统一控制系统登录和 Web 终端会话过期时间',
+    value: normalized,
+  };
+  try {
+    const setting = authSessionSettingExists.value
+      ? await updateSystemSetting(AUTH_SESSION_SETTING_KEY, payload)
+      : await createSystemSetting(payload);
+    authSessionSettingExists.value = true;
+    authSessionConfig.value = normalizeAuthSession(setting.value);
+    authSessionDraft.value = { ...authSessionConfig.value };
+    syncAuthSessionDisplay();
+    authSessionMessage.value = '登录会话设置已保存';
+  } catch (error) {
+    authSessionMessage.value = error instanceof Error ? error.message : '登录会话设置保存失败';
+  } finally {
+    authSessionSaving.value = false;
+  }
+}
+
+async function saveSystemSettings() {
+  await saveSiteIdentitySetting();
+  await saveLoginContentSetting();
+  await saveLayoutFooterSetting();
+  await saveAuthSessionSetting();
+}
+
+function resetAuthSessionDraft() {
+  authSessionDraft.value = { ...authSessionConfig.value };
+  syncAuthSessionDisplay();
+  authSessionMessage.value = '';
+}
+
+function resetSystemSettingsDraft() {
+  resetSiteIdentityDraft();
+  resetLoginContentDraft();
+  resetLayoutFooterDraft();
+  resetAuthSessionDraft();
+}
 
 async function refreshCurrentTab() {
   if (currentLoading.value) return;
-  if (activeTab.value === 'identity') await loadSiteIdentitySetting();
+  if (activeTab.value === 'system') await loadSystemSettings();
   else if (activeTab.value === 'dashboard') await loadDashboardHeroSetting();
-  else if (activeTab.value === 'login') await loadLoginContentSetting();
-  else if (activeTab.value === 'footer') await loadLayoutFooterSetting();
   else if (activeTab.value === 'logRetention') await loadLogRetentionSetting();
   else if (activeTab.value === 'securityScan') await loadSecurityScanSetting();
   else if (activeTab.value === 'terminal') await loadTerminalSettingsSetting();
@@ -167,10 +284,8 @@ async function refreshCurrentTab() {
 
 async function saveCurrentTab() {
   if (!canSave.value || currentBusy.value) return;
-  if (activeTab.value === 'identity') await saveSiteIdentitySetting();
+  if (activeTab.value === 'system') await saveSystemSettings();
   else if (activeTab.value === 'dashboard') await saveDashboardHeroSetting();
-  else if (activeTab.value === 'login') await saveLoginContentSetting();
-  else if (activeTab.value === 'footer') await saveLayoutFooterSetting();
   else if (activeTab.value === 'logRetention') await saveLogRetentionSetting();
   else if (activeTab.value === 'securityScan') await saveSecurityScanSetting();
   else if (activeTab.value === 'terminal') await saveTerminalSettingsSetting();
@@ -178,10 +293,8 @@ async function saveCurrentTab() {
 }
 
 function resetCurrentTab() {
-  if (activeTab.value === 'identity') resetSiteIdentityDraft();
+  if (activeTab.value === 'system') resetSystemSettingsDraft();
   else if (activeTab.value === 'dashboard') resetDashboardHeroDraft();
-  else if (activeTab.value === 'login') resetLoginContentDraft();
-  else if (activeTab.value === 'footer') resetLayoutFooterDraft();
   else if (activeTab.value === 'logRetention') resetLogRetentionDraft();
   else if (activeTab.value === 'securityScan') resetSecurityScanDraft();
   else if (activeTab.value === 'terminal') resetTerminalSettingsDraft();
@@ -362,6 +475,7 @@ function toggleAllWatermarkPages() {
 }
 
 onMounted(() => {
+  void loadSystemSettings();
   void loadLogRetentionSetting();
   void loadSecurityScanSetting();
   void loadTerminalSettingsSetting();
@@ -405,45 +519,125 @@ onMounted(() => {
 
         <p v-if="currentMessage" class="system-settings-message">{{ currentMessage }}</p>
 
-        <section v-if="activeTab === 'identity'" class="settings-section single">
-          <header>
-            <h3>品牌变量</h3>
-            <span>全局品牌与 2FA 发行方</span>
-          </header>
-          <div class="settings-field-grid">
-            <label>
-              <span>应用名称</span>
-              <input v-model="siteIdentityDraft.appName" :disabled="!canSave" maxlength="80" />
-            </label>
-            <label>
-              <span>短名称</span>
-              <input v-model="siteIdentityDraft.appShortName" :disabled="!canSave" maxlength="32" />
-            </label>
-            <label>
-              <span>副标题</span>
-              <input v-model="siteIdentityDraft.appSubtitle" :disabled="!canSave" maxlength="80" />
-            </label>
-            <label>
-              <span>浏览器标题</span>
-              <input v-model="siteIdentityDraft.browserTitle" :disabled="!canSave" maxlength="80" />
-            </label>
-            <label>
-              <span>Logo 文本</span>
-              <input v-model="siteIdentityDraft.logoText" :disabled="!canSave" maxlength="32" />
-            </label>
-            <label>
-              <span>2FA 发行方</span>
-              <input v-model="siteIdentityDraft.totpIssuer" :disabled="!canSave" maxlength="80" />
-            </label>
-            <label class="span-2">
-              <span>Logo 图片地址</span>
-              <input v-model="siteIdentityDraft.logoImageUrl" :disabled="!canSave" maxlength="500" />
-            </label>
-            <label class="span-2">
-              <span>默认图标地址</span>
-              <input v-model="siteIdentityDraft.iconUrl" :disabled="!canSave" maxlength="500" />
-            </label>
-          </div>
+        <section v-if="activeTab === 'system'" class="settings-section single merged-system-settings">
+          <section>
+            <header>
+              <h3>品牌信息</h3>
+              <span>全局品牌与 2FA 发行方</span>
+            </header>
+            <div class="settings-field-grid compact-settings-field-grid">
+              <label>
+                <span>应用名称</span>
+                <input v-model="siteIdentityDraft.appName" :disabled="!canSave" maxlength="80" />
+              </label>
+              <label>
+                <span>短名称</span>
+                <input v-model="siteIdentityDraft.appShortName" :disabled="!canSave" maxlength="32" />
+              </label>
+              <label>
+                <span>副标题</span>
+                <input v-model="siteIdentityDraft.appSubtitle" :disabled="!canSave" maxlength="80" />
+              </label>
+              <label>
+                <span>浏览器标题</span>
+                <input v-model="siteIdentityDraft.browserTitle" :disabled="!canSave" maxlength="80" />
+              </label>
+              <label>
+                <span>Logo 文本</span>
+                <input v-model="siteIdentityDraft.logoText" :disabled="!canSave" maxlength="32" />
+              </label>
+              <label>
+                <span>2FA 发行方</span>
+                <input v-model="siteIdentityDraft.totpIssuer" :disabled="!canSave" maxlength="80" />
+              </label>
+              <label class="span-3">
+                <span>Logo 图片地址</span>
+                <input v-model="siteIdentityDraft.logoImageUrl" :disabled="!canSave" maxlength="500" />
+              </label>
+              <label class="span-3">
+                <span>默认图标地址</span>
+                <input v-model="siteIdentityDraft.iconUrl" :disabled="!canSave" maxlength="500" />
+              </label>
+            </div>
+          </section>
+
+          <section>
+            <header>
+              <h3>登录页</h3>
+              <span>未登录页面展示内容</span>
+            </header>
+            <div class="settings-field-grid compact-settings-field-grid">
+              <label>
+                <span>徽标模板</span>
+                <input v-model="loginContentDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
+              </label>
+              <label>
+                <span>标题</span>
+                <input v-model="loginContentDraft.title" :disabled="!canSave" maxlength="80" />
+              </label>
+              <label class="span-3">
+                <span>说明文案</span>
+                <textarea v-model="loginContentDraft.description" :disabled="!canSave" maxlength="260"></textarea>
+              </label>
+              <label class="span-3">
+                <span>版权模板</span>
+                <input v-model="loginContentDraft.copyrightTemplate" :disabled="!canSave" maxlength="160" />
+              </label>
+            </div>
+          </section>
+
+          <section>
+            <header>
+              <h3>页脚</h3>
+              <span>底部文案、链接与显示样式</span>
+            </header>
+            <div class="settings-field-grid compact-settings-field-grid">
+              <label class="settings-check-row">
+                <input v-model="layoutFooterDraft.enabled" :disabled="!canSave" type="checkbox" />
+                <span>显示页脚</span>
+              </label>
+              <label>
+                <span>字号</span>
+                <input v-model.number="layoutFooterDraft.fontSize" :disabled="!canSave" type="number" min="10" max="18" />
+              </label>
+              <label>
+                <span>颜色</span>
+                <input v-model="layoutFooterDraft.color" :disabled="!canSave" type="color" />
+              </label>
+              <label class="span-3">
+                <span>页脚模板</span>
+                <input v-model="layoutFooterDraft.textTemplate" :disabled="!canSave" maxlength="220" />
+              </label>
+              <label>
+                <span>链接文字</span>
+                <input v-model="layoutFooterDraft.linkText" :disabled="!canSave" maxlength="80" />
+              </label>
+              <label class="span-2">
+                <span>链接地址</span>
+                <input v-model="layoutFooterDraft.linkUrl" :disabled="!canSave" maxlength="500" />
+              </label>
+            </div>
+          </section>
+
+          <section>
+            <header>
+              <h3>登录会话</h3>
+              <span>过期后刷新需重新登录，Web 终端同步断开</span>
+            </header>
+            <div class="settings-field-grid compact-settings-field-grid">
+              <label class="expiry-duration-field">
+                <span>系统登录过期时间</span>
+                <div>
+                  <input v-model.number="loginExpiryValue" :disabled="!canSave" type="number" min="1" :max="loginExpiryInputMax" />
+                  <select v-model="loginExpiryUnit" :disabled="!canSave">
+                    <option value="minutes">分钟</option>
+                    <option value="hours">小时</option>
+                    <option value="days">天</option>
+                  </select>
+                </div>
+              </label>
+            </div>
+          </section>
         </section>
 
         <section v-else-if="activeTab === 'dashboard'" class="settings-section single">
@@ -538,64 +732,6 @@ onMounted(() => {
             <label>
               <span>高度</span>
               <input v-model.number="dashboardHeroDraft.height" :disabled="!canSave" type="number" min="30" max="420" />
-            </label>
-          </div>
-        </section>
-
-        <section v-else-if="activeTab === 'login'" class="settings-section single">
-          <header>
-            <h3>登录页文案</h3>
-            <span>未登录页面展示内容</span>
-          </header>
-          <div class="settings-field-grid">
-            <label>
-              <span>徽标模板</span>
-              <input v-model="loginContentDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
-            </label>
-            <label>
-              <span>标题</span>
-              <input v-model="loginContentDraft.title" :disabled="!canSave" maxlength="80" />
-            </label>
-            <label class="span-2">
-              <span>说明文案</span>
-              <textarea v-model="loginContentDraft.description" :disabled="!canSave" maxlength="260"></textarea>
-            </label>
-            <label class="span-2">
-              <span>版权模板</span>
-              <input v-model="loginContentDraft.copyrightTemplate" :disabled="!canSave" maxlength="160" />
-            </label>
-          </div>
-        </section>
-
-        <section v-else-if="activeTab === 'footer'" class="settings-section single">
-          <header>
-            <h3>页脚配置</h3>
-            <span>底部文案、链接与显示样式</span>
-          </header>
-          <div class="settings-field-grid">
-            <label class="settings-check-row">
-              <input v-model="layoutFooterDraft.enabled" :disabled="!canSave" type="checkbox" />
-              <span>显示页脚</span>
-            </label>
-            <label>
-              <span>字号</span>
-              <input v-model.number="layoutFooterDraft.fontSize" :disabled="!canSave" type="number" min="10" max="18" />
-            </label>
-            <label>
-              <span>颜色</span>
-              <input v-model="layoutFooterDraft.color" :disabled="!canSave" type="color" />
-            </label>
-            <label class="span-2">
-              <span>页脚模板</span>
-              <input v-model="layoutFooterDraft.textTemplate" :disabled="!canSave" maxlength="220" />
-            </label>
-            <label>
-              <span>链接文字</span>
-              <input v-model="layoutFooterDraft.linkText" :disabled="!canSave" maxlength="80" />
-            </label>
-            <label>
-              <span>链接地址</span>
-              <input v-model="layoutFooterDraft.linkUrl" :disabled="!canSave" maxlength="500" />
             </label>
           </div>
         </section>
@@ -847,7 +983,7 @@ onMounted(() => {
           <span>{{ currentTab.label }}</span>
         </header>
         <div class="settings-preview-body">
-          <template v-if="activeTab === 'identity'">
+          <template v-if="activeTab === 'system'">
             <section class="settings-preview-brand">
               <img :src="siteIdentityDraft.iconUrl" :alt="siteIdentityDraft.appName" />
               <div>
@@ -860,6 +996,18 @@ onMounted(() => {
               <strong>{{ siteIdentityDraft.browserTitle }}</strong>
               <span>2FA 发行方</span>
               <strong>{{ siteIdentityDraft.totpIssuer }}</strong>
+              <span>登录过期</span>
+              <strong>{{ authSessionMinutesFromDisplay() }} 分钟</strong>
+            </section>
+            <section class="settings-preview-login">
+              <span>{{ previewLoginBadge }}</span>
+              <strong>{{ previewLoginTitle }}</strong>
+              <p>{{ previewLoginDescription }}</p>
+              <em>{{ previewLoginCopyright }}</em>
+            </section>
+            <section class="settings-preview-footer" :style="{ color: layoutFooterDraft.color, fontSize: `${layoutFooterDraft.fontSize}px` }">
+              <span>{{ previewFooterText }}</span>
+              <a v-if="layoutFooterDraft.linkText && layoutFooterDraft.linkUrl">{{ previewFooterLink }}</a>
             </section>
           </template>
 
@@ -868,22 +1016,6 @@ onMounted(() => {
               <span>{{ previewHeroBadge }}</span>
               <img class="settings-preview-typing-svg" :src="previewHeroSvgUrl" :alt="previewHeroLines.join(' / ')" />
               <p>{{ previewDescription }}</p>
-            </section>
-          </template>
-
-          <template v-else-if="activeTab === 'login'">
-            <section class="settings-preview-login">
-              <span>{{ previewLoginBadge }}</span>
-              <strong>{{ previewLoginTitle }}</strong>
-              <p>{{ previewLoginDescription }}</p>
-              <em>{{ previewLoginCopyright }}</em>
-            </section>
-          </template>
-
-          <template v-else-if="activeTab === 'footer'">
-            <section class="settings-preview-footer" :style="{ color: layoutFooterDraft.color, fontSize: `${layoutFooterDraft.fontSize}px` }">
-              <span>{{ previewFooterText }}</span>
-              <a v-if="layoutFooterDraft.linkText && layoutFooterDraft.linkUrl">{{ previewFooterLink }}</a>
             </section>
           </template>
 

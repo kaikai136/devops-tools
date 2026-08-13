@@ -8,6 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from accounts.permissions import has_feature_permission
+from accounts.session_expiry import is_authenticated_session_expired
 from host_management.models import ManagedHost
 
 from ..models import TerminalSession
@@ -95,6 +96,8 @@ class RdpTerminalConsumer(WebsocketConsumer):
             return False
 
         try:
+            if is_authenticated_session_expired(session):
+                return False
             return bool(session.exists(session_key))
         except Exception:
             return False
@@ -148,6 +151,9 @@ class RdpTerminalConsumer(WebsocketConsumer):
         assert self.guacd_socket is not None
         pending = ""
         while not self.stop_reader.is_set():
+            if not self._is_authenticated():
+                self.close(code=4401)
+                return
             try:
                 data = self.guacd_socket.recv(65535)
             except socket.timeout:
