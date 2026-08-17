@@ -1,0 +1,65 @@
+[
+  {
+    "appId": "nginx",
+    "name": "Nginx",
+    "category": "web",
+    "description": "Lightweight reverse proxy and static web server.",
+    "icon": "nginx",
+    "version": "1.25",
+    "source": "builtin",
+    "installMode": "compose",
+    "requirements": { "os": ["linux"], "docker": true, "compose": true },
+    "configSchema": [
+      { "key": "httpPort", "label": "HTTP port", "type": "number", "default": 8080, "required": true, "min": 1, "max": 65535 },
+      { "key": "adminPassword", "label": "Admin password", "type": "password", "required": false }
+    ],
+    "manifest": {
+      "containers": ["opstool-nginx"],
+      "images": ["nginx:1.25-alpine"],
+      "ports": ["${httpPort}:80"],
+      "compose": {
+        "services": {
+          "nginx": {
+            "image": "nginx:1.25-alpine",
+            "container_name": "opstool-nginx",
+            "ports": ["${httpPort}:80"],
+            "restart": "unless-stopped"
+          }
+        }
+      }
+    },
+    "capabilities": ["install", "update", "uninstall", "start", "stop", "restart"]
+  },
+  {
+    "appId": "uptime-kuma",
+    "name": "Uptime Kuma",
+    "category": "monitoring",
+    "description": "Self-hosted uptime monitoring dashboard.",
+    "icon": "activity",
+    "version": "1",
+    "source": "builtin",
+    "installMode": "compose",
+    "requirements": { "os": ["linux"], "docker": true, "compose": true },
+    "configSchema": [
+      { "key": "httpPort", "label": "HTTP port", "type": "number", "default": 3001, "required": true, "min": 1, "max": 65535 }
+    ],
+    "manifest": {
+      "containers": ["opstool-uptime-kuma"],
+      "images": ["louislam/uptime-kuma:1"],
+      "ports": ["${httpPort}:3001"],
+      "compose": {
+        "services": {
+          "uptime-kuma": {
+            "image": "louislam/uptime-kuma:1",
+            "container_name": "opstool-uptime-kuma",
+            "ports": ["${httpPort}:3001"],
+            "volumes": ["uptime-kuma:/app/data"],
+            "restart": "unless-stopped"
+          }
+        },
+        "volumes": { "uptime-kuma": {} }
+      }
+    },
+    "capabilities": ["install", "update", "uninstall", "start", "stop", "restart"]
+  }
+]

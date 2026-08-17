@@ -4,6 +4,7 @@ export type ToolKey =
   | 'hosts'
   | 'sessionAudits'
   | 'bulkExecution'
+  | 'applicationMarket'
   | 'accounts'
   | 'companyDevices'
   | 'ports'

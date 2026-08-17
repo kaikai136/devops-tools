@@ -89,6 +89,7 @@ WATERMARK_ALLOWED_PAGES = {
     "hosts",
     "sessionAudits",
     "bulkExecution",
+    "applicationMarket",
     "accounts",
     "companyDevices",
     "auth",

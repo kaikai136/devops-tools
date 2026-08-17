@@ -11,7 +11,7 @@ const ACTIVE_TOOL_STORAGE_KEY = 'ops-tool.active-tool';
 
 export function useShellState() {
   const activeTool = ref<ToolKey>(readActiveTool());
-  const groupsOpen = ref({ network: true, host: true, security: true, system: true });
+  const groupsOpen = ref({ network: true, host: true, market: true, company: true, security: true, system: true });
   const sidebarCollapsed = ref(false);
   const hoveredNavGroup = ref<string | null>(null);
   const workspaceTheme = ref<WorkspaceTheme>(readWorkspaceTheme());
@@ -93,6 +93,7 @@ function navItemIcon(key: ToolKey): IconName {
     hosts: 'server',
     sessionAudits: 'scan',
     bulkExecution: 'terminal',
+    applicationMarket: 'server',
     accounts: 'users',
     companyDevices: 'laptop',
     ports: 'gauge',
@@ -111,7 +112,7 @@ function navItemIcon(key: ToolKey): IconName {
 }
 
 function navGroupIcon(key: string): IconName {
-  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', company: 'monitor', security: 'settings', system: 'dashboard' };
+  const icons: Record<string, IconName> = { network: 'monitor', host: 'server', market: 'globe', company: 'monitor', security: 'settings', system: 'dashboard' };
   return icons[key] ?? 'dashboard';
 }
 

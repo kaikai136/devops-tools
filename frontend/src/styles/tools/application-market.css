@@ -1,0 +1,869 @@
+.application-market-page {
+  --market-accent: #5b6ee1;
+  --market-accent-soft: rgba(91, 110, 225, 0.12);
+  --market-success: #079455;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 100%;
+  color: #182233;
+}
+
+.market-page-title,
+.market-hero,
+.market-toolbar,
+.capabilityStrip,
+.app-job-banner,
+.install-more-card,
+.market-detail-modal,
+.market-preview-modal {
+  border: 1px solid rgba(23, 37, 84, 0.1);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 28px rgba(21, 32, 54, 0.08);
+}
+
+.market-page-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.market-page-title h2,
+.market-detail-modal h3,
+.market-preview-modal h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.market-page-title p,
+.market-detail-modal p,
+.market-preview-modal p {
+  margin: 5px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.application-market-page button,
+.application-market-page select,
+.application-market-page input {
+  min-height: 36px;
+  border: 1px solid rgba(23, 37, 84, 0.14);
+  border-radius: 7px;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+}
+
+.application-market-page button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.application-market-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.application-market-page button.primary,
+.application-market-page .primary {
+  border-color: var(--market-accent);
+  background: var(--market-accent);
+  color: #fff;
+}
+
+.application-market-page button.danger {
+  border-color: rgba(220, 38, 38, 0.28);
+  color: #b42318;
+  background: #fff5f5;
+}
+
+.targetSelector,
+.market-select-field,
+.market-config-form label {
+  display: grid;
+  gap: 6px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.targetSelector select,
+.market-config-form input,
+.market-config-form select {
+  min-width: 220px;
+  padding: 0 10px;
+}
+
+.market-hero {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  isolation: isolate;
+  gap: 20px;
+  padding: 12px 14px;
+  border-color: rgba(91, 110, 225, 0.28);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 86% 0%, rgba(91, 110, 225, 0.11), transparent 34%),
+    linear-gradient(110deg, rgba(91, 110, 225, 0.06) 0%, rgba(255, 255, 255, 0.96) 58%);
+}
+
+.market-hero::before {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: 34px;
+  width: 190px;
+  height: 190px;
+  border: 30px solid rgba(91, 110, 225, 0.06);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.market-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.market-stats {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(116px, 132px));
+}
+
+.market-stats div {
+  display: grid;
+  gap: 2px;
+  min-height: 48px;
+  padding: 5px 14px;
+  place-content: center;
+  text-align: center;
+}
+
+.market-stats div + div {
+  border-left: 1px solid rgba(23, 37, 84, 0.1);
+}
+
+.market-stats strong {
+  font-size: 19px;
+}
+
+.market-stats span,
+.capabilityStrip span,
+.market-source-mode,
+.app-card__runtime,
+.market-result,
+.market-muted,
+.market-empty {
+  color: #667085;
+  font-size: 12px;
+}
+
+.market-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-self: end;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.capabilityStrip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.capabilityStrip article {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.capabilityStrip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.capabilityStrip article.ok strong {
+  color: #047857;
+}
+
+.capabilityStrip article.warn strong {
+  color: #b42318;
+}
+
+.app-job-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.app-job-banner__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  color: var(--market-accent);
+  background: var(--market-accent-soft);
+}
+
+.app-job-banner__body {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.app-job-banner__body > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-job-banner__body em,
+.status-pill {
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--market-success);
+  background: rgba(7, 148, 85, 0.1);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.app-job-banner__body small {
+  overflow: hidden;
+  color: #667085;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-job-banner__progress {
+  overflow: hidden;
+  height: 5px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.app-job-banner__progress b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--market-accent), #8e83ff);
+}
+
+.market-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.market-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 12px;
+  border: 1px solid rgba(23, 37, 84, 0.12);
+  border-radius: 7px;
+  color: #667085;
+  background: #f8fafc;
+}
+
+.market-search:focus-within {
+  border-color: rgba(91, 110, 225, 0.58);
+  box-shadow: 0 0 0 3px var(--market-accent-soft);
+}
+
+.market-search input {
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.market-segment {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 7px;
+  background: #f1f5f9;
+}
+
+.market-segment button,
+.market-categories button {
+  border: 0;
+  color: #475467;
+  background: transparent;
+}
+
+.market-segment button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.market-segment button.is-active,
+.market-categories button.is-active {
+  color: var(--market-accent);
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.market-categories {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+
+.market-categories button {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(23, 37, 84, 0.1);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.market-categories button span {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #667085;
+  background: #f1f5f9;
+  font-size: 11px;
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.app-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border: 1px solid rgba(23, 37, 84, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(21, 32, 54, 0.07);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.app-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(91, 110, 225, 0.35);
+  box-shadow: 0 14px 28px rgba(21, 32, 54, 0.1);
+}
+
+.app-card.is-installed {
+  border-color: rgba(7, 148, 85, 0.52);
+}
+
+.app-card__main {
+  display: flex !important;
+  justify-content: flex-start !important;
+  gap: 14px !important;
+  flex: 1;
+  min-height: 138px;
+  padding: 16px !important;
+  border: 0 !important;
+  color: inherit;
+  text-align: left;
+  background: transparent !important;
+}
+
+.app-card__icon,
+.app-detail-head__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(23, 37, 84, 0.1);
+  border-radius: 8px;
+  background: #eef4ff;
+  color: var(--market-accent);
+  font-weight: 800;
+  box-shadow: 0 5px 14px rgba(16, 24, 40, 0.08);
+}
+
+.app-card__icon {
+  width: 50px;
+  height: 50px;
+}
+
+.app-detail-head__icon.large {
+  width: 56px;
+  height: 56px;
+}
+
+.app-card__body {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 7px;
+}
+
+.app-card__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-card__title strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-card__meta {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.app-card__meta em,
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #667085;
+  background: #f1f5f9;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.app-card__meta em.is-adapted {
+  color: var(--market-success);
+  background: rgba(7, 148, 85, 0.1);
+}
+
+.app-card__description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.app-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 13px;
+  border-top: 1px solid rgba(23, 37, 84, 0.08);
+}
+
+.app-card__runtime {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.runtime-dot.is-running {
+  background: var(--market-success);
+  box-shadow: 0 0 0 4px rgba(7, 148, 85, 0.12);
+}
+
+.install-more-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.install-more-card > span {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  color: var(--market-accent);
+  background: var(--market-accent-soft);
+}
+
+.install-more-card p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.market-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.market-detail-backdrop,
+.market-preview-backdrop {
+  z-index: 70;
+}
+
+.market-detail-modal,
+.market-preview-modal {
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  border-radius: 8px;
+}
+
+.market-task-detail-modal {
+  width: min(980px, calc(100vw - 32px));
+}
+
+.market-detail-modal > header,
+.market-preview-modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(23, 37, 84, 0.08);
+}
+
+.app-detail-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-detail-head > div {
+  display: grid;
+  gap: 5px;
+}
+
+.app-detail-head__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.app-detail-head strong {
+  font-size: 18px;
+}
+
+.app-detail-head small {
+  color: #667085;
+}
+
+.market-detail-body {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.app-control-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgba(23, 37, 84, 0.1);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.app-control-panel__status {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.app-control-panel__status > div {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+}
+
+.app-control-panel__status > div + div {
+  border-left: 1px solid rgba(23, 37, 84, 0.08);
+}
+
+.app-control-panel__status span,
+.app-control-panel__status small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.app-control-panel__actions,
+.market-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px 10px;
+}
+
+.app-install-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px dashed rgba(91, 110, 225, 0.38);
+  border-radius: 8px;
+  color: var(--market-accent);
+  background: var(--market-accent-soft);
+}
+
+.app-install-state p {
+  margin: 4px 0 0;
+  color: #475467;
+}
+
+.market-detail-section {
+  padding: 12px;
+  border: 1px solid rgba(23, 37, 84, 0.08);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.market-detail-section h4 {
+  margin: 0 0 9px;
+  font-size: 13px;
+}
+
+.market-requirements,
+.market-summary-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.market-requirements span,
+.market-summary-list span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+}
+
+.market-config-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.market-checkbox {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  color: #334155 !important;
+}
+
+.market-checkbox input {
+  min-height: auto;
+}
+
+.market-task-list {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.market-task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(23, 37, 84, 0.08);
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.market-task-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.market-task-row > div:last-of-type {
+  justify-items: end;
+}
+
+.market-task-row span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.market-task-row pre {
+  grid-column: 1 / -1;
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border-radius: 7px;
+  background: #101828;
+  color: #e5e7eb;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.market-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+.market-preview-grid article {
+  display: grid;
+  gap: 6px;
+  min-height: 86px;
+  padding: 10px;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.market-preview-grid span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.market-preview-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.market-preview-warning {
+  margin: 0 14px 14px;
+  padding: 10px;
+  border-radius: 7px;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.market-preview-warning p {
+  margin: 6px 0 0;
+}
+
+.market-preview-modal footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(23, 37, 84, 0.08);
+}
+
+.workspace-dark .application-market-page {
+  color: #e5e7eb;
+}
+
+.workspace-dark :where(.market-page-title, .market-hero, .market-toolbar, .capabilityStrip, .app-job-banner, .install-more-card, .market-detail-modal, .market-preview-modal, .app-card, .market-detail-section) {
+  border-color: rgba(226, 232, 240, 0.12);
+  background: rgba(17, 24, 39, 0.94);
+}
+
+.workspace-dark :where(.application-market-page button, .application-market-page select, .application-market-page input, .market-search, .market-segment, .market-categories button) {
+  border-color: rgba(226, 232, 240, 0.16);
+  background: #111827;
+  color: #e5e7eb;
+}
+
+.workspace-dark :where(.capabilityStrip article, .app-control-panel, .market-requirements span, .market-summary-list span, .market-task-row, .market-preview-grid article) {
+  background: rgba(30, 41, 59, 0.82);
+  color: #e5e7eb;
+}
+
+@media (max-width: 1280px) {
+  .app-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .market-toolbar,
+  .capabilityStrip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .app-grid,
+  .market-stats,
+  .app-control-panel,
+  .app-control-panel__status,
+  .market-config-form,
+  .market-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .market-hero,
+  .market-page-title,
+  .app-job-banner,
+  .install-more-card,
+  .app-install-state,
+  .market-result {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .market-page-title,
+  .market-result {
+    flex-direction: column;
+  }
+
+  .market-hero__actions,
+  .app-job-banner__actions {
+    justify-content: flex-start;
+  }
+}
