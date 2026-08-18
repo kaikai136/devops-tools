@@ -4,7 +4,7 @@
   overflow: auto;
   background: #eef1fb;
   color: #303133;
-  padding: 16px 18px;
+  padding: var(--workspace-page-gutter);
   font-size: 15px;
   font-weight: 600;
 }
@@ -19,7 +19,7 @@
 .role-filter-panel {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: var(--workspace-page-gap);
   min-height: 70px;
   padding: 16px 30px;
 }
@@ -93,7 +93,7 @@
   position: relative;
   min-width: 980px;
   min-height: 278px;
-  margin-top: 10px;
+  margin-top: var(--workspace-page-gap);
   padding: 30px;
 }
 
@@ -695,7 +695,7 @@ button.role-user-count:hover {
 
 @media (max-width: 900px) {
   .role-manager-page {
-    padding: 12px;
+    padding: var(--workspace-page-gutter);
   }
 
   .role-filter-panel {

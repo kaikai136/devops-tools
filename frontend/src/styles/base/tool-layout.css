@@ -1,7 +1,7 @@
 .tool-stack {
   display: grid;
-  gap: 10px;
-  margin: 14px;
+  gap: var(--workspace-page-gap);
+  margin: var(--workspace-page-gutter);
 }
 
 .ip-page {
@@ -14,20 +14,20 @@
 .auth-layout {
   display: grid;
   grid-template-columns: minmax(360px, 0.95fr) minmax(520px, 1.65fr);
-  gap: 14px;
+  gap: var(--workspace-page-gap);
   align-items: start;
-  margin: 14px;
+  margin: var(--workspace-page-gutter);
 }
 
 .machine-probe-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
+  gap: var(--workspace-page-gap);
   align-items: start;
   min-height: 0;
-  margin: 14px;
+  margin: var(--workspace-page-gutter);
   overflow: auto;
-  padding-bottom: 18px;
+  padding-bottom: var(--workspace-page-gutter);
 }
 
 .machine-ping-column,

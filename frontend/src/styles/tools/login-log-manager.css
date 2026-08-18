@@ -2,9 +2,9 @@
   display: grid;
   flex: 1 1 auto;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--workspace-page-gap);
   min-height: 0;
-  padding: 24px 22px;
+  padding: var(--workspace-page-gutter);
   overflow: hidden;
   background: #eef1f5;
 }
@@ -13,7 +13,7 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  padding: 24px;
+  padding: var(--workspace-page-gutter);
 }
 
 .login-log-filter-panel,
@@ -24,9 +24,9 @@
 .login-log-filter-panel {
   display: flex;
   align-items: center;
-  gap: 48px;
+  gap: 16px;
   min-height: 80px;
-  padding: 0 22px;
+  padding: 0 16px;
 }
 
 .login-log-filter-panel label {
@@ -63,7 +63,7 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(150px, 1fr));
   gap: 16px;
-  padding: 18px 22px;
+  padding: 16px;
 }
 
 .operation-log-page .login-log-filter-panel label {
@@ -74,7 +74,7 @@
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) minmax(52px, auto);
   min-height: 0;
-  padding: 22px 24px 12px;
+  padding: var(--workspace-panel-padding);
   overflow: hidden;
 }
 
@@ -88,9 +88,9 @@
 
 .login-log-toolbar {
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--workspace-page-gap);
   min-height: 36px;
-  margin-bottom: 20px;
+  margin-bottom: var(--workspace-page-gap);
 }
 
 .login-log-toolbar h2 {
@@ -311,7 +311,7 @@
   justify-content: flex-end;
   gap: 8px;
   min-height: 52px;
-  padding-top: 10px;
+  padding-top: var(--workspace-page-gap);
   border-top: 1px solid #eceff3;
   background: #fff;
   color: #07172a;
@@ -365,7 +365,7 @@
 
 @media (max-width: 900px) {
   .login-log-page {
-    padding: 14px;
+    padding: var(--workspace-page-gutter);
   }
 
   .login-log-filter-panel {

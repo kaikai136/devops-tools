@@ -4,14 +4,14 @@
   overflow: auto;
   background: #f0f2f5;
   color: #1f2937;
-  padding: 0;
+  padding: var(--workspace-page-gutter);
 }
 
 .user-manager-page.fullscreen {
   position: fixed;
   inset: 0;
   z-index: 60;
-  padding: 24px;
+  padding: var(--workspace-page-gutter);
   background: #eef1f5;
 }
 
@@ -39,7 +39,7 @@
 
 .user-filter-panel,
 .user-list-panel {
-  margin: 20px;
+  margin: 0 0 var(--workspace-page-gap);
   border: 0;
   border-radius: 0;
   background: #fff;
@@ -50,7 +50,7 @@
   display: flex;
   align-items: center;
   min-height: 78px;
-  padding: 16px 22px;
+  padding: 16px;
 }
 
 .user-filter-panel label {
@@ -86,7 +86,8 @@
 .user-list-panel {
   min-width: 900px;
   min-height: 284px;
-  padding: 24px;
+  padding: var(--workspace-panel-padding);
+  margin-bottom: 0;
 }
 
 .user-list-toolbar,
@@ -101,8 +102,8 @@
 
 .user-list-toolbar {
   justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 20px;
+  gap: var(--workspace-page-gap);
+  margin-bottom: var(--workspace-page-gap);
 }
 
 .user-list-toolbar h2 {
@@ -587,7 +588,7 @@
   width: min(420px, calc(100vw - 28px));
   gap: 14px;
   grid-template-rows: auto;
-  padding: 24px 22px 20px;
+  padding: var(--workspace-panel-padding);
   overflow: auto;
 }
 
@@ -974,7 +975,7 @@
 
 @media (max-width: 920px) {
   .user-manager-page {
-    padding: 0;
+    padding: var(--workspace-page-gutter);
   }
 
   .user-manager-page.fullscreen {
@@ -983,8 +984,12 @@
 
   .user-filter-panel,
   .user-list-panel {
-    margin: 14px;
+    margin: 0 0 var(--workspace-page-gap);
     min-width: 0;
+  }
+
+  .user-list-panel {
+    margin-bottom: 0;
   }
 
   .user-filter-panel {

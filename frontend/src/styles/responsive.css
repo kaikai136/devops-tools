@@ -194,3 +194,10 @@
     min-height: 0;
   }
 }
+
+@media (max-width: 680px) {
+  .app-shell {
+    --workspace-page-gutter: 12px;
+    --workspace-page-gap: 12px;
+  }
+}

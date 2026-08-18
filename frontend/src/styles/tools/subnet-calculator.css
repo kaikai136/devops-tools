@@ -1,9 +1,10 @@
 .subnet-workbench {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
+  gap: var(--workspace-page-gap);
   overflow: auto;
-  padding-bottom: 18px;
+  margin: var(--workspace-page-gutter);
+  padding-bottom: var(--workspace-page-gutter);
 }
 
 .subnet-workbench .panel {

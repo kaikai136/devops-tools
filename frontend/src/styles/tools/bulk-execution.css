@@ -11,8 +11,10 @@
   --bulk-danger: #c24132;
   --bulk-control-h: 36px;
   display: flex;
+  flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
+  height: auto;
+  margin: var(--workspace-page-gutter);
   color: var(--bulk-ink);
 }
 
@@ -40,7 +42,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 12px var(--workspace-panel-padding);
 }
 
 .bulk-execution-head h2,
@@ -138,7 +140,7 @@
     minmax(76px, auto)
     minmax(180px, 0.75fr);
   min-height: 44px;
-  padding: 8px 10px;
+  padding: 8px var(--workspace-panel-padding);
 }
 
 .bulk-execution-filters input,
@@ -227,7 +229,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 12px var(--workspace-panel-padding);
   border-bottom: 1px solid var(--bulk-soft-line);
 }
 

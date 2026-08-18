@@ -1,7 +1,7 @@
 .account-page {
   flex: 1 1 auto;
   min-height: 0;
-  margin: 14px;
+  margin: var(--workspace-page-gutter);
   overflow: hidden;
 }
 
@@ -11,7 +11,7 @@
   z-index: 60;
   display: grid;
   margin: 0;
-  padding: 24px;
+  padding: var(--workspace-page-gutter);
   background: #eef1f5;
 }
 
@@ -19,7 +19,7 @@
   min-height: 0;
   height: 100%;
   overflow: auto;
-  padding: 24px;
+  padding: var(--workspace-panel-padding);
   background: rgba(255, 255, 255, 0.88);
 }
 

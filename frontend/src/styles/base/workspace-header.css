@@ -33,6 +33,9 @@
 
 .app-shell {
   --workspace-topbar-height: 58px;
+  --workspace-page-gutter: 14px;
+  --workspace-page-gap: 14px;
+  --workspace-panel-padding: 16px;
   --workspace-bg: #edf3fb;
   --workspace-surface: #fff;
   --workspace-surface-muted: #f8fbff;
