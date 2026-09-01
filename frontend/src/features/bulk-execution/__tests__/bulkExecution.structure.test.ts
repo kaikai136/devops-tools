@@ -311,6 +311,17 @@ describe('bulk execution frontend contract', () => {
     expect(styles).not.toContain('pointer-events: none');
   });
 
+  it('uses the detail modal primary action to expand or collapse all host outputs', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const detailModal = panel.match(/<section class="bulk-task-detail bulk-task-detail-modal"[\s\S]*?<\/section>\s*<\/div>/)?.[0] ?? '';
+
+    expect(panel).toContain('allResultsExpanded');
+    expect(panel).toContain('toggleAllResults');
+    expect(detailModal).toContain('@click="toggleAllResults"');
+    expect(detailModal).toContain("{{ allResultsExpanded ? '全部收起' : '全部展开' }}");
+    expect(detailModal).not.toContain('@click="rerunTask(selectedTask)"');
+  });
+
   it('paginates bulk task history with the shared footer pattern and right-side task statistics', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const footer = panel.match(/<footer class="bulk-record-footer">[\s\S]*?<\/footer>/)?.[0] ?? '';
@@ -362,6 +373,15 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('请填写远程目录');
     expect(panel).toContain('@click="createTaskWithConfirmation"');
     expect(panel).toContain('@click="submitUploadFlow"');
+  });
+
+  it('keeps execute confirmations summary-only without exposing script content', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const confirmationFlow = panel.match(/function createTaskWithConfirmation\(\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+    expect(confirmationFlow).toContain('将对 ${selectedTargetIds.value.size} 台主机执行批量任务。');
+    expect(confirmationFlow).not.toContain('${executionTypeLabels[executionType.value]}');
+    expect(confirmationFlow).not.toContain('commandInput.value.trim()');
   });
 
   it('supports folder selection and preserves relative paths through upload APIs', () => {

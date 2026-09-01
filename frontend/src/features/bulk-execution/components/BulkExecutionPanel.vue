@@ -191,6 +191,8 @@ const selectedTaskLogLines = computed(() => {
 const selectedTaskUploadSize = computed(() => selectedTask.value?.uploadSize || selectedTask.value?.uploadFiles.reduce((total, file) => total + file.size, 0) || 0);
 const uploadFileTreeRows = computed(() => flattenUploadFileTree(buildUploadFileTree(selectedTask.value?.uploadFiles ?? []), expandedUploadFolderKeys.value));
 const selectedTaskExecutionType = computed(() => selectedTask.value ? executionTypeLabels[selectedTask.value.executionType] : '');
+const selectedTaskResultIds = computed(() => selectedTask.value?.results.map((result) => result.id) ?? []);
+const allResultsExpanded = computed(() => selectedTaskResultIds.value.length > 0 && selectedTaskResultIds.value.every((id) => expandedResultIds.value.has(id)));
 const commandPlaceholder = computed(() =>
   executionType.value === 'playbook'
     ? '- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Check hostname\n      ansible.builtin.command: hostname'
@@ -610,7 +612,7 @@ function createTaskWithConfirmation() {
   const run = async () => {
     await createTask();
   };
-  const message = `将对 ${selectedTargetIds.value.size} 台主机执行 ${executionTypeLabels[executionType.value]}：\n${commandInput.value.trim()}`;
+  const message = `将对 ${selectedTargetIds.value.size} 台主机执行批量任务。`;
   if (requestConfirm) requestConfirm('确认批量执行', message, executeActionLabel.value, run);
   else if (window.confirm(message)) void run();
 }
@@ -920,6 +922,17 @@ function toggleResult(resultId: number) {
 
 function isResultExpanded(resultId: number) {
   return expandedResultIds.value.has(resultId);
+}
+
+function toggleAllResults() {
+  const ids = selectedTaskResultIds.value;
+  if (!ids.length) return;
+  if (allResultsExpanded.value) {
+    const selectedIds = new Set(ids);
+    expandedResultIds.value = new Set([...expandedResultIds.value].filter((id) => !selectedIds.has(id)));
+    return;
+  }
+  expandedResultIds.value = new Set([...expandedResultIds.value, ...ids]);
 }
 
 function buildPlaybookLogOutput(task: BulkExecutionTaskDetail) {
@@ -1469,7 +1482,7 @@ function formatFileSize(value: number) {
                 <p>{{ selectedTask.createdBy }} · {{ selectedTaskExecutionType }} · {{ statusLabel(selectedTask.status) }} · {{ selectedTaskProgress }}%</p>
               </div>
               <div>
-                <button v-if="canExecute" type="button" :disabled="isControlBusy" @click="rerunTask(selectedTask)">再次执行</button>
+                <button type="button" :disabled="!selectedTask.results.length" @click="toggleAllResults">{{ allResultsExpanded ? '全部收起' : '全部展开' }}</button>
                 <button v-if="canCancel" type="button" :disabled="!selectedTaskCanCancel || isControlBusy" @click="cancelSelectedTask">取消</button>
                 <button v-if="canDelete" class="danger" type="button" :disabled="isControlBusy" @click="deleteSelectedTask"><AppIcon name="trash" :size="15" />删除</button>
               </div>
