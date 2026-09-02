@@ -167,6 +167,7 @@ describe('terminal screen helpers', () => {
     const listeners = new Map<string, EventListenerOrEventListenerObject>();
     const terminalChild = {};
     const outside = {};
+    const propagationStops: string[] = [];
     const container = {
       contains: (target: unknown) => target === terminalChild,
     } as HTMLElement;
@@ -187,6 +188,7 @@ describe('terminal screen helpers', () => {
     pasteListener({
       target: outside,
       preventDefault: () => undefined,
+      stopPropagation: () => propagationStops.push('outside'),
       clipboardData: {
         getData: (type: string) => (type === 'text/plain' ? 'ignored' : ''),
       },
@@ -194,12 +196,14 @@ describe('terminal screen helpers', () => {
     pasteListener({
       target: terminalChild,
       preventDefault: () => undefined,
+      stopPropagation: () => propagationStops.push('terminal'),
       clipboardData: {
         getData: (type: string) => (type === 'text/plain' ? 'uptime' : ''),
       },
     } as unknown as ClipboardEvent);
 
     expect(sent).toEqual(['uptime']);
+    expect(propagationStops).toEqual(['terminal']);
     disposable.dispose();
     expect(listeners.has('paste')).toBe(false);
   });

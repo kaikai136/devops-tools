@@ -311,6 +311,26 @@ describe('bulk execution frontend contract', () => {
     expect(styles).not.toContain('pointer-events: none');
   });
 
+  it('numbers execution records after the selection column using the current page offset', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+    const recordTable = panel.match(/<div class="bulk-record-table">[\s\S]*?<\/div>\s*<footer class="bulk-record-footer">/)?.[0] ?? '';
+    const colgroup = recordTable.match(/<colgroup>[\s\S]*?<\/colgroup>/)?.[0] ?? '';
+    const tableHead = recordTable.match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? '';
+    const taskRow = recordTable.match(/<tr[\s\S]*?v-for="\(.+?\) in taskHistory"[\s\S]*?<\/tr>/)?.[0] ?? '';
+
+    expect(recordTable).toContain('v-for="(task, index) in taskHistory"');
+    expect(colgroup).toContain('<col class="col-index" />');
+    expect(colgroup.indexOf('col-check')).toBeLessThan(colgroup.indexOf('col-index'));
+    expect(colgroup.indexOf('col-index')).toBeLessThan(colgroup.indexOf('col-host'));
+    expect(tableHead).toContain('<th scope="col" class="is-center">编号</th>');
+    expect(tableHead.indexOf('选择当前页执行记录')).toBeLessThan(tableHead.indexOf('编号'));
+    expect(tableHead.indexOf('编号')).toBeLessThan(tableHead.indexOf('执行机器'));
+    expect(taskRow).toContain('<td class="is-center cell-index">{{ taskPageStart + index }}</td>');
+    expect(styles).toContain('.bulk-record-grid .col-index { width: 68px; }');
+    expect(styles).toContain('.bulk-record-grid .cell-index');
+  });
+
   it('uses the detail modal primary action to expand or collapse all host outputs', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const detailModal = panel.match(/<section class="bulk-task-detail bulk-task-detail-modal"[\s\S]*?<\/section>\s*<\/div>/)?.[0] ?? '';
@@ -512,7 +532,7 @@ describe('bulk execution frontend contract', () => {
     const selectTaskStart = panel.indexOf('async function selectTask(');
     const listLoader = loadTasksStart >= 0 && selectTaskStart > loadTasksStart ? panel.slice(loadTasksStart, selectTaskStart) : '';
     const polling = panel.match(/function startPolling\(\)[\s\S]*?function stopPolling/)?.[0] ?? '';
-    const taskRow = panel.match(/<tr[\s\S]*?v-for="task in taskHistory"[\s\S]*?<\/tr>/)?.[0] ?? '';
+    const taskRow = panel.match(/<tr[\s\S]*?v-for="\(.+?\) in taskHistory"[\s\S]*?<\/tr>/)?.[0] ?? '';
 
     expect(listLoader).not.toContain('await selectTask(');
     expect(panel).toContain('const pollInFlight = ref(false)');

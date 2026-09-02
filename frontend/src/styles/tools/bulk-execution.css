@@ -379,7 +379,7 @@
 
 .bulk-record-grid {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1388px;
   border-collapse: collapse;
   table-layout: fixed;
   color: var(--bulk-ink);
@@ -388,6 +388,7 @@
 }
 
 .bulk-record-grid .col-check { width: 40px; }
+.bulk-record-grid .col-index { width: 68px; }
 .bulk-record-grid .col-host { width: 13%; }
 .bulk-record-grid .col-command { width: 22%; }
 .bulk-record-grid .col-status { width: 150px; }
@@ -426,6 +427,12 @@
 .bulk-record-grid .cell-status-summary {
   color: var(--bulk-ink);
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.bulk-record-grid .cell-index {
+  color: #52627a;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
@@ -1958,7 +1965,7 @@
   color: var(--workspace-text);
 }
 
-.workspace-dark :where(.bulk-record-grid .cell-command, .bulk-record-grid .cell-time, .bulk-record-grid .cell-desc) {
+.workspace-dark :where(.bulk-record-grid .cell-index, .bulk-record-grid .cell-command, .bulk-record-grid .cell-time, .bulk-record-grid .cell-desc) {
   color: var(--workspace-text-muted, #9fb3cd);
 }
 

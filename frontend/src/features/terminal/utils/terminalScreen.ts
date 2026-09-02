@@ -138,7 +138,10 @@ export function attachTerminalPasteHandler(
     if (typeof Node !== 'undefined' && event.target instanceof Node && !container.contains(event.target)) return;
     if (typeof Node === 'undefined' && event.target && !container.contains(event.target as never)) return;
     const text = getClipboardTextFromPasteEvent(event);
-    if (text) sendText(text);
+    if (text) {
+      event.stopPropagation();
+      sendText(text);
+    }
   };
   eventTarget?.addEventListener('paste', handlePaste, true);
   return {

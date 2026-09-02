@@ -1106,6 +1106,7 @@ function formatFileSize(value: number) {
             <table class="bulk-record-grid">
               <colgroup>
                 <col class="col-check" />
+                <col class="col-index" />
                 <col class="col-host" />
                 <col class="col-command" />
                 <col class="col-status" />
@@ -1129,6 +1130,7 @@ function formatFileSize(value: number) {
                       />
                     </label>
                   </th>
+                  <th scope="col" class="is-center">编号</th>
                   <th scope="col">执行机器</th>
                   <th scope="col">执行命令</th>
                   <th scope="col" class="is-center">状态</th>
@@ -1142,7 +1144,7 @@ function formatFileSize(value: number) {
               </thead>
               <tbody>
                 <tr
-                  v-for="task in taskHistory"
+                  v-for="(task, index) in taskHistory"
                   :key="task.id"
                   class="bulk-record-row"
                   :class="{ active: selectedTaskId === task.id }"
@@ -1153,6 +1155,7 @@ function formatFileSize(value: number) {
                       <input type="checkbox" :checked="selectedRecordTaskIds.has(task.id)" @change.stop="toggleRecordTaskSelection(task.id, $event)" />
                     </label>
                   </td>
+                  <td class="is-center cell-index">{{ taskPageStart + index }}</td>
                   <td class="cell-host" :title="taskHostSummary(task)">{{ taskHostSummary(task) }}</td>
                   <td class="cell-command" :title="task.command">{{ task.command }}</td>
                   <td class="is-center cell-status-summary" :title="taskResultSummary(task)">
