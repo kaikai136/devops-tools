@@ -487,6 +487,25 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('MAX_SCRIPT_LENGTH = 200000');
   });
 
+  it('adds a clear action beside script upload that resets the editor and source label', () => {
+    const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
+    const styles = readSource('styles/tools/bulk-execution.css');
+    const editorHead = panel.match(/<div class="bulk-script-editor-head">[\s\S]*?<\/div>\s*<\/div>\s*<div v-if="scriptSourceName"/)?.[0] ?? '';
+    const clearFunction = panel.match(/function clearScriptInput\(\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+    expect(panel).toContain('canClearScriptInput');
+    expect(clearFunction).toContain("commandInput.value = ''");
+    expect(clearFunction).toContain("scriptSourceName.value = ''");
+    expect(editorHead).toContain('bulk-script-editor-actions');
+    expect(editorHead).toContain('bulk-script-upload-button');
+    expect(editorHead).toContain('bulk-script-clear-button');
+    expect(editorHead).toContain('@click="clearScriptInput"');
+    expect(editorHead).toContain('aria-label="清空脚本内容"');
+    expect(editorHead).toContain('!canClearScriptInput');
+    expect(styles).toContain('.bulk-script-editor-actions');
+    expect(styles).toContain('.bulk-script-clear-button');
+  });
+
   it('keeps task polling lightweight and shows success and failure counts in the status column', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const loadTasksStart = panel.indexOf('async function loadTasks() {');

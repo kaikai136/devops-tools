@@ -193,6 +193,7 @@ const uploadFileTreeRows = computed(() => flattenUploadFileTree(buildUploadFileT
 const selectedTaskExecutionType = computed(() => selectedTask.value ? executionTypeLabels[selectedTask.value.executionType] : '');
 const selectedTaskResultIds = computed(() => selectedTask.value?.results.map((result) => result.id) ?? []);
 const allResultsExpanded = computed(() => selectedTaskResultIds.value.length > 0 && selectedTaskResultIds.value.every((id) => expandedResultIds.value.has(id)));
+const canClearScriptInput = computed(() => Boolean(commandInput.value.trim() || scriptSourceName.value));
 const commandPlaceholder = computed(() =>
   executionType.value === 'playbook'
     ? '- hosts: all\n  gather_facts: false\n  tasks:\n    - name: Check hostname\n      ansible.builtin.command: hostname'
@@ -670,6 +671,11 @@ async function deleteTaskFromList(taskId: number) {
 
 function triggerScriptFileSelect() {
   scriptFileInput.value?.click();
+}
+
+function clearScriptInput() {
+  commandInput.value = '';
+  scriptSourceName.value = '';
 }
 
 async function onScriptFileChange(event: Event) {
@@ -1246,10 +1252,22 @@ function formatFileSize(value: number) {
               <input ref="scriptFileInput" hidden type="file" :accept="scriptFileAccept" @change="onScriptFileChange" />
               <div class="bulk-script-editor-head">
                 <span>{{ executionTypeLabels[executionType] }}<em class="required-marker">*</em></span>
-                <button class="bulk-script-upload-button" type="button" :disabled="isCreating" @click="triggerScriptFileSelect">
-                  <AppIcon name="upload" :size="14" />
-                  {{ scriptUploadButtonLabel }}
-                </button>
+                <div class="bulk-script-editor-actions">
+                  <button class="bulk-script-upload-button" type="button" :disabled="isCreating" @click="triggerScriptFileSelect">
+                    <AppIcon name="upload" :size="14" />
+                    {{ scriptUploadButtonLabel }}
+                  </button>
+                  <button
+                    class="bulk-script-clear-button"
+                    type="button"
+                    :disabled="isCreating || !canClearScriptInput"
+                    aria-label="清空脚本内容"
+                    title="清空脚本内容"
+                    @click="clearScriptInput"
+                  >
+                    <AppIcon name="reset" :size="14" />
+                  </button>
+                </div>
               </div>
               <div v-if="scriptSourceName" class="bulk-script-source">
                 <AppIcon name="file" :size="14" />

@@ -1096,7 +1096,8 @@
 
 .bulk-mode-tabs button,
 .bulk-script-presets button,
-.bulk-script-upload-button {
+.bulk-script-upload-button,
+.bulk-script-clear-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1146,6 +1147,13 @@
   white-space: nowrap;
 }
 
+.bulk-script-editor-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
 .bulk-script-upload-button {
   min-height: 30px;
   padding: 0 10px;
@@ -1154,7 +1162,16 @@
   white-space: nowrap;
 }
 
-.bulk-script-upload-button:disabled {
+.bulk-script-clear-button {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  color: #64748b;
+}
+
+.bulk-script-upload-button:disabled,
+.bulk-script-clear-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -1949,7 +1966,7 @@
   background: #14233a;
 }
 
-.workspace-dark :where(.bulk-mode-tabs button, .bulk-script-presets button, .bulk-script-upload-button) {
+.workspace-dark :where(.bulk-mode-tabs button, .bulk-script-presets button, .bulk-script-upload-button, .bulk-script-clear-button) {
   border-color: var(--workspace-border);
   background: var(--workspace-surface-muted);
   color: var(--workspace-text);
