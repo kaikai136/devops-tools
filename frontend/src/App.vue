@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, provide, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 
 import { appContextKey } from '@app/context';
 import AppIcon from '@shared/components/AppIcon.vue';
@@ -11,6 +11,7 @@ import UserAvatar from '@shared/components/UserAvatar.vue';
 import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
 import { errorMessage } from '@shared/utils/errors';
+import type { ToolKey } from './types';
 
 type DashboardPageExpose = {
   refresh?: () => Promise<void> | void;
@@ -129,6 +130,50 @@ const footerText = computed(() => renderSystemTemplate(layoutFooter.value.textTe
 const footerLinkText = computed(() => renderSystemTemplate(layoutFooter.value.linkText));
 const footerStyle = computed(() => ({ fontSize: `${layoutFooter.value.fontSize}px`, color: layoutFooter.value.color }));
 const isExternalFooterLink = computed(() => /^https?:\/\//i.test(layoutFooter.value.linkUrl));
+const sidebarNow = ref(new Date());
+const sidebarClockDate = computed(() => {
+  const now = sidebarNow.value;
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const weekday = new Intl.DateTimeFormat('zh-CN', { weekday: 'long' }).format(now);
+  return `${year}-${month}-${day} ${weekday}`;
+});
+const sidebarClockTime = computed(() =>
+  new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(sidebarNow.value),
+);
+const breadcrumbItems = computed(() =>
+  activeTool.value === 'dashboard'
+    ? [
+        { key: 'home', label: '首页' },
+        { key: 'dashboard', label: dashboardNavItem.value?.label ?? '仪表盘' },
+      ]
+    : [
+        { key: 'home', label: '首页' },
+        { key: activeNavGroup.value.key, label: activeNavGroup.value.label },
+        { key: activeNavItem.value.key, label: activeNavItem.value.label },
+      ],
+);
+
+let sidebarClockTimer: number | undefined;
+
+function updateSidebarClock() {
+  sidebarNow.value = new Date();
+}
+
+onMounted(() => {
+  updateSidebarClock();
+  sidebarClockTimer = window.setInterval(updateSidebarClock, 1000);
+});
+
+onUnmounted(() => {
+  if (sidebarClockTimer !== undefined) window.clearInterval(sidebarClockTimer);
+});
 
 watch(hostTransferDialog, (mode) => {
   if (mode !== 'export') return;
@@ -180,6 +225,38 @@ async function lockCurrentSession() {
     showToast('锁屏失败', errorMessage(error));
   }
 }
+
+function handleSidebarSelect(index: string) {
+  if (index === 'dashboard') {
+    setActiveTool('dashboard');
+    return;
+  }
+  selectNavItem(index as ToolKey);
+}
+
+function handleUserCommand(command: 'profile' | 'lock' | 'logout') {
+  if (command === 'profile') {
+    if (canAccessPage('profile')) setActiveTool('profile');
+    return;
+  }
+  if (command === 'lock') {
+    void lockCurrentSession();
+    return;
+  }
+  void logout();
+}
+
+function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
+  if (command === 'theme') {
+    toggleWorkspaceTheme();
+    return;
+  }
+  if (command === 'refresh') {
+    void refreshDashboard();
+    return;
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 </script>
 <template>
   <main v-if="!isAuthReady" class="auth-loading">
@@ -201,92 +278,38 @@ async function lockCurrentSession() {
       </div>
 
       <nav class="sidebar-nav">
-        <button
-          v-if="dashboardNavItem && !sidebarCollapsed"
-          class="nav-dashboard-button"
-          :class="{ active: activeTool === 'dashboard' }"
-          type="button"
-          @click="setActiveTool('dashboard')"
-        >
-          <span class="nav-icon"><AppIcon name="dashboard" :size="18" /></span>
-          <span>{{ dashboardNavItem.label }}</span>
-        </button>
-        <button
-          v-if="dashboardNavItem && sidebarCollapsed"
-          class="nav-dashboard-compact"
-          :class="{ active: activeTool === 'dashboard' }"
-          type="button"
-          :title="dashboardNavItem.label"
-          :aria-label="dashboardNavItem.label"
-          @click="setActiveTool('dashboard')"
-        >
-          <span class="nav-icon"><AppIcon name="dashboard" :size="18" /></span>
-        </button>
-        <section v-for="group in navGroups" :key="group.key" class="nav-group">
-          <button
-            class="nav-group-button"
-            :class="{ expanded: groupsOpen[group.key], active: group.items.some((item) => item.key === activeTool) }"
-            type="button"
-            @click="groupsOpen[group.key] = !groupsOpen[group.key]"
+        <el-scrollbar class="sidebar-scroll">
+          <el-menu
+            class="workspace-nav-menu"
+            :collapse="sidebarCollapsed"
+            :default-active="activeTool"
+            :ellipsis="false"
+            :unique-opened="true"
+            @select="handleSidebarSelect"
           >
-            <span class="nav-icon"><AppIcon :name="navGroupIcon(group.key)" :size="18" /></span>
-            <span>{{ group.label }}</span>
-            <span class="nav-caret"><AppIcon name="chevronDown" :size="14" /></span>
-          </button>
-          <Transition name="nav-collapse">
-            <div v-if="groupsOpen[group.key] && !sidebarCollapsed" class="nav-items-shell">
-              <div class="nav-items">
-                <button
-                  v-for="item in group.items"
-                  :key="item.key"
-                  class="nav-item"
-                  :class="{ active: activeTool === item.key }"
-                  type="button"
-                  @click="setActiveTool(item.key)"
-                >
-                  <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
-                  <span>{{ item.label }}</span>
-                </button>
-              </div>
-            </div>
-          </Transition>
-          <div
-            v-if="sidebarCollapsed"
-            class="nav-flyout-wrap"
-            :class="{ open: hoveredNavGroup === group.key }"
-            @mouseenter="openNavFlyout(group.key)"
-            @mouseleave="() => closeNavFlyout()"
-            @focusin="openNavFlyout(group.key)"
-            @focusout="() => closeNavFlyout()"
-          >
-            <button
-              class="nav-group-compact"
-              :class="{ active: group.items.some((item) => item.key === activeTool) }"
-              type="button"
-              :title="group.label"
-              :aria-label="group.label"
-              @click="groupsOpen[group.key] = true"
-            >
-              <span class="nav-icon"><AppIcon :name="navGroupIcon(group.key)" :size="18" /></span>
-            </button>
-            <div class="nav-flyout" role="menu">
-              <strong>{{ group.label }}</strong>
-              <button
-                v-for="item in group.items"
-                :key="item.key"
-                class="nav-flyout-item"
-                :class="{ active: activeTool === item.key }"
-                type="button"
-                role="menuitem"
-                @click="selectNavItem(item.key)"
-              >
-                <span class="nav-dot"><AppIcon :name="navItemIcon(item.key)" :size="17" /></span>
+            <el-menu-item v-if="dashboardNavItem" index="dashboard">
+              <AppIcon name="dashboard" :size="18" />
+              <span>{{ dashboardNavItem.label }}</span>
+            </el-menu-item>
+            <el-sub-menu v-for="group in navGroups" :key="group.key" :index="group.key">
+              <template #title>
+                <AppIcon :name="navGroupIcon(group.key)" :size="18" />
+                <span>{{ group.label }}</span>
+              </template>
+              <el-menu-item v-for="item in group.items" :key="item.key" :index="item.key">
+                <AppIcon :name="navItemIcon(item.key)" :size="18" />
                 <span>{{ item.label }}</span>
-              </button>
-            </div>
-          </div>
-        </section>
+              </el-menu-item>
+            </el-sub-menu>
+          </el-menu>
+        </el-scrollbar>
       </nav>
+
+      <div class="sidebar-clock" aria-label="当前日期和时间">
+        <span class="sidebar-clock-label">当前时间</span>
+        <strong class="sidebar-clock-time">{{ sidebarClockTime }}</strong>
+        <span class="sidebar-clock-date">{{ sidebarClockDate }}</span>
+      </div>
 
     </aside>
 
@@ -313,35 +336,34 @@ async function lockCurrentSession() {
           >
             <AppIcon name="menu" :size="18" />
           </button>
-          <div class="page-breadcrumb">
-            <span>首页</span>
-            <template v-if="activeTool === 'dashboard'">
-              <em>/</em>
-              <strong>仪表盘</strong>
-            </template>
-            <template v-else>
-              <em>/</em>
-              <span>{{ activeNavGroup.label }}</span>
-              <em>/</em>
-              <strong>{{ activeNavItem.label }}</strong>
-            </template>
-          </div>
+          <el-breadcrumb class="page-breadcrumb" separator="/">
+            <el-breadcrumb-item v-for="(item, index) in breadcrumbItems" :key="item.key">
+              <strong v-if="index === breadcrumbItems.length - 1">{{ item.label }}</strong>
+              <span v-else>{{ item.label }}</span>
+            </el-breadcrumb-item>
+          </el-breadcrumb>
         </div>
         <div class="workspace-actions">
           <div class="header-stats">
             <template v-if="activeTool === 'auth'">
-              <button v-if="canUsePageAction('auth', 'export')" class="header-action" type="button" @click="saveAuthEntries">导出</button>
-              <button v-if="canUsePageAction('auth', 'import')" class="header-action" type="button" @click="triggerAuthImportFile">导入</button>
+              <el-button v-if="canUsePageAction('auth', 'export')" class="header-action" size="small" plain @click="saveAuthEntries">导出</el-button>
+              <el-button v-if="canUsePageAction('auth', 'import')" class="header-action" size="small" plain @click="triggerAuthImportFile">导入</el-button>
               <input ref="authImportFile" hidden type="file" accept="application/json,.json" @change="importAuthEntries" />
             </template>
             <template v-else-if="activeTool === 'password'">
-              <button v-if="canUsePageAction('password', 'export')" class="header-action" type="button" @click="exportPasswordRecords">导出</button>
-              <button v-if="canUsePageAction('password', 'import')" class="header-action" type="button" @click="triggerPasswordImportFile">导入</button>
+              <el-button v-if="canUsePageAction('password', 'export')" class="header-action" size="small" plain @click="exportPasswordRecords">导出</el-button>
+              <el-button v-if="canUsePageAction('password', 'import')" class="header-action" size="small" plain @click="triggerPasswordImportFile">导入</el-button>
               <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
             </template>
             <template v-else-if="activeTool === 'hosts'">
-              <button v-if="canUsePageAction('hosts', 'export')" class="header-action" type="button" @click="backupHostManagement"><AppIcon name="download" :size="16" />备份</button>
-              <button v-if="canUsePageAction('hosts', 'import')" class="header-action" type="button" @click="triggerHostRestoreFile"><AppIcon name="upload" :size="16" />恢复</button>
+              <el-button v-if="canUsePageAction('hosts', 'export')" class="header-action" size="small" plain @click="backupHostManagement">
+                <AppIcon name="download" :size="16" />
+                <span>备份</span>
+              </el-button>
+              <el-button v-if="canUsePageAction('hosts', 'import')" class="header-action" size="small" plain @click="triggerHostRestoreFile">
+                <AppIcon name="upload" :size="16" />
+                <span>恢复</span>
+              </el-button>
               <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
               <button
                 v-if="canUsePageAction('hosts', 'terminal')"
@@ -354,17 +376,16 @@ async function lockCurrentSession() {
                 <AppIcon name="terminal" :size="20" />
               </button>
             </template>
-            <template v-else-if="activeTool === 'dashboard' || activeTool === 'sessionAudits' || activeTool === 'bulkExecution' || activeTool === 'applicationMarket' || activeTool === 'accounts' || activeTool === 'companyDevices' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings' || activeTool === 'securityScan'"></template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
             </template>
+            <template v-else-if="activeTool === 'dashboard' || activeTool === 'sessionAudits' || activeTool === 'bulkExecution' || activeTool === 'applicationMarket' || activeTool === 'accounts' || activeTool === 'companyDevices' || activeTool === 'users' || activeTool === 'loginLogs' || activeTool === 'operationLogs' || activeTool === 'roles' || activeTool === 'profile' || activeTool === 'systemSettings' || activeTool === 'securityScan'"></template>
             <template v-else>
               <article><span>本机 IP</span><strong>{{ localIp }}</strong></article>
-              <article
-                class="selected-host-card"
-                title="双击使用选中 IP"
-                @dblclick="useSelectedIpForPing"
-              ><span>选中 IP</span><strong>{{ selectedHost }}</strong></article>
+              <article class="selected-host-card" title="双击使用选中 IP" @dblclick="useSelectedIpForPing">
+                <span>选中 IP</span>
+                <strong>{{ selectedHost }}</strong>
+              </article>
             </template>
           </div>
           <button
@@ -388,7 +409,7 @@ async function lockCurrentSession() {
           >
             <AppIcon name="refresh" :size="18" />
           </button>
-          <div class="workspace-user-menu">
+          <el-dropdown class="workspace-user-dropdown-shell" trigger="click" @command="handleUserCommand">
             <button class="workspace-avatar-button" type="button" aria-haspopup="menu" aria-label="账户菜单">
               <UserAvatar
                 class="workspace-avatar"
@@ -399,37 +420,39 @@ async function lockCurrentSession() {
                 size="sm"
               />
             </button>
-            <div class="workspace-user-dropdown" role="menu">
-              <div class="workspace-user-card">
-                <UserAvatar
-                  class="workspace-avatar"
-                  :src="currentUserAvatar"
-                  :username="currentUser?.username"
-                  :display-name="currentUserDisplayName"
-                  :first-name="currentUser?.first_name"
-                  size="md"
-                />
-                <div>
-                  <strong>{{ currentUserDisplayName }}</strong>
-                  <span>{{ currentUserAccount }}</span>
+            <template #dropdown>
+              <div class="workspace-user-dropdown-panel">
+                <div class="workspace-user-card">
+                  <UserAvatar
+                    class="workspace-avatar"
+                    :src="currentUserAvatar"
+                    :username="currentUser?.username"
+                    :display-name="currentUserDisplayName"
+                    :first-name="currentUser?.first_name"
+                    size="md"
+                  />
+                  <div>
+                    <strong>{{ currentUserDisplayName }}</strong>
+                    <span>{{ currentUserAccount }}</span>
+                  </div>
                 </div>
+                <el-dropdown-menu class="workspace-user-dropdown-menu">
+                  <el-dropdown-item command="profile" :disabled="!canAccessPage('profile')">
+                    <AppIcon name="user" :size="16" />
+                    <span>个人中心</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="lock">
+                    <AppIcon name="lock" :size="16" />
+                    <span>锁定屏幕</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item command="logout" divided class="workspace-menu-logout">
+                    <AppIcon name="logout" :size="16" />
+                    <span>退出登录</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
               </div>
-              <span class="workspace-menu-divider"></span>
-              <button class="workspace-menu-action" type="button" role="menuitem" :disabled="!canAccessPage('profile')" @click="setActiveTool('profile')">
-                <AppIcon name="user" :size="16" />
-                <span>个人中心</span>
-              </button>
-              <button class="workspace-menu-action" type="button" role="menuitem" @click="lockCurrentSession">
-                <AppIcon name="lock" :size="16" />
-                <span>锁定屏幕</span>
-              </button>
-              <span class="workspace-menu-divider"></span>
-              <button class="workspace-menu-action workspace-menu-logout" type="button" role="menuitem" @click="logout">
-                <AppIcon name="logout" :size="16" />
-                <span>退出登录</span>
-              </button>
-            </div>
-          </div>
+            </template>
+          </el-dropdown>
         </div>
       </header>
 
@@ -468,6 +491,24 @@ async function lockCurrentSession() {
         </a>
       </footer>
     </section>
+
+    <div class="workspace-float-actions" role="group" aria-label="快捷操作">
+      <el-tooltip :content="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'" placement="left">
+        <el-button class="workspace-float-action" circle @click="handleFloatAction('theme')">
+          <AppIcon :name="isWorkspaceDark ? 'sun' : 'moon'" :size="18" />
+        </el-button>
+      </el-tooltip>
+      <el-tooltip v-if="activeTool === 'dashboard'" content="刷新仪表盘" placement="left">
+        <el-button class="workspace-float-action" circle :loading="isDashboardRefreshing" @click="handleFloatAction('refresh')">
+          <AppIcon v-if="!isDashboardRefreshing" name="refresh" :size="18" />
+        </el-button>
+      </el-tooltip>
+      <el-tooltip content="回到顶部" placement="left">
+        <el-button class="workspace-float-action" circle @click="handleFloatAction('top')">
+          <AppIcon class="workspace-float-top-icon" name="chevronDown" :size="18" />
+        </el-button>
+      </el-tooltip>
+    </div>
 
     <WatermarkOverlay v-if="shouldShowWatermark" :text="watermarkText" />
     <LockScreenOverlay
