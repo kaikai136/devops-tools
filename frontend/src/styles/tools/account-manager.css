@@ -39,7 +39,8 @@
   margin-bottom: 16px;
 }
 
-.account-toolbar > input {
+.account-toolbar > input,
+.account-toolbar-search {
   width: min(360px, 38vw);
   min-height: 38px;
   border: 1px solid #d8e2ee;

@@ -54,7 +54,6 @@ const {
   sidebarCollapsed,
   hoveredNavGroup,
   isWorkspaceDark,
-  toast,
   localIp,
   selectedHost,
   ipScanMessage,
@@ -75,8 +74,6 @@ const {
   logout,
   lockSession,
   unlockSession,
-  scopedToastVisible,
-  toastTone,
   showToast,
   shouldShowWatermark,
   siteIdentity,
@@ -117,8 +114,6 @@ const {
   useSelectedIpForPing,
   qrPreview,
   copyText,
-  confirmDialog,
-  runConfirmAction,
 } = appState;
 
 const selectedManagedHostCount = computed(() => visibleManagedHosts.value.filter((host) => selectedManagedHostIds.value.has(host.id)).length);
@@ -314,28 +309,17 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
     </aside>
 
     <section class="workspace" :class="{ 'has-workspace-footer': layoutFooter.enabled }">
-      <div v-if="scopedToastVisible" class="top-toast" :class="[toastTone, { leaving: toast?.leaving }]">
-        <span class="toast-icon" aria-hidden="true">
-          <AppIcon :name="toastTone === 'success' ? 'circleCheck' : toastTone === 'info' ? 'circleHelp' : 'alert'" :size="18" />
-        </span>
-        <div class="toast-content">
-          <strong>{{ toast?.title }}</strong>
-          <p>{{ toast?.message }}</p>
-        </div>
-        <button type="button" aria-label="关闭提示" @click="toast = null"><AppIcon name="x" :size="16" /></button>
-      </div>
-
       <header class="workspace-topbar">
         <div class="workspace-topbar-main">
-          <button
+          <el-button
             class="workspace-menu-button"
-            type="button"
+            circle
             :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
             :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
             @click="toggleSidebar"
           >
             <AppIcon name="menu" :size="18" />
-          </button>
+          </el-button>
           <el-breadcrumb class="page-breadcrumb" separator="/">
             <el-breadcrumb-item v-for="(item, index) in breadcrumbItems" :key="item.key">
               <strong v-if="index === breadcrumbItems.length - 1">{{ item.label }}</strong>
@@ -365,16 +349,16 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
                 <span>恢复</span>
               </el-button>
               <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
-              <button
+              <el-button
                 v-if="canUsePageAction('hosts', 'terminal')"
                 class="header-action terminal-action terminal-icon-action"
-                type="button"
+                circle
                 title="Web 终端"
                 aria-label="Web 终端"
                 @click="openWebTerminal()"
               >
                 <AppIcon name="terminal" :size="20" />
-              </button>
+              </el-button>
             </template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
@@ -388,29 +372,30 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
               </article>
             </template>
           </div>
-          <button
+          <el-button
             class="workspace-icon-button workspace-theme-toggle"
-            type="button"
+            circle
             :title="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'"
             :aria-label="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'"
             :aria-pressed="isWorkspaceDark"
             @click="toggleWorkspaceTheme"
           >
             <AppIcon :name="isWorkspaceDark ? 'sun' : 'moon'" :size="18" />
-          </button>
-          <button
+          </el-button>
+          <el-button
             v-if="activeTool === 'dashboard'"
             class="workspace-icon-button workspace-dashboard-refresh"
-            type="button"
+            circle
+            :loading="isDashboardRefreshing"
             :disabled="isDashboardRefreshing"
             :title="isDashboardRefreshing ? '刷新中' : '刷新仪表盘'"
             :aria-label="isDashboardRefreshing ? '刷新中' : '刷新仪表盘'"
             @click="refreshDashboard"
           >
-            <AppIcon name="refresh" :size="18" />
-          </button>
+            <AppIcon v-if="!isDashboardRefreshing" name="refresh" :size="18" />
+          </el-button>
           <el-dropdown class="workspace-user-dropdown-shell" trigger="click" @command="handleUserCommand">
-            <button class="workspace-avatar-button" type="button" aria-haspopup="menu" aria-label="账户菜单">
+            <el-button class="workspace-avatar-button" text aria-haspopup="menu" aria-label="账户菜单">
               <UserAvatar
                 class="workspace-avatar"
                 :src="currentUserAvatar"
@@ -419,7 +404,7 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
                 :first-name="currentUser?.first_name"
                 size="sm"
               />
-            </button>
+            </el-button>
             <template #dropdown>
               <div class="workspace-user-dropdown-panel">
                 <div class="workspace-user-card">
@@ -543,9 +528,8 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
       @download-template="downloadHostImportTemplate"
     />
 
-    <div v-if="qrPreview" class="modal-backdrop">
-      <article class="qr-modal share-modal">
-        <button class="modal-close" type="button" @click="qrPreview = null"><AppIcon name="x" :size="16" /></button>
+    <el-dialog :model-value="Boolean(qrPreview)" class="qr-modal share-modal" title="分享二维码" width="420px" @close="qrPreview = null">
+      <template v-if="qrPreview" #default>
         <h2>分享二维码</h2>
         <p>扫码后可直接导入 {{ qrPreview.issuer }} 的双因子配置。</p>
         <div class="qr-frame">
@@ -555,22 +539,13 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
           <strong>{{ qrPreview.issuer }}</strong>
           <span>{{ qrPreview.account }}</span>
         </div>
+      </template>
+      <template #footer>
         <div class="qr-actions">
-          <button type="button" @click="copyText(qrPreview.uri, '已复制分享链接。')">复制分享链接</button>
-          <button class="primary" type="button" @click="qrPreview = null">完成</button>
+          <el-button :disabled="!qrPreview" @click="qrPreview && copyText(qrPreview.uri, '已复制分享链接。')">复制分享链接</el-button>
+          <el-button type="primary" @click="qrPreview = null">完成</el-button>
         </div>
-      </article>
-    </div>
-    <div v-if="confirmDialog" class="confirm-panel">
-      <article>
-        <button class="modal-close" type="button" @click="confirmDialog = null"><AppIcon name="x" :size="16" /></button>
-        <h3>{{ confirmDialog.title }}</h3>
-        <p>{{ confirmDialog.message }}</p>
-        <div>
-          <button type="button" @click="confirmDialog = null">取消</button>
-          <button class="danger" type="button" @click="runConfirmAction">{{ confirmDialog.actionText }}</button>
-        </div>
-      </article>
-    </div>
+      </template>
+    </el-dialog>
   </main>
 </template>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import AppIcon from '@shared/components/AppIcon.vue';
 import type {
   HostExportColumnKey,
   HostExportColumnOption,
@@ -23,8 +22,8 @@ const emit = defineEmits<{
   confirm: [];
   'update:scope': [scope: HostExportScope];
   'update:format': [format: HostTransferFormat];
-  'toggle-column': [column: HostExportColumnKey, event: Event];
-  'toggle-all-columns': [event: Event];
+  'toggle-column': [column: HostExportColumnKey, value: boolean | string | number];
+  'toggle-all-columns': [value: boolean | string | number];
 }>();
 
 const selectedScope = computed({
@@ -38,63 +37,50 @@ const selectedFormat = computed({
 </script>
 
 <template>
-  <div class="modal-backdrop">
-    <article class="host-transfer-modal host-export-modal">
-      <button class="modal-close" type="button" @click="emit('close')"><AppIcon name="x" :size="16" /></button>
+  <el-dialog class="host-transfer-modal host-export-modal" :model-value="true" title="导出实例数据" width="720px" @close="emit('close')">
       <h2>导出实例数据</h2>
       <div class="host-export-body">
         <section class="export-section">
           <span class="export-section-title">需要导出的实例</span>
-          <div class="export-scope-grid">
-            <label class="export-scope-card" :class="{ active: selectedScope === 'all' }">
-              <input v-model="selectedScope" type="radio" value="all" />
+          <el-radio-group v-model="selectedScope" class="export-scope-grid">
+            <el-radio-button value="all" class="export-scope-card" :class="{ active: selectedScope === 'all' }">
               <span>
                 <strong>所有实例</strong>
                 <em>导出当前主机列表下的所有实例</em>
               </span>
-            </label>
-            <label class="export-scope-card" :class="{ active: selectedScope === 'selected' }">
-              <input v-model="selectedScope" type="radio" value="selected" />
+            </el-radio-button>
+            <el-radio-button value="selected" class="export-scope-card" :class="{ active: selectedScope === 'selected' }">
               <span>
                 <strong>已选中的实例 {{ props.selectedCount }}</strong>
                 <em>导出当前列表中所选中的实例</em>
               </span>
-            </label>
-          </div>
+            </el-radio-button>
+          </el-radio-group>
         </section>
 
         <section class="export-section">
           <span class="export-section-title">需要导出的数据列</span>
-          <div class="export-check-all">
-            <input type="checkbox" :checked="props.allColumnsSelected" @change="emit('toggle-all-columns', $event)" />
-            <span>全选</span>
-          </div>
+          <el-checkbox class="export-check-all" :model-value="props.allColumnsSelected" @change="emit('toggle-all-columns', $event)">全选</el-checkbox>
           <div class="export-column-grid">
-            <label v-for="column in props.columns" :key="column.field" class="export-column-option">
-              <input type="checkbox" :checked="props.selectedColumns.has(column.field)" @change="emit('toggle-column', column.field, $event)" />
+            <el-checkbox v-for="column in props.columns" :key="column.field" class="export-column-option" :model-value="props.selectedColumns.has(column.field)" @change="emit('toggle-column', column.field, $event)">
               <span>{{ column.label }}</span>
-            </label>
+            </el-checkbox>
           </div>
         </section>
 
         <section class="export-section">
           <span class="export-section-title">导出文件格式</span>
-          <div class="export-format-row">
-            <label class="transfer-radio">
-              <input v-model="selectedFormat" type="radio" value="excel" />
-              <span>Excel</span>
-            </label>
-            <label class="transfer-radio">
-              <input v-model="selectedFormat" type="radio" value="json" />
-              <span>JSON</span>
-            </label>
-          </div>
+          <el-radio-group v-model="selectedFormat" class="export-format-row">
+            <el-radio-button value="excel">Excel</el-radio-button>
+            <el-radio-button value="json">JSON</el-radio-button>
+          </el-radio-group>
         </section>
       </div>
-      <div class="modal-actions">
-        <button type="button" @click="emit('close')">取消</button>
-        <button class="primary" type="button" @click="emit('confirm')">确定</button>
-      </div>
-    </article>
-  </div>
+      <template #footer>
+        <div class="modal-actions">
+          <el-button @click="emit('close')">取消</el-button>
+          <el-button class="primary" type="primary" @click="emit('confirm')">确定</el-button>
+        </div>
+      </template>
+  </el-dialog>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import type { InputInstance } from 'element-plus';
 
 import { useAppContext } from '@app/context';
 import type { LoginTwoFactorChallenge, LoginTwoFactorSetupChallenge } from '../../../types';
@@ -34,9 +35,8 @@ const emit = defineEmits<{
   cancelTwoFactor: [];
 }>();
 
-const usernameInput = ref<HTMLInputElement | null>(null);
-const passwordInput = ref<HTMLInputElement | null>(null);
-const showPassword = ref(false);
+const usernameInput = ref<InputInstance | null>(null);
+const passwordInput = ref<InputInstance | null>(null);
 const { siteIdentity, loginContent, renderSystemTemplate } = useAppContext();
 
 const accountModel = computed({
@@ -64,11 +64,11 @@ const formTitle = computed(() => renderSystemTemplate(loginContent.value.title))
 const formDescription = computed(() => renderSystemTemplate(loginContent.value.description));
 
 function getUsernameInputElement() {
-  return usernameInput.value;
+  return usernameInput.value?.input ?? null;
 }
 
 function getPasswordInputElement() {
-  return passwordInput.value;
+  return passwordInput.value?.input ?? null;
 }
 
 defineExpose({ getUsernameInputElement, getPasswordInputElement });
@@ -92,42 +92,42 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
       <p class="login-subtitle">{{ formDescription }}</p>
 
       <label class="login-form-group" for="login-account">
-        <div class="login-input-wrapper">
-          <AppIcon name="user" :size="18" />
-          <input id="login-account" ref="usernameInput" v-model="accountModel" type="text" autocomplete="username" placeholder="请输入用户名" />
-        </div>
+        <el-input id="login-account" ref="usernameInput" v-model="accountModel" class="login-field" autocomplete="username" placeholder="请输入用户名">
+          <template #prefix>
+            <AppIcon name="user" :size="18" />
+          </template>
+        </el-input>
       </label>
 
       <label class="login-form-group" for="login-password">
-        <div class="login-input-wrapper">
-          <AppIcon name="lock" :size="18" />
-          <input
-            id="login-password"
-            ref="passwordInput"
-            v-model="passwordModel"
-            :type="showPassword ? 'text' : 'password'"
-            autocomplete="current-password"
-            placeholder="请输入密码"
-          />
-          <button class="login-password-toggle" type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
-            <AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="16" />
-          </button>
-        </div>
+        <el-input
+          id="login-password"
+          ref="passwordInput"
+          v-model="passwordModel"
+          class="login-field"
+          type="password"
+          autocomplete="current-password"
+          placeholder="请输入密码"
+          show-password
+        >
+          <template #prefix>
+            <AppIcon name="lock" :size="18" />
+          </template>
+        </el-input>
       </label>
 
       <div class="login-options">
-        <label class="login-remember">
-          <input v-model="rememberModel" type="checkbox" />
+        <el-checkbox v-model="rememberModel" class="login-remember">
           记住我
-        </label>
+        </el-checkbox>
       </div>
 
       <LoginSliderVerify v-model="sliderTokenModel" :reset-key="sliderResetKey" />
 
-      <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
-      <button class="login-btn" type="submit" :disabled="!canSubmit">
+      <el-alert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
+      <el-button class="login-btn" native-type="submit" type="primary" :disabled="!canSubmit" :loading="isSubmitting">
         <span>{{ isSubmitting ? '登录中...' : '登 录' }}</span>
-      </button>
+      </el-button>
     </form>
     <form v-else-if="twoFactorSetupChallenge" class="login-form login-2fa-form login-2fa-setup-form" @submit.prevent="emit('submitTwoFactorSetup')">
       <div class="login-form-brand">
@@ -152,25 +152,27 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
       </div>
 
       <label class="login-form-group" for="login-2fa-setup-code">
-        <div class="login-input-wrapper login-2fa-input-wrapper">
-          <AppIcon name="shield" :size="18" />
-          <input
-            id="login-2fa-setup-code"
-            v-model="twoFactorCodeModel"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            maxlength="6"
-            placeholder="000000"
-          />
-        </div>
+        <el-input
+          id="login-2fa-setup-code"
+          v-model="twoFactorCodeModel"
+          class="login-field login-2fa-field"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          placeholder="000000"
+        >
+          <template #prefix>
+            <AppIcon name="shield" :size="18" />
+          </template>
+        </el-input>
       </label>
 
       <p class="login-2fa-note">绑定成功后会自动进入系统，旧验证码会立即失效。</p>
-      <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
-      <button class="login-btn" type="submit" :disabled="!canSubmitTwoFactor">
+      <el-alert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
+      <el-button class="login-btn" native-type="submit" type="primary" :disabled="!canSubmitTwoFactor" :loading="isVerifyingTwoFactor">
         <span>{{ isVerifyingTwoFactor ? '绑定中...' : '绑定并登录' }}</span>
-      </button>
-      <button class="login-secondary-btn" type="button" @click="emit('cancelTwoFactor')">返回账号登录</button>
+      </el-button>
+      <el-button class="login-secondary-btn" @click="emit('cancelTwoFactor')">返回账号登录</el-button>
     </form>
     <form v-else-if="twoFactorChallenge" class="login-form login-2fa-form" @submit.prevent="emit('submitTwoFactor')">
       <div class="login-form-brand">
@@ -187,25 +189,27 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
       <p class="login-subtitle">{{ twoFactorChallenge.displayName || twoFactorChallenge.account }}，请输入认证器中的 6 位动态验证码</p>
 
       <label class="login-form-group" for="login-2fa-code">
-        <div class="login-input-wrapper login-2fa-input-wrapper">
-          <AppIcon name="shield" :size="18" />
-          <input
-            id="login-2fa-code"
-            v-model="twoFactorCodeModel"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            maxlength="6"
-            placeholder="000000"
-          />
-        </div>
+        <el-input
+          id="login-2fa-code"
+          v-model="twoFactorCodeModel"
+          class="login-field login-2fa-field"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          placeholder="000000"
+        >
+          <template #prefix>
+            <AppIcon name="shield" :size="18" />
+          </template>
+        </el-input>
       </label>
 
       <p class="login-2fa-note">验证码会随时间刷新，如验证失败需要重新完成账号密码登录。</p>
-      <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
-      <button class="login-btn" type="submit" :disabled="!canSubmitTwoFactor">
+      <el-alert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
+      <el-button class="login-btn" native-type="submit" type="primary" :disabled="!canSubmitTwoFactor" :loading="isVerifyingTwoFactor">
         <span>{{ isVerifyingTwoFactor ? '验证中...' : '验 证' }}</span>
-      </button>
-      <button class="login-secondary-btn" type="button" @click="emit('cancelTwoFactor')">返回账号登录</button>
+      </el-button>
+      <el-button class="login-secondary-btn" @click="emit('cancelTwoFactor')">返回账号登录</el-button>
     </form>
   </section>
 </template>

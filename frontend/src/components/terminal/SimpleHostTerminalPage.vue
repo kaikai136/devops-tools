@@ -5,6 +5,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type { InputInstance } from 'element-plus';
 
 import AppIcon from '@shared/components/AppIcon.vue';
 import type { IconName } from '@shared/components/AppIcon.vue';
@@ -106,8 +107,8 @@ const isSearchOpen = ref(false);
 const searchQuery = ref('');
 const searchResultIndex = ref(-1);
 const searchResultCount = ref(0);
-const searchInputRef = ref<HTMLInputElement | null>(null);
-const pasteInputRef = ref<HTMLTextAreaElement | null>(null);
+const searchInputRef = ref<InputInstance | null>(null);
+const pasteInputRef = ref<InputInstance | null>(null);
 const terminalFontSize = ref(readTerminalFontSize());
 const terminalContextMenu = ref<SimpleTerminalContextMenuState>({
   visible: false,
@@ -588,7 +589,7 @@ function focusSearchInputSoon(select = false) {
     const input = searchInputRef.value;
     if (!input) return;
     input.focus();
-    if (select) input.select();
+    if (select) input.input?.select();
   });
 }
 
@@ -1039,12 +1040,12 @@ function rdpErrorMessage(error?: unknown) {
           <AppIcon :name="status === 'connected' ? 'circleCheck' : status === 'connecting' || status === 'loading' ? 'rotate' : 'alert'" :size="15" />
           {{ statusText }}
         </span>
-        <button type="button" :disabled="!host || status === 'connecting' || status === 'loading' || status === 'denied'" @click="connect">
+        <el-button :disabled="!host || status === 'connecting' || status === 'loading' || status === 'denied'" @click="connect">
           <AppIcon name="rotate" :size="15" />
           重新连接
-        </button>
-        <button type="button" :disabled="status === 'denied' || protocol === 'rdp'" @click="clearScreen">清屏</button>
-        <button type="button" :disabled="status === 'denied' || status === 'closed'" @click="disconnect">断开</button>
+        </el-button>
+        <el-button :disabled="status === 'denied' || protocol === 'rdp'" @click="clearScreen">清屏</el-button>
+        <el-button :disabled="status === 'denied' || status === 'closed'" @click="disconnect">断开</el-button>
       </nav>
     </header>
 
@@ -1063,7 +1064,7 @@ function rdpErrorMessage(error?: unknown) {
         @contextmenu.stop
       >
         <AppIcon name="search" :size="14" />
-        <input
+        <el-input
           ref="searchInputRef"
           v-model="searchQuery"
           type="search"
@@ -1072,15 +1073,15 @@ function rdpErrorMessage(error?: unknown) {
           @keydown.esc.prevent.stop="closeSearch"
         />
         <span>{{ searchResultText }}</span>
-        <button type="button" title="上一个" aria-label="上一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('previous')">
+        <el-button circle title="上一个" aria-label="上一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('previous')">
           <AppIcon name="chevronDown" :size="14" />
-        </button>
-        <button type="button" title="下一个" aria-label="下一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('next')">
+        </el-button>
+        <el-button circle title="下一个" aria-label="下一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('next')">
           <AppIcon name="chevronDown" :size="14" />
-        </button>
-        <button type="button" title="关闭" aria-label="关闭" @click="closeSearch">
+        </el-button>
+        <el-button circle title="关闭" aria-label="关闭" @click="closeSearch">
           <AppIcon name="x" :size="14" />
-        </button>
+        </el-button>
       </div>
       <div v-show="protocol === 'rdp'" ref="rdpRef" class="simple-host-terminal-rdp"></div>
       <div v-if="errorMessage || status === 'denied'" class="simple-host-terminal-overlay">
@@ -1103,8 +1104,8 @@ function rdpErrorMessage(error?: unknown) {
           class="simple-host-terminal-context-row"
           :class="{ separator: item.separatorBefore }"
         >
-          <button
-            type="button"
+          <el-button
+            text
             class="simple-host-terminal-context-item"
             :class="{ danger: item.danger }"
             :disabled="!item.enabled"
@@ -1115,12 +1116,12 @@ function rdpErrorMessage(error?: unknown) {
             <span>{{ item.label }}</span>
             <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
             <AppIcon v-else-if="item.children?.length" name="chevronRight" :size="13" />
-          </button>
+          </el-button>
           <div v-if="item.children?.length" class="simple-host-terminal-context-submenu">
-            <button
+            <el-button
               v-for="child in item.children"
               :key="child.id"
-              type="button"
+              text
               class="simple-host-terminal-context-item"
               :class="{ danger: child.danger, separator: child.separatorBefore }"
               :disabled="!child.enabled"
@@ -1131,7 +1132,7 @@ function rdpErrorMessage(error?: unknown) {
               <span>{{ child.label }}</span>
               <kbd v-if="child.shortcut">{{ child.shortcut }}</kbd>
               <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
-            </button>
+            </el-button>
           </div>
         </div>
       </div>
@@ -1143,17 +1144,18 @@ function rdpErrorMessage(error?: unknown) {
         @contextmenu.stop
       >
         <span>在此粘贴后自动发送到终端</span>
-        <textarea
+        <el-input
           ref="pasteInputRef"
           v-model="pastePrompt.value"
+          type="textarea"
           placeholder="按 Ctrl+V，或右键选择粘贴"
           @paste="handlePastePromptPaste"
           @keydown.esc.prevent.stop="closePastePrompt"
           @keydown.ctrl.enter.prevent="submitPastePrompt()"
-        ></textarea>
+        />
         <div>
-          <button type="button" @click="submitPastePrompt()">发送</button>
-          <button type="button" @click="closePastePrompt">取消</button>
+          <el-button type="primary" @click="submitPastePrompt()">发送</el-button>
+          <el-button @click="closePastePrompt">取消</el-button>
         </div>
       </div>
     </section>

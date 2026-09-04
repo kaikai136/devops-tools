@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-
 import { formatDateTime } from '../../../utils/datetime';
-import AppIcon from '@shared/components/AppIcon.vue';
 import type { SystemUser, UserColumnKey } from '../../../composables/features/useUserManager';
 
 const props = defineProps<{
@@ -34,19 +31,6 @@ const emit = defineEmits<{
   updatePageSize: [pageSize: number];
 }>();
 
-const pageSizeOptions = [10, 20, 50];
-const pageStart = computed(() => (props.filteredCount ? (props.page - 1) * props.pageSize + 1 : 0));
-const pageEnd = computed(() => Math.min(props.page * props.pageSize, props.filteredCount));
-const pageNumbers = computed(() => {
-  const from = Math.max(1, props.page - 2);
-  const to = Math.min(props.totalPages, props.page + 2);
-  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
-});
-
-function updatePageSize(event: Event) {
-  emit('updatePageSize', Number((event.target as HTMLSelectElement).value));
-}
-
 function toggleTwoFactor(user: SystemUser) {
   if (user.twoFactorStatus === 'disabled' || !user.twoFactorStatus) {
     emit('enableTwoFactor', user);
@@ -69,7 +53,7 @@ function hasTwoFactorActions(user: SystemUser) {
 }
 
 function sessionAuditSwitchText(user: SystemUser) {
-  return props.sessionAuditEnabled(user) ? '开启' : '关闭';
+  return props.sessionAuditEnabled(user) ? '开' : '关';
 }
 
 function hasRowActions() {
@@ -84,105 +68,108 @@ function hasRowActions() {
 
 <template>
   <div class="user-table" :style="tableStyle">
-    <div class="user-table-row head">
-      <span v-if="isColumnVisible('username')">登录名</span>
-      <span v-if="isColumnVisible('name')">姓名</span>
-      <span v-if="isColumnVisible('roles')">角色</span>
-      <span v-if="isColumnVisible('status')">状态</span>
-      <span v-if="isColumnVisible('lastLogin')">最近登录</span>
-      <span v-if="isColumnVisible('sessionAudit')">会话审计</span>
-      <span v-if="isColumnVisible('twoFactor')">2FA</span>
-      <span v-if="isColumnVisible('actions')">操作</span>
-    </div>
-    <div v-for="user in users" :key="user.id" class="user-table-row">
-      <strong v-if="isColumnVisible('username')" class="user-login-name">
-        {{ user.username }}
-        <em v-if="user.isBuiltinAdmin" class="user-builtin-badge">内置</em>
-      </strong>
-      <span v-if="isColumnVisible('name')" class="user-real-name">{{ user.firstName || '-' }}</span>
-      <span v-if="isColumnVisible('roles')" class="user-role-cell">{{ roleNames(user) || '-' }}</span>
-      <span v-if="isColumnVisible('status')" class="user-status" :class="{ disabled: !user.isActive }">
-        <i></i>{{ loginStateText(user) === '可登录' ? '正常' : loginStateText(user) }}
-      </span>
-      <span v-if="isColumnVisible('lastLogin')" class="user-date-cell">{{ formatDateTime(user.lastLogin) }}</span>
-      <div v-if="isColumnVisible('sessionAudit')" class="user-audit-cell">
-        <button
-          v-if="canUsePageAction('users', 'session_audit')"
-          class="user-2fa-switch user-audit-switch"
-          :class="{ enabled: sessionAuditEnabled(user) }"
-          type="button"
-          :title="sessionAuditEnabled(user) ? '点击关闭会话审计' : '点击开启会话审计'"
-          @click="$emit('toggleSessionAudit', user)"
-        >
-          <span>{{ sessionAuditSwitchText(user) }}</span>
-          <i></i>
-        </button>
-        <span v-else class="permission-placeholder">-</span>
-      </div>
-      <div v-if="isColumnVisible('twoFactor')" class="user-2fa-cell">
-        <span v-if="user.twoFactorStatus === 'required'" class="user-2fa-pending">待验证</span>
-        <template v-else-if="hasTwoFactorActions(user)">
-          <button
-            v-if="canToggleTwoFactor(user)"
-            class="user-2fa-switch"
-            :class="twoFactorStatusClass(user)"
-            type="button"
-            :title="user.twoFactorStatus === 'enabled' ? '点击关闭 2FA' : '点击开启 2FA'"
-            :disabled="user.isBuiltinAdmin"
-            @click="toggleTwoFactor(user)"
-          >
-            <span>{{ twoFactorSwitchText(user) }}</span>
-            <i></i>
-          </button>
-          <button
-            v-if="canUsePageAction('users', '2fa_reset')"
-            class="user-2fa-reset"
-            type="button"
-            title="重置绑定"
-            aria-label="重置 2FA 绑定"
-            :disabled="user.isBuiltinAdmin"
-            @click="$emit('resetTwoFactor', user)"
-          >
-            重置
-          </button>
+    <el-table :data="users" row-key="id" :empty-text="isLoading ? '加载中...' : '暂无匹配账户'">
+      <el-table-column v-if="isColumnVisible('username')" label="登录名" min-width="150">
+        <template #default="{ row }">
+          <div class="user-login-name">
+            <strong>{{ row.username }}</strong>
+            <el-tag v-if="row.isBuiltinAdmin" type="info" size="small" effect="dark">内置</el-tag>
+          </div>
         </template>
-        <span v-else class="permission-placeholder">-</span>
-      </div>
-      <div v-if="isColumnVisible('actions')" class="user-row-actions">
-        <button v-if="canUsePageAction('users', 'toggle_status')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('toggleStatus', user)">{{ user.isActive ? '禁用' : '启用' }}</button>
-        <button v-if="canUsePageAction('users', 'edit')" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('edit', user)">编辑</button>
-        <button v-if="canUsePageAction('users', 'reset_password')" type="button" @click="$emit('resetPassword', user)">重置密码</button>
-        <button v-if="canUsePageAction('users', 'delete')" class="danger" type="button" :disabled="user.isBuiltinAdmin" @click="$emit('delete', user)">删除</button>
-        <span v-if="!hasRowActions()" class="permission-placeholder">-</span>
-      </div>
-    </div>
-    <div v-if="!users.length" class="user-empty">{{ isLoading ? '加载中...' : '暂无匹配账户' }}</div>
-  </div>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('name')" label="姓名" min-width="120">
+        <template #default="{ row }">{{ row.firstName || '-' }}</template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('roles')" label="角色" min-width="140">
+        <template #default="{ row }">{{ roleNames(row) || '-' }}</template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('status')" label="状态" min-width="120">
+        <template #default="{ row }">
+          <el-tag :type="row.isActive ? 'success' : 'danger'" size="small" effect="dark">
+            {{ loginStateText(row) === '可登录' ? '正常' : loginStateText(row) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('lastLogin')" label="最近登录" min-width="180">
+        <template #default="{ row }">{{ formatDateTime(row.lastLogin) }}</template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('sessionAudit')" label="会话审计" min-width="140">
+        <template #default="{ row }">
+          <el-switch
+            v-if="canUsePageAction('users', 'session_audit')"
+            :model-value="sessionAuditEnabled(row)"
+            inline-prompt
+            active-text="开"
+            inactive-text="关"
+            :disabled="row.isBuiltinAdmin"
+            @change="$emit('toggleSessionAudit', row)"
+          />
+          <span v-else class="permission-placeholder">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('twoFactor')" label="2FA" min-width="180">
+        <template #default="{ row }">
+          <span v-if="row.twoFactorStatus === 'required'" class="user-2fa-pending">待验证</span>
+          <template v-else-if="hasTwoFactorActions(row)">
+            <el-switch
+              v-if="canToggleTwoFactor(row)"
+              :model-value="row.twoFactorStatus === 'enabled'"
+              inline-prompt
+              :active-text="twoFactorSwitchText(row)"
+              :inactive-text="twoFactorSwitchText(row)"
+              :disabled="row.isBuiltinAdmin"
+              @change="toggleTwoFactor(row)"
+            />
+            <el-button
+              v-if="canUsePageAction('users', '2fa_reset')"
+              size="small"
+              text
+              type="primary"
+              :disabled="row.isBuiltinAdmin"
+              @click="$emit('resetTwoFactor', row)"
+            >
+              重置
+            </el-button>
+          </template>
+          <span v-else class="permission-placeholder">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column v-if="isColumnVisible('actions')" label="操作" min-width="240" fixed="right">
+        <template #default="{ row }">
+          <div class="user-row-actions">
+            <el-button v-if="canUsePageAction('users', 'toggle_status')" size="small" :disabled="row.isBuiltinAdmin" @click="$emit('toggleStatus', row)">
+              {{ row.isActive ? '禁用' : '启用' }}
+            </el-button>
+            <el-button v-if="canUsePageAction('users', 'edit')" size="small" type="primary" :disabled="row.isBuiltinAdmin" @click="$emit('edit', row)">
+              编辑
+            </el-button>
+            <el-button v-if="canUsePageAction('users', 'reset_password')" size="small" @click="$emit('resetPassword', row)">
+              重置密码
+            </el-button>
+            <el-button v-if="canUsePageAction('users', 'delete')" size="small" type="danger" :disabled="row.isBuiltinAdmin" @click="$emit('delete', row)">
+              删除
+            </el-button>
+            <span v-if="!hasRowActions()" class="permission-placeholder">-</span>
+          </div>
+        </template>
+      </el-table-column>
+    </el-table>
 
-  <div class="host-pagination" aria-label="用户列表分页">
-    <div class="host-pagination-summary">
-      <span>共 {{ filteredCount }} 条</span>
-      <span>{{ pageStart }}-{{ pageEnd }}</span>
-    </div>
-    <div class="host-pagination-controls">
-      <button class="prev" type="button" :disabled="page <= 1" aria-label="上一页" @click="$emit('updatePage', page - 1)">
-        <AppIcon name="chevronRight" :size="14" />
-      </button>
-      <button
-        v-for="pageNumber in pageNumbers"
-        :key="pageNumber"
-        type="button"
-        :class="{ active: pageNumber === page }"
-        @click="$emit('updatePage', pageNumber)"
-      >
-        {{ pageNumber }}
-      </button>
-      <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="$emit('updatePage', page + 1)">
-        <AppIcon name="chevronRight" :size="14" />
-      </button>
-      <select :value="pageSize" aria-label="每页条数" @change="updatePageSize">
-        <option v-for="option in pageSizeOptions" :key="option" :value="option">{{ option }} 条/页</option>
-      </select>
+    <div class="host-pagination" aria-label="用户列表分页">
+      <div class="host-pagination-summary">
+        <span>共 {{ filteredCount }} 条</span>
+        <span>{{ filteredCount ? (page - 1) * pageSize + 1 : 0 }}-{{ Math.min(page * pageSize, filteredCount) }}</span>
+      </div>
+      <el-pagination
+        background
+        layout="prev, pager, next, sizes"
+        :current-page="page"
+        :page-size="pageSize"
+        :page-sizes="[10, 20, 50]"
+        :total="filteredCount"
+        @current-change="$emit('updatePage', $event)"
+        @size-change="$emit('updatePageSize', $event)"
+      />
     </div>
   </div>
 </template>

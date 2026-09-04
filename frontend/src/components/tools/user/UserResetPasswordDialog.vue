@@ -19,14 +19,18 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="modal-backdrop user-modal-backdrop">
-    <form class="user-form-modal compact" @submit.prevent="$emit('submit')">
-      <button class="modal-close" type="button" aria-label="关闭" @click="$emit('close')"><AppIcon name="x" :size="16" /></button>
-      <h2>重置密码</h2>
-      <label class="required">
-        <span>新密码</span>
-        <input v-model="password" autofocus type="password" autocomplete="new-password" placeholder="至少 8 位，含数字和大小写字母" />
-      </label>
+  <el-dialog
+    :model-value="true"
+    title="重置密码"
+    width="460px"
+    class="user-form-dialog"
+    :close-on-click-modal="false"
+    @update:model-value="(visible) => { if (!visible) $emit('close'); }"
+  >
+    <el-form label-position="top" class="user-form-modal compact" @submit.prevent="$emit('submit')">
+      <el-form-item label="新密码" required>
+        <el-input v-model="password" autofocus type="password" autocomplete="new-password" placeholder="至少 8 位，含数字和大小写字母" show-password />
+      </el-form-item>
       <div class="user-password-meter compact-meter" :class="strengthClass">
         <div class="user-password-meter-head">
           <span>{{ hint }}</span>
@@ -42,10 +46,10 @@ defineEmits<{
           {{ rule.label }}
         </span>
       </div>
-      <div class="user-form-actions">
-        <button type="button" @click="$emit('close')">取消</button>
-        <button class="user-primary-button" type="submit">保存</button>
-      </div>
-    </form>
-  </div>
+    </el-form>
+    <template #footer>
+      <el-button @click="$emit('close')">取消</el-button>
+      <el-button type="primary" @click="$emit('submit')">保存</el-button>
+    </template>
+  </el-dialog>
 </template>

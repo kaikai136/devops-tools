@@ -31,104 +31,85 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="modal-backdrop user-modal-backdrop">
-    <form class="user-form-modal" @submit.prevent="$emit('submit')">
-      <header class="user-form-titlebar">
-        <h2>{{ title }}</h2>
-        <button class="user-modal-close" type="button" aria-label="关闭" @click="$emit('close')">
-          <AppIcon name="x" :size="18" />
-        </button>
-      </header>
+  <el-dialog
+    :model-value="true"
+    :title="title"
+    width="640px"
+    class="user-form-dialog"
+    :close-on-click-modal="false"
+    @update:model-value="(visible) => { if (!visible) $emit('close'); }"
+  >
+    <el-form :model="form" label-position="top" class="user-form-modal" @submit.prevent="$emit('submit')">
+      <el-form-item label="登录名" :required="dialog.mode === 'create'" :error="formErrors.username">
+        <el-input v-model.trim="form.username" autofocus autocomplete="username" />
+      </el-form-item>
 
-      <div class="user-form-body">
-        <label :class="['user-form-row', { required: dialog.mode === 'create' }]">
-          <span>登录名：</span>
-          <input v-model.trim="form.username" :class="{ invalid: formErrors.username }" autofocus autocomplete="username" />
-        </label>
-        <p v-if="formErrors.username" class="user-form-error user-form-note-indent">{{ formErrors.username }}</p>
+      <el-form-item label="姓名" required :error="formErrors.firstName">
+        <el-input v-model.trim="form.firstName" autocomplete="name" placeholder="请输入姓名" />
+      </el-form-item>
 
-        <label class="user-form-row required">
-          <span>姓名：</span>
-          <input v-model.trim="form.firstName" :class="{ invalid: formErrors.firstName }" autocomplete="name" placeholder="请输入姓名" />
-        </label>
-        <p v-if="formErrors.firstName" class="user-form-error user-form-note-indent">{{ formErrors.firstName }}</p>
-
-        <label class="user-form-row required">
-          <span>密码：</span>
-          <div class="user-password-input" :class="{ invalid: formErrors.password }">
-            <input
-              v-model="form.password"
-              :type="showPassword ? 'text' : 'password'"
-              autocomplete="new-password"
-              :placeholder="dialog.mode === 'edit' ? '留空则不修改' : ''"
-            />
-            <button type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
+      <el-form-item label="密码" :required="dialog.mode === 'create'" :error="formErrors.password">
+        <el-input
+          v-model="form.password"
+          :type="showPassword ? 'text' : 'password'"
+          autocomplete="new-password"
+          :placeholder="dialog.mode === 'edit' ? '留空则不修改' : ''"
+        >
+          <template #append>
+            <el-button :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">
               <AppIcon :name="showPassword ? 'eyeOff' : 'eye'" :size="16" />
-            </button>
-          </div>
-        </label>
-        <p v-if="formErrors.password" class="user-form-error user-form-note-indent">{{ formErrors.password }}</p>
+            </el-button>
+          </template>
+        </el-input>
+      </el-form-item>
 
-        <div class="user-password-meter user-form-note-indent" :class="passwordStrengthClass">
-          <div class="user-password-meter-head">
-            <span>{{ passwordHint }}</span>
-            <strong v-if="passwordStrengthText">{{ passwordStrengthText }}</strong>
-          </div>
-          <div class="user-password-meter-track" aria-hidden="true">
-            <i
-              v-for="(rule, index) in passwordRules"
-              :key="rule.key"
-              :class="{ active: index < passwordStrength }"
-            ></i>
-          </div>
+      <div class="user-password-meter" :class="passwordStrengthClass">
+        <div class="user-password-meter-head">
+          <span>{{ passwordHint }}</span>
+          <strong v-if="passwordStrengthText">{{ passwordStrengthText }}</strong>
         </div>
-
-        <label v-if="dialog.mode === 'create' || form.password" :class="['user-form-row', { required: dialog.mode === 'create' || form.password }]">
-          <span>确认密码：</span>
-          <input
-            v-model="form.confirmPassword"
-            :class="{ invalid: formErrors.confirmPassword || passwordMismatch }"
-            :type="showPassword ? 'text' : 'password'"
-            autocomplete="new-password"
-            placeholder="请再次输入密码"
-          />
-        </label>
-
-        <p v-if="formErrors.confirmPassword || passwordMismatch" class="user-form-error user-form-note-indent">
-          {{ formErrors.confirmPassword || '两次输入的密码不一致。' }}
-        </p>
-
-        <div class="user-form-row">
-          <span>角色：</span>
-          <div class="user-role-line">
-            <select v-model="primaryRoleId">
-              <option value="">请选择</option>
-              <option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }}</option>
-            </select>
-            <button class="user-link-button" type="button" @click="$emit('openRoleManager')">新建角色</button>
-          </div>
+        <div class="user-password-meter-track" aria-hidden="true">
+          <i v-for="(rule, index) in passwordRules" :key="rule.key" :class="{ active: index < passwordStrength }"></i>
         </div>
-        <p class="user-form-note user-form-note-indent">权限最大化原则，组合多个角色权限。</p>
-
-        <label class="user-form-row">
-          <span>MFA标识：</span>
-          <select v-model="form.mfaFlag">
-            <option value="">请选择绑定推送标识</option>
-          </select>
-        </label>
-        <p class="user-form-note user-form-note-indent">
-          如果启用了MFA（两步验证）则该项为必填。
-          <button type="button" @click="$emit('openMfaHelp')">如何获取MFA标识?</button>
-        </p>
-
-        <p v-if="!form.isActive" class="user-inline-warning user-form-note-indent">当前账号处于禁用状态，保存后不能登录。</p>
-        <p v-if="message" class="user-message user-form-message">{{ message }}</p>
       </div>
 
-      <footer class="user-form-actions">
-        <button type="button" @click="$emit('close')">取消</button>
-        <button class="user-primary-button" type="submit">{{ submitText }}</button>
-      </footer>
-    </form>
-  </div>
+      <el-form-item v-if="dialog.mode === 'create' || form.password" label="确认密码" required :error="formErrors.confirmPassword || (passwordMismatch ? '两次输入的密码不一致。' : '')">
+        <el-input
+          v-model="form.confirmPassword"
+          :type="showPassword ? 'text' : 'password'"
+          autocomplete="new-password"
+          placeholder="请再次输入密码"
+        />
+      </el-form-item>
+
+      <el-form-item label="角色">
+        <div class="user-role-line">
+          <el-select v-model="primaryRoleId" placeholder="请选择" clearable>
+            <el-option v-for="role in roles" :key="role.id" :value="String(role.id)" :label="role.name" />
+          </el-select>
+          <el-button text type="primary" @click="$emit('openRoleManager')">新建角色</el-button>
+        </div>
+      </el-form-item>
+      <p class="user-form-note">权限最大化原则，组合多个角色权限。</p>
+
+      <el-form-item label="MFA 标识">
+        <el-select v-model="form.mfaFlag" placeholder="请选择绑定推送标识" clearable />
+      </el-form-item>
+      <p class="user-form-note">
+        如果启用 MFA（两步验证）则该项为必填。
+        <el-button text type="primary" @click="$emit('openMfaHelp')">如何获取 MFA 标识?</el-button>
+      </p>
+
+      <el-form-item label="账户状态">
+        <el-switch v-model="form.isActive" inline-prompt active-text="启用" inactive-text="禁用" />
+      </el-form-item>
+      <p v-if="!form.isActive" class="user-inline-warning">当前账户处于禁用状态，保存后不能登录。</p>
+      <p v-if="message" class="user-message user-form-message">{{ message }}</p>
+    </el-form>
+
+    <template #footer>
+      <el-button @click="$emit('close')">取消</el-button>
+      <el-button type="primary" @click="$emit('submit')">{{ submitText }}</el-button>
+    </template>
+  </el-dialog>
 </template>

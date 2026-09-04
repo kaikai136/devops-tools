@@ -241,11 +241,8 @@
   min-width: 0;
 }
 
-.settings-field-grid label.span-2 {
-  grid-column: 1 / -1;
-}
-
-.settings-field-grid label.span-3 {
+.settings-field-grid .span-2,
+.settings-field-grid .span-3 {
   grid-column: 1 / -1;
 }
 
@@ -283,7 +280,7 @@
   gap: 22px 24px;
 }
 
-.dashboard-hero-field-grid label.span-4 {
+.dashboard-hero-field-grid .span-4 {
   grid-column: 1 / -1;
 }
 
@@ -324,54 +321,23 @@
   font-weight: 800;
 }
 
-.settings-field-grid input,
-.settings-field-grid select,
-.settings-field-grid textarea {
+.settings-field-grid .el-input,
+.settings-field-grid .el-select,
+.settings-field-grid .el-input-number,
+.settings-field-grid .el-color-picker,
+.settings-field-grid .el-textarea {
   width: 100%;
-  min-width: 0;
-  min-height: 42px;
-  border: 1px solid rgba(205, 218, 233, 0.9);
-  border-radius: 8px;
-  outline: 0;
-  background: rgba(255, 255, 255, 0.78);
-  color: #10233d;
-  padding: 0 13px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 750;
 }
 
-.settings-field-grid input:focus,
-.settings-field-grid select:focus,
-.settings-field-grid textarea:focus {
-  border-color: #14b8a6;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.13);
-}
-
-.settings-field-grid input[type="color"] {
-  padding: 4px;
-}
-
-.settings-field-grid textarea {
-  min-height: 92px;
-  padding: 11px 13px;
-  resize: vertical;
-  line-height: 1.55;
+.settings-field-grid .el-input-number .el-input__inner {
+  text-align: left;
 }
 
 .settings-check-row {
-  display: flex !important;
+  display: flex;
   align-items: center;
   gap: 9px;
   min-height: 42px;
-}
-
-.settings-check-row input {
-  width: 17px;
-  min-width: 17px;
-  height: 17px;
-  min-height: 17px;
-  accent-color: #14b8a6;
 }
 
 .settings-inline-help {

@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
+import type { InputInstance } from 'element-plus';
 import AppIcon from '@shared/components/AppIcon.vue';
 import type { TerminalFileEntry } from '../../types';
 import type { SftpRenameState } from '../../composables/useSftpBrowser';
@@ -35,16 +36,13 @@ const emit = defineEmits<{
   cancelRename: [];
 }>();
 const list = ref<HTMLElement | null>(null);
-const renameInput = ref<HTMLInputElement | null>(null);
+const renameInput = ref<InputInstance | null>(null);
 watch(() => props.rename?.path, async (path) => {
   if (!path) return;
   await nextTick();
   renameInput.value?.focus();
-  renameInput.value?.select();
+  renameInput.value?.input?.select();
 });
-function onRenameInput(event: Event) {
-  emit('renameName', (event.target as HTMLInputElement).value);
-}
 function openDirectory(entry: TerminalFileEntry) {
   if (!props.rename || props.rename.path !== entry.path) {
     if (entry.type === 'directory') emit('open', entry);
@@ -57,11 +55,11 @@ defineExpose({ list });
 <template>
   <div class="terminal-file-path">
     <span>{{ path }}</span>
-    <button type="button" title="收藏路径" aria-label="收藏路径"><AppIcon name="folder" :size="14" /></button>
+    <el-button circle title="收藏路径" aria-label="收藏路径"><AppIcon name="folder" :size="14" /></el-button>
   </div>
   <div class="terminal-file-table">
     <div class="terminal-file-table-head">
-      <button type="button">名称 <em>▲</em></button><span>修改时间</span><span>大小</span><span>权限</span><span>所有者</span><span>组</span>
+      <el-button text>名称 <em>▲</em></el-button><span>修改时间</span><span>大小</span><span>权限</span><span>所有者</span><span>组</span>
     </div>
     <div
       ref="list"
@@ -93,14 +91,13 @@ defineExpose({ list });
       >
         <span class="terminal-file-name">
           <AppIcon :name="entry.type === 'directory' ? 'folder' : 'settings'" :size="15" />
-          <input
+          <el-input
             v-if="rename?.path === entry.path"
             ref="renameInput"
-            :value="rename.draftName"
+            :model-value="rename.draftName"
             class="terminal-file-rename-input"
-            type="text"
             :disabled="rename.saving"
-            @input="onRenameInput"
+            @input="emit('renameName', $event)"
             @click.stop
             @dblclick.stop
             @keydown.enter.prevent.stop="emit('saveRename')"

@@ -1,4 +1,6 @@
 import { createApp } from 'vue';
+import ElementPlus from 'element-plus';
+import 'element-plus/dist/index.css';
 
 import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
 import WebTerminalPage from './components/terminal/WebTerminalPage.vue';
@@ -7,8 +9,12 @@ import { normalizeWatermarkConfig, watermarkAppliesToPage, WATERMARK_SETTING_KEY
 import { getCurrentUser } from './services/auth';
 import { getSystemSetting, getSystemSettingOrNull } from './services/system';
 import './styles/terminal.css';
+import './styles/base/element-plus-theme.css';
+import './styles/base/element-plus-overrides.css';
 
-createApp(WebTerminalPage).mount('#terminal-app');
+const app = createApp(WebTerminalPage);
+app.use(ElementPlus);
+app.mount('#terminal-app');
 
 void mountTerminalWatermark();
 

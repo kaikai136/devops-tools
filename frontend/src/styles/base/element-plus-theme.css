@@ -1,0 +1,160 @@
+/* Element Plus token bridge.
+ *
+ * Maps Element Plus's --el-* design tokens onto this app's brand palette so
+ * el-* components render consistently with the existing workspace (blue #1e72ff,
+ * 8px radii, workspace text/border/fill colors) instead of EP's default look.
+ *
+ * Imported after `element-plus/dist/index.css` (which is loaded first in
+ * main.ts), so these overrides win. Dark mode uses both EP's `html.dark`
+ * convention (for teleported overlays) and `.app-shell.workspace-dark`
+ * (for components rendered inside the shell).
+ */
+
+:root {
+  /* Brand primary */
+  --el-color-primary: #1e72ff;
+  --el-color-primary-light-3: color-mix(in srgb, var(--el-color-primary) 70%, #ffffff);
+  --el-color-primary-light-5: color-mix(in srgb, var(--el-color-primary) 50%, #ffffff);
+  --el-color-primary-light-7: color-mix(in srgb, var(--el-color-primary) 30%, #ffffff);
+  --el-color-primary-light-8: color-mix(in srgb, var(--el-color-primary) 20%, #ffffff);
+  --el-color-primary-light-9: color-mix(in srgb, var(--el-color-primary) 10%, #ffffff);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--el-color-primary) 80%, #000000);
+
+  /* Semantic colors */
+  --el-color-success: #13b66b;
+  --el-color-success-light-3: color-mix(in srgb, var(--el-color-success) 70%, #ffffff);
+  --el-color-success-light-5: color-mix(in srgb, var(--el-color-success) 50%, #ffffff);
+  --el-color-success-light-7: color-mix(in srgb, var(--el-color-success) 30%, #ffffff);
+  --el-color-success-light-8: color-mix(in srgb, var(--el-color-success) 20%, #ffffff);
+  --el-color-success-light-9: color-mix(in srgb, var(--el-color-success) 10%, #ffffff);
+  --el-color-success-dark-2: color-mix(in srgb, var(--el-color-success) 80%, #000000);
+
+  --el-color-warning: #f59e0b;
+  --el-color-warning-light-3: color-mix(in srgb, var(--el-color-warning) 70%, #ffffff);
+  --el-color-warning-light-5: color-mix(in srgb, var(--el-color-warning) 50%, #ffffff);
+  --el-color-warning-light-7: color-mix(in srgb, var(--el-color-warning) 30%, #ffffff);
+  --el-color-warning-light-8: color-mix(in srgb, var(--el-color-warning) 20%, #ffffff);
+  --el-color-warning-light-9: color-mix(in srgb, var(--el-color-warning) 10%, #ffffff);
+  --el-color-warning-dark-2: color-mix(in srgb, var(--el-color-warning) 80%, #000000);
+
+  --el-color-danger: #f56c6c;
+  --el-color-danger-light-3: color-mix(in srgb, var(--el-color-danger) 70%, #ffffff);
+  --el-color-danger-light-5: color-mix(in srgb, var(--el-color-danger) 50%, #ffffff);
+  --el-color-danger-light-7: color-mix(in srgb, var(--el-color-danger) 30%, #ffffff);
+  --el-color-danger-light-8: color-mix(in srgb, var(--el-color-danger) 20%, #ffffff);
+  --el-color-danger-light-9: color-mix(in srgb, var(--el-color-danger) 10%, #ffffff);
+  --el-color-danger-dark-2: color-mix(in srgb, var(--el-color-danger) 80%, #000000);
+  --el-color-error: var(--el-color-danger);
+  --el-color-error-light-3: var(--el-color-danger-light-3);
+  --el-color-error-light-5: var(--el-color-danger-light-5);
+  --el-color-error-light-7: var(--el-color-danger-light-7);
+  --el-color-error-light-8: var(--el-color-danger-light-8);
+  --el-color-error-light-9: var(--el-color-danger-light-9);
+  --el-color-error-dark-2: var(--el-color-danger-dark-2);
+
+  --el-color-info: #909399;
+  --el-color-info-light-3: color-mix(in srgb, var(--el-color-info) 70%, #ffffff);
+  --el-color-info-light-5: color-mix(in srgb, var(--el-color-info) 50%, #ffffff);
+  --el-color-info-light-7: color-mix(in srgb, var(--el-color-info) 30%, #ffffff);
+  --el-color-info-light-8: color-mix(in srgb, var(--el-color-info) 20%, #ffffff);
+  --el-color-info-light-9: color-mix(in srgb, var(--el-color-info) 10%, #ffffff);
+  --el-color-info-dark-2: color-mix(in srgb, var(--el-color-info) 80%, #000000);
+
+  /* Text */
+  --el-text-color-primary: #111827;
+  --el-text-color-regular: #303133;
+  --el-text-color-secondary: #606266;
+  --el-text-color-placeholder: #909399;
+  --el-text-color-disabled: #c0c4cc;
+
+  /* Border */
+  --el-border-color: #d6e3f4;
+  --el-border-color-light: #dfe8f3;
+  --el-border-color-lighter: #ebeef5;
+  --el-border-color-extra-light: #f2f6fc;
+  --el-border-color-dark: #b8c7dd;
+  --el-border-color-darker: #9fb2cd;
+
+  /* Fill */
+  --el-fill-color: #eef2f7;
+  --el-fill-color-light: #f5f7fa;
+  --el-fill-color-lighter: #f8fbff;
+  --el-fill-color-extra-light: #fafcff;
+  --el-fill-color-dark: #e4e9f0;
+  --el-fill-color-darker: #d9dfe8;
+  --el-fill-color-blank: #ffffff;
+
+  /* Background */
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #edf3fb;
+  --el-bg-color-overlay: #ffffff;
+
+  /* Shape */
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-border-radius-round: 20px;
+  --el-border-radius-circle: 100%;
+
+  /* Shadow */
+  --el-box-shadow: 0 12px 28px rgba(46, 80, 128, 0.12);
+  --el-box-shadow-light: 0 8px 20px rgba(46, 80, 128, 0.1);
+  --el-box-shadow-lighter: 0 4px 12px rgba(46, 80, 128, 0.08);
+  --el-box-shadow-dark: 0 18px 42px rgba(40, 77, 124, 0.16);
+
+  /* Typography */
+  --el-font-size-base: 14px;
+  --el-font-size-small: 13px;
+  --el-font-size-extra-small: 12px;
+  --el-font-size-medium: 16px;
+  --el-font-size-large: 18px;
+}
+
+/* Dark mode — EP's teleported overlays (dialog/message/message-box) attach to
+ * <body>, outside `.app-shell`, so mirror the same palette under `html.dark`.
+ * The shell toggles `.workspace-dark`; keep both selectors in sync. */
+html.dark,
+.app-shell.workspace-dark {
+  --el-color-primary: #38bdf8;
+  --el-color-primary-light-3: color-mix(in srgb, var(--el-color-primary) 70%, #0f172a);
+  --el-color-primary-light-5: color-mix(in srgb, var(--el-color-primary) 50%, #0f172a);
+  --el-color-primary-light-7: color-mix(in srgb, var(--el-color-primary) 30%, #0f172a);
+  --el-color-primary-light-8: color-mix(in srgb, var(--el-color-primary) 20%, #0f172a);
+  --el-color-primary-light-9: color-mix(in srgb, var(--el-color-primary) 10%, #0f172a);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--el-color-primary) 80%, #000000);
+
+  --el-color-success: #34d399;
+  --el-color-warning: #fbbf24;
+  --el-color-danger: #f87171;
+  --el-color-error: #f87171;
+  --el-color-info: #94a3b8;
+
+  --el-text-color-primary: #e5eaf3;
+  --el-text-color-regular: #cbd5e1;
+  --el-text-color-secondary: #94a3b8;
+  --el-text-color-placeholder: #64748b;
+  --el-text-color-disabled: #475569;
+
+  --el-border-color: #2b3d5c;
+  --el-border-color-light: #334155;
+  --el-border-color-lighter: #2f3d52;
+  --el-border-color-extra-light: #263447;
+  --el-border-color-dark: #475569;
+  --el-border-color-darker: #64748b;
+
+  --el-fill-color: #1e293b;
+  --el-fill-color-light: #1b2637;
+  --el-fill-color-lighter: #16213a;
+  --el-fill-color-extra-light: #131c2e;
+  --el-fill-color-dark: #243044;
+  --el-fill-color-darker: #2b3d5c;
+  --el-fill-color-blank: #0b1425;
+
+  --el-bg-color: #111827;
+  --el-bg-color-page: #0f172a;
+  --el-bg-color-overlay: #1a2537;
+
+  --el-box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  --el-box-shadow-light: 0 8px 20px rgba(0, 0, 0, 0.34);
+  --el-box-shadow-lighter: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --el-box-shadow-dark: 0 18px 42px rgba(0, 0, 0, 0.5);
+}

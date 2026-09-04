@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import type { InputInstance } from 'element-plus';
 
 import { errorMessage } from '@shared/utils/errors';
 import AppIcon from './AppIcon.vue';
@@ -36,7 +37,7 @@ const isDragging = ref(false);
 const isSubmitting = ref(false);
 const columns = ref<WaterfallColumn[]>([]);
 const sliderTrack = ref<HTMLElement | null>(null);
-const passwordInput = ref<HTMLInputElement | null>(null);
+const passwordInput = ref<InputInstance | null>(null);
 let revealTimer: number | undefined;
 let hideTimer: number | undefined;
 
@@ -225,13 +226,13 @@ function submitFromKeyboard() {
           @pointerdown.prevent="beginDrag"
         >
           <span class="lock-screen-slider-fill"></span>
-          <button class="lock-screen-slider-handle" type="button" tabindex="-1" aria-hidden="true">
+          <el-button class="lock-screen-slider-handle" native-type="button" tabindex="-1" aria-hidden="true">
             <AppIcon name="moveRight" :size="21" />
-          </button>
+          </el-button>
           <strong>{{ isSubmitting ? '正在解锁' : '滑动解锁' }}</strong>
         </div>
 
-        <input
+        <el-input
           ref="passwordInput"
           v-model="password"
           type="password"
@@ -241,10 +242,10 @@ function submitFromKeyboard() {
         />
         <span v-if="message" class="lock-screen-message">{{ message }}</span>
 
-        <button class="lock-screen-hidden-submit" type="submit">解锁</button>
-        <button class="lock-screen-logout" type="button" :disabled="isSubmitting" @click="logout">
+        <el-button class="lock-screen-hidden-submit" native-type="submit">解锁</el-button>
+        <el-button class="lock-screen-logout" :disabled="isSubmitting" @click="logout">
           忘记密码？返回登录
-        </button>
+        </el-button>
       </form>
     </section>
   </Teleport>

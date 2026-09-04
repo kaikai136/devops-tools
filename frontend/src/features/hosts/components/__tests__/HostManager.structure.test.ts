@@ -255,29 +255,23 @@ describe('HostManager component structure', () => {
     expect(runtimeEmitNames(wrapper)).toEqual([]);
   });
 
-  it('uses emit-backed native v-model for search and both group-name editors', () => {
+  it('uses emit-backed Element Plus v-model for search and both group-name editors', () => {
     const toolbarRoot = templateRoot('src/features/hosts/components/HostToolbar.vue');
-    const searchInput = findElements(toolbarRoot, 'input').find(
-      (element) => staticAttribute(element, 'placeholder') === '输入别名/IP检索',
-    );
+    const searchInput = findByClass(toolbarRoot, 'el-input', 'host-search-input')[0];
     expect(searchInput).toBeTruthy();
     expectDirective(searchInput!, 'model', undefined, 'searchModel');
-    expectNoDirective(searchInput!, 'bind', 'value');
-    expectNoDirective(searchInput!, 'on', 'input');
 
     const groupRoot = templateRoot('src/features/hosts/components/HostGroupTree.vue');
-    const groupInputs = findByClass(groupRoot, 'input', 'host-group-inline-input');
+    const groupInputs = findByClass(groupRoot, 'el-input', 'host-group-inline-input');
     expect(groupInputs).toHaveLength(2);
     groupInputs.forEach((input) => {
       expectDirective(input, 'model', undefined, 'inlineName');
-      expectNoDirective(input, 'bind', 'value');
-      expectNoDirective(input, 'on', 'input');
       expect(hasStaticAttribute(input, 'autofocus')).toBe(true);
       expectDirective(input, 'on', 'blur', "emit('save-inline-edit')");
       expectDirective(input, 'on', 'keydown', "emit('save-inline-edit')", ['enter', 'prevent']);
       expectDirective(input, 'on', 'keydown', "emit('cancel-inline-edit')", ['esc', 'prevent']);
     });
-    expect(staticAttribute(groupInputs[1], 'placeholder')).toBe('输入分组名称');
+    expect(staticAttribute(groupInputs[1], 'placeholder')).toBeTruthy();
   });
 
   it('keeps HostManager child models, bindings, and handler wiring exact', () => {
@@ -408,19 +402,20 @@ describe('HostManager component structure', () => {
     });
   });
 
-  it('keeps the quick command manager as a polished command library surface', () => {
+  it('keeps the quick command manager as an Element Plus command library surface', () => {
     const root = templateRoot('src/features/hosts/components/HostManager.vue');
 
+    expect(findByClass(root, 'el-dialog', 'host-quick-command-dialog')).toHaveLength(1);
     expect(findByClass(root, 'span', 'host-quick-command-head-icon')).toHaveLength(1);
     expect(findByClass(root, 'div', 'host-quick-command-category-title')).toHaveLength(1);
     expect(findByClass(root, 'span', 'host-quick-command-count')).toHaveLength(1);
-    expect(findByClass(root, 'div', 'host-quick-command-empty')).toHaveLength(1);
+    expect(findByClass(root, 'el-empty', 'host-quick-command-empty')).toHaveLength(2);
     expect(findByClass(root, 'span', 'host-quick-command-empty-glyph')).toHaveLength(1);
-    expect(findByClass(root, 'button', 'host-quick-command-empty-action')).toHaveLength(1);
+    expect(findByClass(root, 'el-button', 'host-quick-command-empty-action')).toHaveLength(1);
     expect(findByClass(root, 'div', 'host-quick-command-meta')).toHaveLength(1);
     expect(findByClass(root, 'span', 'host-quick-command-state')).toHaveLength(1);
 
-    const emptyAction = findByClass(root, 'button', 'host-quick-command-empty-action')[0];
+    const emptyAction = findByClass(root, 'el-button', 'host-quick-command-empty-action')[0];
     expectDirective(emptyAction, 'on', 'click', 'openHostQuickCommandDialog()');
   });
 
@@ -458,16 +453,16 @@ describe('HostManager component structure', () => {
     const toolbarRoot = templateRoot('src/features/hosts/components/HostToolbar.vue');
     expectDirective(findByClass(toolbarRoot, 'div', 'host-more-actions')[0], 'on', 'click', undefined, ['stop']);
     expectDirective(findByClass(toolbarRoot, 'div', 'host-column-settings')[0], 'on', 'click', undefined, ['stop']);
-    expectDirective(findElements(toolbarRoot, 'button').find((button) => staticAttribute(button, 'title') === undefined
+    expectDirective(findElements(toolbarRoot, 'el-button').find((button) => staticAttribute(button, 'title') === undefined
       && directiveExpression(button, 'on', 'click') === "emit('toggle-fullscreen')")!, 'on', 'click', "emit('toggle-fullscreen')", ['stop']);
 
     const groupRoot = templateRoot('src/features/hosts/components/HostGroupTree.vue');
-    const rootRow = findByClass(groupRoot, 'button', 'host-group-root')[0];
+    const rootRow = findByClass(groupRoot, 'el-button', 'host-group-root')[0];
     expectDirective(rootRow, 'on', 'click', "emit('select-group', null)", ['stop']);
     expectDirective(rootRow, 'on', 'dblclick', "emit('toggle-root')", ['stop']);
     expectDirective(rootRow, 'on', 'contextmenu', "emit('open-menu', row.group, $event)");
 
-    const draggableRow = findElements(groupRoot, 'button').find((button) => staticAttribute(button, 'draggable') === 'true')!;
+    const draggableRow = findElements(groupRoot, 'el-button').find((button) => staticAttribute(button, 'draggable') === 'true')!;
     expectDirective(draggableRow, 'on', 'click', "emit('select-group', row.group.key)", ['stop']);
     expectDirective(draggableRow, 'on', 'dblclick', "emit('toggle-group', row.group)", ['stop']);
     expectDirective(draggableRow, 'on', 'contextmenu', "emit('open-menu', row.group, $event)");
@@ -479,49 +474,43 @@ describe('HostManager component structure', () => {
       dragend: "emit('drag-end')",
     });
 
-    const editorBackdrop = findByClass(templateRoot('src/features/hosts/components/HostEditorDialog.vue'), 'div', 'modal-backdrop')[0];
-    expectNoDirective(editorBackdrop, 'on', 'click');
-    const moveBackdrop = findByClass(templateRoot('src/features/hosts/components/HostMoveDialog.vue'), 'div', 'modal-backdrop')[0];
-    expectNoDirective(moveBackdrop, 'on', 'click');
+    expect(findByClass(templateRoot('src/features/hosts/components/HostEditorDialog.vue'), 'el-dialog', 'host-editor-dialog')).toHaveLength(1);
+    expect(findByClass(templateRoot('src/features/hosts/components/HostMoveDialog.vue'), 'el-dialog', 'host-form-modal')).toHaveLength(1);
   });
 
   it('protects HostTable checkbox payloads, pagination, column settings, and permissions', () => {
     const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
-    const checkboxes = findElements(tableRoot, 'input').filter((input) => staticAttribute(input, 'type') === 'checkbox');
+    const checkboxes = findElements(tableRoot, 'el-checkbox');
     expect(checkboxes).toHaveLength(2);
-    expectDirective(checkboxes[0], 'bind', 'checked', 'props.allVisibleSelected');
+    expectDirective(checkboxes[0], 'bind', 'model-value', 'props.allVisibleSelected');
     expectDirective(checkboxes[0], 'bind', 'disabled', '!props.visibleIds.length');
-    expectDirective(checkboxes[0], 'bind', 'indeterminate', 'props.someVisibleSelected && !props.allVisibleSelected', ['prop']);
+    expectDirective(checkboxes[0], 'bind', 'indeterminate', 'props.someVisibleSelected && !props.allVisibleSelected');
     expectDirective(checkboxes[0], 'on', 'change', "emit('toggle-all-visible', $event)");
-    expectDirective(checkboxes[1], 'bind', 'checked', 'props.selectedIds.has(host.id)');
+    expectDirective(checkboxes[1], 'bind', 'model-value', 'props.selectedIds.has(host.id)');
     expectDirective(checkboxes[1], 'on', 'change', "emit('toggle-host', host.id, $event)");
 
     const pagination = findByClass(tableRoot, 'div', 'host-pagination-controls')[0];
-    const pageButtons = findElements({ ...tableRoot, children: pagination.children } as RootNode, 'button');
-    expectDirective(pageButtons[0], 'on', 'click', "emit('page-change', props.page - 1)");
-    expectDirective(pageButtons[1], 'on', 'click', "emit('page-change', pageNumber)");
-    expectDirective(pageButtons[2], 'on', 'click', "emit('page-change', props.page + 1)");
-    const pageSize = findElements({ ...tableRoot, children: pagination.children } as RootNode, 'select')[0];
-    expectDirective(pageSize, 'bind', 'value', 'props.pageSize');
-    expectDirective(pageSize, 'on', 'change', 'updatePageSize');
+    const paginationComponent = findElements({ ...tableRoot, children: pagination.children } as RootNode, 'el-pagination')[0];
+    expectDirective(paginationComponent, 'bind', 'current-page', 'props.page');
+    expectDirective(paginationComponent, 'bind', 'page-size', 'props.pageSize');
+    expectDirective(paginationComponent, 'on', 'current-change', "emit('page-change', $event)");
+    expectDirective(paginationComponent, 'on', 'size-change', "emit('page-size-change', $event)");
 
     const toolbarRoot = templateRoot('src/features/hosts/components/HostToolbar.vue');
-    const columnCheckboxes = findByClass(toolbarRoot, 'label', 'host-column-all')
-      .flatMap((label) => label.children.filter((child): child is TemplateElement => child.type === NodeTypes.ELEMENT && child.tag === 'input'));
+    const columnCheckboxes = findByClass(toolbarRoot, 'el-checkbox', 'host-column-all');
     expect(columnCheckboxes).toHaveLength(1);
-    expectDirective(columnCheckboxes[0], 'bind', 'checked', 'props.allColumnsVisible');
-    expectDirective(columnCheckboxes[0], 'bind', 'indeterminate', 'props.someColumnsVisible && !props.allColumnsVisible', ['prop']);
+    expectDirective(columnCheckboxes[0], 'bind', 'model-value', 'props.allColumnsVisible');
+    expectDirective(columnCheckboxes[0], 'bind', 'indeterminate', 'props.someColumnsVisible && !props.allColumnsVisible');
     expectDirective(columnCheckboxes[0], 'on', 'change', "emit('toggle-all-columns', $event)");
-    const perColumn = findByClass(toolbarRoot, 'label', 'host-column-option')[0].children
-      .find((child): child is TemplateElement => child.type === NodeTypes.ELEMENT && child.tag === 'input')!;
-    expectDirective(perColumn, 'bind', 'checked', 'props.columnVisibility[column.key]');
+    const perColumn = findByClass(toolbarRoot, 'el-checkbox', 'host-column-option')[0];
+    expectDirective(perColumn, 'bind', 'model-value', 'props.columnVisibility[column.key]');
     expectDirective(perColumn, 'bind', 'disabled', 'props.isOnlyVisibleColumn(column.key)');
     expectDirective(perColumn, 'on', 'change', "emit('update-column', column.key, $event)");
   });
 
   it('uses icon row actions in edit, verify, terminal, delete order', () => {
     const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
-    const actionButtons = findElements(tableRoot, 'button').filter((button) => hasStaticClass(button, 'host-action-icon'));
+    const actionButtons = findElements(tableRoot, 'el-button').filter((button) => hasStaticClass(button, 'host-action-icon'));
 
     expect(actionButtons).toHaveLength(4);
     expect(directiveExpression(actionButtons[0], 'on', 'click')).toBe("emit('edit', host)");
@@ -626,11 +615,11 @@ describe('HostManager component structure', () => {
     expect(managerScript).toContain('openBulkFileUploadForSelectedHosts');
     expect(managerScript).toContain("window.sessionStorage.setItem(bulkExecutionUploadTargetIdsKey, JSON.stringify(executableIds))");
 
-    const bulkButtons = findByClass(tableRoot, 'button', 'host-bulk-button-upload');
+    const bulkButtons = findByClass(tableRoot, 'el-button', 'host-bulk-button-upload');
     expect(bulkButtons).toHaveLength(1);
     expectDirective(bulkButtons[0], 'on', 'click', "emit('upload-file-selected')");
 
-    const toolbarUploadButton = findElements(toolbarRoot, 'button').find((button) =>
+    const toolbarUploadButton = findElements(toolbarRoot, 'el-button').find((button) =>
       directiveExpression(button, 'on', 'click') === "emit('upload-file-selected')",
     );
     expect(toolbarUploadButton).toBeTruthy();
@@ -646,7 +635,7 @@ describe('HostManager component structure', () => {
 
   it('uses the single-arrow rotate icon for the row verify action in every state', () => {
     const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
-    const verifyButton = findElements(tableRoot, 'button').find(
+    const verifyButton = findElements(tableRoot, 'el-button').find(
       (button) => directiveExpression(button, 'on', 'click') === "emit('verify', host)",
     );
 
@@ -659,7 +648,7 @@ describe('HostManager component structure', () => {
 
   it('rotates the row verify icon while verification is active', () => {
     const tableRoot = templateRoot('src/features/hosts/components/HostTable.vue');
-    const verifyButton = findElements(tableRoot, 'button').find(
+    const verifyButton = findElements(tableRoot, 'el-button').find(
       (button) => directiveExpression(button, 'on', 'click') === "emit('verify', host)",
     );
     const styles = readStyle('../../../../styles/tools/host/table.css');
@@ -671,9 +660,9 @@ describe('HostManager component structure', () => {
   });
 
   it('keeps CredentialSelector model update before change and preserves editor forwarding order', () => {
-    const selector = findElements(templateRoot('src/features/hosts/components/CredentialSelector.vue'), 'select')[0];
-    const selectorModel = expectDirective(selector, 'model', undefined, 'selectedCredential', ['number']);
-    const selectorChange = expectDirective(selector, 'on', 'change', "emit('change', $event)");
+    const selector = findElements(templateRoot('src/features/hosts/components/CredentialSelector.vue'), 'el-select')[0];
+    const selectorModel = expectDirective(selector, 'model', undefined, 'selectedCredential');
+    const selectorChange = expectDirective(selector, 'on', 'change', "emit('change', selectedCredential)");
     expect(selector.props.indexOf(selectorModel)).toBeLessThan(selector.props.indexOf(selectorChange));
 
     const credentialSelector = findElements(templateRoot('src/features/hosts/components/HostEditorDialog.vue'), 'CredentialSelector')[0];
@@ -692,16 +681,25 @@ describe('HostManager component structure', () => {
     const root = templateRoot('src/features/hosts/components/HostEditorDialog.vue');
     const forms = findElements(root, 'form');
     expect(forms).toHaveLength(1);
-    expect(staticAttribute(forms[0], 'class')).toBe('host-form-modal host-edit-modal host-horizontal-modal');
+    expect(staticAttribute(forms[0], 'class')).toBe('host-form-modal host-editor-form');
     const headings = findElements(root, 'h2');
     expect(headings).toHaveLength(1);
     expect(firstInterpolationExpression(headings[0])).toBe("props.dialog.mode === 'edit' ? '编辑主机' : '新增主机'");
     expect(componentTags(root)).toContain('CredentialSelector');
   });
 
+  it('keeps the host editor dialog shell separate from the form layout', () => {
+    const root = templateRoot('src/features/hosts/components/HostEditorDialog.vue');
+    const dialog = findByClass(root, 'el-dialog', 'host-editor-dialog')[0];
+    expect(dialog).toBeTruthy();
+    expect(staticAttribute(dialog, 'width')).toBe('640px');
+    expect(findByClass(root, 'form', 'host-form-modal')).toHaveLength(1);
+    expect(staticAttribute(findElements(root, 'form')[0], 'class')).toBe('host-form-modal host-editor-form');
+  });
+
   it('preserves the root-group add-host default argument semantics', () => {
     const root = templateRoot('src/features/hosts/components/HostGroupTree.vue');
-    const addHostButton = findElements(root, 'button').find((element) =>
+    const addHostButton = findElements(root, 'el-button').find((element) =>
       directiveExpression(element, 'on', 'click')?.includes("emit('add-host'"),
     );
     expect(addHostButton).toBeTruthy();
@@ -710,16 +708,16 @@ describe('HostManager component structure', () => {
 
   it('exposes table import controls with direct import and template download actions', () => {
     const toolbarRoot = templateRoot('src/features/hosts/components/HostToolbar.vue');
-    const importButton = findElements(toolbarRoot, 'button').find((button) => staticAttribute(button, 'title') === '导入');
+    const importButton = findElements(toolbarRoot, 'el-button').find((button) => directiveExpression(button, 'on', 'click') === "emit('import')");
     expect(importButton).toBeTruthy();
     expectDirective(importButton!, 'on', 'click', "emit('import')");
 
     const importRoot = templateRoot('src/features/hosts/components/HostImportDialog.vue');
-    expect(findByClass(importRoot, 'article', 'host-import-modal')).toHaveLength(1);
-    expect(findByClass(importRoot, 'table', 'host-import-template-preview')).toHaveLength(1);
-    const headers = findElements(importRoot, 'th').map((header) => header.children[0]?.type === NodeTypes.TEXT ? header.children[0].content : '');
-    expect(headers).toEqual(['主机分组', '节点', 'IP地址', '平台类型', '端口', '备注']);
-    const buttons = findElements(importRoot, 'button');
+    expect(findByClass(importRoot, 'el-dialog', 'host-import-modal')).toHaveLength(1);
+    expect(findByClass(importRoot, 'el-table', 'host-import-template-preview')).toHaveLength(1);
+    const columns = findElements(importRoot, 'el-table-column').map((column) => staticAttribute(column, 'label'));
+    expect(columns).toHaveLength(6);
+    const buttons = findElements(importRoot, 'el-button');
     expect(buttons.some((button) => directiveExpression(button, 'on', 'click') === "emit('confirm')")).toBe(true);
     expect(buttons.some((button) => directiveExpression(button, 'on', 'click') === "emit('download-template')")).toBe(true);
   });

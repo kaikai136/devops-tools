@@ -37,18 +37,7 @@ export function useAppShell({
   importHostManagement,
 }: UseAppShellOptions) {
   const feedback = useFeedback(activeTool);
-  const {
-    toast,
-    confirmDialog,
-    scopedToastVisible,
-    toastTone,
-    showToast,
-    copyText,
-    requestConfirm,
-    runConfirmAction,
-    clearFeedback,
-    cleanupFeedback,
-  } = feedback;
+  const { showToast, copyText, requestConfirm, clearFeedback, cleanupFeedback } = feedback;
 
   const localIp = ref('198.18.0.1');
   const selectedHost = ref('192.168.1.1');
@@ -159,12 +148,9 @@ export function useAppShell({
   });
 
   const state = {
-    toast,
     localIp,
     ...siteSettings,
     renderSystemTemplate,
-    scopedToastVisible,
-    toastTone,
     showToast,
     authImportFile,
     passwordImportFile,
@@ -182,9 +168,7 @@ export function useAppShell({
     imageInput,
     selectedHost,
     copyText,
-    confirmDialog,
     requestConfirm,
-    runConfirmAction,
   };
 
   return {

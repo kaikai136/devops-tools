@@ -537,49 +537,49 @@ function downloadBlob(blob: Blob, filename: string) {
         <p>面向已验证 Linux SSH 主机的只读风险巡检报告。</p>
       </div>
       <div class="security-workbench-actions">
-        <button v-if="canUsePageAction('securityScan', 'scan')" class="primary" type="button" @click="isDrawerOpen = true"><AppIcon name="scan" :size="16" />新建巡检</button>
-        <button v-if="canUsePageAction('securityScan', 'refresh')" type="button" :disabled="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</button>
+        <el-button v-if="canUsePageAction('securityScan', 'scan')" type="primary" @click="isDrawerOpen = true"><AppIcon name="scan" :size="16" />新建巡检</el-button>
+        <el-button v-if="canUsePageAction('securityScan', 'refresh')" :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</el-button>
       </div>
     </header>
 
     <section class="security-scan-filters finding-toolbar">
       <label>
         <span>报告任务</span>
-        <select :value="selectedTaskId ?? ''" :disabled="!tasks.length" @change="selectTask(Number(($event.target as HTMLSelectElement).value))">
-          <option v-if="!tasks.length" value="">暂无任务</option>
-          <option v-for="task in tasks" :key="task.id" :value="task.id">{{ task.name }}</option>
-        </select>
+        <el-select :model-value="selectedTaskId ?? ''" :disabled="!tasks.length" @change="selectTask(Number($event))">
+          <el-option v-if="!tasks.length" value="" label="暂无任务" />
+          <el-option v-for="task in tasks" :key="task.id" :value="task.id" :label="task.name" />
+        </el-select>
       </label>
-      <input v-model="keyword" type="search" placeholder="搜索任务" @keyup.enter="loadTasks" />
-      <select v-model="statusFilter" @change="loadTasks">
-        <option value="">全部状态</option>
-        <option value="queued">排队中</option>
-        <option value="running">扫描中</option>
-        <option value="completed">已完成</option>
-        <option value="failed">失败</option>
-        <option value="canceled">已取消</option>
-      </select>
-      <input v-model="findingKeyword" type="search" placeholder="搜索风险 / CVE / 主机" @keyup.enter="reloadFindings" />
-      <select v-model="severityFilter">
-        <option value="">全部级别</option>
-        <option value="critical">严重</option>
-        <option value="high">高危</option>
-        <option value="medium">中危</option>
-        <option value="low">低危</option>
-        <option value="info">提示</option>
-      </select>
-      <select v-model="categoryFilter">
-        <option value="">全部分类</option>
-        <option value="baseline">基线</option>
-        <option value="port">端口</option>
-        <option value="cve">CVE</option>
-      </select>
-      <select v-model="targetResultFilter">
-        <option value="">全部主机</option>
-        <option v-for="target in targetResults" :key="target.id" :value="String(target.id)">{{ target.hostName }}</option>
-      </select>
-      <button type="button" :disabled="isLoadingFindings || !selectedTask" @click="reloadFindings"><AppIcon name="search" :size="15" />筛选</button>
-      <span>{{ taskOptionsLabel }} · 可扫描目标 {{ targets.length }} 台</span>
+      <el-input v-model="keyword" clearable placeholder="搜索任务" @keyup.enter="loadTasks" />
+      <el-select v-model="statusFilter" @change="loadTasks">
+        <el-option value="" label="全部状态" />
+        <el-option value="queued" label="排队中" />
+        <el-option value="running" label="扫描中" />
+        <el-option value="completed" label="已完成" />
+        <el-option value="failed" label="失败" />
+        <el-option value="canceled" label="已取消" />
+      </el-select>
+      <el-input v-model="findingKeyword" clearable placeholder="搜索风险 / CVE / 主机" @keyup.enter="reloadFindings" />
+      <el-select v-model="severityFilter">
+        <el-option value="" label="全部级别" />
+        <el-option value="critical" label="严重" />
+        <el-option value="high" label="高危" />
+        <el-option value="medium" label="中危" />
+        <el-option value="low" label="低危" />
+        <el-option value="info" label="提示" />
+      </el-select>
+      <el-select v-model="categoryFilter">
+        <el-option value="" label="全部分类" />
+        <el-option value="baseline" label="基线" />
+        <el-option value="port" label="端口" />
+        <el-option value="cve" label="CVE" />
+      </el-select>
+      <el-select v-model="targetResultFilter">
+        <el-option value="" label="全部主机" />
+        <el-option v-for="target in targetResults" :key="target.id" :value="String(target.id)" :label="target.hostName" />
+      </el-select>
+      <el-button :loading="isLoadingFindings" :disabled="!selectedTask" @click="reloadFindings"><AppIcon name="search" :size="15" />筛选</el-button>
+      <el-tag type="info" effect="plain">{{ taskOptionsLabel }} · 可扫描目标 {{ targets.length }} 台</el-tag>
     </section>
 
     <main class="security-report-pane">
@@ -590,257 +590,168 @@ function downloadBlob(blob: Blob, filename: string) {
             <p>{{ selectedTask.createdBy }} · {{ selectedTask.targetCount }} 台目标 · 风险 {{ selectedTaskRiskTotal }} 项</p>
           </div>
           <div class="security-report-actions">
-            <button v-if="canUsePageAction('securityScan', 'scan')" type="button" :disabled="!selectedTaskCanCancel || isControlBusy" @click="cancelSelectedTask">取消</button>
-            <button v-if="canUsePageAction('securityScan', 'scan')" type="button" :disabled="!failedTargetsInSelectedTask || isControlBusy" @click="retryFailedTargets">重试失败</button>
-            <button v-if="canUsePageAction('securityScan', 'export')" type="button" @click="exportTask('csv')"><AppIcon name="download" :size="15" />CSV</button>
-            <button v-if="canUsePageAction('securityScan', 'export')" type="button" @click="exportTask('json')"><AppIcon name="download" :size="15" />JSON</button>
-            <button v-if="canUsePageAction('securityScan', 'delete')" class="danger" type="button" @click="removeSelectedTask"><AppIcon name="trash" :size="15" />删除</button>
+            <el-button v-if="canUsePageAction('securityScan', 'scan')" :disabled="!selectedTaskCanCancel || isControlBusy" @click="cancelSelectedTask">取消</el-button>
+            <el-button v-if="canUsePageAction('securityScan', 'scan')" :disabled="!failedTargetsInSelectedTask || isControlBusy" @click="retryFailedTargets">重试失败</el-button>
+            <el-button v-if="canUsePageAction('securityScan', 'export')" @click="exportTask('csv')"><AppIcon name="download" :size="15" />CSV</el-button>
+            <el-button v-if="canUsePageAction('securityScan', 'export')" @click="exportTask('json')"><AppIcon name="download" :size="15" />JSON</el-button>
+            <el-button v-if="canUsePageAction('securityScan', 'delete')" type="danger" plain @click="removeSelectedTask"><AppIcon name="trash" :size="15" />删除</el-button>
           </div>
         </header>
 
-        <nav class="report-tabs" aria-label="检查结果分类">
-          <button
-            v-for="tab in reportTabs"
-            :key="tab.key"
-            type="button"
-            :class="{ active: activeReportTab === tab.key }"
-            :aria-current="activeReportTab === tab.key ? 'page' : undefined"
-            @click="activeReportTab = tab.key"
-          >
-            <span>{{ tab.label }}</span>
-            <em>{{ tab.count }}</em>
-          </button>
-        </nav>
+        <el-tabs v-model="activeReportTab" class="report-tabs">
+          <el-tab-pane v-for="tab in reportTabs" :key="tab.key" :name="tab.key" :label="`${tab.label} ${tab.count}`" />
+        </el-tabs>
 
         <section v-if="activeReportTab === 'overview'" class="security-report-section">
           <h3>综述</h3>
-          <div class="report-table-scroll">
-            <table class="report-table overview-table">
-              <tbody>
-                <tr>
-                  <th>报告名称</th>
-                  <td colspan="3">{{ selectedTask.name }}</td>
-                  <th>报告生成时间</th>
-                  <td>{{ selectedTaskReportTime }}</td>
-                </tr>
-                <tr>
-                  <th>用户名称</th>
-                  <td>{{ selectedTask.createdBy }}</td>
-                  <th>任务状态</th>
-                  <td><em class="scan-status" :class="`status-${selectedTask.status}`">{{ statusLabel(selectedTask.status) }}</em></td>
-                  <th>扫描模块</th>
-                  <td>{{ selectedTaskModulesText }}</td>
-                </tr>
-                <tr>
-                  <th>目标资产</th>
-                  <td>{{ selectedTask.targetCount }}</td>
-                  <th>已完成</th>
-                  <td>{{ selectedTask.completedCount }}</td>
-                  <th>失败主机</th>
-                  <td>{{ selectedTask.failedCount }}</td>
-                </tr>
-                <tr>
-                  <th>风险总数</th>
-                  <td>{{ selectedTaskRiskTotal }}</td>
-                  <th>严重</th>
-                  <td><b class="severity-critical">{{ selectedTask.riskCounts.critical }}</b></td>
-                  <th>高危</th>
-                  <td><b class="severity-high">{{ selectedTask.riskCounts.high }}</b></td>
-                </tr>
-                <tr>
-                  <th>中危</th>
-                  <td><b class="severity-medium">{{ selectedTask.riskCounts.medium }}</b></td>
-                  <th>低危</th>
-                  <td><b class="severity-low">{{ selectedTask.riskCounts.low }}</b></td>
-                  <th>提示</th>
-                  <td><b class="severity-info">{{ selectedTask.riskCounts.info }}</b></td>
-                </tr>
-                <tr>
-                  <th>漏洞源</th>
-                  <td colspan="3">{{ sourceStatusText }}</td>
-                  <th>全局运行中任务</th>
-                  <td>{{ summary.taskCounts.running }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <el-descriptions class="overview-table" :column="3" border>
+            <el-descriptions-item label="报告名称" :span="2">{{ selectedTask.name }}</el-descriptions-item>
+            <el-descriptions-item label="报告生成时间">{{ selectedTaskReportTime }}</el-descriptions-item>
+            <el-descriptions-item label="用户名称">{{ selectedTask.createdBy }}</el-descriptions-item>
+            <el-descriptions-item label="任务状态">
+              <el-tag class="scan-status" :class="`status-${selectedTask.status}`" effect="plain">{{ statusLabel(selectedTask.status) }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="扫描模块">{{ selectedTaskModulesText }}</el-descriptions-item>
+            <el-descriptions-item label="目标资产">{{ selectedTask.targetCount }}</el-descriptions-item>
+            <el-descriptions-item label="已完成">{{ selectedTask.completedCount }}</el-descriptions-item>
+            <el-descriptions-item label="失败主机">{{ selectedTask.failedCount }}</el-descriptions-item>
+            <el-descriptions-item label="风险总数">{{ selectedTaskRiskTotal }}</el-descriptions-item>
+            <el-descriptions-item label="严重"><b class="severity-critical">{{ selectedTask.riskCounts.critical }}</b></el-descriptions-item>
+            <el-descriptions-item label="高危"><b class="severity-high">{{ selectedTask.riskCounts.high }}</b></el-descriptions-item>
+            <el-descriptions-item label="中危"><b class="severity-medium">{{ selectedTask.riskCounts.medium }}</b></el-descriptions-item>
+            <el-descriptions-item label="低危"><b class="severity-low">{{ selectedTask.riskCounts.low }}</b></el-descriptions-item>
+            <el-descriptions-item label="提示"><b class="severity-info">{{ selectedTask.riskCounts.info }}</b></el-descriptions-item>
+            <el-descriptions-item label="漏洞源" :span="2">{{ sourceStatusText }}</el-descriptions-item>
+            <el-descriptions-item label="全局运行中任务">{{ summary.taskCounts.running }}</el-descriptions-item>
+          </el-descriptions>
         </section>
 
         <section v-else-if="activeReportTab === 'assets'" class="security-report-section">
           <h3>资产风险统计</h3>
-          <div class="report-table-scroll">
-            <table class="report-table asset-report-table">
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th>IP/URL地址</th>
-                  <th>资产名称</th>
-                  <th>业务组</th>
-                  <th>责任人</th>
-                  <th>是否核心</th>
-                  <th>风险总数</th>
-                  <th>风险类型</th>
-                  <th>严重</th>
-                  <th>高危</th>
-                  <th>中危</th>
-                  <th>低危</th>
-                  <th>提示</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in assetRiskRows" :key="row.id">
-                  <td>{{ row.index }}</td>
-                  <td>{{ row.hostIp }}</td>
-                  <td>{{ row.hostName }}</td>
-                  <td>{{ row.businessGroup }}</td>
-                  <td>{{ row.owner }}</td>
-                  <td>{{ row.coreAsset }}</td>
-                  <td>{{ row.riskTotal }}</td>
-                  <td>{{ row.riskType }}</td>
-                  <td>{{ row.critical }}</td>
-                  <td>{{ row.high }}</td>
-                  <td>{{ row.medium }}</td>
-                  <td>{{ row.low }}</td>
-                  <td>{{ row.info }}</td>
-                </tr>
-                <tr v-if="!assetRiskRows.length">
-                  <td colspan="13">暂无资产风险统计。</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <el-table :data="assetRiskRows" class="asset-report-table" row-key="id" empty-text="暂无资产风险统计">
+            <el-table-column prop="index" label="序号" width="80" />
+            <el-table-column prop="hostIp" label="IP/URL地址" min-width="150" />
+            <el-table-column prop="hostName" label="资产名称" min-width="150" />
+            <el-table-column prop="businessGroup" label="业务组" min-width="120" />
+            <el-table-column prop="owner" label="责任人" min-width="120" />
+            <el-table-column prop="coreAsset" label="是否核心" width="100" />
+            <el-table-column prop="riskTotal" label="风险总数" width="100" />
+            <el-table-column prop="riskType" label="风险类型" min-width="160" />
+            <el-table-column prop="critical" label="严重" width="80" />
+            <el-table-column prop="high" label="高危" width="80" />
+            <el-table-column prop="medium" label="中危" width="80" />
+            <el-table-column prop="low" label="低危" width="80" />
+            <el-table-column prop="info" label="提示" width="80" />
+          </el-table>
         </section>
 
         <section v-else-if="activeReportTab === 'impact'" class="security-report-section">
           <h3>漏洞影响统计</h3>
-          <div class="report-table-scroll">
-            <table class="report-table impact-report-table">
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th>漏洞名称</th>
-                  <th>风险等级</th>
-                  <th>风险类型</th>
-                  <th>影响资产</th>
-                  <th>影响资产数量</th>
-                  <th>出现次数</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in impactRows" :key="row.key">
-                  <td>{{ row.index }}</td>
-                  <td class="report-text-cell">{{ row.title }}</td>
-                  <td><b :class="severityClass(row.severity)">{{ severityLabels[row.severity] }}</b></td>
-                  <td>{{ row.riskType }}</td>
-                  <td class="report-text-cell">{{ row.affectedAssets || '-' }}</td>
-                  <td>{{ row.affectedAssetCount }}</td>
-                  <td>{{ row.occurrences }}</td>
-                </tr>
-                <tr v-if="!impactRows.length">
-                  <td colspan="7">当前筛选条件下没有漏洞影响统计。</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <el-table :data="impactRows" class="impact-report-table" row-key="key" empty-text="当前筛选条件下没有漏洞影响统计">
+            <el-table-column prop="index" label="序号" width="80" />
+            <el-table-column prop="title" label="漏洞名称" min-width="220" class-name="report-text-cell" />
+            <el-table-column label="风险等级" width="110">
+              <template #default="{ row }"><b :class="severityClass(row.severity)">{{ severityLabels[row.severity] }}</b></template>
+            </el-table-column>
+            <el-table-column prop="riskType" label="风险类型" min-width="140" />
+            <el-table-column prop="affectedAssets" label="影响资产" min-width="180" class-name="report-text-cell" />
+            <el-table-column prop="affectedAssetCount" label="影响资产数量" width="130" />
+            <el-table-column prop="occurrences" label="出现次数" width="100" />
+          </el-table>
         </section>
 
         <section v-else-if="activeReportTab === 'details'" class="security-report-section">
           <h3>漏洞详情</h3>
-          <div class="report-table-scroll">
-            <table class="report-table finding-detail-table">
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th>风险等级</th>
-                  <th>主机/域名</th>
-                  <th>风险端口</th>
-                  <th>漏洞名称</th>
-                  <th>检测类型</th>
-                  <th>漏洞类型</th>
-                  <th>CVE编号</th>
-                  <th>风险描述</th>
-                  <th>风险影响</th>
-                  <th>解决方案</th>
-                  <th>风险举证</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(finding, index) in findings" :key="finding.id">
-                  <td>{{ index + 1 }}</td>
-                  <td><b :class="severityClass(finding.severity)">{{ severityLabels[finding.severity] }}</b></td>
-                  <td>{{ finding.targetIp || finding.targetName }}</td>
-                  <td>{{ finding.port || '-' }}</td>
-                  <td class="report-text-cell">{{ finding.title }}</td>
-                  <td>{{ detectionType(finding) }}</td>
-                  <td>{{ categoryLabel(finding.category) }}</td>
-                  <td>{{ finding.cveId || '-' }}</td>
-                  <td class="report-text-cell">{{ findingDescription(finding) }}</td>
-                  <td class="report-text-cell">{{ finding.cwe || finding.cvss || '-' }}</td>
-                  <td class="report-text-cell">{{ finding.recommendation || '-' }}</td>
-                  <td class="report-text-cell">{{ findingEvidence(finding) }}</td>
-                </tr>
-                <tr v-if="!findings.length">
-                  <td colspan="12">当前筛选条件下没有漏洞详情。</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <button v-if="findingsHasNext" class="finding-load-more" type="button" :disabled="isLoadingFindings" @click="loadFindings()">
+          <el-table :data="findings" class="finding-detail-table" row-key="id" empty-text="当前筛选条件下没有漏洞详情">
+            <el-table-column label="序号" width="80">
+              <template #default="{ $index }">{{ $index + 1 }}</template>
+            </el-table-column>
+            <el-table-column label="风险等级" width="110">
+              <template #default="{ row }"><b :class="severityClass(row.severity)">{{ severityLabels[row.severity] }}</b></template>
+            </el-table-column>
+            <el-table-column label="主机/域名" min-width="150">
+              <template #default="{ row }">{{ row.targetIp || row.targetName }}</template>
+            </el-table-column>
+            <el-table-column label="风险端口" width="100">
+              <template #default="{ row }">{{ row.port || '-' }}</template>
+            </el-table-column>
+            <el-table-column prop="title" label="漏洞名称" min-width="220" class-name="report-text-cell" />
+            <el-table-column label="检测类型" min-width="140">
+              <template #default="{ row }">{{ detectionType(row) }}</template>
+            </el-table-column>
+            <el-table-column label="漏洞类型" min-width="120">
+              <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
+            </el-table-column>
+            <el-table-column label="CVE编号" min-width="140">
+              <template #default="{ row }">{{ row.cveId || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="风险描述" min-width="220" class-name="report-text-cell">
+              <template #default="{ row }">{{ findingDescription(row) }}</template>
+            </el-table-column>
+            <el-table-column label="风险影响" min-width="160" class-name="report-text-cell">
+              <template #default="{ row }">{{ row.cwe || row.cvss || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="解决方案" min-width="220" class-name="report-text-cell">
+              <template #default="{ row }">{{ row.recommendation || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="风险举证" min-width="220" class-name="report-text-cell">
+              <template #default="{ row }">{{ findingEvidence(row) }}</template>
+            </el-table-column>
+          </el-table>
+          <el-button v-if="findingsHasNext" class="finding-load-more" :loading="isLoadingFindings" @click="loadFindings()">
             <AppIcon name="chevronsRight" :size="16" />{{ isLoadingFindings ? '加载中...' : '加载更多' }}
-          </button>
+          </el-button>
         </section>
       </template>
-      <div v-else class="security-empty">暂无扫描任务，请新建巡检后查看报告。</div>
+      <el-empty v-else class="security-empty" description="暂无扫描任务，请新建巡检后查看报告" />
     </main>
 
-    <div v-if="isDrawerOpen" class="security-drawer-backdrop">
-      <section class="security-drawer">
-        <header>
-          <div>
-            <h3>新建安全巡检</h3>
-            <p>扫描过程只执行只读命令，不会修改目标主机状态。</p>
-          </div>
-          <button type="button" aria-label="关闭" @click="isDrawerOpen = false"><AppIcon name="x" :size="16" /></button>
-        </header>
+    <el-drawer v-model="isDrawerOpen" class="security-drawer" title="新建安全巡检" size="520px">
+      <template #default>
+        <p>扫描过程只执行只读命令，不会修改目标主机状态。</p>
         <div class="scan-form-grid">
           <label>
             <span>任务名称</span>
-            <input v-model="taskName" maxlength="180" placeholder="留空自动生成" />
+            <el-input v-model="taskName" maxlength="180" placeholder="留空自动生成" />
           </label>
           <label>
             <span>端口范围</span>
-            <textarea v-model="portsInput" rows="3"></textarea>
+            <el-input v-model="portsInput" type="textarea" :rows="3" />
           </label>
         </div>
         <div class="scan-module-options">
-          <label><input v-model="scanBaseline" type="checkbox" />基线检查</label>
-          <label><input v-model="scanPorts" type="checkbox" />端口风险</label>
-          <label :class="{ disabled: !summary.vulnerabilitySource.onlineCveEnabled }">
-            <input v-model="scanCve" type="checkbox" :disabled="!summary.vulnerabilitySource.onlineCveEnabled" />CVE 检查
-          </label>
-          <span v-if="!summary.vulnerabilitySource.onlineCveEnabled">在线 CVE 默认关闭，可在系统设置中开启。</span>
+          <el-checkbox v-model="scanBaseline">基线检查</el-checkbox>
+          <el-checkbox v-model="scanPorts">端口风险</el-checkbox>
+          <el-checkbox v-model="scanCve" :disabled="!summary.vulnerabilitySource.onlineCveEnabled">CVE 检查</el-checkbox>
+          <el-alert v-if="!summary.vulnerabilitySource.onlineCveEnabled" type="info" :closable="false" title="在线 CVE 默认关闭，可在系统设置中开启。" />
         </div>
         <div class="target-picker-head">
-          <label>
-            <input type="checkbox" :checked="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))" @change="toggleAllVisibleTargets(($event.target as HTMLInputElement).checked)" />
+          <el-checkbox
+            :model-value="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))"
+            @change="toggleAllVisibleTargets(Boolean($event))"
+          >
             全选当前列表
-          </label>
-          <input v-model="targetKeyword" type="search" placeholder="搜索主机 / IP / 分组" />
-          <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
+          </el-checkbox>
+          <el-input v-model="targetKeyword" clearable placeholder="搜索主机 / IP / 分组" />
+          <el-tag type="info" effect="plain">已选 {{ selectedTargets.length }} / {{ targets.length }}</el-tag>
         </div>
         <div class="target-picker-list">
-          <label v-for="target in filteredTargets" :key="target.id">
-            <input type="checkbox" :checked="selectedTargetIds.has(target.id)" @change="toggleTarget(target.id, ($event.target as HTMLInputElement).checked)" />
+          <el-checkbox
+            v-for="target in filteredTargets"
+            :key="target.id"
+            :model-value="selectedTargetIds.has(target.id)"
+            @change="toggleTarget(target.id, Boolean($event))"
+          >
             <strong>{{ target.name }}</strong>
             <span>{{ target.privateIp }} · {{ target.os }} · {{ target.groupName }}</span>
-          </label>
-          <div v-if="!filteredTargets.length" class="security-empty">暂无可扫描 Linux SSH 主机。</div>
+          </el-checkbox>
+          <el-empty v-if="!filteredTargets.length" class="security-empty" description="暂无可扫描 Linux SSH 主机" />
         </div>
-        <footer>
-          <button type="button" @click="isDrawerOpen = false">取消</button>
-          <button class="primary" type="button" :disabled="!canStartScan" @click="startScan">{{ isCreating ? '创建中...' : '开始扫描' }}</button>
-        </footer>
-      </section>
-    </div>
+      </template>
+      <template #footer>
+        <el-button @click="isDrawerOpen = false">取消</el-button>
+        <el-button type="primary" :disabled="!canStartScan" :loading="isCreating" @click="startScan">{{ isCreating ? '创建中...' : '开始扫描' }}</el-button>
+      </template>
+    </el-drawer>
   </section>
 </template>

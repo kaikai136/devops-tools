@@ -36,11 +36,11 @@ describe('SystemSettingsPanel merged system settings structure', () => {
     expect(script).toContain('loginExpiryInputMax');
     expect(script).toContain('loginExpiryMinutes');
     expect(template).toContain('系统登录过期时间');
-    expect(template).toContain('v-model.number="loginExpiryValue"');
+    expect(template).toContain('v-model="loginExpiryValue"');
     expect(template).toContain(':max="loginExpiryInputMax"');
     expect(template).toContain('v-model="loginExpiryUnit"');
-    expect(template).toContain('<option value="minutes">分钟</option>');
-    expect(template).toContain('<option value="hours">小时</option>');
-    expect(template).toContain('<option value="days">天</option>');
+    expect(template).toContain('<el-option value="minutes" label="分钟" />');
+    expect(template).toContain('<el-option value="hours" label="小时" />');
+    expect(template).toContain('<el-option value="days" label="天" />');
   });
 });

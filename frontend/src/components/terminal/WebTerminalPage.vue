@@ -1,5 +1,6 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type { InputInstance } from 'element-plus';
 import Guacamole from 'guacamole-common-js';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon, type ISearchOptions } from '@xterm/addon-search';
@@ -503,8 +504,8 @@ const isTerminalSearchOpen = ref(false);
 const terminalSearchQuery = ref('');
 const terminalSearchResultIndex = ref(-1);
 const terminalSearchResultCount = ref(0);
-const terminalSearchInputRef = ref<HTMLInputElement | null>(null);
-const terminalPasteInputRef = ref<HTMLTextAreaElement | null>(null);
+const terminalSearchInputRef = ref<InputInstance | null>(null);
+const terminalPasteInputRef = ref<InputInstance | null>(null);
 const terminalTabsRef = ref<HTMLElement | null>(null);
 const canScrollTerminalTabsLeft = ref(false);
 const canScrollTerminalTabsRight = ref(false);
@@ -877,10 +878,15 @@ function setTerminalMultiExecutionExcluded(tab: TerminalTab, excluded: boolean) 
   multiExecutionExcludedTabIds.value = next;
 }
 
-function setTerminalMultiExecutionExcludedFromEvent(tab: TerminalTab, event: Event) {
-  const input = event.target;
-  if (!(input instanceof HTMLInputElement)) return;
-  setTerminalMultiExecutionExcluded(tab, input.checked);
+function checkedFromControl(value: Event | boolean | string | number) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value === 'true';
+  if (typeof value === 'number') return value !== 0;
+  return (value.target as HTMLInputElement).checked;
+}
+
+function setTerminalMultiExecutionExcludedFromEvent(tab: TerminalTab, value: Event | boolean | string | number) {
+  setTerminalMultiExecutionExcluded(tab, checkedFromControl(value));
 }
 
 function pruneTerminalMultiExecutionExclusions() {
@@ -1553,7 +1559,7 @@ function focusTerminalSearchInputSoon(select = false) {
     const input = terminalSearchInputRef.value;
     if (!input) return;
     input.focus();
-    if (select) input.select();
+    if (select) input.input?.select();
   });
 }
 
@@ -3281,17 +3287,17 @@ function readTerminalQuickCommandPanelCollapsed() {
   <main class="terminal-shell" :class="{ resizing: isResizingSidebar, 'sidebar-collapsed': isTerminalSidebarCollapsed }" :style="terminalShellStyle">
     <aside class="terminal-sidebar">
       <nav class="terminal-side-switch" aria-label="终端侧栏切换" @mousedown.self="startSidebarResize" @dblclick.stop="toggleTerminalSidebar">
-        <button
-          type="button"
+        <el-button
+          native-type="button"
           title="服务器列表"
           aria-label="服务器列表"
           :class="{ active: terminalSidebarMode === 'hosts' }"
           @click="selectTerminalSidebarMode('hosts')"
         >
           <AppIcon name="server" :size="18" />
-        </button>
-        <button
-          type="button"
+        </el-button>
+        <el-button
+          native-type="button"
           title="FTP 文件夹"
           aria-label="FTP 文件夹"
           :class="{ active: terminalSidebarMode === 'files' }"
@@ -3299,9 +3305,9 @@ function readTerminalQuickCommandPanelCollapsed() {
           @click="selectTerminalSidebarMode('files')"
         >
           <AppIcon name="folder" :size="19" />
-        </button>
-        <button
-          type="button"
+        </el-button>
+        <el-button
+          native-type="button"
           :title="isTerminalMonitorPanelOpen ? '关闭资源监控' : '打开资源监控'"
           :aria-label="isTerminalMonitorPanelOpen ? '关闭资源监控' : '打开资源监控'"
           :aria-pressed="isTerminalMonitorPanelOpen"
@@ -3310,21 +3316,21 @@ function readTerminalQuickCommandPanelCollapsed() {
           @click="toggleTerminalMonitorPanel"
         >
           <AppIcon name="monitor" :size="18" />
-        </button>
-        <button
+        </el-button>
+        <el-button
           class="terminal-sidebar-collapse-button"
-          type="button"
+          native-type="button"
           :title="terminalSidebarToggleLabel"
           :aria-label="terminalSidebarToggleLabel"
           :aria-pressed="isTerminalSidebarCollapsed"
           @click="toggleTerminalSidebar"
         >
           <AppIcon name="chevronsRight" :size="17" />
-        </button>
-        <button
+        </el-button>
+        <el-button
           v-if="shouldShowTerminalQuickCommandPanel"
           class="terminal-quick-toggle-button"
-          type="button"
+          native-type="button"
           title="打开/关闭快捷命令"
           aria-label="打开/关闭快捷命令"
           :aria-pressed="!isTerminalQuickCommandPanelCollapsed"
@@ -3333,23 +3339,23 @@ function readTerminalQuickCommandPanelCollapsed() {
           @dblclick.stop
         >
           <AppIcon name="zap" :size="18" />
-        </button>
+        </el-button>
       </nav>
       <div class="terminal-sidebar-panel">
         <template v-if="terminalSidebarMode === 'hosts'">
           <div class="terminal-search">
-            <input v-model="search" placeholder="输入主机名/IP检索" />
-            <button type="button" title="刷新" aria-label="刷新" @click="loadTree"><AppIcon name="refresh" :size="16" /></button>
+            <el-input v-model="search" placeholder="输入主机名/IP检索" clearable />
+            <el-button native-type="button" title="刷新" aria-label="刷新" @click="loadTree"><AppIcon name="refresh" :size="16" /></el-button>
           </div>
           <div class="terminal-tree">
-            <button
+            <el-button
               v-for="row in rows"
               :key="row.kind === 'root' ? 'group-root' : row.kind === 'group' ? `group-${row.group.id}` : `host-${row.host.id}`"
               class="terminal-tree-row"
               :class="{ root: row.kind === 'root', host: row.kind === 'host', active: row.kind === 'host' && activeTab?.host.id === row.host.id }"
               :style="{ paddingLeft: `${12 + row.level * 24}px` }"
               :title="row.kind === 'host' ? getTerminalHostTooltip(row.host) : undefined"
-              type="button"
+              native-type="button"
               @click="row.kind === 'root' ? toggleRoot() : row.kind === 'group' && toggleGroup(row.group)"
               @dblclick="row.kind === 'host' && openHostTab(row.host)"
             >
@@ -3373,7 +3379,7 @@ function readTerminalQuickCommandPanelCollapsed() {
                   :aria-label="row.host.verifyStatus === 'failed' ? '验证失败' : '已验证'"
                 ></i>
               </template>
-            </button>
+            </el-button>
             <p v-if="isLoadingTree" class="terminal-tree-empty">加载中...</p>
             <p v-else-if="treeError" class="terminal-tree-empty">{{ treeError }}</p>
             <p v-else-if="!rows.length" class="terminal-tree-empty">没有匹配的主机。</p>
@@ -3410,8 +3416,8 @@ function readTerminalQuickCommandPanelCollapsed() {
     >
       <div class="terminal-hint">
         <div class="terminal-hint-actions">
-          <button
-            type="button"
+          <el-button
+            native-type="button"
             class="terminal-multi-execution-toggle"
             :class="{ active: isTerminalMultiExecutionEnabled }"
             :title="isTerminalMultiExecutionEnabled ? '退出多执行模式' : '开启多执行模式'"
@@ -3421,10 +3427,10 @@ function readTerminalQuickCommandPanelCollapsed() {
             @click="toggleTerminalMultiExecution"
           >
             <AppIcon name="chevronsRight" :size="15" />
-          </button>
+          </el-button>
           <div class="terminal-split-menu" @click.stop>
-            <button
-              type="button"
+            <el-button
+              native-type="button"
               class="terminal-split-trigger"
               :class="{ active: isTerminalSplitMenuOpen || terminalSplitMode !== 'single' }"
               :title="`分屏布局：${terminalSplitModeLabel}`"
@@ -3433,12 +3439,12 @@ function readTerminalQuickCommandPanelCollapsed() {
               @click="toggleTerminalSplitMenu"
             >
               <AppIcon name="dashboard" :size="15" />
-            </button>
+            </el-button>
             <div v-if="isTerminalSplitMenuOpen" class="terminal-split-menu-list" role="menu" aria-label="分屏布局">
-              <button
+              <el-button
                 v-for="option in terminalSplitModeOptions"
                 :key="option.mode"
-                type="button"
+                native-type="button"
                 class="terminal-split-menu-item"
                 :class="{ active: terminalSplitMode === option.mode }"
                 role="menuitem"
@@ -3447,11 +3453,11 @@ function readTerminalQuickCommandPanelCollapsed() {
                 <AppIcon :name="option.icon" :size="15" />
                 <span>{{ option.label }}</span>
                 <AppIcon v-if="terminalSplitMode === option.mode" name="check" :size="14" />
-              </button>
+              </el-button>
             </div>
           </div>
-          <button
-            type="button"
+          <el-button
+            native-type="button"
             class="terminal-highlight-toggle"
             :class="{ active: highlightEnabled }"
             :title="highlightEnabled ? '关闭关键词高亮' : '开启关键词高亮'"
@@ -3461,30 +3467,30 @@ function readTerminalQuickCommandPanelCollapsed() {
             @click="highlightEnabled = !highlightEnabled"
           >
             <AppIcon name="sun" :size="15" />
-          </button>
+          </el-button>
           <div class="terminal-font-controls" :title="`终端字号 ${terminalFontSize}px`" aria-label="终端字号">
-            <button
-              type="button"
+            <el-button
+              native-type="button"
               title="缩小终端字体"
               aria-label="缩小终端字体"
               :disabled="!activeTerminalSupportsSshTools || !canDecreaseTerminalFontSize"
               @click="decreaseTerminalFontSize"
             >
               <AppIcon name="zoomOut" :size="15" />
-            </button>
+            </el-button>
             <span>{{ terminalFontSize }}</span>
-            <button
-              type="button"
+            <el-button
+              native-type="button"
               title="放大终端字体"
               aria-label="放大终端字体"
               :disabled="!activeTerminalSupportsSshTools || !canIncreaseTerminalFontSize"
               @click="increaseTerminalFontSize"
             >
               <AppIcon name="zoomIn" :size="15" />
-            </button>
+            </el-button>
           </div>
-          <button
-            type="button"
+          <el-button
+            native-type="button"
             class="terminal-search-toggle"
             :class="{ active: isTerminalSearchOpen }"
             title="查找当前终端"
@@ -3494,17 +3500,17 @@ function readTerminalQuickCommandPanelCollapsed() {
             @click="openTerminalSearch()"
           >
             <AppIcon name="search" :size="15" />
-          </button>
-          <button
+          </el-button>
+          <el-button
             v-if="activeTab?.kind === 'rdp'"
-            type="button"
+            native-type="button"
             class="terminal-search-toggle"
             title="全屏远程桌面"
             aria-label="全屏远程桌面"
             @click="toggleRdpFullscreen(activeTab)"
           >
             <AppIcon name="maximize" :size="15" />
-          </button>
+          </el-button>
         </div>
         <span class="terminal-workspace-title">{{ workspaceTitle }}</span>
       </div>
@@ -3515,8 +3521,8 @@ function readTerminalQuickCommandPanelCollapsed() {
           <span>{{ getTerminalMultiExecutionStatusText() }}</span>
         </div>
         <div class="terminal-multi-execution-actions">
-          <button
-            type="button"
+          <el-button
+            native-type="button"
             title="多粘贴"
             aria-label="多粘贴"
             :disabled="!canSendToTerminalMultiExecutionTargets"
@@ -3524,19 +3530,19 @@ function readTerminalQuickCommandPanelCollapsed() {
           >
             <AppIcon name="clipboard" :size="14" />
             <span>多粘贴</span>
-          </button>
-          <button type="button" title="退出多执行模式" aria-label="退出多执行模式" @click="exitTerminalMultiExecution">
+          </el-button>
+          <el-button native-type="button" title="退出多执行模式" aria-label="退出多执行模式" @click="exitTerminalMultiExecution">
             <AppIcon name="x" :size="14" />
             <span>退出</span>
-          </button>
+          </el-button>
         </div>
       </div>
       <div class="terminal-tabbar">
         <div ref="terminalTabsRef" class="terminal-tabs" @scroll="syncTerminalTabsScrollState">
-          <button
+          <el-button
             v-for="tab in tabs"
             :key="tab.id"
-            type="button"
+            native-type="button"
             class="terminal-tab"
             :data-terminal-tab-id="tab.id"
             :class="{
@@ -3560,11 +3566,11 @@ function readTerminalQuickCommandPanelCollapsed() {
             </span>
             <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
             <span class="terminal-tab-close" title="关闭" @click.stop="closeTab(tab)"><AppIcon name="x" :size="13" /></span>
-          </button>
+          </el-button>
         </div>
         <div v-if="tabs.length" class="terminal-tab-overview" @click.stop>
-          <button
-            type="button"
+          <el-button
+            native-type="button"
             class="terminal-tab-scroll-button previous"
             title="向左移动标签"
             aria-label="向左移动标签"
@@ -3572,9 +3578,9 @@ function readTerminalQuickCommandPanelCollapsed() {
             @click="scrollTerminalTabs('left')"
           >
             <AppIcon name="chevronRight" :size="15" />
-          </button>
-          <button
-            type="button"
+          </el-button>
+          <el-button
+            native-type="button"
             class="terminal-tab-scroll-button next"
             title="向右移动标签"
             aria-label="向右移动标签"
@@ -3582,9 +3588,9 @@ function readTerminalQuickCommandPanelCollapsed() {
             @click="scrollTerminalTabs('right')"
           >
             <AppIcon name="chevronRight" :size="15" />
-          </button>
-          <button
-            type="button"
+          </el-button>
+          <el-button
+            native-type="button"
             class="terminal-tab-menu-trigger"
             :class="{ active: isTerminalTabMenuOpen }"
             title="打开的标签"
@@ -3593,13 +3599,13 @@ function readTerminalQuickCommandPanelCollapsed() {
             @click="toggleTerminalTabMenu"
           >
             <AppIcon name="link" :size="16" />
-          </button>
+          </el-button>
           <div v-if="isTerminalTabMenuOpen" class="terminal-tab-menu" role="menu" aria-label="打开的标签">
             <header>打开的标签</header>
-            <button
+            <el-button
               v-for="(tab, index) in tabs"
               :key="`menu-${tab.id}`"
-              type="button"
+              native-type="button"
               class="terminal-tab-menu-item"
               :class="{ active: tab.id === activeTabId, closed: tab.status === 'closed', error: tab.status === 'error' }"
               role="menuitem"
@@ -3611,7 +3617,7 @@ function readTerminalQuickCommandPanelCollapsed() {
               <AppIcon name="server" :size="15" />
               <span class="terminal-tab-menu-label">{{ index + 1 }} {{ getTerminalTabLabel(tab) }}</span>
               <span class="terminal-tab-status" :class="[tab.status, { unread: tab.hasUnreadOutput && tab.id !== activeTabId }]"></span>
-            </button>
+            </el-button>
           </div>
         </div>
       </div>
@@ -3631,8 +3637,8 @@ function readTerminalQuickCommandPanelCollapsed() {
           class="terminal-file-context-menu-row"
           :class="{ separator: item.separatorBefore }"
         >
-          <button
-            type="button"
+          <el-button
+            native-type="button"
             class="terminal-file-context-menu-item terminal-context-menu-item terminal-tab-context-menu-item"
             :class="{ danger: item.danger, selected: item.selected }"
             :disabled="!item.enabled"
@@ -3646,12 +3652,12 @@ function readTerminalQuickCommandPanelCollapsed() {
             <span>{{ item.label }}</span>
             <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
             <AppIcon v-else-if="item.children?.length" name="chevronRight" :size="13" />
-          </button>
+          </el-button>
           <div v-if="item.children?.length" class="terminal-file-context-submenu terminal-context-submenu terminal-tab-context-submenu">
-            <button
+            <el-button
               v-for="child in item.children"
               :key="child.id"
-              type="button"
+              native-type="button"
               class="terminal-file-context-menu-item terminal-context-menu-item terminal-tab-context-menu-item"
               :class="{ danger: child.danger, selected: child.selected, separator: child.separatorBefore }"
               :disabled="!child.enabled"
@@ -3665,7 +3671,7 @@ function readTerminalQuickCommandPanelCollapsed() {
               <span>{{ child.label }}</span>
               <kbd v-if="child.shortcut">{{ child.shortcut }}</kbd>
               <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
-            </button>
+            </el-button>
           </div>
         </div>
       </div>
@@ -3697,7 +3703,7 @@ function readTerminalQuickCommandPanelCollapsed() {
               @contextmenu.stop
             >
               <AppIcon name="search" :size="14" />
-              <input
+              <el-input
                 ref="terminalSearchInputRef"
                 v-model="terminalSearchQuery"
                 type="search"
@@ -3706,15 +3712,15 @@ function readTerminalQuickCommandPanelCollapsed() {
                 @keydown.esc.prevent.stop="closeTerminalSearch"
               />
               <span class="terminal-panel-search-count">{{ terminalSearchResultText }}</span>
-              <button type="button" title="上一个" aria-label="上一个" :disabled="!terminalSearchQuery.trim()" @click="searchCurrentTerminal('previous')">
+              <el-button native-type="button" title="上一个" aria-label="上一个" :disabled="!terminalSearchQuery.trim()" @click="searchCurrentTerminal('previous')">
                 <AppIcon name="chevronDown" :size="14" />
-              </button>
-              <button type="button" title="下一个" aria-label="下一个" :disabled="!terminalSearchQuery.trim()" @click="searchCurrentTerminal('next')">
+              </el-button>
+              <el-button native-type="button" title="下一个" aria-label="下一个" :disabled="!terminalSearchQuery.trim()" @click="searchCurrentTerminal('next')">
                 <AppIcon name="chevronDown" :size="14" />
-              </button>
-              <button type="button" title="关闭" aria-label="关闭" @click="closeTerminalSearch">
+              </el-button>
+              <el-button native-type="button" title="关闭" aria-label="关闭" @click="closeTerminalSearch">
                 <AppIcon name="x" :size="14" />
-              </button>
+              </el-button>
             </div>
             <div
               :ref="(element) => setTerminalContainer(tab.id, element)"
@@ -3731,9 +3737,8 @@ function readTerminalQuickCommandPanelCollapsed() {
               @mousedown.stop
               @contextmenu.stop
             >
-              <input
-                type="checkbox"
-                :checked="isTerminalMultiExecutionExcluded(tab)"
+              <el-checkbox
+                :model-value="isTerminalMultiExecutionExcluded(tab)"
                 @change="setTerminalMultiExecutionExcludedFromEvent(tab, $event)"
               />
               <span>不控制 {{ getTerminalTabLabel(tab) }}</span>
@@ -3754,8 +3759,8 @@ function readTerminalQuickCommandPanelCollapsed() {
             class="terminal-file-context-menu-row"
             :class="{ separator: item.separatorBefore }"
           >
-            <button
-              type="button"
+            <el-button
+              native-type="button"
               class="terminal-file-context-menu-item terminal-context-menu-item"
               :class="{ danger: item.danger }"
               :disabled="!item.enabled"
@@ -3765,12 +3770,12 @@ function readTerminalQuickCommandPanelCollapsed() {
               <span>{{ item.label }}</span>
               <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
               <AppIcon v-else-if="item.children?.length" name="chevronRight" :size="13" />
-            </button>
+            </el-button>
             <div v-if="item.children?.length" class="terminal-file-context-submenu terminal-context-submenu">
-              <button
+              <el-button
                 v-for="child in item.children"
                 :key="child.id"
-                type="button"
+                native-type="button"
                 class="terminal-file-context-menu-item terminal-context-menu-item"
                 :class="{ danger: child.danger, separator: child.separatorBefore }"
                 :disabled="!child.enabled"
@@ -3780,7 +3785,7 @@ function readTerminalQuickCommandPanelCollapsed() {
                 <span>{{ child.label }}</span>
                 <kbd v-if="child.shortcut">{{ child.shortcut }}</kbd>
                 <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
-              </button>
+              </el-button>
             </div>
           </div>
         </div>
@@ -3792,17 +3797,18 @@ function readTerminalQuickCommandPanelCollapsed() {
           @contextmenu.stop
         >
           <span>在此粘贴后自动发送到终端</span>
-          <textarea
+          <el-input
             ref="terminalPasteInputRef"
             v-model="terminalPastePrompt.value"
+            type="textarea"
             placeholder="按 Ctrl+V，或右键选择粘贴"
             @paste="handleTerminalPastePromptPaste"
             @keydown.esc.prevent.stop="closeTerminalPastePrompt"
             @keydown.ctrl.enter.prevent="submitTerminalPastePrompt()"
-          ></textarea>
+          />
           <div>
-            <button type="button" @click="submitTerminalPastePrompt()">发送</button>
-            <button type="button" @click="closeTerminalPastePrompt">取消</button>
+            <el-button native-type="button" @click="submitTerminalPastePrompt()">发送</el-button>
+            <el-button native-type="button" @click="closeTerminalPastePrompt">取消</el-button>
           </div>
         </div>
         <aside v-if="isTerminalMonitorPanelOpen" class="terminal-monitor-panel terminal-monitor-drawer">
@@ -3810,25 +3816,25 @@ function readTerminalQuickCommandPanelCollapsed() {
             <strong>资源监控</strong>
             <span>{{ terminalMonitorNodeName }}</span>
             <div class="terminal-monitor-actions">
-              <button
+              <el-button
                 class="terminal-monitor-refresh"
-                type="button"
+                native-type="button"
                 title="刷新"
                 aria-label="刷新"
                 :disabled="!activeTab || isTerminalMonitorLoading"
                 @click="loadTerminalMonitor"
               >
                 <AppIcon name="refresh" :size="15" />
-              </button>
-              <button
+              </el-button>
+              <el-button
                 class="terminal-monitor-refresh"
-                type="button"
+                native-type="button"
                 title="关闭资源监控"
                 aria-label="关闭资源监控"
                 @click="closeTerminalMonitorPanel"
               >
                 <AppIcon name="x" :size="15" />
-              </button>
+              </el-button>
             </div>
           </header>
 
@@ -3934,14 +3940,14 @@ function readTerminalQuickCommandPanelCollapsed() {
         </aside>
       </div>
       <section v-if="shouldShowTerminalQuickCommandPanel" class="terminal-quick-panel">
-        <button
+        <el-button
           class="terminal-quick-resizer"
-          type="button"
+          native-type="button"
           title="调整快捷命令面板高度"
           aria-label="调整快捷命令面板高度"
           :disabled="isTerminalQuickCommandPanelCollapsed"
           @mousedown="startTerminalQuickCommandPanelResize"
-        ></button>
+        ></el-button>
         <header class="terminal-quick-header">
           <div>
             <strong><AppIcon name="zap" :size="15" />快捷命令</strong>
@@ -3950,48 +3956,48 @@ function readTerminalQuickCommandPanelCollapsed() {
             <span v-else>{{ activeTab?.host.name }}</span>
           </div>
           <div class="terminal-quick-actions">
-            <button type="button" title="刷新" aria-label="刷新" :disabled="isTerminalQuickCommandLoading" @click="loadTerminalQuickCommands">
+            <el-button native-type="button" title="刷新" aria-label="刷新" :disabled="isTerminalQuickCommandLoading" @click="loadTerminalQuickCommands">
               <AppIcon name="refresh" :size="14" />
-            </button>
-            <button type="button" title="新增命令" aria-label="新增命令" @click="openTerminalQuickCommandDialog()">
+            </el-button>
+            <el-button native-type="button" title="新增命令" aria-label="新增命令" @click="openTerminalQuickCommandDialog()">
               <AppIcon name="plus" :size="15" />
-            </button>
-            <button
-              type="button"
+            </el-button>
+            <el-button
+              native-type="button"
               :title="isTerminalQuickCommandPanelCollapsed ? '展开快捷命令' : '收起快捷命令'"
               :aria-label="isTerminalQuickCommandPanelCollapsed ? '展开快捷命令' : '收起快捷命令'"
               @click="toggleTerminalQuickCommandPanel"
             >
               <AppIcon name="chevronDown" :size="15" />
-            </button>
+            </el-button>
           </div>
         </header>
         <div v-if="!isTerminalQuickCommandPanelCollapsed" class="terminal-quick-body">
           <aside class="terminal-quick-categories">
-            <button
-              type="button"
+            <el-button
+              native-type="button"
               :class="{ active: terminalQuickCommandCategory === 'all' }"
               @click="terminalQuickCommandCategory = 'all'"
             >
               全部
               <span>{{ terminalQuickCommands.length }}</span>
-            </button>
-            <button
+            </el-button>
+            <el-button
               v-for="category in terminalQuickCommandCategories"
               :key="category"
-              type="button"
+              native-type="button"
               :class="{ active: terminalQuickCommandCategory === category }"
               @click="terminalQuickCommandCategory = category"
             >
               {{ category }}
               <span>{{ terminalQuickCommands.filter((command) => command.category === category).length }}</span>
-            </button>
+            </el-button>
           </aside>
           <div class="terminal-quick-content">
             <div class="terminal-quick-toolbar">
               <label>
                 <AppIcon name="search" :size="14" />
-                <input v-model="terminalQuickCommandSearch" type="search" placeholder="搜索名称、分类或命令" />
+                <el-input v-model="terminalQuickCommandSearch" type="search" placeholder="搜索名称、分类或命令" clearable />
               </label>
               <span>{{ filteredTerminalQuickCommands.length }} 条</span>
             </div>
@@ -4015,8 +4021,8 @@ function readTerminalQuickCommandPanelCollapsed() {
                     <p v-if="command.description">{{ command.description }}</p>
                   </div>
                   <div class="terminal-quick-item-actions">
-                    <button
-                      type="button"
+                    <el-button
+                      native-type="button"
                       title="立即执行"
                       aria-label="立即执行"
                       :disabled="!command.enabled || !terminalQuickCommandReady"
@@ -4024,9 +4030,9 @@ function readTerminalQuickCommandPanelCollapsed() {
                     >
                       <AppIcon name="zap" :size="14" />
                       <span>立即执行</span>
-                    </button>
-                    <button
-                      type="button"
+                    </el-button>
+                    <el-button
+                      native-type="button"
                       title="追加输入"
                       aria-label="追加输入"
                       :disabled="!command.enabled || !terminalQuickCommandReady"
@@ -4034,40 +4040,40 @@ function readTerminalQuickCommandPanelCollapsed() {
                     >
                       <AppIcon name="cornerDownLeft" :size="14" />
                       <span>追加输入</span>
-                    </button>
-                    <button
-                      type="button"
+                    </el-button>
+                    <el-button
+                      native-type="button"
                       :title="command.enabled ? '禁用' : '启用'"
                       :aria-label="command.enabled ? '禁用' : '启用'"
                       @click="toggleTerminalQuickCommand(command)"
                     >
                       <AppIcon :name="command.enabled ? 'eye' : 'eyeOff'" :size="14" />
-                    </button>
-                    <button
+                    </el-button>
+                    <el-button
                       class="move-up"
-                      type="button"
+                      native-type="button"
                       title="上移"
                       aria-label="上移"
                       :disabled="index === 0"
                       @click="moveTerminalQuickCommand(command, -1)"
                     >
                       <AppIcon name="chevronDown" :size="14" />
-                    </button>
-                    <button
-                      type="button"
+                    </el-button>
+                    <el-button
+                      native-type="button"
                       title="下移"
                       aria-label="下移"
                       :disabled="index === filteredTerminalQuickCommands.length - 1"
                       @click="moveTerminalQuickCommand(command, 1)"
                     >
                       <AppIcon name="chevronDown" :size="14" />
-                    </button>
-                    <button type="button" title="编辑" aria-label="编辑" @click="openTerminalQuickCommandDialog(command)">
+                    </el-button>
+                    <el-button native-type="button" title="编辑" aria-label="编辑" @click="openTerminalQuickCommandDialog(command)">
                       <AppIcon name="edit" :size="14" />
-                    </button>
-                    <button type="button" title="删除" aria-label="删除" @click="deleteTerminalQuickCommand(command)">
+                    </el-button>
+                    <el-button native-type="button" title="删除" aria-label="删除" @click="deleteTerminalQuickCommand(command)">
                       <AppIcon name="trash" :size="14" />
-                    </button>
+                    </el-button>
                   </div>
                 </article>
               </template>
@@ -4081,41 +4087,43 @@ function readTerminalQuickCommandPanelCollapsed() {
         <article class="terminal-quick-dialog">
           <header>
             <strong>{{ terminalQuickCommandDialog.mode === 'create' ? '新增快捷命令' : '编辑快捷命令' }}</strong>
-            <button type="button" title="关闭" aria-label="关闭" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">
+            <el-button native-type="button" title="关闭" aria-label="关闭" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">
               <AppIcon name="x" :size="16" />
-            </button>
+            </el-button>
           </header>
           <div class="terminal-quick-dialog-body">
             <p v-if="terminalQuickCommandDialog.error" class="terminal-quick-error">{{ terminalQuickCommandDialog.error }}</p>
             <label>
               <span>名称</span>
-              <input v-model="terminalQuickCommandDialog.draft.name" type="text" :disabled="terminalQuickCommandDialog.saving" />
+              <el-input v-model="terminalQuickCommandDialog.draft.name" :disabled="terminalQuickCommandDialog.saving" />
             </label>
             <label>
               <span>分类</span>
-              <input v-model="terminalQuickCommandDialog.draft.category" type="text" list="terminal-quick-category-options" :disabled="terminalQuickCommandDialog.saving" />
-              <datalist id="terminal-quick-category-options">
-                <option v-for="category in terminalQuickCommandCategories" :key="category" :value="category"></option>
-              </datalist>
+              <el-select
+                v-model="terminalQuickCommandDialog.draft.category"
+                filterable
+                allow-create
+                default-first-option
+                :disabled="terminalQuickCommandDialog.saving"
+              >
+                <el-option v-for="category in terminalQuickCommandCategories" :key="category" :value="category" :label="category" />
+              </el-select>
             </label>
             <label>
               <span>命令</span>
-              <textarea v-model="terminalQuickCommandDialog.draft.command" :disabled="terminalQuickCommandDialog.saving" rows="4"></textarea>
+              <el-input v-model="terminalQuickCommandDialog.draft.command" type="textarea" :disabled="terminalQuickCommandDialog.saving" :rows="4" />
             </label>
             <label>
               <span>说明</span>
-              <input v-model="terminalQuickCommandDialog.draft.description" type="text" :disabled="terminalQuickCommandDialog.saving" />
+              <el-input v-model="terminalQuickCommandDialog.draft.description" :disabled="terminalQuickCommandDialog.saving" />
             </label>
-            <label class="terminal-quick-enabled-field">
-              <input v-model="terminalQuickCommandDialog.draft.enabled" type="checkbox" :disabled="terminalQuickCommandDialog.saving" />
-              <span>启用</span>
-            </label>
+            <el-checkbox v-model="terminalQuickCommandDialog.draft.enabled" class="terminal-quick-enabled-field" :disabled="terminalQuickCommandDialog.saving">启用</el-checkbox>
           </div>
           <footer>
-            <button type="button" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">取消</button>
-            <button class="primary" type="button" :disabled="terminalQuickCommandDialog.saving" @click="saveTerminalQuickCommandDialog">
+            <el-button native-type="button" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">取消</el-button>
+            <el-button class="primary" native-type="button" :disabled="terminalQuickCommandDialog.saving" @click="saveTerminalQuickCommandDialog">
               {{ terminalQuickCommandDialog.saving ? '保存中...' : '保存' }}
-            </button>
+            </el-button>
           </footer>
         </article>
       </div>

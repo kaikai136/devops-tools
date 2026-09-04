@@ -283,8 +283,10 @@ function changePropertiesDialog(patch: Partial<SftpPropertiesDialogState>) {
 function changeRenameName(name: string) {
   if (browser.rename.value) browser.rename.value = { ...browser.rename.value, draftName: name };
 }
-function changeDownloadProtocol(event: Event) {
-  browser.downloadProtocol.value = (event.target as HTMLSelectElement).value as TerminalDownloadProtocol;
+function changeDownloadProtocol(value: Event | TerminalDownloadProtocol) {
+  browser.downloadProtocol.value = (
+    typeof value === 'string' ? value : (value.target as HTMLSelectElement).value
+  ) as TerminalDownloadProtocol;
 }
 
 function startMarquee(event: MouseEvent) {
@@ -546,15 +548,15 @@ onBeforeUnmount(() => {
       <span class="terminal-file-protocol" :class="browser.status.value">{{ browser.statusText.value }}</span>
       <label class="terminal-file-download-protocol" :title="`下载方式：${browser.downloadProtocol.value === 'auto' ? '自动' : browser.downloadProtocol.value.toUpperCase()}`">
         <span>下载</span>
-        <select :value="browser.downloadProtocol.value" aria-label="下载方式" @change="changeDownloadProtocol">
-          <option value="auto">自动</option>
-          <option value="sftp">SFTP</option>
-          <option value="scp">SCP</option>
-        </select>
+        <el-select :model-value="browser.downloadProtocol.value" aria-label="下载方式" size="small" @change="changeDownloadProtocol">
+          <el-option value="auto" label="自动" />
+          <el-option value="sftp" label="SFTP" />
+          <el-option value="scp" label="SCP" />
+        </el-select>
       </label>
       <div>
-        <button
-          type="button"
+        <el-button
+          circle
           :title="browser.followCwdLabel.value"
           :aria-label="browser.followCwdLabel.value"
           :aria-pressed="browser.followingCwd.value"
@@ -562,7 +564,7 @@ onBeforeUnmount(() => {
           @click="browser.toggleFollowCwd"
         >
           <AppIcon name="refresh" :size="15" />
-        </button>
+        </el-button>
       </div>
     </footer>
     <FileDownloadDialog
@@ -588,15 +590,15 @@ onBeforeUnmount(() => {
       @contextmenu.prevent.stop
     >
       <div v-for="item in fileContextMenuItems" :key="item.id" class="terminal-file-context-menu-row" :class="{ separator: item.separatorBefore }">
-        <button type="button" role="menuitem" class="terminal-file-context-menu-item" :class="{ danger: item.danger }" :disabled="!item.enabled" @click="runContextMenuItem(item)">
+        <el-button text role="menuitem" class="terminal-file-context-menu-item" :class="{ danger: item.danger }" :disabled="!item.enabled" @click="runContextMenuItem(item)">
           <AppIcon :name="item.icon" :size="15" />
           <span>{{ item.label }}</span>
           <AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
-        </button>
+        </el-button>
         <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
-          <button v-for="child in item.children" :key="child.id" type="button" role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
+          <el-button v-for="child in item.children" :key="child.id" text role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
             <AppIcon :name="child.icon" :size="15" /><span>{{ child.label }}</span>
-          </button>
+          </el-button>
         </div>
       </div>
     </div>
@@ -610,36 +612,40 @@ onBeforeUnmount(() => {
       @contextmenu.prevent.stop
     >
       <div v-for="item in directoryContextMenuItems" :key="item.id" class="terminal-file-context-menu-row" :class="{ separator: item.separatorBefore }">
-        <button type="button" role="menuitem" class="terminal-file-context-menu-item" :disabled="!item.enabled" @click="runContextMenuItem(item)">
+        <el-button text role="menuitem" class="terminal-file-context-menu-item" :disabled="!item.enabled" @click="runContextMenuItem(item)">
           <AppIcon :name="item.icon" :size="15" /><span>{{ item.label }}</span><AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
-        </button>
+        </el-button>
         <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
-          <button v-for="child in item.children" :key="child.id" type="button" role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
+          <el-button v-for="child in item.children" :key="child.id" text role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
             <AppIcon :name="child.icon" :size="15" /><span>{{ child.label }}</span>
-          </button>
+          </el-button>
         </div>
       </div>
     </div>
 
-    <Teleport to="body">
-      <div v-if="browser.deleteDialog.value.visible" class="modal-backdrop terminal-file-delete-backdrop">
-        <section class="terminal-file-delete-modal" role="dialog" aria-modal="true">
+    <el-dialog
+      :model-value="browser.deleteDialog.value.visible"
+      class="terminal-file-delete-backdrop"
+      width="460px"
+      :show-close="false"
+      @close="browser.closeDeleteDialog"
+    >
+        <section class="terminal-file-delete-modal">
           <div class="terminal-file-delete-visual" :class="deleteVisualType">
             <span class="terminal-file-delete-visual-card"><AppIcon :name="deleteVisualType === 'directory' ? 'folder' : 'file'" :size="34" /></span>
             <span class="terminal-file-delete-alert"><AppIcon name="alert" :size="18" /></span>
           </div>
           <h2>{{ deleteTitle }}</h2>
           <p>{{ deleteDescription }}</p>
-          <p v-if="browser.deleteDialog.value.error" class="terminal-file-delete-error">{{ browser.deleteDialog.value.error }}</p>
+          <el-alert v-if="browser.deleteDialog.value.error" class="terminal-file-delete-error" type="error" :title="browser.deleteDialog.value.error" :closable="false" />
           <div class="terminal-file-delete-actions">
-            <button type="button" :disabled="browser.deleteDialog.value.deleting" @click="browser.closeDeleteDialog">取消</button>
-            <button class="danger" type="button" :disabled="browser.deleteDialog.value.deleting" @click="browser.confirmDelete">
+            <el-button :disabled="browser.deleteDialog.value.deleting" @click="browser.closeDeleteDialog">取消</el-button>
+            <el-button type="danger" :loading="browser.deleteDialog.value.deleting" :disabled="browser.deleteDialog.value.deleting" @click="browser.confirmDelete">
               {{ browser.deleteDialog.value.deleting ? '删除中...' : '删除' }}
-            </button>
+            </el-button>
           </div>
         </section>
-      </div>
-    </Teleport>
+    </el-dialog>
     <FileCreateDialog
       :dialog="browser.createDialog.value"
       :title="browser.createTitle()"

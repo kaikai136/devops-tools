@@ -105,11 +105,6 @@ const pagedRoles = computed(() => {
 });
 const pageStart = computed(() => (filteredRoles.value.length ? (page.value - 1) * pageSize.value + 1 : 0));
 const pageEnd = computed(() => Math.min(page.value * pageSize.value, filteredRoles.value.length));
-const pageNumbers = computed(() => {
-  const from = Math.max(1, page.value - 2);
-  const to = Math.min(totalPages.value, page.value + 2);
-  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
-});
 
 onMounted(loadRoles);
 
@@ -199,10 +194,10 @@ function closeRoleUserDialog() {
   roleUserIds.value = new Set();
 }
 
-function toggleRoleUser(user: SystemUser, event: Event) {
+function toggleRoleUser(user: SystemUser, checked: boolean | string | number) {
   if (user.isBuiltinAdmin) return;
   const next = new Set(roleUserIds.value);
-  if ((event.target as HTMLInputElement).checked) {
+  if (Boolean(checked)) {
     next.add(user.id);
   } else {
     next.delete(user.id);
@@ -301,8 +296,8 @@ function setFeatureChecked(featureKey: string, checked: boolean) {
   form.value.permissionIds = [...next].sort((a, b) => a - b);
 }
 
-function toggleFeature(featureKey: string, event: Event) {
-  setFeatureChecked(featureKey, (event.target as HTMLInputElement).checked);
+function toggleFeature(featureKey: string, checked: boolean | string | number) {
+  setFeatureChecked(featureKey, Boolean(checked));
 }
 
 function groupFeatureKeys(groupKey: string) {
@@ -334,11 +329,10 @@ function isGroupPartial(groupKey: string) {
   return checkedCount > 0 && checkedCount < ids.length;
 }
 
-function toggleGroup(groupKey: string, event: Event) {
-  const checked = (event.target as HTMLInputElement).checked;
+function toggleGroup(groupKey: string, checked: boolean | string | number) {
   const next = new Set(form.value.permissionIds);
   groupPermissionIds(groupKey).forEach((id) => {
-    if (checked) {
+    if (Boolean(checked)) {
       next.add(id);
     } else {
       next.delete(id);
@@ -369,8 +363,8 @@ function setActionChecked(featureKey: string, permissionId: number, checked: boo
   form.value.permissionIds = [...next].sort((a, b) => a - b);
 }
 
-function toggleAction(featureKey: string, permissionId: number, event: Event) {
-  setActionChecked(featureKey, permissionId, (event.target as HTMLInputElement).checked);
+function toggleAction(featureKey: string, permissionId: number, checked: boolean | string | number) {
+  setActionChecked(featureKey, permissionId, Boolean(checked));
 }
 
 function pageActionPermissions(featureKey: string) {
@@ -405,8 +399,8 @@ function setPage(nextPage: number) {
   page.value = Math.min(Math.max(1, nextPage), totalPages.value);
 }
 
-function setPageSize(event: Event) {
-  pageSize.value = Number((event.target as HTMLSelectElement).value);
+function setPageSize(nextPageSize: number) {
+  pageSize.value = nextPageSize;
 }
 
 function roleCode(role: SystemRole) {
@@ -488,229 +482,242 @@ function emptyRoleForm(): RoleForm {
 <template>
   <section v-if="activeTool === 'roles'" class="role-manager-page" @click="columnsOpen = false">
     <template v-if="canUseAnyPageAction('roles', ['create', 'edit', 'permissions', 'delete'])">
-    <article class="role-filter-panel">
-      <label>
-        <span>角色名称：</span>
-        <input v-model="searchDraft" @keyup.enter="runSearch" />
-      </label>
-      <button class="role-search-button" type="button" @click="runSearch"><AppIcon name="search" :size="15" />搜索</button>
-      <button class="role-reset-button" type="button" @click="resetSearch"><AppIcon name="reset" :size="15" />重置</button>
-    </article>
+      <article class="role-filter-panel">
+        <el-form inline label-position="left" @submit.prevent="runSearch">
+          <el-form-item label="角色名称">
+            <el-input v-model="searchDraft" placeholder="请输入角色名称" clearable @keyup.enter="runSearch" />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="runSearch">
+              <AppIcon name="search" :size="15" />
+              <span>搜索</span>
+            </el-button>
+            <el-button @click="resetSearch">
+              <AppIcon name="reset" :size="15" />
+              <span>重置</span>
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </article>
 
-    <article class="role-list-panel">
-      <div class="role-list-toolbar">
-        <button v-if="canUsePageAction('roles', 'create')" class="role-add-button" type="button" @click="openCreateDialog"><AppIcon name="circlePlus" :size="15" />新增</button>
-        <div class="role-toolbar-actions">
-          <button class="role-icon-button" type="button" title="刷新" aria-label="刷新" @click="loadRoles"><AppIcon name="refresh" :size="18" /></button>
-          <button class="role-icon-button" type="button" title="列设置" aria-label="列设置" @click.stop="columnsOpen = !columnsOpen"><AppIcon name="settings" :size="18" /></button>
-          <div v-if="columnsOpen" class="role-column-menu">当前表格列固定展示</div>
-        </div>
-      </div>
-
-      <p v-if="message" class="role-message" :class="messageTone">{{ message }}</p>
-
-      <div class="role-table">
-        <div class="role-table-row head">
-          <span>序号</span>
-          <span>角色名称</span>
-          <span>角色标识</span>
-          <span>状态</span>
-          <span>用户数据</span>
-          <span>权限管理</span>
-          <span>操作</span>
-        </div>
-
-        <div v-for="(role, index) in pagedRoles" :key="role.id" class="role-table-row">
-          <span>{{ (page - 1) * pageSize + index + 1 }}</span>
-          <strong>{{ role.name }}</strong>
-          <span>{{ roleCode(role) }}</span>
-          <span><em class="role-status">启用</em></span>
-          <span>
-            <button
-              v-if="canUsePageAction('roles', 'edit')"
-              class="role-user-count"
-              type="button"
-              title="调整绑定用户"
-              @click.stop="openRoleUserDialog(role)"
-            >
-              {{ role.userCount ?? 0 }} 个用户
-            </button>
-            <em v-else class="role-user-count readonly">{{ role.userCount ?? 0 }} 个用户</em>
-          </span>
-          <span>
-            <button v-if="canUsePageAction('roles', 'permissions')" class="role-permission-button" type="button" :title="permissionText(role)" @click="openPermissionDialog(role)">管理</button>
-            <em v-else class="role-action-placeholder">-</em>
-          </span>
-          <div class="role-row-actions">
-            <button class="view" type="button" @click="openViewDialog(role)"><AppIcon name="eye" :size="13" />查看</button>
-            <button v-if="canUsePageAction('roles', 'edit')" class="edit" type="button" @click="openEditDialog(role)"><AppIcon name="edit" :size="13" />编辑</button>
-            <button v-if="canUsePageAction('roles', 'delete')" class="delete" type="button" @click="deleteTarget = role"><AppIcon name="trash" :size="13" />删除</button>
+      <article class="role-list-panel">
+        <div class="role-list-toolbar">
+          <el-button v-if="canUsePageAction('roles', 'create')" type="primary" @click="openCreateDialog">
+            <AppIcon name="circlePlus" :size="15" />
+            <span>新增</span>
+          </el-button>
+          <div class="role-toolbar-actions">
+            <el-tooltip content="刷新" placement="top">
+              <el-button circle @click="loadRoles"><AppIcon name="refresh" :size="18" /></el-button>
+            </el-tooltip>
+            <el-popover v-model:visible="columnsOpen" placement="bottom-end" trigger="click" width="190" popper-class="role-column-menu">
+              <template #reference>
+                <el-button circle @click.stop><AppIcon name="settings" :size="18" /></el-button>
+              </template>
+              <span>当前表格列固定展示</span>
+            </el-popover>
           </div>
         </div>
 
-        <div v-if="isLoading" class="role-empty">加载中...</div>
-        <div v-else-if="!pagedRoles.length" class="role-empty">暂无角色数据</div>
-      </div>
+        <p v-if="message" class="role-message" :class="messageTone">{{ message }}</p>
 
-      <div class="host-pagination" aria-label="角色列表分页">
-        <div class="host-pagination-summary">
-          <span>共 {{ filteredRoles.length }} 条</span>
-          <span>{{ pageStart }}-{{ pageEnd }}</span>
+        <el-table :data="pagedRoles" row-key="id" class="role-table" v-loading="isLoading" empty-text="暂无角色数据">
+          <el-table-column type="index" label="序号" width="76" :index="(index) => (page - 1) * pageSize + index + 1" />
+          <el-table-column prop="name" label="角色名称" min-width="150" />
+          <el-table-column label="角色标识" min-width="130">
+            <template #default="{ row }">{{ roleCode(row) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" min-width="100">
+            <template #default>
+              <el-tag type="success" size="small" effect="dark">启用</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="用户数据" min-width="150">
+            <template #default="{ row }">
+              <el-button v-if="canUsePageAction('roles', 'edit')" text type="primary" @click.stop="openRoleUserDialog(row)">
+                {{ row.userCount ?? 0 }} 个用户
+              </el-button>
+              <span v-else>{{ row.userCount ?? 0 }} 个用户</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="权限管理" min-width="140">
+            <template #default="{ row }">
+              <el-button v-if="canUsePageAction('roles', 'permissions')" text type="primary" :title="permissionText(row)" @click="openPermissionDialog(row)">
+                管理
+              </el-button>
+              <span v-else class="role-action-placeholder">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" min-width="230" fixed="right">
+            <template #default="{ row }">
+              <div class="role-row-actions">
+                <el-button size="small" @click="openViewDialog(row)"><AppIcon name="eye" :size="13" />查看</el-button>
+                <el-button v-if="canUsePageAction('roles', 'edit')" size="small" type="primary" @click="openEditDialog(row)">
+                  <AppIcon name="edit" :size="13" />编辑
+                </el-button>
+                <el-button v-if="canUsePageAction('roles', 'delete')" size="small" type="danger" @click="deleteTarget = row">
+                  <AppIcon name="trash" :size="13" />删除
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="host-pagination" aria-label="角色列表分页">
+          <div class="host-pagination-summary">
+            <span>共 {{ filteredRoles.length }} 条</span>
+            <span>{{ pageStart }}-{{ pageEnd }}</span>
+          </div>
+          <el-pagination
+            background
+            layout="prev, pager, next, sizes"
+            :current-page="page"
+            :page-size="pageSize"
+            :page-sizes="pageSizeOptions"
+            :total="filteredRoles.length"
+            @current-change="setPage"
+            @size-change="setPageSize"
+          />
         </div>
-        <div class="host-pagination-controls">
-          <button class="prev" type="button" :disabled="page <= 1" aria-label="上一页" @click="setPage(page - 1)">
-            <AppIcon name="chevronRight" :size="14" />
-          </button>
-          <button
-            v-for="pageNumber in pageNumbers"
-            :key="pageNumber"
-            type="button"
-            :class="{ active: pageNumber === page }"
-            @click="setPage(pageNumber)"
-          >
-            {{ pageNumber }}
-          </button>
-          <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)">
-            <AppIcon name="chevronRight" :size="14" />
-          </button>
-          <select :value="pageSize" aria-label="每页条数" @change="setPageSize">
-            <option v-for="option in pageSizeOptions" :key="option" :value="option">{{ option }} 条/页</option>
-          </select>
-        </div>
-      </div>
-    </article>
+      </article>
     </template>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <div v-if="dialog" class="modal-backdrop role-modal-backdrop">
-      <form class="role-modal" :class="{ 'role-wide-modal': dialog.mode === 'permissions' || dialog.mode === 'view' }" @submit.prevent="saveRole">
-        <button class="modal-close" type="button" @click="closeDialog"><AppIcon name="x" :size="16" /></button>
-        <h2>{{ dialogTitle() }}</h2>
+    <el-dialog
+      :model-value="dialog !== null"
+      :title="dialogTitle()"
+      :width="dialog?.mode === 'permissions' || dialog?.mode === 'view' ? '880px' : '520px'"
+      class="role-form-dialog"
+      :close-on-click-modal="false"
+      @update:model-value="(visible) => { if (!visible) closeDialog(); }"
+    >
+      <el-form :model="form" label-position="top" @submit.prevent="saveRole">
+        <template v-if="dialog">
+          <el-form-item v-if="dialog.mode !== 'permissions'" label="角色名称" required>
+            <el-input v-model="form.name" :readonly="dialog.mode === 'view'" placeholder="请输入角色名称" />
+          </el-form-item>
+          <el-form-item v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" label="角色标识">
+            <el-input :model-value="dialog.role ? roleCode(dialog.role) : ''" readonly />
+          </el-form-item>
+          <el-form-item v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" label="状态">
+            <el-input model-value="启用" readonly />
+          </el-form-item>
 
-        <label v-if="dialog.mode !== 'permissions'" class="role-form-row required">
-          <span>角色名称：</span>
-          <input v-model="form.name" :readonly="dialog.mode === 'view'" placeholder="请输入角色名称" />
-        </label>
+          <div v-if="dialog.mode === 'permissions' || dialog.mode === 'view'" class="role-feature-permissions">
+            <el-alert
+              type="info"
+              :closable="false"
+              show-icon
+              title="页面权限控制左侧菜单入口，功能权限控制页面内可用操作。权限变更后，属于该角色的账号重新登录后生效。"
+            />
 
-        <label v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" class="role-form-row">
-          <span>角色标识：</span>
-          <input :value="dialog.role ? roleCode(dialog.role) : ''" readonly />
-        </label>
+            <div class="role-permission-tree">
+              <div class="role-permission-row head">
+                <span>模块</span>
+                <span>页面</span>
+                <span>功能</span>
+              </div>
 
-        <label v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" class="role-form-row">
-          <span>状态：</span>
-          <input value="启用" readonly />
-        </label>
-
-        <div v-if="dialog.mode === 'permissions' || dialog.mode === 'view'" class="role-feature-permissions">
-          <div class="role-permission-tip">
-            <AppIcon name="circleHelp" :size="15" />
-            <span>页面权限控制左侧菜单入口，功能权限控制页面内可用操作。权限变更后，属于该角色的账号重新登录后生效。</span>
-          </div>
-
-          <div class="role-permission-tree">
-            <div class="role-permission-row head">
-              <span>模块</span>
-              <span>页面</span>
-              <span>功能</span>
-            </div>
-
-            <template v-for="group in permissionGroups" :key="group.key">
-              <div
-                v-for="(item, itemIndex) in group.items"
-                :key="item.key"
-                class="role-permission-row"
-                :class="{ first: itemIndex === 0 }"
-              >
-                <label v-if="itemIndex === 0" class="role-tree-node module" :style="{ gridRow: `span ${group.items.length}` }">
-                  <input
-                    type="checkbox"
-                    :checked="isGroupChecked(group.key)"
-                    :data-partial="isGroupPartial(group.key)"
-                    :disabled="dialog.mode === 'view'"
-                    @change="toggleGroup(group.key, $event)"
-                  />
-                  <span>{{ group.label }}</span>
-                </label>
-                <label class="role-tree-node page">
-                  <input
-                    type="checkbox"
-                    :checked="isFeatureChecked(item.key)"
-                    :data-partial="isFeaturePartial(item.key)"
-                    :disabled="dialog.mode === 'view'"
-                    @change="toggleFeature(item.key, $event)"
-                  />
-                  <span>{{ item.label }}</span>
-                </label>
-                <div class="role-tree-node feature">
-                  <label v-for="permission in pageActionPermissions(item.key)" :key="permission.id" class="role-action-node">
-                    <input
-                      type="checkbox"
-                      :checked="isActionChecked(permission.id)"
+              <template v-for="group in permissionGroups" :key="group.key">
+                <div
+                  v-for="(item, itemIndex) in group.items"
+                  :key="item.key"
+                  class="role-permission-row"
+                  :class="{ first: itemIndex === 0 }"
+                >
+                  <label v-if="itemIndex === 0" class="role-tree-node module" :style="{ gridRow: `span ${group.items.length}` }">
+                    <el-checkbox
+                      :model-value="isGroupChecked(group.key)"
+                      :indeterminate="isGroupPartial(group.key)"
+                      :disabled="dialog.mode === 'view'"
+                      @change="toggleGroup(group.key, $event)"
+                    >
+                      {{ group.label }}
+                    </el-checkbox>
+                  </label>
+                  <label class="role-tree-node page">
+                    <el-checkbox
+                      :model-value="isFeatureChecked(item.key)"
+                      :indeterminate="isFeaturePartial(item.key)"
+                      :disabled="dialog.mode === 'view'"
+                      @change="toggleFeature(item.key, $event)"
+                    >
+                      {{ item.label }}
+                    </el-checkbox>
+                  </label>
+                  <div class="role-tree-node feature">
+                    <el-checkbox
+                      v-for="permission in pageActionPermissions(item.key)"
+                      :key="permission.id"
+                      :model-value="isActionChecked(permission.id)"
                       :disabled="dialog.mode === 'view'"
                       @change="toggleAction(item.key, permission.id, $event)"
-                    />
-                    <span>{{ displayPermissionLabel(permission) }}</span>
-                  </label>
-                  <span v-if="!pageActionPermissions(item.key).length" class="role-action-empty">暂无可配置功能</span>
+                    >
+                      {{ displayPermissionLabel(permission) }}
+                    </el-checkbox>
+                    <span v-if="!pageActionPermissions(item.key).length" class="role-action-empty">暂无可配置功能</span>
+                  </div>
                 </div>
-              </div>
-            </template>
+              </template>
+            </div>
           </div>
-        </div>
+        </template>
+      </el-form>
+      <template #footer>
+        <el-button @click="closeDialog">取消</el-button>
+        <el-button v-if="dialog?.mode !== 'view'" type="primary" @click="saveRole">确定</el-button>
+      </template>
+    </el-dialog>
 
-        <div class="role-form-actions">
-          <button type="button" @click="closeDialog">取消</button>
-          <button v-if="dialog.mode !== 'view'" class="role-primary-button" type="submit">确定</button>
-        </div>
-      </form>
-    </div>
+    <el-dialog
+      :model-value="roleUserDialog !== null"
+      title="调整权限用户"
+      width="640px"
+      class="role-form-dialog"
+      :close-on-click-modal="false"
+      @update:model-value="(visible) => { if (!visible) closeRoleUserDialog(); }"
+    >
+      <p v-if="roleUserDialog" class="role-user-dialog-subtitle">为角色“{{ roleUserDialog.name }}”选择绑定用户，保存后用户重新登录生效。</p>
+      <div v-loading="isLoadingRoleUsers" class="role-user-picker">
+        <el-checkbox
+          v-for="user in roleUsers"
+          :key="user.id"
+          class="role-user-option"
+          :model-value="roleUserIds.has(user.id)"
+          :disabled="user.isBuiltinAdmin"
+          @change="toggleRoleUser(user, $event)"
+        >
+          <span>
+            <strong>{{ user.firstName || user.username }}</strong>
+            <em>{{ user.username }}{{ user.email ? ` / ${user.email}` : '' }}</em>
+            <small>当前角色：{{ userRoleText(user) }}</small>
+          </span>
+          <el-tag :type="user.isActive ? 'success' : 'danger'" size="small" effect="dark">{{ user.isActive ? '启用' : '停用' }}</el-tag>
+        </el-checkbox>
+        <el-empty v-if="!isLoadingRoleUsers && !roleUsers.length" description="暂无用户数据" />
+      </div>
+      <template #footer>
+        <span class="role-user-selected">已选择 {{ roleUserIds.size }} 个用户</span>
+        <el-button @click="closeRoleUserDialog">取消</el-button>
+        <el-button type="primary" :disabled="isLoadingRoleUsers || isSavingRoleUsers" :loading="isSavingRoleUsers" @click="saveRoleUsers">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
 
-    <div v-if="roleUserDialog" class="modal-backdrop role-modal-backdrop">
-      <form class="role-modal role-user-modal" @submit.prevent="saveRoleUsers">
-        <button class="modal-close" type="button" @click="closeRoleUserDialog"><AppIcon name="x" :size="16" /></button>
-        <h2>调整权限用户</h2>
-        <p class="role-user-dialog-subtitle">为角色“{{ roleUserDialog.name }}”选择绑定用户，保存后用户重新登录生效。</p>
-
-        <div v-if="isLoadingRoleUsers" class="role-user-loading">正在加载用户数据...</div>
-        <div v-else class="role-user-picker">
-          <label v-for="user in roleUsers" :key="user.id" class="role-user-option" :class="{ disabled: user.isBuiltinAdmin }">
-            <input
-              type="checkbox"
-              :checked="roleUserIds.has(user.id)"
-              :disabled="user.isBuiltinAdmin"
-              @change="toggleRoleUser(user, $event)"
-            />
-            <span>
-              <strong>{{ user.firstName || user.username }}</strong>
-              <em>{{ user.username }}{{ user.email ? ` / ${user.email}` : '' }}</em>
-              <small>当前角色：{{ userRoleText(user) }}</small>
-            </span>
-            <b>{{ user.isActive ? '启用' : '停用' }}</b>
-          </label>
-          <div v-if="!roleUsers.length" class="role-empty">暂无用户数据</div>
-        </div>
-
-        <div class="role-form-actions">
-          <span class="role-user-selected">已选择 {{ roleUserIds.size }} 个用户</span>
-          <button type="button" @click="closeRoleUserDialog">取消</button>
-          <button class="role-primary-button" type="submit" :disabled="isLoadingRoleUsers || isSavingRoleUsers">
-            {{ isSavingRoleUsers ? '保存中...' : '保存' }}
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <div v-if="deleteTarget" class="modal-backdrop role-modal-backdrop">
-      <article class="role-modal role-confirm-modal">
-        <button class="modal-close" type="button" @click="deleteTarget = null"><AppIcon name="x" :size="16" /></button>
-        <h2>删除角色</h2>
-        <p>确定删除角色“{{ deleteTarget.name }}”吗？</p>
-        <div class="role-form-actions">
-          <button type="button" @click="deleteTarget = null">取消</button>
-          <button class="role-danger-button" type="button" @click="deleteRole">删除</button>
-        </div>
-      </article>
-    </div>
+    <el-dialog
+      :model-value="deleteTarget !== null"
+      title="删除角色"
+      width="420px"
+      class="role-form-dialog"
+      :close-on-click-modal="false"
+      @update:model-value="(visible) => { if (!visible) deleteTarget = null; }"
+    >
+      <p>确定删除角色“{{ deleteTarget?.name }}”吗？</p>
+      <template #footer>
+        <el-button @click="deleteTarget = null">取消</el-button>
+        <el-button type="danger" @click="deleteRole">删除</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>

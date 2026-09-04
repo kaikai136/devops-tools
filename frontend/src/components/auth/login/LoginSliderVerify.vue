@@ -146,9 +146,9 @@ onUnmounted(() => {
       <span v-if="challenge && !isVerified" class="login-slider-target" :style="targetStyle"></span>
       <span class="login-slider-fill" :style="{ width: fillWidth }"></span>
       <span class="login-slider-text">{{ statusText }}</span>
-      <button
+      <el-button
         class="login-slider-handle"
-        type="button"
+        circle
         :style="knobStyle"
         :disabled="isLoading || isVerifying || isVerified || !challenge"
         aria-label="滑块验证"
@@ -158,7 +158,7 @@ onUnmounted(() => {
         @pointercancel="endDrag"
       >
         <AppIcon :name="isVerified ? 'check' : 'chevronRight'" :size="18" />
-      </button>
+      </el-button>
     </div>
   </div>
 </template>

@@ -61,12 +61,12 @@ onBeforeUnmount(stopResize);
 
 <template>
   <section class="terminal-transfer-panel" :class="{ resizing }">
-    <button class="terminal-transfer-resizer" type="button" title="调整文件传输栏高度" aria-label="调整文件传输栏高度" @mousedown="startResize"></button>
+    <el-button class="terminal-transfer-resizer" title="调整文件传输栏高度" aria-label="调整文件传输栏高度" @mousedown="startResize" />
     <header class="terminal-transfer-header">
       <strong>文件传输</strong>
       <div>
-        <button type="button" title="取消全部" aria-label="取消全部" :disabled="!hasRunning" @click="emit('cancelAll')"><AppIcon name="x" :size="14" /></button>
-        <button type="button" title="清空记录" aria-label="清空记录" :disabled="!hasClearable" @click="emit('clear')"><AppIcon name="trash" :size="14" /></button>
+        <el-button circle title="取消全部" aria-label="取消全部" :disabled="!hasRunning" @click="emit('cancelAll')"><AppIcon name="x" :size="14" /></el-button>
+        <el-button circle title="清空记录" aria-label="清空记录" :disabled="!hasClearable" @click="emit('clear')"><AppIcon name="trash" :size="14" /></el-button>
       </div>
     </header>
     <div class="terminal-transfer-list">
@@ -78,7 +78,7 @@ onBeforeUnmount(stopResize);
           <div class="terminal-transfer-progress" aria-hidden="true"><i :style="{ width: `${Math.max(0, Math.min(100, record.progress))}%` }"></i></div>
           <p>{{ statusText(record) }}</p>
         </div>
-        <button type="button" title="取消" aria-label="取消" :disabled="!isTransferActive(record)" @click="emit('cancel', record)"><AppIcon name="x" :size="13" /></button>
+        <el-button circle title="取消" aria-label="取消" :disabled="!isTransferActive(record)" @click="emit('cancel', record)"><AppIcon name="x" :size="13" /></el-button>
       </article>
     </div>
   </section>

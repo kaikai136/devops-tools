@@ -90,8 +90,8 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('bulk-record-table');
     expect(panel).toContain('bulk-status-filter');
     expect(panel).toContain('isTaskDetailOpen');
-    expect(panel).toContain('bulk-detail-backdrop');
-    expect(panel).toContain('role="dialog"');
+    expect(panel).toContain('<el-dialog v-model="isTargetPickerOpen"');
+    expect(panel).toContain('<el-drawer v-model="isTaskDetailOpen"');
     expect(panel).toContain('bulk-execute-view');
     expect(panel).toContain('bulk-upload-view');
     expect(panel).toContain('taskHistory');
@@ -138,7 +138,7 @@ describe('bulk execution frontend contract', () => {
 
     const executeView = panel.match(/<section v-show="activeBulkView === 'execute'"[\s\S]*?<footer class="bulk-workbench-footer">/)?.[0] ?? '';
     const uploadView = panel.match(/<section v-show="activeBulkView === 'upload'"[\s\S]*?<footer class="bulk-workbench-footer">/)?.[0] ?? '';
-    const pickerModal = panel.match(/<div v-if="isTargetPickerOpen" class="modal-backdrop bulk-target-picker-backdrop">[\s\S]*?<\/div>\s*<div v-if="isTaskDetailOpen"/)?.[0] ?? '';
+    const pickerModal = panel.match(/<el-dialog v-model="isTargetPickerOpen"[\s\S]*?<\/el-dialog>/)?.[0] ?? '';
 
     expect(panel).toContain('const isTargetPickerOpen = ref(false)');
     expect(panel).toContain('const draftTargetIds = ref<Set<number>>(new Set())');
@@ -215,7 +215,7 @@ describe('bulk execution frontend contract', () => {
 
   it('keeps view navigation in the top actions with record before execute and upload', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
-    const actions = panel.match(/<div class="bulk-execution-actions">[\s\S]*?<\/div>/)?.[0] ?? '';
+    const actions = panel.match(/<el-button-group class="bulk-execution-actions">[\s\S]*?<\/el-button-group>/)?.[0] ?? '';
 
     expect(actions).toContain("activeBulkView === 'history'");
     expect(actions).toContain("activeBulkView === 'execute'");
@@ -240,7 +240,9 @@ describe('bulk execution frontend contract', () => {
     expect(actions).toContain('bulk-keyword-filter');
     expect(actions).toContain('bulk-host-filter');
     expect(toolbar).toContain('bulk-status-filter');
-    expect(toolbar).toContain('type="search"');
+    expect(toolbar).toContain('<el-input v-model="keyword"');
+    expect(toolbar).toContain('<el-select v-model="hostFilter"');
+    expect(toolbar).toContain('<el-select v-model="statusFilter"');
     expect(toolbar).toContain('v-model="keyword"');
     expect(toolbar).toContain('v-model="hostFilter"');
     expect(actions).toContain('bulk-status-filter');
@@ -288,12 +290,12 @@ describe('bulk execution frontend contract', () => {
     expect(panel).toContain('clearSelectedRecordTasks');
     expect(panel).toContain('deleteSelectedRecordTasks');
     expect(recordTable).toContain('bulk-record-select-cell');
-    expect(recordTable).toContain(':checked="allVisibleRecordsSelected"');
-    expect(recordTable).toContain(':indeterminate.prop="someVisibleRecordsSelected && !allVisibleRecordsSelected"');
+    expect(recordTable).toContain(':model-value="allVisibleRecordsSelected"');
+    expect(recordTable).toContain(':indeterminate="someVisibleRecordsSelected && !allVisibleRecordsSelected"');
     expect(recordTable).toContain('@change="toggleAllVisibleRecordTasks"');
-    expect(recordTable).toContain(':checked="selectedRecordTaskIds.has(task.id)"');
-    expect(recordTable).toContain('@change.stop="toggleRecordTaskSelection(task.id, $event)"');
-    expect(recordTable).not.toContain(':checked="selectedTaskId === task.id"');
+    expect(recordTable).toContain(':model-value="selectedRecordTaskIds.has(row.id)"');
+    expect(recordTable).toContain('@change="toggleRecordTaskSelection(row.id, $event)"');
+    expect(recordTable).not.toContain(':model-value="selectedTaskId === row.id"');
     expect(panel).not.toContain(":class=\"{ 'has-record-selection': selectedRecordTaskIds.size }\"");
     expect(panel).toContain('host-bulk-action-bar bulk-record-bulk-action-bar');
     expect(panel).toContain('已选择 {{ selectedRecordTaskIds.size }} 个任务');
@@ -315,25 +317,24 @@ describe('bulk execution frontend contract', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const styles = readSource('styles/tools/bulk-execution.css');
     const recordTable = panel.match(/<div class="bulk-record-table">[\s\S]*?<\/div>\s*<footer class="bulk-record-footer">/)?.[0] ?? '';
-    const colgroup = recordTable.match(/<colgroup>[\s\S]*?<\/colgroup>/)?.[0] ?? '';
-    const tableHead = recordTable.match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? '';
-    const taskRow = recordTable.match(/<tr[\s\S]*?v-for="\(.+?\) in taskHistory"[\s\S]*?<\/tr>/)?.[0] ?? '';
+    const selectionColumnIndex = recordTable.indexOf('width="54"');
+    const numberColumnIndex = recordTable.indexOf('width="80" align="center"');
+    const hostColumnIndex = recordTable.indexOf('min-width="150"');
 
-    expect(recordTable).toContain('v-for="(task, index) in taskHistory"');
-    expect(colgroup).toContain('<col class="col-index" />');
-    expect(colgroup.indexOf('col-check')).toBeLessThan(colgroup.indexOf('col-index'));
-    expect(colgroup.indexOf('col-index')).toBeLessThan(colgroup.indexOf('col-host'));
-    expect(tableHead).toContain('<th scope="col" class="is-center">编号</th>');
-    expect(tableHead.indexOf('选择当前页执行记录')).toBeLessThan(tableHead.indexOf('编号'));
-    expect(tableHead.indexOf('编号')).toBeLessThan(tableHead.indexOf('执行机器'));
-    expect(taskRow).toContain('<td class="is-center cell-index">{{ taskPageStart + index }}</td>');
+    expect(recordTable).toContain('<el-table :data="taskHistory"');
+    expect(recordTable).toContain('<el-table-column width="54" align="center">');
+    expect(recordTable).toContain('width="80" align="center"');
+    expect(recordTable).toContain('<template #default="{ $index }">{{ taskPageStart + $index }}</template>');
+    expect(selectionColumnIndex).toBeGreaterThanOrEqual(0);
+    expect(numberColumnIndex).toBeGreaterThan(selectionColumnIndex);
+    expect(hostColumnIndex).toBeGreaterThan(numberColumnIndex);
     expect(styles).toContain('.bulk-record-grid .col-index { width: 68px; }');
     expect(styles).toContain('.bulk-record-grid .cell-index');
   });
 
   it('uses the detail modal primary action to expand or collapse all host outputs', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
-    const detailModal = panel.match(/<section class="bulk-task-detail bulk-task-detail-modal"[\s\S]*?<\/section>\s*<\/div>/)?.[0] ?? '';
+    const detailModal = panel.match(/<el-drawer v-model="isTaskDetailOpen"[\s\S]*?<\/el-drawer>/)?.[0] ?? '';
 
     expect(panel).toContain('allResultsExpanded');
     expect(panel).toContain('toggleAllResults');
@@ -532,7 +533,7 @@ describe('bulk execution frontend contract', () => {
     const selectTaskStart = panel.indexOf('async function selectTask(');
     const listLoader = loadTasksStart >= 0 && selectTaskStart > loadTasksStart ? panel.slice(loadTasksStart, selectTaskStart) : '';
     const polling = panel.match(/function startPolling\(\)[\s\S]*?function stopPolling/)?.[0] ?? '';
-    const taskRow = panel.match(/<tr[\s\S]*?v-for="\(.+?\) in taskHistory"[\s\S]*?<\/tr>/)?.[0] ?? '';
+    const statusColumn = panel.match(/<el-table-column label="[^"]*" min-width="120" align="center">[\s\S]*?<\/el-table-column>/)?.[0] ?? '';
 
     expect(listLoader).not.toContain('await selectTask(');
     expect(panel).toContain('const pollInFlight = ref(false)');
@@ -540,7 +541,7 @@ describe('bulk execution frontend contract', () => {
     expect(polling).toContain('isTaskDetailOpen.value');
     expect(polling).toContain('5000');
     expect(panel).toContain('function taskResultSummary(task: BulkExecutionTask)');
-    expect(taskRow).toContain('{{ taskResultSummary(task) }}');
-    expect(taskRow).not.toContain('{{ statusLabel(task.status) }}');
+    expect(statusColumn).toContain('{{ taskResultSummary(row) }}');
+    expect(statusColumn).not.toContain('{{ statusLabel(row.status) }}');
   });
 });

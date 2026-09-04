@@ -94,12 +94,12 @@ describe('DeviceManager page structure', () => {
     expect(source).not.toContain('设置标签');
     expect(source).not.toContain('查看');
     for (const header of ['序号', '资产名称', '资产类别', '资产编码', '规格说明', '资产状态', '使用人员', '品牌名称', '采购时间', '备注', '操作']) {
-      expect(source).toContain(`<th>${header}</th>`);
+      expect(source).toContain(`label="${header}"`);
     }
     for (const label of ['资产名称', '资产类别', '资产编码', '规格说明', '资产状态', '使用人员', '品牌名称', '采购时间', '备注']) {
-      expect(source).toContain(`<span>${label}</span>`);
+      expect(source).toContain(`label="${label}"`);
     }
-    expect(findByClass(root, 'form', 'device-form-modal')).toHaveLength(1);
+    expect(findByClass(root, 'el-form', 'device-form-modal')).toHaveLength(1);
     for (const removedHeader of ['使用部门', '供应商', '采购订单编号', '合同编号', '标签', '添加时间']) {
       expect(source).not.toContain(`<th>${removedHeader}</th>`);
     }
@@ -108,16 +108,18 @@ describe('DeviceManager page structure', () => {
   it('renders closed category and status option sets for filters and form', () => {
     const source = readSource('features/company/components/DeviceManager.vue');
 
-    expect(source).toContain('<select v-model="categoryFilter" aria-label="资产类别">');
-    expect(source).toContain('<select v-model="deviceForm.category">');
+    expect(source).toContain('<el-select v-model="categoryFilter" class="device-toolbar-select"');
+    expect(source).toContain('placeholder="资产状态" clearable');
+    expect(source).toContain('placeholder="资产类别" clearable');
+    expect(source).toContain('<el-select v-model="deviceForm.category">');
     expect(source).not.toContain('list="device-category-options"');
     expect(source).not.toContain('<datalist id="device-category-options">');
-    expect(source).toContain('<option value="固定资产">固定资产</option>');
-    expect(source).toContain('<option value="耗材">耗材</option>');
-    expect(source).toContain('<option value="using">使用中</option>');
-    expect(source).toContain('<option value="idle">闲置</option>');
-    expect(source).toContain('<option value="repair">维修</option>');
-    expect(source).toContain('<option value="scrapped">报废</option>');
+    expect(source).toContain('<el-option value="固定资产" label="固定资产" />');
+    expect(source).toContain('<el-option value="耗材" label="耗材" />');
+    expect(source).toContain('<el-option value="using" label="使用中" />');
+    expect(source).toContain('<el-option value="idle" label="闲置" />');
+    expect(source).toContain('<el-option value="repair" label="维修" />');
+    expect(source).toContain('<el-option value="scrapped" label="报废" />');
   });
 
   it('closes the device dialog after a successful save without being blocked by saving state', () => {
@@ -137,33 +139,31 @@ describe('DeviceManager page structure', () => {
     expect(source).not.toContain('<h2><AppIcon name="hardDrive" :size="18" />璧勪骇鍒楄〃</h2>');
     expect(source).toContain('class="device-toolbar-filters"');
     expect(source).toContain('class="device-toolbar-actions"');
-    expect(styles).toMatch(/\.device-list-toolbar\s*\{[^}]*justify-content:\s*space-between;/s);
+    expect(styles).toMatch(/\.device-list-toolbar\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto;/s);
     expect(styles).toMatch(/\.device-toolbar-filters\s*\{[^}]*justify-content:\s*flex-start;/s);
     expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*justify-content:\s*flex-end;/s);
-    expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*margin-left:\s*auto;/s);
+    expect(styles).toMatch(/\.device-list-panel\s*\{[^}]*height:\s*calc\(100dvh - 104px\);/s);
+    expect(styles).toMatch(/\.device-table-wrap\s*\{[^}]*flex:\s*1 1 auto;/s);
   });
 
-  it('keeps device toolbar controls in one row with explicit danger disabled styling', () => {
+  it('keeps device toolbar controls responsive with Element Plus control sizing', () => {
     const styles = readSource('styles/tools/device-manager.css');
     const source = readSource('features/company/components/DeviceManager.vue');
 
     expect(source).not.toContain('>查询</button>');
+    expect(source).toContain('height="100%"');
+    expect(source).toContain('border');
+    expect(source).toContain('stripe');
+    expect(source).toContain('highlight-current-row');
     expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*flex-wrap:\s*nowrap;/s);
-    expect(styles).toMatch(/\.device-toolbar-filters\s*\{[^}]*flex-wrap:\s*nowrap;/s);
-    expect(styles).toMatch(/\.device-toolbar-filters select\s*\{[^}]*width:\s*112px;/s);
-    expect(styles).toMatch(/\.device-toolbar-filters select\s*\{[^}]*flex:\s*0 0 112px;/s);
-    expect(styles).toMatch(/\.device-toolbar-filters input\s*\{[^}]*width:\s*132px;/s);
-    expect(styles).toMatch(/\.device-toolbar-filters input\s*\{[^}]*flex:\s*0 0 132px;/s);
-    expect(styles).toMatch(/\.device-button,\s*\.device-toolbar-filters select,\s*\.device-toolbar-filters input,\s*\.device-pagination button\s*\{[^}]*height:\s*32px;/s);
-    expect(styles).toMatch(/\.device-button,\s*\.device-toolbar-filters select,\s*\.device-toolbar-filters input,\s*\.device-pagination button\s*\{[^}]*min-height:\s*32px;/s);
-    expect(styles).toMatch(/\.device-button,\s*\.device-toolbar-filters select,\s*\.device-toolbar-filters input,\s*\.device-pagination button\s*\{[^}]*box-sizing:\s*border-box;/s);
-    expect(styles).toMatch(/\.device-button\s*\{[^}]*min-width:\s*72px;/s);
-    expect(styles).toMatch(/\.device-row-actions \.device-button\s*\{[^}]*min-width:\s*58px;/s);
-    expect(styles).toMatch(/\.device-button\.danger\s*\{[^}]*color:\s*#fff;/s);
-    expect(styles).toMatch(/\.device-button\.danger\s*\{[^}]*background:\s*#ff5c6b;/s);
-    expect(styles).toMatch(/\.device-button\.danger:disabled\s*\{[^}]*background:\s*#ff5c6b;/s);
-    expect(styles).toMatch(/\.device-button\.danger:disabled\s*\{[^}]*color:\s*#fff;/s);
-    expect(styles).toMatch(/\.device-button:disabled:not\(\.danger\),\s*\.device-pagination button:disabled\s*\{/s);
+    expect(styles).toMatch(/\.device-toolbar-filters\s*\{[^}]*flex-wrap:\s*wrap;/s);
+    expect(styles).toMatch(/\.device-toolbar-select\s*\{[^}]*width:\s*136px;/s);
+    expect(styles).toMatch(/\.device-toolbar-select\s*\{[^}]*flex:\s*0 0 136px;/s);
+    expect(styles).toMatch(/\.device-toolbar-search\s*\{[^}]*width:\s*260px;/s);
+    expect(styles).toMatch(/\.device-toolbar-search\s*\{[^}]*min-width:\s*220px;/s);
+    expect(styles).toMatch(/\.device-toolbar-filters \.el-select__wrapper,[\s\S]*\.device-toolbar-actions \.el-button\s*\{[^}]*min-height:\s*36px;/s);
+    expect(styles).toMatch(/\.device-toolbar-actions \.el-button\s*\{[^}]*min-width:\s*82px;/s);
+    expect(styles).toMatch(/\.device-row-actions \.el-button \+ \.el-button\s*\{[^}]*margin-left:\s*0;/s);
   });
 
   it('renders host-style pagination with category counts on the right', () => {
@@ -178,17 +178,17 @@ describe('DeviceManager page structure', () => {
     expect(source).toContain('class="device-pagination-left"');
     expect(source).toContain('共 {{ filteredDevices.length }} 条');
     expect(source).toContain('{{ pageStart }}-{{ pageEnd }}');
-    expect(source).toContain('v-for="pageNumber in pageNumbers"');
-    expect(source).toContain('<select :value="pageSize" aria-label="每页条数" @change="setPageSize">');
-    expect(source).toContain('<option :value="10">10 条/页</option>');
-    expect(source).toContain('<option :value="20">20 条/页</option>');
-    expect(source).toContain('<option :value="50">50 条/页</option>');
+    expect(source).toContain('<el-pagination');
+    expect(source).toContain(':page-sizes="[10, 20, 50]"');
+    expect(source).toContain('@current-change="setPage"');
+    expect(source).toContain('@size-change="setPageSize"');
     expect(source).toContain('class="device-category-summary"');
     expect(source).toContain('固定资产 {{ fixedAssetCount }}');
     expect(source).toContain('耗材 {{ consumableCount }}');
     expect(source).not.toContain('共{{ totalPages }}页 {{ filteredDevices.length }}条，已选 {{ selectedDeviceCount }} 条');
-    expect(styles).toMatch(/\.device-pagination-left,\s*\.device-pagination-controls,\s*\.device-category-summary\s*\{[^}]*display:\s*flex;/s);
-    expect(styles).toMatch(/\.device-pagination-controls select\s*\{[^}]*min-height:\s*30px;/s);
+    expect(styles).toMatch(/\.device-pagination-left,\s*\.device-pagination-summary,\s*\.device-category-summary\s*\{[^}]*display:\s*flex;/s);
+    expect(styles).toMatch(/\.device-pagination\s*\{[^}]*background:\s*#fbfdff;/s);
+    expect(styles).toMatch(/\.device-pagination \.el-pagination\s*\{[^}]*min-width:\s*0;/s);
     expect(styles).toMatch(/\.device-category-summary\s*\{[^}]*justify-content:\s*flex-end;/s);
     expect(styles).toMatch(/\.device-summary-pill\s*\{[^}]*white-space:\s*nowrap;/s);
   });
@@ -197,10 +197,10 @@ describe('DeviceManager page structure', () => {
     const source = readSource('features/company/components/DeviceManager.vue');
     const styles = readSource('styles/tools/device-manager.css');
 
-    expect(source).toContain("categoryClass(device.category)");
+    expect(source).toContain("categoryClass(row.category)");
     expect(source).toContain("function categoryClass(category: string)");
     expect(source).toContain("category === '耗材' ? 'consumable' : 'fixed'");
-    expect(styles).toMatch(/\.device-category-badge\.fixed\s*\{[^}]*background:\s*#7146f6;/s);
-    expect(styles).toMatch(/\.device-category-badge\.consumable\s*\{[^}]*background:\s*#0f9f8f;/s);
+    expect(styles).toMatch(/\.device-category-badge\.fixed\s*\{[^}]*background:\s*#4f46e5;/s);
+    expect(styles).toMatch(/\.device-category-badge\.consumable\s*\{[^}]*background:\s*#0f766e;/s);
   });
 });

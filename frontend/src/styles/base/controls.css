@@ -22,9 +22,9 @@ label {
   margin-bottom: 10px;
 }
 
-input,
+input:not(.el-input__inner):not(.el-select__input):not(.el-range-input),
 select,
-textarea {
+textarea:not(.el-textarea__inner) {
   width: 100%;
   border: 1px solid #cbdcf1;
   border-radius: 10px;
@@ -34,26 +34,26 @@ textarea {
   font-weight: 800;
 }
 
-input,
+input:not(.el-input__inner):not(.el-select__input):not(.el-range-input),
 select {
   height: 40px;
   padding: 0 14px;
 }
 
-textarea {
+textarea:not(.el-textarea__inner) {
   min-height: 76px;
   resize: vertical;
   padding: 12px 14px;
 }
 
-input:focus,
+input:not(.el-input__inner):not(.el-select__input):not(.el-range-input):focus,
 select:focus,
-textarea:focus {
+textarea:not(.el-textarea__inner):focus {
   border-color: #1e73ff;
   box-shadow: 0 0 0 3px rgba(30, 115, 255, 0.12);
 }
 
-button {
+button:not(.el-button) {
   border: 1px solid #cbdcf1;
   border-radius: 10px;
   background: #f5f9ff;
@@ -63,7 +63,7 @@ button {
   padding: 0 16px;
 }
 
-button:not(.icon-only):not(.modal-close):not(.qr-button):not(.workspace-menu-button):not(.workspace-icon-button):not(.workspace-avatar-button):not(.workspace-menu-action):not(.nav-dashboard-button):not(.nav-dashboard-compact):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-group-row):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab) {
+button:not(.el-button):not(.icon-only):not(.modal-close):not(.qr-button):not(.workspace-menu-button):not(.workspace-icon-button):not(.workspace-avatar-button):not(.workspace-menu-action):not(.nav-dashboard-button):not(.nav-dashboard-compact):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-group-row):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab) {
   display: inline-flex;
   align-items: center;
   justify-content: center;

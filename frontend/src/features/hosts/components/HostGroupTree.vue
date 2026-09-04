@@ -62,15 +62,14 @@ const inlineName = computed({
   <article class="panel host-groups-panel">
     <div class="host-group-head">
       <h2>分组列表</h2>
-      <button v-if="props.canManageGroups" class="group-add-button" type="button" title="添加分组" aria-label="添加分组" @click.stop="emit('add-root')"><AppIcon name="plus" :size="16" /></button>
+      <el-button v-if="props.canManageGroups" class="group-add-button" circle title="添加分组" aria-label="添加分组" @click.stop="emit('add-root')"><AppIcon name="plus" :size="16" /></el-button>
     </div>
     <div class="host-group-list">
       <template v-for="row in props.rows" :key="row.kind === 'root' ? 'group-root' : row.kind === 'group' ? `group-${row.group.key}` : `editor-${row.editor.mode}-${row.editor.after ?? 'end'}`">
-        <button
+        <el-button
           v-if="row.kind === 'root'"
           class="host-group-row host-group-root"
           :class="{ active: props.selectedGroup === null }"
-          type="button"
           @click.stop="emit('select-group', null)"
           @dblclick.stop="emit('toggle-root')"
           @contextmenu="emit('open-menu', row.group, $event)"
@@ -81,7 +80,7 @@ const inlineName = computed({
           <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
           <strong>{{ row.group.label }}</strong>
           <em>{{ row.group.count }}</em>
-        </button>
+        </el-button>
         <template v-else-if="row.kind === 'group'">
           <div
             v-if="props.inlineEdit?.mode === 'rename' && props.inlineEdit.groupId === row.group.key"
@@ -96,7 +95,7 @@ const inlineName = computed({
               @click.stop="emit('toggle-group', row.group)"
             ><AppIcon v-if="row.group.children?.length" :name="props.isGroupExpanded(row.group) ? 'chevronDown' : 'chevronRight'" :size="15" /></span>
             <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
-            <input
+            <el-input
               v-model="inlineName"
               class="host-group-inline-input"
               autofocus
@@ -106,7 +105,7 @@ const inlineName = computed({
             />
             <em>{{ row.group.count }}</em>
           </div>
-          <button
+          <el-button
             v-else
             class="host-group-row"
             :class="{
@@ -117,7 +116,6 @@ const inlineName = computed({
               'drop-after': props.dropTarget?.key === row.group.key && props.dropTarget.position === 'after',
             }"
             :style="{ paddingLeft: `${10 + row.group.level * 8}px` }"
-            type="button"
             draggable="true"
             @click.stop="emit('select-group', row.group.key)"
             @dblclick.stop="emit('toggle-group', row.group)"
@@ -137,7 +135,7 @@ const inlineName = computed({
             <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
             <strong>{{ row.group.label }}</strong>
             <em>{{ row.group.count }}</em>
-          </button>
+          </el-button>
         </template>
         <div
           v-else
@@ -148,7 +146,7 @@ const inlineName = computed({
         >
           <span class="folder-caret"></span>
           <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
-          <input
+          <el-input
             v-model="inlineName"
             class="host-group-inline-input"
             autofocus
@@ -169,15 +167,15 @@ const inlineName = computed({
       :style="{ left: `${props.menu.x}px`, top: `${props.menu.y}px` }"
       @click.stop
     >
-      <button v-if="props.canManageGroups" type="button" @click="emit('add-root', props.menu.group)"><span><AppIcon name="folderPlus" :size="15" /></span>新建分组</button>
-      <button v-if="props.canManageGroups" type="button" @click="emit('add-child', props.menu.group.key as number)"><span><AppIcon name="circlePlus" :size="15" /></span>新建子分组</button>
-      <button v-if="props.canManageGroups" type="button" @click="emit('rename', props.menu.group)"><span><AppIcon name="edit" :size="15" /></span>重命名</button>
+      <el-button v-if="props.canManageGroups" text @click="emit('add-root', props.menu.group)"><span><AppIcon name="folderPlus" :size="15" /></span>新建分组</el-button>
+      <el-button v-if="props.canManageGroups" text @click="emit('add-child', props.menu.group.key as number)"><span><AppIcon name="circlePlus" :size="15" /></span>新建子分组</el-button>
+      <el-button v-if="props.canManageGroups" text @click="emit('rename', props.menu.group)"><span><AppIcon name="edit" :size="15" /></span>重命名</el-button>
       <hr v-if="props.canManageGroups && props.showGroupActionDivider" />
-      <button v-if="props.canCreateHosts" type="button" @click="emit('add-host', props.menu.group.key ?? undefined)"><span><AppIcon name="server" :size="15" /></span>添加主机</button>
-      <button v-if="props.canMoveHosts" type="button" @click="emit('move-host', props.menu.group)"><span><AppIcon name="upload" :size="15" /></span>移动主机</button>
-      <button v-if="props.canDeleteHosts" class="danger" type="button" @click="emit('delete-hosts', props.menu.group)"><span><AppIcon name="trash" :size="15" /></span>删除主机</button>
+      <el-button v-if="props.canCreateHosts" text @click="emit('add-host', props.menu.group.key ?? undefined)"><span><AppIcon name="server" :size="15" /></span>添加主机</el-button>
+      <el-button v-if="props.canMoveHosts" text @click="emit('move-host', props.menu.group)"><span><AppIcon name="upload" :size="15" /></span>移动主机</el-button>
+      <el-button v-if="props.canDeleteHosts" class="danger" text @click="emit('delete-hosts', props.menu.group)"><span><AppIcon name="trash" :size="15" /></span>删除主机</el-button>
       <hr v-if="props.canManageGroups" />
-      <button v-if="props.canManageGroups" class="danger" type="button" @click="emit('delete-group', props.menu.group)"><span><AppIcon name="trash" :size="15" /></span>删除此分组</button>
+      <el-button v-if="props.canManageGroups" class="danger" text @click="emit('delete-group', props.menu.group)"><span><AppIcon name="trash" :size="15" /></span>删除此分组</el-button>
     </div>
   </article>
 </template>

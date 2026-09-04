@@ -55,13 +55,13 @@ export function useColumnVisibility<TKey extends string>(
     saveColumnVisibility(options.storageKey, normalized);
   }
 
-  function updateColumnVisibility(key: TKey, eventOrChecked: Event | boolean) {
+  function updateColumnVisibility(key: TKey, eventOrChecked: Event | boolean | string | number) {
     const checked = checkedFrom(eventOrChecked);
     if (!checked && isOnlyVisibleColumn(key)) return;
     setColumnVisibility({ ...visibility.value, [key]: checked });
   }
 
-  function toggleAllColumns(eventOrChecked: Event | boolean) {
+  function toggleAllColumns(eventOrChecked: Event | boolean | string | number) {
     const checked = checkedFrom(eventOrChecked);
     const next = createColumnVisibility(columns, checked);
     if (!checked && fallbackKey) next[fallbackKey] = true;
@@ -130,8 +130,10 @@ function saveColumnVisibility<TKey extends string>(storageKey: string | undefine
   window.localStorage.setItem(storageKey, JSON.stringify(visibility));
 }
 
-function checkedFrom(eventOrChecked: Event | boolean) {
+function checkedFrom(eventOrChecked: Event | boolean | string | number) {
   if (typeof eventOrChecked === 'boolean') return eventOrChecked;
+  if (typeof eventOrChecked === 'string') return eventOrChecked === 'true';
+  if (typeof eventOrChecked === 'number') return eventOrChecked !== 0;
   return (eventOrChecked.target as HTMLInputElement).checked;
 }
 

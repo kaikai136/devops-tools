@@ -10,7 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: number | null];
-  change: [event: Event];
+  change: [value: number | null];
 }>();
 
 const selectedCredential = computed({
@@ -20,10 +20,8 @@ const selectedCredential = computed({
 </script>
 
 <template>
-  <select v-model.number="selectedCredential" @change="emit('change', $event)">
-    <option :value="null">手动输入</option>
-    <option v-for="credential in props.credentials" :key="credential.id" :value="credential.id">
-      {{ credential.name }}（{{ credential.username }}）
-    </option>
-  </select>
+  <el-select v-model="selectedCredential" @change="emit('change', selectedCredential)">
+    <el-option :value="null" label="手动输入" />
+    <el-option v-for="credential in props.credentials" :key="credential.id" :value="credential.id" :label="`${credential.name}（${credential.username}）`" />
+  </el-select>
 </template>

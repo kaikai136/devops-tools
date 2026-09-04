@@ -21,7 +21,7 @@ type DeviceFormErrors = Partial<Record<keyof CompanyDevicePayload, string>>;
 
 const { canUsePageAction, requestConfirm, showToast } = useAppContext();
 const devices = ref<CompanyDevice[]>([]);
-const selectedIds = ref<Set<number>>(new Set());
+const selectedDevices = ref<CompanyDevice[]>([]);
 const statusFilter = ref<'' | CompanyDeviceStatus>('');
 const categoryFilter = ref('');
 const search = ref('');
@@ -61,15 +61,8 @@ const pagedDevices = computed(() => {
 });
 const pageStart = computed(() => (filteredDevices.value.length ? (page.value - 1) * pageSize.value + 1 : 0));
 const pageEnd = computed(() => Math.min(page.value * pageSize.value, filteredDevices.value.length));
-const pageNumbers = computed(() => {
-  const from = Math.max(1, page.value - 2);
-  const to = Math.min(totalPages.value, page.value + 2);
-  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
-});
 const fixedAssetCount = computed(() => filteredDevices.value.filter((device) => device.category === '固定资产').length);
 const consumableCount = computed(() => filteredDevices.value.filter((device) => device.category === '耗材').length);
-const visibleDeviceIds = computed(() => pagedDevices.value.map((device) => device.id));
-const allVisibleSelected = computed(() => visibleDeviceIds.value.length > 0 && visibleDeviceIds.value.every((id) => selectedIds.value.has(id)));
 
 watch([filteredDevices, pageSize], () => {
   if (page.value > totalPages.value) page.value = totalPages.value;
@@ -181,9 +174,7 @@ function confirmDeleteDevice(device: CompanyDevice) {
     try {
       await deleteCompanyDevice(device.id);
       devices.value = devices.value.filter((item) => item.id !== device.id);
-      const next = new Set(selectedIds.value);
-      next.delete(device.id);
-      selectedIds.value = next;
+      selectedDevices.value = selectedDevices.value.filter((item) => item.id !== device.id);
       showToast('删除成功', `设备「${device.name}」已删除。`);
     } catch (error) {
       showToast('删除失败', error instanceof Error ? error.message : '设备删除失败');
@@ -192,17 +183,17 @@ function confirmDeleteDevice(device: CompanyDevice) {
 }
 
 function confirmDeleteSelectedDevices() {
-  const selectedDevices = devices.value.filter((device) => selectedIds.value.has(device.id));
-  if (!selectedDevices.length) return;
-  requestConfirm('批量删除设备', `确定删除选中的 ${selectedDevices.length} 台设备？`, '删除', async () => {
+  const selected = selectedDevices.value;
+  if (!selected.length) return;
+  requestConfirm('批量删除设备', `确定删除选中的 ${selected.length} 台设备？`, '删除', async () => {
     try {
-      for (const device of selectedDevices) {
+      for (const device of selected) {
         await deleteCompanyDevice(device.id);
       }
-      const deletedIds = new Set(selectedDevices.map((device) => device.id));
+      const deletedIds = new Set(selected.map((device) => device.id));
       devices.value = devices.value.filter((device) => !deletedIds.has(device.id));
-      selectedIds.value = new Set();
-      showToast('删除成功', `已删除 ${selectedDevices.length} 台设备。`);
+      selectedDevices.value = [];
+      showToast('删除成功', `已删除 ${selected.length} 台设备。`);
     } catch (error) {
       showToast('删除失败', error instanceof Error ? error.message : '部分设备删除失败');
     }
@@ -210,8 +201,8 @@ function confirmDeleteSelectedDevices() {
 }
 
 function exportDevices() {
-  const selectedDevices = filteredDevices.value.filter((device) => selectedIds.value.has(device.id));
-  const exportRows = selectedDevices.length ? selectedDevices : filteredDevices.value;
+  const selected = selectedDevices.value;
+  const exportRows = selected.length ? selected : filteredDevices.value;
   if (!exportRows.length) {
     showToast('导出失败', '当前没有可导出的设备。');
     return;
@@ -245,26 +236,15 @@ function statusText(status: CompanyDeviceStatus) {
   return companyDeviceStatusText(status);
 }
 
+function statusTagType(status: CompanyDeviceStatus) {
+  if (status === 'idle') return 'success';
+  if (status === 'repair') return 'warning';
+  if (status === 'scrapped') return 'info';
+  return 'primary';
+}
+
 function categoryClass(category: string) {
   return category === '耗材' ? 'consumable' : 'fixed';
-}
-
-function toggleAll(event: Event) {
-  const checked = (event.target as HTMLInputElement).checked;
-  const next = new Set(selectedIds.value);
-  visibleDeviceIds.value.forEach((deviceId) => {
-    if (checked) next.add(deviceId);
-    else next.delete(deviceId);
-  });
-  selectedIds.value = next;
-}
-
-function toggleDevice(deviceId: number, event: Event) {
-  const checked = (event.target as HTMLInputElement).checked;
-  const next = new Set(selectedIds.value);
-  if (checked) next.add(deviceId);
-  else next.delete(deviceId);
-  selectedIds.value = next;
 }
 
 function resetFilters() {
@@ -278,8 +258,12 @@ function setPage(nextPage: number) {
   page.value = Math.min(Math.max(1, nextPage), totalPages.value);
 }
 
-function setPageSize(event: Event) {
-  pageSize.value = Number((event.target as HTMLSelectElement).value);
+function handleSelectionChange(rows: CompanyDevice[]) {
+  selectedDevices.value = rows;
+}
+
+function setPageSize(size: number) {
+  pageSize.value = size;
 }
 </script>
 
@@ -288,47 +272,44 @@ function setPageSize(event: Event) {
     <article class="device-list-panel">
       <div class="device-list-toolbar">
         <div v-if="canUsePageAction('companyDevices', 'filter')" class="device-toolbar-filters">
-          <select v-model="statusFilter" aria-label="资产状态">
-            <option value="">资产状态</option>
-            <option value="using">使用中</option>
-            <option value="idle">闲置</option>
-            <option value="repair">维修</option>
-            <option value="scrapped">报废</option>
-          </select>
-          <select v-model="categoryFilter" aria-label="资产类别">
-            <option value="">资产类别</option>
-            <option value="固定资产">固定资产</option>
-            <option value="耗材">耗材</option>
-          </select>
-          <input v-model="search" type="search" placeholder="输入名称等信息" aria-label="输入名称等信息" />
-          <button class="device-button danger" type="button" @click="resetFilters">重置</button>
+          <el-select v-model="statusFilter" class="device-toolbar-select" aria-label="资产状态" placeholder="资产状态" clearable>
+            <el-option value="" label="资产状态" />
+            <el-option value="using" label="使用中" />
+            <el-option value="idle" label="闲置" />
+            <el-option value="repair" label="维修" />
+            <el-option value="scrapped" label="报废" />
+          </el-select>
+          <el-select v-model="categoryFilter" class="device-toolbar-select" aria-label="资产类别" placeholder="资产类别" clearable>
+            <el-option value="" label="资产类别" />
+            <el-option value="固定资产" label="固定资产" />
+            <el-option value="耗材" label="耗材" />
+          </el-select>
+          <el-input v-model="search" placeholder="输入名称等信息" class="device-toolbar-search" aria-label="输入名称等信息" clearable />
+          <el-button type="danger" @click="resetFilters">重置</el-button>
         </div>
         <div class="device-toolbar-actions">
-          <button
+          <el-button
             v-if="canUsePageAction('companyDevices', 'delete')"
-            class="device-button danger"
-            type="button"
-            :disabled="!selectedIds.size"
+            type="danger"
+            :disabled="!selectedDevices.length"
             @click="confirmDeleteSelectedDevices"
           >
             <AppIcon name="trash" :size="15" />删除
-          </button>
-          <button
+          </el-button>
+          <el-button
             v-if="canUsePageAction('companyDevices', 'create')"
-            class="device-button primary"
-            type="button"
+            type="primary"
             @click="openCreateDeviceDialog"
           >
             <AppIcon name="plus" :size="15" />添加
-          </button>
-          <button
+          </el-button>
+          <el-button
             v-if="canUsePageAction('companyDevices', 'export')"
-            class="device-button primary"
-            type="button"
+            type="primary"
             @click="exportDevices"
           >
             <AppIcon name="download" :size="15" />导出Excel
-          </button>
+          </el-button>
         </div>
       </div>
 
@@ -337,69 +318,76 @@ function setPageSize(event: Event) {
       </div>
       <div v-else-if="loadError" class="device-load-error">
         <span>{{ loadError }}</span>
-        <button class="device-button primary" type="button" @click="loadDevices">重试</button>
+        <el-button type="primary" @click="loadDevices">重试</el-button>
       </div>
       <div v-else class="device-table-wrap">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th class="device-select-col">
-                <input type="checkbox" :checked="allVisibleSelected" @change="toggleAll" />
-              </th>
-              <th>序号</th>
-              <th>资产名称</th>
-              <th>资产类别</th>
-              <th>资产编码</th>
-              <th>规格说明</th>
-              <th>资产状态</th>
-              <th>使用人员</th>
-              <th>品牌名称</th>
-              <th>采购时间</th>
-              <th>备注</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(device, index) in pagedDevices" :key="device.id">
-              <td class="device-select-col">
-                <input type="checkbox" :checked="selectedIds.has(device.id)" @change="toggleDevice(device.id, $event)" />
-              </td>
-              <td>{{ (page - 1) * pageSize + index + 1 }}</td>
-              <td>{{ device.name }}</td>
-              <td><span class="device-category-badge" :class="categoryClass(device.category)">{{ device.category }}</span></td>
-              <td>{{ device.code || '-' }}</td>
-              <td class="device-spec-cell">{{ device.spec || '-' }}</td>
-              <td><span class="device-status-badge" :class="device.status">{{ statusText(device.status) }}</span></td>
-              <td>{{ device.user || '-' }}</td>
-              <td>{{ device.brand || '-' }}</td>
-              <td>{{ device.purchaseTime || '-' }}</td>
-              <td>{{ device.remark || '-' }}</td>
-              <td>
-                <div class="device-row-actions">
-                  <button
-                    v-if="canUsePageAction('companyDevices', 'edit')"
-                    class="device-button primary"
-                    type="button"
-                    @click="openEditDeviceDialog(device)"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    v-if="canUsePageAction('companyDevices', 'delete')"
-                    class="device-button danger"
-                    type="button"
-                    @click="confirmDeleteDevice(device)"
-                  >
-                    删除
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="!pagedDevices.length">
-              <td class="device-empty" colspan="12">暂无资产数据</td>
-            </tr>
-          </tbody>
-        </table>
+        <el-table
+          :data="pagedDevices"
+          row-key="id"
+          class="device-table"
+          height="100%"
+          border
+          stripe
+          highlight-current-row
+          empty-text="暂无资产数据"
+          @selection-change="handleSelectionChange"
+        >
+          <el-table-column type="selection" width="40" reserve-selection />
+          <el-table-column type="index" label="序号" width="70" :index="(index) => (page - 1) * pageSize + index + 1" />
+          <el-table-column prop="name" label="资产名称" min-width="140" />
+          <el-table-column prop="category" label="资产类别" min-width="100">
+            <template #default="{ row }">
+              <span class="device-category-badge" :class="categoryClass(row.category)">{{ row.category }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="code" label="资产编码" min-width="120">
+            <template #default="{ row }">{{ row.code || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="spec" label="规格说明" min-width="190" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.spec || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="资产状态" min-width="100">
+            <template #default="{ row }">
+              <el-tag :type="statusTagType(row.status)" size="small" effect="dark">{{ statusText(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="user" label="使用人员" min-width="100">
+            <template #default="{ row }">{{ row.user || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="brand" label="品牌名称" min-width="100">
+            <template #default="{ row }">{{ row.brand || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="purchaseTime" label="采购时间" min-width="120">
+            <template #default="{ row }">{{ row.purchaseTime || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="remark" label="备注" min-width="120">
+            <template #default="{ row }">{{ row.remark || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="140" fixed="right">
+            <template #default="{ row }">
+              <div class="device-row-actions">
+                <el-button
+                  v-if="canUsePageAction('companyDevices', 'edit')"
+                  type="primary"
+                  size="small"
+                  link
+                  @click="openEditDeviceDialog(row)"
+                >
+                  编辑
+                </el-button>
+                <el-button
+                  v-if="canUsePageAction('companyDevices', 'delete')"
+                  type="danger"
+                  size="small"
+                  link
+                  @click="confirmDeleteDevice(row)"
+                >
+                  删除
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
 
       <div class="device-pagination">
@@ -408,28 +396,17 @@ function setPageSize(event: Event) {
             <span>共 {{ filteredDevices.length }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>
-          <div class="device-pagination-controls">
-            <button class="prev" type="button" :disabled="page <= 1" aria-label="上一页" @click="setPage(page - 1)">
-              <AppIcon name="chevronRight" :size="14" />
-            </button>
-            <button
-              v-for="pageNumber in pageNumbers"
-              :key="pageNumber"
-              type="button"
-              :class="{ active: pageNumber === page }"
-              @click="setPage(pageNumber)"
-            >
-              {{ pageNumber }}
-            </button>
-            <button type="button" :disabled="page >= totalPages" aria-label="下一页" @click="setPage(page + 1)">
-              <AppIcon name="chevronRight" :size="14" />
-            </button>
-            <select :value="pageSize" aria-label="每页条数" @change="setPageSize">
-              <option :value="10">10 条/页</option>
-              <option :value="20">20 条/页</option>
-              <option :value="50">50 条/页</option>
-            </select>
-          </div>
+          <el-pagination
+            :current-page="page"
+            :page-size="pageSize"
+            :total="filteredDevices.length"
+            :page-sizes="[10, 20, 50]"
+            layout="prev, pager, next, sizes"
+            small
+            background
+            @current-change="setPage"
+            @size-change="setPageSize"
+          />
         </div>
         <div class="device-category-summary">
           <span class="device-summary-pill">固定资产 {{ fixedAssetCount }}</span>
@@ -438,44 +415,55 @@ function setPageSize(event: Event) {
       </div>
     </article>
 
-    <div v-if="deviceDialog" class="modal-backdrop">
-      <form class="device-form-modal" @submit.prevent="saveDeviceDialog">
-        <button class="modal-close" type="button" :disabled="isSaving" @click="closeDeviceDialog"><AppIcon name="x" :size="16" /></button>
-        <h2>{{ deviceDialog.mode === 'edit' ? '编辑设备' : '添加设备' }}</h2>
+    <el-dialog
+      :model-value="deviceDialog !== null"
+      :title="deviceDialog?.mode === 'edit' ? '编辑设备' : '添加设备'"
+      width="640px"
+      :close-on-click-modal="false"
+      @update:model-value="(visible) => { if (!visible && !isSaving) finishDeviceDialog(); }"
+    >
+      <el-form :model="deviceForm" label-position="top" class="device-form-modal">
         <p v-if="dialogError" class="device-form-error">{{ dialogError }}</p>
-        <label :class="{ invalid: formErrors.name }">
-          <span>资产名称</span>
-          <input v-model="deviceForm.name" autofocus />
-          <em v-if="formErrors.name">{{ formErrors.name }}</em>
-        </label>
-        <label :class="{ invalid: formErrors.category }">
-          <span>资产类别</span>
-          <select v-model="deviceForm.category">
-            <option value="固定资产">固定资产</option>
-            <option value="耗材">耗材</option>
-          </select>
-          <em v-if="formErrors.category">{{ formErrors.category }}</em>
-        </label>
-        <label><span>资产编码</span><input v-model="deviceForm.code" /></label>
-        <label><span>规格说明</span><input v-model="deviceForm.spec" /></label>
-        <label>
-          <span>资产状态</span>
-          <select v-model="deviceForm.status">
-            <option value="using">使用中</option>
-            <option value="idle">闲置</option>
-            <option value="repair">维修</option>
-            <option value="scrapped">报废</option>
-          </select>
-        </label>
-        <label><span>使用人员</span><input v-model="deviceForm.user" /></label>
-        <label><span>品牌名称</span><input v-model="deviceForm.brand" /></label>
-        <label><span>采购时间</span><input v-model="deviceForm.purchaseTime" type="date" /></label>
-        <label class="device-form-wide"><span>备注</span><textarea v-model="deviceForm.remark" rows="3"></textarea></label>
-        <div class="device-form-actions">
-          <button type="button" :disabled="isSaving" @click="closeDeviceDialog">取消</button>
-          <button class="primary" type="submit" :disabled="isSaving">{{ isSaving ? '保存中...' : '保存' }}</button>
-        </div>
-      </form>
-    </div>
+        <el-form-item label="资产名称" :error="formErrors.name">
+          <el-input v-model="deviceForm.name" autofocus />
+        </el-form-item>
+        <el-form-item label="资产类别" :error="formErrors.category">
+          <el-select v-model="deviceForm.category">
+            <el-option value="固定资产" label="固定资产" />
+            <el-option value="耗材" label="耗材" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="资产编码">
+          <el-input v-model="deviceForm.code" />
+        </el-form-item>
+        <el-form-item label="规格说明">
+          <el-input v-model="deviceForm.spec" />
+        </el-form-item>
+        <el-form-item label="资产状态">
+          <el-select v-model="deviceForm.status">
+            <el-option value="using" label="使用中" />
+            <el-option value="idle" label="闲置" />
+            <el-option value="repair" label="维修" />
+            <el-option value="scrapped" label="报废" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="使用人员">
+          <el-input v-model="deviceForm.user" />
+        </el-form-item>
+        <el-form-item label="品牌名称">
+          <el-input v-model="deviceForm.brand" />
+        </el-form-item>
+        <el-form-item label="采购时间">
+          <el-date-picker v-model="deviceForm.purchaseTime" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
+        </el-form-item>
+        <el-form-item label="备注" class="device-form-wide">
+          <el-input v-model="deviceForm.remark" type="textarea" :rows="3" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button :disabled="isSaving" @click="closeDeviceDialog">取消</el-button>
+        <el-button type="primary" :disabled="isSaving" @click="saveDeviceDialog">{{ isSaving ? '保存中...' : '保存' }}</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>

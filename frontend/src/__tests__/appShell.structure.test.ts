@@ -52,4 +52,13 @@ describe('app shell upgrade contract', () => {
     expect(navStyles).toContain('flex-direction: column');
     expect(navStyles).toContain('.sidebar-nav');
   });
+
+  it('uses larger bold typography for the sidebar navigation labels', () => {
+    const navStyles = readSource('styles/base/shell-nav.css');
+    const menuRule = navStyles.match(/\.workspace-nav-menu :is\(\.el-menu-item, \.el-sub-menu__title\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+    expect(menuRule).toContain('font-size: 16px');
+    expect(menuRule).toContain('font-weight: 900');
+    expect(menuRule).toContain('height: 44px');
+  });
 });

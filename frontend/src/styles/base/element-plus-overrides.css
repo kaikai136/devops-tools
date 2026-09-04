@@ -1,0 +1,82 @@
+/* Element Plus control overrides.
+ *
+ * Keeps EP inputs, textareas, selects, number fields, and dialogs visually
+ * consistent across the app while avoiding the global native-control rules.
+ */
+
+.el-input,
+.el-select,
+.el-input-number,
+.el-textarea {
+  width: 100%;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-input-number__wrapper {
+  min-height: 40px;
+  border-radius: var(--el-border-radius-base);
+  box-shadow: none;
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover,
+.el-input-number__wrapper:hover {
+  box-shadow: none;
+}
+
+.el-input.is-focus .el-input__wrapper,
+.el-select.is-focused .el-select__wrapper,
+.el-input-number.is-focus .el-input-number__wrapper,
+.el-textarea.is-focus .el-textarea__inner {
+  box-shadow: 0 0 0 3px rgba(30, 114, 255, 0.12);
+}
+
+.el-input.invalid .el-input__wrapper,
+.el-select.invalid .el-select__wrapper,
+.el-input-number.invalid .el-input-number__wrapper {
+  background: #fff6f7;
+  box-shadow: 0 0 0 1px rgba(255, 64, 88, 0.38), 0 0 0 3px rgba(255, 64, 88, 0.08);
+}
+
+.el-textarea.invalid .el-textarea__inner {
+  border-color: #ff4058;
+  background: #fff6f7;
+  box-shadow: 0 0 0 1px rgba(255, 64, 88, 0.38), 0 0 0 3px rgba(255, 64, 88, 0.08);
+}
+
+.el-input__inner,
+.el-textarea__inner {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+}
+
+.el-textarea__inner {
+  min-height: 76px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.el-dialog {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+
+.el-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.el-dialog__footer {
+  flex: 0 0 auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
