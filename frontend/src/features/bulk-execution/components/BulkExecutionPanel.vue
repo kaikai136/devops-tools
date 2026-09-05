@@ -1073,12 +1073,12 @@ function formatFileSize(value: number) {
           <h2>批量执行</h2>
           <p>面向已验证 Linux SSH 主机执行命令、Playbook 和文件分发任务。</p>
         </div>
-        <el-button-group class="bulk-execution-actions">
-          <el-button v-if="canRefresh || canExecute" :type="activeBulkView === 'history' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'history' }" @click="switchBulkView('history')"><AppIcon name="rows" :size="16" />执行记录</el-button>
-          <el-button v-if="canExecute" :type="activeBulkView === 'execute' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'execute' }" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建执行</el-button>
-          <el-button v-if="canExecute" :type="activeBulkView === 'upload' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'upload' }" @click="openUploadDialog"><AppIcon name="upload" :size="16" />批量上传</el-button>
-          <el-button v-if="canRefresh" :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</el-button>
-        </el-button-group>
+        <NativeButton-group class="bulk-execution-actions">
+          <NativeButton v-if="canRefresh || canExecute" :type="activeBulkView === 'history' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'history' }" @click="switchBulkView('history')"><AppIcon name="rows" :size="16" />执行记录</NativeButton>
+          <NativeButton v-if="canExecute" :type="activeBulkView === 'execute' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'execute' }" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建执行</NativeButton>
+          <NativeButton v-if="canExecute" :type="activeBulkView === 'upload' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'upload' }" @click="openUploadDialog"><AppIcon name="upload" :size="16" />批量上传</NativeButton>
+          <NativeButton v-if="canRefresh" :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</NativeButton>
+        </NativeButton-group>
       </header>
 
       <section v-show="activeBulkView === 'history'" class="bulk-history-view">
@@ -1089,29 +1089,29 @@ function formatFileSize(value: number) {
             </div>
             <div class="bulk-record-actions">
               <label class="bulk-keyword-filter">
-                <el-input v-model="keyword" clearable placeholder="搜索任务或命令" @keyup.enter="applyHistoryFilters" />
+                <NativeInput v-model="keyword" clearable placeholder="搜索任务或命令" @keyup.enter="applyHistoryFilters" />
               </label>
               <label class="bulk-host-filter">
-                <el-select v-model="hostFilter" aria-label="目标主机" @change="applyHistoryFilters">
-                  <el-option value="" label="全部主机" />
-                  <el-option v-for="target in targets" :key="target.id" :value="target.id" :label="`${target.name} / ${target.privateIp}`" />
-                </el-select>
+                <NativeSelect v-model="hostFilter" aria-label="目标主机" @change="applyHistoryFilters">
+                  <NativeOption value="" label="全部主机" />
+                  <NativeOption v-for="target in targets" :key="target.id" :value="target.id" :label="`${target.name} / ${target.privateIp}`" />
+                </NativeSelect>
               </label>
               <label class="bulk-status-filter">
-                <el-select v-model="statusFilter" aria-label="执行状态" @change="setHistoryStatus(statusFilter)">
-                  <el-option v-for="option in historyStatusOptions" :key="option.value || 'all'" :value="option.value" :label="option.label" />
-                </el-select>
+                <NativeSelect v-model="statusFilter" aria-label="执行状态" @change="setHistoryStatus(statusFilter)">
+                  <NativeOption v-for="option in historyStatusOptions" :key="option.value || 'all'" :value="option.value" :label="option.label" />
+                </NativeSelect>
               </label>
-              <el-button class="bulk-query-button" :loading="isLoading" @click="applyHistoryFilters"><AppIcon name="search" :size="15" />查询</el-button>
-              <el-button v-if="canRefresh" :loading="isLoading" circle aria-label="刷新" @click="refreshAll"><AppIcon name="refresh" :size="15" /></el-button>
+              <NativeButton class="bulk-query-button" :loading="isLoading" @click="applyHistoryFilters"><AppIcon name="search" :size="15" />查询</NativeButton>
+              <NativeButton v-if="canRefresh" :loading="isLoading" circle aria-label="刷新" @click="refreshAll"><AppIcon name="refresh" :size="15" /></NativeButton>
             </div>
           </header>
 
           <div class="bulk-record-table">
-            <el-table :data="taskHistory" class="bulk-record-grid" row-key="id" empty-text="暂无批量执行任务" @row-click="(row) => selectTask(row.id, true, false)">
-              <el-table-column width="54" align="center">
+            <NativeTable :data="taskHistory" class="bulk-record-grid" row-key="id" empty-text="暂无批量执行任务" @row-click="(row) => selectTask(row.id, true, false)">
+              <NativeTableColumn width="54" align="center">
                 <template #header>
-                  <el-checkbox
+                  <NativeCheckbox
                     class="bulk-record-select-cell"
                     :model-value="allVisibleRecordsSelected"
                     :disabled="!visibleRecordTaskIds.length"
@@ -1120,38 +1120,38 @@ function formatFileSize(value: number) {
                   />
                 </template>
                 <template #default="{ row }">
-                  <el-checkbox class="bulk-record-select-cell" :model-value="selectedRecordTaskIds.has(row.id)" @click.stop @change="toggleRecordTaskSelection(row.id, $event)" />
+                  <NativeCheckbox class="bulk-record-select-cell" :model-value="selectedRecordTaskIds.has(row.id)" @click.stop @change="toggleRecordTaskSelection(row.id, $event)" />
                 </template>
-              </el-table-column>
-              <el-table-column label="编号" width="80" align="center">
+              </NativeTableColumn>
+              <NativeTableColumn label="编号" width="80" align="center">
                 <template #default="{ $index }">{{ taskPageStart + $index }}</template>
-              </el-table-column>
-              <el-table-column label="执行机器" min-width="150">
+              </NativeTableColumn>
+              <NativeTableColumn label="执行机器" min-width="150">
                 <template #default="{ row }">{{ taskHostSummary(row) }}</template>
-              </el-table-column>
-              <el-table-column prop="command" label="执行命令" min-width="220" show-overflow-tooltip />
-              <el-table-column label="状态" min-width="120" align="center">
+              </NativeTableColumn>
+              <NativeTableColumn prop="command" label="执行命令" min-width="220" show-overflow-tooltip />
+              <NativeTableColumn label="状态" min-width="120" align="center">
                 <template #default="{ row }">{{ taskResultSummary(row) }}</template>
-              </el-table-column>
-              <el-table-column label="退出码" width="110" align="center">
+              </NativeTableColumn>
+              <NativeTableColumn label="退出码" width="110" align="center">
                 <template #default="{ row }">{{ taskExitSummary(row) }}</template>
-              </el-table-column>
-              <el-table-column label="持续时间" width="120" align="center">
+              </NativeTableColumn>
+              <NativeTableColumn label="持续时间" width="120" align="center">
                 <template #default="{ row }">{{ formatDuration(row) }}</template>
-              </el-table-column>
-              <el-table-column prop="createdBy" label="执行用户" min-width="120" />
-              <el-table-column label="创建时间" min-width="170">
+              </NativeTableColumn>
+              <NativeTableColumn prop="createdBy" label="执行用户" min-width="120" />
+              <NativeTableColumn label="创建时间" min-width="170">
                 <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-              </el-table-column>
-              <el-table-column prop="name" label="描述" min-width="180" show-overflow-tooltip />
-              <el-table-column label="操作" width="220" fixed="right">
+              </NativeTableColumn>
+              <NativeTableColumn prop="name" label="描述" min-width="180" show-overflow-tooltip />
+              <NativeTableColumn label="操作" width="220" fixed="right">
                 <template #default="{ row }">
-                  <el-button size="small" text @click.stop="openTaskDetail(row.id)">详情</el-button>
-                  <el-button v-if="canExecute" size="small" text @click.stop="rerunTaskFromList(row.id)">再次执行</el-button>
-                  <el-button v-if="canDelete" size="small" text type="danger" @click.stop="deleteTaskFromList(row.id)">删除</el-button>
+                  <NativeButton size="small" text @click.stop="openTaskDetail(row.id)">详情</NativeButton>
+                  <NativeButton v-if="canExecute" size="small" text @click.stop="rerunTaskFromList(row.id)">再次执行</NativeButton>
+                  <NativeButton v-if="canDelete" size="small" text type="danger" @click.stop="deleteTaskFromList(row.id)">删除</NativeButton>
                 </template>
-              </el-table-column>
-            </el-table>
+              </NativeTableColumn>
+            </NativeTable>
           </div>
           <footer class="bulk-record-footer">
             <div class="host-pagination bulk-record-pagination" aria-label="执行列表分页">
@@ -1160,7 +1160,7 @@ function formatFileSize(value: number) {
                   <span>共 {{ taskTotal }} 条</span>
                   <span>{{ taskPageStart }}-{{ taskPageEnd }}</span>
                 </div>
-                <el-pagination
+                <NativePagination
                   class="host-pagination-controls"
                   layout="sizes, prev, pager, next"
                   :current-page="taskPage"
@@ -1183,11 +1183,11 @@ function formatFileSize(value: number) {
               </div>
             </div>
             <div class="host-bulk-action-buttons">
-              <el-button class="host-bulk-button host-bulk-button-cancel" :disabled="isControlBusy" @click="clearSelectedRecordTasks">取消所选</el-button>
-              <el-button v-if="canDelete" class="host-bulk-button host-bulk-button-delete" type="danger" :disabled="isControlBusy" @click="deleteSelectedRecordTasks">
+              <NativeButton class="host-bulk-button host-bulk-button-cancel" :disabled="isControlBusy" @click="clearSelectedRecordTasks">取消所选</NativeButton>
+              <NativeButton v-if="canDelete" class="host-bulk-button host-bulk-button-delete" type="danger" :disabled="isControlBusy" @click="deleteSelectedRecordTasks">
                 <AppIcon name="trash" :size="14" />
                 删除所选
-              </el-button>
+              </NativeButton>
             </div>
           </div>
         </section>
@@ -1197,35 +1197,35 @@ function formatFileSize(value: number) {
       <section v-show="activeBulkView === 'execute'" class="bulk-execute-view">
         <div class="bulk-create-workbench">
           <section class="bulk-script-composer">
-            <el-button-group class="bulk-mode-tabs" role="tablist" aria-label="执行类型">
-              <el-button :type="executionType === 'shell' ? 'primary' : 'default'" :class="{ active: executionType === 'shell' }" @click="setExecutionType('shell')">
+            <NativeButton-group class="bulk-mode-tabs" role="tablist" aria-label="执行类型">
+              <NativeButton :type="executionType === 'shell' ? 'primary' : 'default'" :class="{ active: executionType === 'shell' }" @click="setExecutionType('shell')">
                 <AppIcon name="terminal" :size="15" />
                 普通 Shell
-              </el-button>
-              <el-button :type="executionType === 'playbook' ? 'primary' : 'default'" :class="{ active: executionType === 'playbook' }" @click="setExecutionType('playbook')">
+              </NativeButton>
+              <NativeButton :type="executionType === 'playbook' ? 'primary' : 'default'" :class="{ active: executionType === 'playbook' }" @click="setExecutionType('playbook')">
                 <AppIcon name="rows" :size="15" />
                 Playbook 脚本
-              </el-button>
-            </el-button-group>
+              </NativeButton>
+            </NativeButton-group>
             <label class="bulk-task-name-field">
               <span>任务名称<em class="required-marker">*</em></span>
-              <el-input v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isCreating" />
+              <NativeInput v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isCreating" />
             </label>
             <div class="bulk-script-presets">
-              <el-button v-for="preset in scriptPresets" :key="preset.key" @click="applyScriptPreset(preset)">
+              <NativeButton v-for="preset in scriptPresets" :key="preset.key" @click="applyScriptPreset(preset)">
                 {{ preset.label }}
-              </el-button>
+              </NativeButton>
             </div>
             <div class="bulk-script-editor">
               <input ref="scriptFileInput" hidden type="file" :accept="scriptFileAccept" @change="onScriptFileChange" />
               <div class="bulk-script-editor-head">
                 <span>{{ executionTypeLabels[executionType] }}<em class="required-marker">*</em></span>
                 <div class="bulk-script-editor-actions">
-                  <el-button class="bulk-script-upload-button" :disabled="isCreating" @click="triggerScriptFileSelect">
+                  <NativeButton class="bulk-script-upload-button" :disabled="isCreating" @click="triggerScriptFileSelect">
                     <AppIcon name="upload" :size="14" />
                     {{ scriptUploadButtonLabel }}
-                  </el-button>
-                  <el-button
+                  </NativeButton>
+                  <NativeButton
                     class="bulk-script-clear-button"
                     :disabled="isCreating || !canClearScriptInput"
                     aria-label="清空脚本内容"
@@ -1233,14 +1233,14 @@ function formatFileSize(value: number) {
                     @click="clearScriptInput"
                   >
                     <AppIcon name="reset" :size="14" />
-                  </el-button>
+                  </NativeButton>
                 </div>
               </div>
               <div v-if="scriptSourceName" class="bulk-script-source">
                 <AppIcon name="file" :size="14" />
                 <span>{{ scriptSourceName }}</span>
               </div>
-              <el-input v-model="commandInput" class="commandInput" type="textarea" :rows="16" :maxlength="MAX_SCRIPT_LENGTH" :placeholder="commandPlaceholder" :disabled="isCreating" />
+              <NativeInput v-model="commandInput" class="commandInput" type="textarea" :rows="16" :maxlength="MAX_SCRIPT_LENGTH" :placeholder="commandPlaceholder" :disabled="isCreating" />
             </div>
           </section>
 
@@ -1250,7 +1250,7 @@ function formatFileSize(value: number) {
                 <h3>目标机器<em class="required-marker">*</em></h3>
                 <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
               </div>
-              <el-button :loading="isTargetsLoading" @click="openTargetPicker"><AppIcon name="server" :size="15" />选择机器</el-button>
+              <NativeButton :loading="isTargetsLoading" @click="openTargetPicker"><AppIcon name="server" :size="15" />选择机器</NativeButton>
             </header>
             <div v-if="!selectedTargets.length" class="bulk-target-empty">
               <AppIcon name="server" :size="28" />
@@ -1267,17 +1267,17 @@ function formatFileSize(value: number) {
                     <span class="bulk-selected-target-group">{{ target.groupName || '-' }}</span>
                   </span>
                 </div>
-                <el-button class="bulk-selected-target-remove" circle aria-label="移除目标机器" :disabled="isCreating" @click="removeSelectedTarget(target.id)">
+                <NativeButton class="bulk-selected-target-remove" circle aria-label="移除目标机器" :disabled="isCreating" @click="removeSelectedTarget(target.id)">
                   <AppIcon name="x" :size="14" />
-                </el-button>
+                </NativeButton>
               </div>
-              <el-button class="bulk-clear-targets" :disabled="isCreating" @click="clearSelectedTargets">清空选择</el-button>
+              <NativeButton class="bulk-clear-targets" :disabled="isCreating" @click="clearSelectedTargets">清空选择</NativeButton>
             </div>
           </section>
         </div>
         <footer class="bulk-workbench-footer">
-          <el-button :disabled="isCreating" @click="switchBulkView('history')">返回记录</el-button>
-          <el-button type="primary" :disabled="!canCreateTask" :loading="isCreating" @click="createTaskWithConfirmation">{{ isCreating ? '创建中...' : executeActionLabel }}</el-button>
+          <NativeButton :disabled="isCreating" @click="switchBulkView('history')">返回记录</NativeButton>
+          <NativeButton type="primary" :disabled="!canCreateTask" :loading="isCreating" @click="createTaskWithConfirmation">{{ isCreating ? '创建中...' : executeActionLabel }}</NativeButton>
         </footer>
       </section>
 
@@ -1286,7 +1286,7 @@ function formatFileSize(value: number) {
           <section class="bulk-script-composer bulk-upload-composer">
             <label class="bulk-task-name-field">
               <span>任务名称<em class="required-marker">*</em></span>
-              <el-input v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isUploading" />
+              <NativeInput v-model="taskName" maxlength="180" placeholder="请输入任务名称" :disabled="isUploading" />
             </label>
             <input ref="uploadFileInput" hidden type="file" multiple @change="onUploadFileChange" />
             <input ref="uploadFolderInput" hidden type="file" webkitdirectory directory multiple @change="onUploadFolderChange" />
@@ -1299,33 +1299,33 @@ function formatFileSize(value: number) {
               <strong>{{ selectedUploadFiles.length ? `${selectedUploadFiles.length} 个文件` : '选择文件或文件夹' }}<em class="required-marker">*</em></strong>
               <span>{{ selectedUploadFiles.length ? formatFileSize(uploadTotalSize) : '支持多文件和文件夹上传，并保留本地目录层级' }}</span>
               <div class="bulk-upload-select-actions">
-                <el-button :disabled="isUploading" @click="triggerUploadFileSelect">
+                <NativeButton :disabled="isUploading" @click="triggerUploadFileSelect">
                   <AppIcon name="file" :size="14" />
                   选择文件
-                </el-button>
-                <el-button :disabled="isUploading" @click="triggerUploadFolderSelect">
+                </NativeButton>
+                <NativeButton :disabled="isUploading" @click="triggerUploadFolderSelect">
                   <AppIcon name="folder" :size="14" />
                   选择文件夹
-                </el-button>
+                </NativeButton>
               </div>
             </div>
             <div v-if="selectedUploadFiles.length" class="bulk-upload-file-stack">
               <div class="bulk-upload-file-summary">
                 <span>{{ selectedUploadFiles.length }} 个文件 · {{ formatFileSize(uploadTotalSize) }}</span>
-                <el-button class="bulk-upload-clear-files" :disabled="isUploading" @click="clearUploadFiles">清空文件</el-button>
+                <NativeButton class="bulk-upload-clear-files" :disabled="isUploading" @click="clearUploadFiles">清空文件</NativeButton>
               </div>
               <div class="bulk-upload-file-list-scroll">
                 <div v-for="(file, index) in selectedUploadFiles" :key="`${relativePathForFile(file)}-${file.size}-${file.lastModified}`" class="bulk-upload-file-row">
                   <span class="bulk-upload-file-name" :title="relativePathForFile(file)">{{ relativePathForFile(file) }}</span>
                   <em>{{ formatFileSize(file.size) }}</em>
-                  <el-button circle :disabled="isUploading" @click="removeUploadFile(index)"><AppIcon name="x" :size="14" /></el-button>
+                  <NativeButton circle :disabled="isUploading" @click="removeUploadFile(index)"><AppIcon name="x" :size="14" /></NativeButton>
                 </div>
               </div>
             </div>
 
             <label class="bulk-upload-path">
               <span>远程目录<em class="required-marker">*</em></span>
-              <el-input v-model="remoteDirectory" :disabled="isUploading" placeholder="/tmp/" />
+              <NativeInput v-model="remoteDirectory" :disabled="isUploading" placeholder="/tmp/" />
             </label>
             <p class="bulk-upload-hint">上传前会检查主机连接和同名文件；确认后将覆盖已存在的同名文件。</p>
 
@@ -1342,9 +1342,9 @@ function formatFileSize(value: number) {
                 <strong>重复文件</strong>
                 <span v-for="item in duplicateFiles" :key="item.targetId">{{ item.hostName }} / {{ item.hostIp }} · {{ item.filenames.join(', ') }}</span>
               </div>
-              <el-checkbox v-if="uploadHasWarnings" v-model="overwriteConfirmed" class="bulk-upload-overwrite">
+              <NativeCheckbox v-if="uploadHasWarnings" v-model="overwriteConfirmed" class="bulk-upload-overwrite">
                 确认继续上传，并覆盖重复文件
-              </el-checkbox>
+              </NativeCheckbox>
             </section>
           </section>
 
@@ -1354,7 +1354,7 @@ function formatFileSize(value: number) {
                 <h3>目标机器<em class="required-marker">*</em></h3>
                 <span>已选 {{ selectedTargets.length }} / {{ targets.length }}</span>
               </div>
-              <el-button :loading="isTargetsLoading" :disabled="isUploading" @click="openTargetPicker"><AppIcon name="server" :size="15" />选择机器</el-button>
+              <NativeButton :loading="isTargetsLoading" :disabled="isUploading" @click="openTargetPicker"><AppIcon name="server" :size="15" />选择机器</NativeButton>
             </header>
             <div v-if="!selectedTargets.length" class="bulk-target-empty">
               <AppIcon name="server" :size="28" />
@@ -1371,24 +1371,24 @@ function formatFileSize(value: number) {
                     <span class="bulk-selected-target-group">{{ target.groupName || '-' }}</span>
                   </span>
                 </div>
-                <el-button class="bulk-selected-target-remove" circle aria-label="移除目标机器" :disabled="isUploading || isCheckingUpload" @click="removeSelectedTarget(target.id)">
+                <NativeButton class="bulk-selected-target-remove" circle aria-label="移除目标机器" :disabled="isUploading || isCheckingUpload" @click="removeSelectedTarget(target.id)">
                   <AppIcon name="x" :size="14" />
-                </el-button>
+                </NativeButton>
               </div>
-              <el-button class="bulk-clear-targets" :disabled="isUploading || isCheckingUpload" @click="clearSelectedTargets">清空选择</el-button>
+              <NativeButton class="bulk-clear-targets" :disabled="isUploading || isCheckingUpload" @click="clearSelectedTargets">清空选择</NativeButton>
             </div>
           </section>
         </div>
         <footer class="bulk-workbench-footer">
-          <el-button :disabled="isCheckingUpload || isUploading" @click="switchBulkView('history')">返回记录</el-button>
-          <el-button :disabled="!canCheckUpload" :loading="isCheckingUpload" @click="checkBulkUpload">{{ isCheckingUpload ? '检查中...' : '检查文件' }}</el-button>
-          <el-button type="primary" :disabled="!canCreateUpload || (uploadHasWarnings && !overwriteConfirmed)" :loading="isUploading" @click="submitUploadFlow">
+          <NativeButton :disabled="isCheckingUpload || isUploading" @click="switchBulkView('history')">返回记录</NativeButton>
+          <NativeButton :disabled="!canCheckUpload" :loading="isCheckingUpload" @click="checkBulkUpload">{{ isCheckingUpload ? '检查中...' : '检查文件' }}</NativeButton>
+          <NativeButton type="primary" :disabled="!canCreateUpload || (uploadHasWarnings && !overwriteConfirmed)" :loading="isUploading" @click="submitUploadFlow">
             {{ isUploading ? '上传中...' : '开始上传' }}
-          </el-button>
+          </NativeButton>
         </footer>
       </section>
 
-      <el-dialog v-model="isTargetPickerOpen" class="bulk-target-picker-modal" title="选择机器" width="920px" @close="closeTargetPicker">
+      <NativeDialog v-model="isTargetPickerOpen" class="bulk-target-picker-modal" title="选择机器" width="920px" @close="closeTargetPicker">
           <header class="bulk-target-picker-title">
             <div>
               <h3>选择机器</h3>
@@ -1397,13 +1397,13 @@ function formatFileSize(value: number) {
           </header>
           <div class="bulk-target-picker-body">
             <aside class="bulk-target-group-tree" aria-label="目标分组树">
-              <el-button class="bulk-target-group-row bulk-target-group-root" :class="{ active: targetGroupFilter === null }" text @click="selectTargetGroup(null)">
+              <NativeButton class="bulk-target-group-row bulk-target-group-root" :class="{ active: targetGroupFilter === null }" text @click="selectTargetGroup(null)">
                 <span class="folder-caret"><AppIcon name="chevronDown" :size="15" /></span>
                 <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
                 <strong>全部分组</strong>
                 <em>{{ targets.length }}</em>
-              </el-button>
-              <el-button
+              </NativeButton>
+              <NativeButton
                 v-for="row in targetGroupRows"
                 :key="row.group.key"
                 class="bulk-target-group-row"
@@ -1418,24 +1418,24 @@ function formatFileSize(value: number) {
                 <span class="folder-icon"><AppIcon name="folder" :size="16" /></span>
                 <strong>{{ row.group.label }}</strong>
                 <em>{{ row.group.count }}</em>
-              </el-button>
+              </NativeButton>
               <div v-if="!targetGroupRows.length" class="bulk-empty">{{ isTargetsLoading ? '加载中...' : '暂无可执行分组' }}</div>
             </aside>
             <section class="bulk-target-picker-list-panel">
               <header>
-                <el-input v-model="targetPickerKeyword" clearable placeholder="搜索主机 / IP / 分组" />
-                <el-tag type="info" effect="plain">已选 {{ draftSelectedTargets.length }} / {{ targets.length }}</el-tag>
+                <NativeInput v-model="targetPickerKeyword" clearable placeholder="搜索主机 / IP / 分组" />
+                <NativeTag type="info" effect="plain">已选 {{ draftSelectedTargets.length }} / {{ targets.length }}</NativeTag>
               </header>
               <div class="bulk-target-picker-list">
                 <div class="bulk-target-picker-row head">
-                  <el-checkbox class="bulk-target-picker-check" :model-value="allPickerTargetsSelected" :disabled="!pickerTargets.length" @change="toggleAllPickerTargetsFromEvent" />
+                  <NativeCheckbox class="bulk-target-picker-check" :model-value="allPickerTargetsSelected" :disabled="!pickerTargets.length" @change="toggleAllPickerTargetsFromEvent" />
                   <span>主机</span>
                   <span>IP地址</span>
                   <span>用户</span>
                   <span>分组</span>
                 </div>
                 <label v-for="target in pickerTargets" :key="target.id" class="bulk-target-picker-row">
-                  <el-checkbox :model-value="draftTargetIds.has(target.id)" @change="toggleDraftTargetFromEvent(target.id, $event)" />
+                  <NativeCheckbox :model-value="draftTargetIds.has(target.id)" @change="toggleDraftTargetFromEvent(target.id, $event)" />
                   <strong :title="target.name">{{ target.name }}</strong>
                   <span :title="target.privateIp || '-'">{{ target.privateIp || '-' }}</span>
                   <span :title="target.loginUser || '-'">{{ target.loginUser || '-' }}</span>
@@ -1446,12 +1446,12 @@ function formatFileSize(value: number) {
             </section>
           </div>
           <template #footer>
-            <el-button @click="closeTargetPicker">取消</el-button>
-            <el-button type="primary" @click="confirmTargetSelection">确定选择</el-button>
+            <NativeButton @click="closeTargetPicker">取消</NativeButton>
+            <NativeButton type="primary" @click="confirmTargetSelection">确定选择</NativeButton>
           </template>
-      </el-dialog>
+      </NativeDialog>
 
-      <el-drawer v-model="isTaskDetailOpen" class="bulk-task-detail bulk-task-detail-modal" title="执行详情" size="760px" @close="closeTaskDetail">
+      <NativeDrawer v-model="isTaskDetailOpen" class="bulk-task-detail bulk-task-detail-modal" title="执行详情" size="760px" @close="closeTaskDetail">
           <template v-if="selectedTask">
             <header>
               <div>
@@ -1459,29 +1459,29 @@ function formatFileSize(value: number) {
                 <p>{{ selectedTask.createdBy }} · {{ selectedTaskExecutionType }} · {{ statusLabel(selectedTask.status) }} · {{ selectedTaskProgress }}%</p>
               </div>
               <div>
-                <el-button :disabled="!selectedTask.results.length" @click="toggleAllResults">{{ allResultsExpanded ? '全部收起' : '全部展开' }}</el-button>
-                <el-button v-if="canCancel" :disabled="!selectedTaskCanCancel || isControlBusy" @click="cancelSelectedTask">取消</el-button>
-                <el-button v-if="canDelete" type="danger" plain :disabled="isControlBusy" @click="deleteSelectedTask"><AppIcon name="trash" :size="15" />删除</el-button>
+                <NativeButton :disabled="!selectedTask.results.length" @click="toggleAllResults">{{ allResultsExpanded ? '全部收起' : '全部展开' }}</NativeButton>
+                <NativeButton v-if="canCancel" :disabled="!selectedTaskCanCancel || isControlBusy" @click="cancelSelectedTask">取消</NativeButton>
+                <NativeButton v-if="canDelete" type="danger" plain :disabled="isControlBusy" @click="deleteSelectedTask"><AppIcon name="trash" :size="15" />删除</NativeButton>
               </div>
             </header>
             <pre class="bulk-command-block">{{ selectedTask.command }}</pre>
             <div v-if="selectedTask.executionType === 'file_upload'" class="bulk-upload-detail-switch">
-              <el-button :type="uploadDetailView === 'hosts' ? 'primary' : 'default'" :class="{ active: uploadDetailView === 'hosts' }" @click="setUploadDetailView('hosts')">
+              <NativeButton :type="uploadDetailView === 'hosts' ? 'primary' : 'default'" :class="{ active: uploadDetailView === 'hosts' }" @click="setUploadDetailView('hosts')">
                 <AppIcon name="server" :size="14" />
                 主机列表
-              </el-button>
-              <el-button :type="uploadDetailView === 'files' ? 'primary' : 'default'" :class="{ active: uploadDetailView === 'files' }" @click="setUploadDetailView('files')">
+              </NativeButton>
+              <NativeButton :type="uploadDetailView === 'files' ? 'primary' : 'default'" :class="{ active: uploadDetailView === 'files' }" @click="setUploadDetailView('files')">
                 <AppIcon name="folder" :size="14" />
                 上传文件
-              </el-button>
-              <el-button :type="uploadDetailView === 'directory' ? 'primary' : 'default'" :class="{ active: uploadDetailView === 'directory' }" @click="setUploadDetailView('directory')">
+              </NativeButton>
+              <NativeButton :type="uploadDetailView === 'directory' ? 'primary' : 'default'" :class="{ active: uploadDetailView === 'directory' }" @click="setUploadDetailView('directory')">
                 <AppIcon name="terminal" :size="14" />
                 远程目录
-              </el-button>
-              <el-tag class="bulk-upload-detail-size" type="info" effect="plain">大小 {{ formatFileSize(selectedTaskUploadSize) }}</el-tag>
+              </NativeButton>
+              <NativeTag class="bulk-upload-detail-size" type="info" effect="plain">大小 {{ formatFileSize(selectedTaskUploadSize) }}</NativeTag>
             </div>
-            <el-alert v-if="selectedTask.error" class="bulk-error" type="error" :closable="false" :title="selectedTask.error" />
-            <el-progress :percentage="selectedTaskProgress" :stroke-width="10" />
+            <NativeAlert v-if="selectedTask.error" class="bulk-error" type="error" :closable="false" :title="selectedTask.error" />
+            <NativeProgress :percentage="selectedTaskProgress" :stroke-width="10" />
 
             <section v-if="selectedTask.executionType === 'playbook'" class="bulk-ansible-log-panel">
               <header class="bulk-ansible-log-header">
@@ -1504,7 +1504,7 @@ function formatFileSize(value: number) {
             </section>
 
             <div v-else-if="selectedTask.executionType === 'file_upload' && uploadDetailView === 'files'" class="bulk-upload-detail-tree">
-              <el-button
+              <NativeButton
                 v-for="row in uploadFileTreeRows"
                 :key="row.key"
                 class="bulk-upload-tree-row"
@@ -1519,8 +1519,8 @@ function formatFileSize(value: number) {
                 <AppIcon :name="row.type === 'directory' ? (row.expanded ? 'folderOpen' : 'folder') : 'file'" :size="14" />
                 <strong :title="row.file?.filename || row.name">{{ row.name }}</strong>
                 <em>{{ row.type === 'file' ? formatFileSize(row.size) : '文件夹' }}</em>
-              </el-button>
-              <el-empty v-if="!uploadFileTreeRows.length" class="bulk-empty" description="暂无上传文件" />
+              </NativeButton>
+              <NativeEmpty v-if="!uploadFileTreeRows.length" class="bulk-empty" description="暂无上传文件" />
             </div>
 
             <div v-else-if="selectedTask.executionType === 'file_upload' && uploadDetailView === 'directory'" class="bulk-upload-detail-directory">
@@ -1543,18 +1543,18 @@ function formatFileSize(value: number) {
                   <strong>{{ result.hostName }}</strong>
                   <span>{{ result.hostIp }}:{{ result.hostPort }}</span>
                   <span>{{ result.loginUser || '-' }}</span>
-                  <el-tag class="bulk-status" :class="`status-${result.status}`" effect="plain">{{ statusLabel(result.status) }}</el-tag>
+                  <NativeTag class="bulk-status" :class="`status-${result.status}`" effect="plain">{{ statusLabel(result.status) }}</NativeTag>
                   <span>{{ result.exitCode ?? '-' }}</span>
                   <span>{{ result.transfers?.length ? `${transferProgress(result.transfers)}%` : formatTime(result.finishedAt || result.startedAt) }}</span>
-                  <el-button circle @click="toggleResult(result.id)">
+                  <NativeButton circle @click="toggleResult(result.id)">
                     <AppIcon :name="isResultExpanded(result.id) ? 'chevronDown' : 'chevronRight'" :size="15" />
-                  </el-button>
+                  </NativeButton>
                 </div>
                 <div v-if="isResultExpanded(result.id)" class="bulk-result-output">
                   <div v-if="result.transfers?.length" class="bulk-transfer-matrix">
                     <div v-for="transfer in result.transfers" :key="transfer.id" class="bulk-transfer-row">
                       <strong>{{ transfer.remotePath }}</strong>
-                      <el-tag class="bulk-status" :class="`status-${transfer.status}`" effect="plain">{{ statusLabel(transfer.status) }}</el-tag>
+                      <NativeTag class="bulk-status" :class="`status-${transfer.status}`" effect="plain">{{ statusLabel(transfer.status) }}</NativeTag>
                       <span>{{ formatFileSize(transfer.size) }}</span>
                       <em>{{ transfer.error || '-' }}</em>
                     </div>
@@ -1572,8 +1572,8 @@ function formatFileSize(value: number) {
               </template>
             </div>
           </template>
-          <el-empty v-else class="bulk-empty" description="请选择一个任务查看结果" />
-      </el-drawer>
+          <NativeEmpty v-else class="bulk-empty" description="请选择一个任务查看结果" />
+      </NativeDrawer>
     </article>
     <div v-else class="permission-empty">暂无可用功能</div>
   </section>

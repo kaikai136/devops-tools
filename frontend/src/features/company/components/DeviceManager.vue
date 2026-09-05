@@ -272,44 +272,44 @@ function setPageSize(size: number) {
     <article class="device-list-panel">
       <div class="device-list-toolbar">
         <div v-if="canUsePageAction('companyDevices', 'filter')" class="device-toolbar-filters">
-          <el-select v-model="statusFilter" class="device-toolbar-select" aria-label="资产状态" placeholder="资产状态" clearable>
-            <el-option value="" label="资产状态" />
-            <el-option value="using" label="使用中" />
-            <el-option value="idle" label="闲置" />
-            <el-option value="repair" label="维修" />
-            <el-option value="scrapped" label="报废" />
-          </el-select>
-          <el-select v-model="categoryFilter" class="device-toolbar-select" aria-label="资产类别" placeholder="资产类别" clearable>
-            <el-option value="" label="资产类别" />
-            <el-option value="固定资产" label="固定资产" />
-            <el-option value="耗材" label="耗材" />
-          </el-select>
-          <el-input v-model="search" placeholder="输入名称等信息" class="device-toolbar-search" aria-label="输入名称等信息" clearable />
-          <el-button type="danger" @click="resetFilters">重置</el-button>
+          <NativeSelect v-model="statusFilter" class="device-toolbar-select" aria-label="资产状态" placeholder="资产状态" clearable>
+            <NativeOption value="" label="资产状态" />
+            <NativeOption value="using" label="使用中" />
+            <NativeOption value="idle" label="闲置" />
+            <NativeOption value="repair" label="维修" />
+            <NativeOption value="scrapped" label="报废" />
+          </NativeSelect>
+          <NativeSelect v-model="categoryFilter" class="device-toolbar-select" aria-label="资产类别" placeholder="资产类别" clearable>
+            <NativeOption value="" label="资产类别" />
+            <NativeOption value="固定资产" label="固定资产" />
+            <NativeOption value="耗材" label="耗材" />
+          </NativeSelect>
+          <NativeInput v-model="search" placeholder="输入名称等信息" class="device-toolbar-search" aria-label="输入名称等信息" clearable />
+          <NativeButton type="danger" @click="resetFilters">重置</NativeButton>
         </div>
         <div class="device-toolbar-actions">
-          <el-button
+          <NativeButton
             v-if="canUsePageAction('companyDevices', 'delete')"
             type="danger"
             :disabled="!selectedDevices.length"
             @click="confirmDeleteSelectedDevices"
           >
             <AppIcon name="trash" :size="15" />删除
-          </el-button>
-          <el-button
+          </NativeButton>
+          <NativeButton
             v-if="canUsePageAction('companyDevices', 'create')"
             type="primary"
             @click="openCreateDeviceDialog"
           >
             <AppIcon name="plus" :size="15" />添加
-          </el-button>
-          <el-button
+          </NativeButton>
+          <NativeButton
             v-if="canUsePageAction('companyDevices', 'export')"
             type="primary"
             @click="exportDevices"
           >
             <AppIcon name="download" :size="15" />导出Excel
-          </el-button>
+          </NativeButton>
         </div>
       </div>
 
@@ -318,10 +318,10 @@ function setPageSize(size: number) {
       </div>
       <div v-else-if="loadError" class="device-load-error">
         <span>{{ loadError }}</span>
-        <el-button type="primary" @click="loadDevices">重试</el-button>
+        <NativeButton type="primary" @click="loadDevices">重试</NativeButton>
       </div>
       <div v-else class="device-table-wrap">
-        <el-table
+        <NativeTable
           :data="pagedDevices"
           row-key="id"
           class="device-table"
@@ -332,41 +332,41 @@ function setPageSize(size: number) {
           empty-text="暂无资产数据"
           @selection-change="handleSelectionChange"
         >
-          <el-table-column type="selection" width="40" reserve-selection />
-          <el-table-column type="index" label="序号" width="70" :index="(index) => (page - 1) * pageSize + index + 1" />
-          <el-table-column prop="name" label="资产名称" min-width="140" />
-          <el-table-column prop="category" label="资产类别" min-width="100">
+          <NativeTableColumn type="selection" width="40" reserve-selection />
+          <NativeTableColumn type="index" label="序号" width="70" :index="(index) => (page - 1) * pageSize + index + 1" />
+          <NativeTableColumn prop="name" label="资产名称" min-width="140" />
+          <NativeTableColumn prop="category" label="资产类别" min-width="100">
             <template #default="{ row }">
               <span class="device-category-badge" :class="categoryClass(row.category)">{{ row.category }}</span>
             </template>
-          </el-table-column>
-          <el-table-column prop="code" label="资产编码" min-width="120">
+          </NativeTableColumn>
+          <NativeTableColumn prop="code" label="资产编码" min-width="120">
             <template #default="{ row }">{{ row.code || '-' }}</template>
-          </el-table-column>
-          <el-table-column prop="spec" label="规格说明" min-width="190" show-overflow-tooltip>
+          </NativeTableColumn>
+          <NativeTableColumn prop="spec" label="规格说明" min-width="190" show-overflow-tooltip>
             <template #default="{ row }">{{ row.spec || '-' }}</template>
-          </el-table-column>
-          <el-table-column prop="status" label="资产状态" min-width="100">
+          </NativeTableColumn>
+          <NativeTableColumn prop="status" label="资产状态" min-width="100">
             <template #default="{ row }">
-              <el-tag :type="statusTagType(row.status)" size="small" effect="dark">{{ statusText(row.status) }}</el-tag>
+              <NativeTag :type="statusTagType(row.status)" size="small" effect="dark">{{ statusText(row.status) }}</NativeTag>
             </template>
-          </el-table-column>
-          <el-table-column prop="user" label="使用人员" min-width="100">
+          </NativeTableColumn>
+          <NativeTableColumn prop="user" label="使用人员" min-width="100">
             <template #default="{ row }">{{ row.user || '-' }}</template>
-          </el-table-column>
-          <el-table-column prop="brand" label="品牌名称" min-width="100">
+          </NativeTableColumn>
+          <NativeTableColumn prop="brand" label="品牌名称" min-width="100">
             <template #default="{ row }">{{ row.brand || '-' }}</template>
-          </el-table-column>
-          <el-table-column prop="purchaseTime" label="采购时间" min-width="120">
+          </NativeTableColumn>
+          <NativeTableColumn prop="purchaseTime" label="采购时间" min-width="120">
             <template #default="{ row }">{{ row.purchaseTime || '-' }}</template>
-          </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="120">
+          </NativeTableColumn>
+          <NativeTableColumn prop="remark" label="备注" min-width="120">
             <template #default="{ row }">{{ row.remark || '-' }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
+          </NativeTableColumn>
+          <NativeTableColumn label="操作" width="140" fixed="right">
             <template #default="{ row }">
               <div class="device-row-actions">
-                <el-button
+                <NativeButton
                   v-if="canUsePageAction('companyDevices', 'edit')"
                   type="primary"
                   size="small"
@@ -374,8 +374,8 @@ function setPageSize(size: number) {
                   @click="openEditDeviceDialog(row)"
                 >
                   编辑
-                </el-button>
-                <el-button
+                </NativeButton>
+                <NativeButton
                   v-if="canUsePageAction('companyDevices', 'delete')"
                   type="danger"
                   size="small"
@@ -383,11 +383,11 @@ function setPageSize(size: number) {
                   @click="confirmDeleteDevice(row)"
                 >
                   删除
-                </el-button>
+                </NativeButton>
               </div>
             </template>
-          </el-table-column>
-        </el-table>
+          </NativeTableColumn>
+        </NativeTable>
       </div>
 
       <div class="device-pagination">
@@ -396,7 +396,7 @@ function setPageSize(size: number) {
             <span>共 {{ filteredDevices.length }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>
-          <el-pagination
+          <NativePagination
             :current-page="page"
             :page-size="pageSize"
             :total="filteredDevices.length"
@@ -415,55 +415,55 @@ function setPageSize(size: number) {
       </div>
     </article>
 
-    <el-dialog
+    <NativeDialog
       :model-value="deviceDialog !== null"
       :title="deviceDialog?.mode === 'edit' ? '编辑设备' : '添加设备'"
       width="640px"
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible && !isSaving) finishDeviceDialog(); }"
     >
-      <el-form :model="deviceForm" label-position="top" class="device-form-modal">
+      <NativeForm :model="deviceForm" label-position="top" class="device-form-modal">
         <p v-if="dialogError" class="device-form-error">{{ dialogError }}</p>
-        <el-form-item label="资产名称" :error="formErrors.name">
-          <el-input v-model="deviceForm.name" autofocus />
-        </el-form-item>
-        <el-form-item label="资产类别" :error="formErrors.category">
-          <el-select v-model="deviceForm.category">
-            <el-option value="固定资产" label="固定资产" />
-            <el-option value="耗材" label="耗材" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="资产编码">
-          <el-input v-model="deviceForm.code" />
-        </el-form-item>
-        <el-form-item label="规格说明">
-          <el-input v-model="deviceForm.spec" />
-        </el-form-item>
-        <el-form-item label="资产状态">
-          <el-select v-model="deviceForm.status">
-            <el-option value="using" label="使用中" />
-            <el-option value="idle" label="闲置" />
-            <el-option value="repair" label="维修" />
-            <el-option value="scrapped" label="报废" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="使用人员">
-          <el-input v-model="deviceForm.user" />
-        </el-form-item>
-        <el-form-item label="品牌名称">
-          <el-input v-model="deviceForm.brand" />
-        </el-form-item>
-        <el-form-item label="采购时间">
-          <el-date-picker v-model="deviceForm.purchaseTime" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
-        </el-form-item>
-        <el-form-item label="备注" class="device-form-wide">
-          <el-input v-model="deviceForm.remark" type="textarea" :rows="3" />
-        </el-form-item>
-      </el-form>
+        <NativeFormItem label="资产名称" :error="formErrors.name">
+          <NativeInput v-model="deviceForm.name" autofocus />
+        </NativeFormItem>
+        <NativeFormItem label="资产类别" :error="formErrors.category">
+          <NativeSelect v-model="deviceForm.category">
+            <NativeOption value="固定资产" label="固定资产" />
+            <NativeOption value="耗材" label="耗材" />
+          </NativeSelect>
+        </NativeFormItem>
+        <NativeFormItem label="资产编码">
+          <NativeInput v-model="deviceForm.code" />
+        </NativeFormItem>
+        <NativeFormItem label="规格说明">
+          <NativeInput v-model="deviceForm.spec" />
+        </NativeFormItem>
+        <NativeFormItem label="资产状态">
+          <NativeSelect v-model="deviceForm.status">
+            <NativeOption value="using" label="使用中" />
+            <NativeOption value="idle" label="闲置" />
+            <NativeOption value="repair" label="维修" />
+            <NativeOption value="scrapped" label="报废" />
+          </NativeSelect>
+        </NativeFormItem>
+        <NativeFormItem label="使用人员">
+          <NativeInput v-model="deviceForm.user" />
+        </NativeFormItem>
+        <NativeFormItem label="品牌名称">
+          <NativeInput v-model="deviceForm.brand" />
+        </NativeFormItem>
+        <NativeFormItem label="采购时间">
+          <NativeDatePicker v-model="deviceForm.purchaseTime" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
+        </NativeFormItem>
+        <NativeFormItem label="备注" class="device-form-wide">
+          <NativeInput v-model="deviceForm.remark" type="textarea" :rows="3" />
+        </NativeFormItem>
+      </NativeForm>
       <template #footer>
-        <el-button :disabled="isSaving" @click="closeDeviceDialog">取消</el-button>
-        <el-button type="primary" :disabled="isSaving" @click="saveDeviceDialog">{{ isSaving ? '保存中...' : '保存' }}</el-button>
+        <NativeButton :disabled="isSaving" @click="closeDeviceDialog">取消</NativeButton>
+        <NativeButton type="primary" :disabled="isSaving" @click="saveDeviceDialog">{{ isSaving ? '保存中...' : '保存' }}</NativeButton>
       </template>
-    </el-dialog>
+    </NativeDialog>
   </section>
 </template>

@@ -19,7 +19,7 @@ defineEmits<{
 </script>
 
 <template>
-  <el-dialog
+  <NativeDialog
     :model-value="true"
     title="重置密码"
     width="460px"
@@ -27,10 +27,10 @@ defineEmits<{
     :close-on-click-modal="false"
     @update:model-value="(visible) => { if (!visible) $emit('close'); }"
   >
-    <el-form label-position="top" class="user-form-modal compact" @submit.prevent="$emit('submit')">
-      <el-form-item label="新密码" required>
-        <el-input v-model="password" autofocus type="password" autocomplete="new-password" placeholder="至少 8 位，含数字和大小写字母" show-password />
-      </el-form-item>
+    <NativeForm label-position="top" class="user-form-modal compact" @submit.prevent="$emit('submit')">
+      <NativeFormItem label="新密码" required>
+        <NativeInput v-model="password" autofocus type="password" autocomplete="new-password" placeholder="至少 8 位，含数字和大小写字母" show-password />
+      </NativeFormItem>
       <div class="user-password-meter compact-meter" :class="strengthClass">
         <div class="user-password-meter-head">
           <span>{{ hint }}</span>
@@ -46,10 +46,10 @@ defineEmits<{
           {{ rule.label }}
         </span>
       </div>
-    </el-form>
+    </NativeForm>
     <template #footer>
-      <el-button @click="$emit('close')">取消</el-button>
-      <el-button type="primary" @click="$emit('submit')">保存</el-button>
+      <NativeButton @click="$emit('close')">取消</NativeButton>
+      <NativeButton type="primary" @click="$emit('submit')">保存</NativeButton>
     </template>
-  </el-dialog>
+  </NativeDialog>
 </template>

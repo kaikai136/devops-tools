@@ -22,21 +22,21 @@ const {
   <section v-if="activeTool === 'ip'" class="tool-stack ip-page">
     <template v-if="canUseAnyPageAction('ip', ['scan', 'select_host'])">
       <article v-if="canUsePageAction('ip', 'scan')" class="panel ip-toolbar">
-        <el-form inline label-position="left" @submit.prevent="scanIp">
-          <el-form-item label="网段">
-            <el-input v-model="networkSegment" @keyup.enter="scanIp" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="isScanningIp" @click="scanIp">
+        <NativeForm inline label-position="left" @submit.prevent="scanIp">
+          <NativeFormItem label="网段">
+            <NativeInput v-model="networkSegment" @keyup.enter="scanIp" />
+          </NativeFormItem>
+          <NativeFormItem>
+            <NativeButton type="primary" :loading="isScanningIp" @click="scanIp">
               {{ isScanningIp ? '扫描中' : '扫描 IP' }}
-            </el-button>
-          </el-form-item>
-        </el-form>
-        <el-tag class="selected-chip" type="info" effect="plain">选中 IP {{ selectedHost }}</el-tag>
+            </NativeButton>
+          </NativeFormItem>
+        </NativeForm>
+        <NativeTag class="selected-chip" type="info" effect="plain">选中 IP {{ selectedHost }}</NativeTag>
       </article>
       <article v-if="canUsePageAction('ip', 'scan')" class="panel progress-panel">
         <div><span>扫描进度</span><strong>{{ ipProgress }}%</strong></div>
-        <el-progress :percentage="ipProgress" :stroke-width="10" />
+        <NativeProgress :percentage="ipProgress" :stroke-width="10" />
       </article>
       <div v-if="canUsePageAction('ip', 'scan') || hosts.length" class="metric-row">
         <article><strong>{{ hosts.length }}/254</strong><span>已扫描</span></article>
@@ -46,7 +46,7 @@ const {
       </div>
       <article class="ip-grid-panel">
         <template v-if="canUsePageAction('ip', 'select_host')">
-          <el-button
+          <NativeButton
             v-for="host in hosts"
             :key="host.ip"
             class="ip-cell"
@@ -56,10 +56,10 @@ const {
             @dblclick="canUsePageAction('ports', 'ping') && openPingFromHost(host.ip)"
           >
             {{ host.host }}
-          </el-button>
+          </NativeButton>
         </template>
         <template v-else>
-          <el-tag
+          <NativeTag
             v-for="host in hosts"
             :key="host.ip"
             class="ip-cell"
@@ -68,7 +68,7 @@ const {
             effect="plain"
           >
             {{ host.host }}
-          </el-tag>
+          </NativeTag>
         </template>
       </article>
     </template>

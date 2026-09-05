@@ -391,9 +391,9 @@ function formatDate(value: string | null) {
       </div>
       <label class="market-select-field targetSelector">
         <span>目标主机</span>
-        <el-select v-model="selectedTargetId">
-          <el-option v-for="target in targets" :key="target.id" :value="target.id" :label="`${target.name} · ${target.ip}`" />
-        </el-select>
+        <NativeSelect v-model="selectedTargetId">
+          <NativeOption v-for="target in targets" :key="target.id" :value="target.id" :label="`${target.name} · ${target.ip}`" />
+        </NativeSelect>
       </label>
     </header>
 
@@ -405,11 +405,11 @@ function formatDate(value: string | null) {
         <div><strong>{{ adaptedApps }}</strong><span>可直接安装</span></div>
       </div>
       <div class="market-hero__actions">
-        <el-tag class="market-source-mode" type="info" effect="plain">{{ sourceSummary }}</el-tag>
-        <el-button :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="15" />刷新状态</el-button>
-        <el-button v-if="canManageSources" :loading="isSyncingSources" @click="syncSources">
+        <NativeTag class="market-source-mode" type="info" effect="plain">{{ sourceSummary }}</NativeTag>
+        <NativeButton :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="15" />刷新状态</NativeButton>
+        <NativeButton v-if="canManageSources" :loading="isSyncingSources" @click="syncSources">
           <AppIcon name="download" :size="15" />同步目录
-        </el-button>
+        </NativeButton>
       </div>
     </section>
 
@@ -433,18 +433,18 @@ function formatDate(value: string | null) {
       </div>
       <strong class="app-job-banner__percent">{{ runningTasks.length ? '执行中' : statusLabels[activeTask.status] || activeTask.status }}</strong>
       <div class="app-job-banner__actions">
-        <el-button v-if="['queued', 'running'].includes(activeTask.status)" type="danger" plain @click="cancelTask(activeTask)">停止任务</el-button>
-        <el-button @click="taskDetailsOpen = true">查看进度 <AppIcon name="chevronRight" :size="14" /></el-button>
+        <NativeButton v-if="['queued', 'running'].includes(activeTask.status)" type="danger" plain @click="cancelTask(activeTask)">停止任务</NativeButton>
+        <NativeButton @click="taskDetailsOpen = true">查看进度 <AppIcon name="chevronRight" :size="14" /></NativeButton>
       </div>
     </section>
 
     <section class="market-toolbar">
       <label class="market-search">
         <AppIcon name="search" :size="18" />
-        <el-input v-model="searchKeyword" clearable placeholder="搜索应用名称、功能或容器..." />
+        <NativeInput v-model="searchKeyword" clearable placeholder="搜索应用名称、功能或容器..." />
       </label>
-      <el-button-group class="market-segment" aria-label="来源筛选">
-        <el-button
+      <NativeButton-group class="market-segment" aria-label="来源筛选">
+        <NativeButton
           v-for="item in sourceSegments"
           :key="item.key"
           :type="sourceFilter === item.key || (!sourceFilter && item.key === 'all') ? 'primary' : 'default'"
@@ -452,10 +452,10 @@ function formatDate(value: string | null) {
           @click="sourceFilter = item.key === 'all' ? '' : item.key"
         >
           {{ item.label }}
-        </el-button>
-      </el-button-group>
-      <el-button-group class="market-segment" aria-label="状态筛选">
-        <el-button
+        </NativeButton>
+      </NativeButton-group>
+      <NativeButton-group class="market-segment" aria-label="状态筛选">
+        <NativeButton
           v-for="item in statusSegments"
           :key="item.key"
           :type="installStatusFilter === item.key ? 'primary' : 'default'"
@@ -463,17 +463,17 @@ function formatDate(value: string | null) {
           @click="installStatusFilter = item.key"
         >
           {{ item.label }}
-        </el-button>
-      </el-button-group>
+        </NativeButton>
+      </NativeButton-group>
     </section>
 
     <nav class="market-categories" aria-label="应用分类">
-      <el-button :type="!categoryFilter || categoryFilter === 'all' ? 'primary' : 'default'" :class="{ 'is-active': !categoryFilter || categoryFilter === 'all' }" @click="categoryFilter = 'all'">
+      <NativeButton :type="!categoryFilter || categoryFilter === 'all' ? 'primary' : 'default'" :class="{ 'is-active': !categoryFilter || categoryFilter === 'all' }" @click="categoryFilter = 'all'">
         全部 <span>{{ categoryCounts.all }}</span>
-      </el-button>
-      <el-button v-for="category in categories" :key="category" :type="categoryFilter === category ? 'primary' : 'default'" :class="{ 'is-active': categoryFilter === category }" @click="categoryFilter = category">
+      </NativeButton>
+      <NativeButton v-for="category in categories" :key="category" :type="categoryFilter === category ? 'primary' : 'default'" :class="{ 'is-active': categoryFilter === category }" @click="categoryFilter = category">
         {{ category }} <span>{{ categoryCounts[category] || 0 }}</span>
-      </el-button>
+      </NativeButton>
     </nav>
 
     <section v-if="filteredApps.length" class="app-grid market-app-grid" aria-live="polite">
@@ -483,14 +483,14 @@ function formatDate(value: string | null) {
           <span class="app-card__body">
             <span class="app-card__title">
               <strong>{{ app.name }}</strong>
-              <el-tag v-if="app.installed" class="status-pill" size="small" effect="plain">{{ statusLabels[app.status || 'unknown'] || app.status }}</el-tag>
+              <NativeTag v-if="app.installed" class="status-pill" size="small" effect="plain">{{ statusLabels[app.status || 'unknown'] || app.status }}</NativeTag>
             </span>
             <span class="app-card__meta market-app-meta">
-              <el-tag size="small" effect="plain">{{ app.category }}</el-tag>
-              <el-tag size="small" effect="plain">{{ app.source === 'builtin' ? '内置' : '第三方' }}</el-tag>
-              <el-tag v-if="app.capabilities.includes('install') || app.capabilities.includes('update')" class="is-adapted" size="small" type="success" effect="plain">
+              <NativeTag size="small" effect="plain">{{ app.category }}</NativeTag>
+              <NativeTag size="small" effect="plain">{{ app.source === 'builtin' ? '内置' : '第三方' }}</NativeTag>
+              <NativeTag v-if="app.capabilities.includes('install') || app.capabilities.includes('update')" class="is-adapted" size="small" type="success" effect="plain">
                 <AppIcon name="shield" :size="12" />可直接安装
-              </el-tag>
+              </NativeTag>
             </span>
             <span class="app-card__description">{{ app.description }}</span>
           </span>
@@ -500,15 +500,15 @@ function formatDate(value: string | null) {
             <span v-if="app.installed" :class="['runtime-dot', `is-${app.status || 'unknown'}`]" />
             {{ app.version }} · {{ app.appId }}
           </span>
-          <el-button v-if="!app.installed && app.capabilities.includes('install')" type="primary" @click="openAndStart(app, 'install')">
+          <NativeButton v-if="!app.installed && app.capabilities.includes('install')" type="primary" @click="openAndStart(app, 'install')">
             <AppIcon name="download" :size="14" />安装
-          </el-button>
-          <el-button v-else @click="openApp(app)">{{ app.installed ? '管理' : '了解详情' }}</el-button>
+          </NativeButton>
+          <NativeButton v-else @click="openApp(app)">{{ app.installed ? '管理' : '了解详情' }}</NativeButton>
         </footer>
       </article>
     </section>
 
-    <el-empty v-else class="market-empty" description="没有符合条件的应用。尝试清除搜索词或切换分类与状态筛选。" />
+    <NativeEmpty v-else class="market-empty" description="没有符合条件的应用。尝试清除搜索词或切换分类与状态筛选。" />
 
     <section v-if="installStatusFilter === 'installed'" class="install-more-card">
       <span><AppIcon name="globe" :size="22" /></span>
@@ -516,7 +516,7 @@ function formatDate(value: string | null) {
         <strong>{{ installedApps ? '还想安装更多应用？' : '还没有安装应用' }}</strong>
         <p>前往完整应用列表，选择支持后台安装的应用；安装期间可以继续使用面板。</p>
       </div>
-      <el-button type="primary" @click="installStatusFilter = 'all'">浏览全部应用 <AppIcon name="chevronRight" :size="16" /></el-button>
+      <NativeButton type="primary" @click="installStatusFilter = 'all'">浏览全部应用 <AppIcon name="chevronRight" :size="16" /></NativeButton>
     </section>
 
     <footer class="market-result">
@@ -524,7 +524,7 @@ function formatDate(value: string | null) {
       <span>目录来源 · {{ sourceSummary }} · 状态来源 · {{ targetSelector?.name || '目标主机' }}</span>
     </footer>
 
-    <el-drawer
+    <NativeDrawer
       :model-value="Boolean(selectedApp && !confirmInstallModal)"
       class="market-detail-modal"
       size="620px"
@@ -537,9 +537,9 @@ function formatDate(value: string | null) {
             <span class="app-detail-head__icon market-app-icon large">{{ appInitials(selectedApp) }}</span>
             <div>
               <span class="app-detail-head__badges">
-                <el-tag class="source-pill" effect="plain">{{ selectedApp.source === 'builtin' ? '内置' : '第三方' }}</el-tag>
-                <el-tag class="source-pill" effect="plain">{{ selectedApp.category }}</el-tag>
-                <el-tag class="source-pill" effect="plain">{{ statusLabels[selectedApp.status || 'not_installed'] || selectedApp.status }}</el-tag>
+                <NativeTag class="source-pill" effect="plain">{{ selectedApp.source === 'builtin' ? '内置' : '第三方' }}</NativeTag>
+                <NativeTag class="source-pill" effect="plain">{{ selectedApp.category }}</NativeTag>
+                <NativeTag class="source-pill" effect="plain">{{ statusLabels[selectedApp.status || 'not_installed'] || selectedApp.status }}</NativeTag>
               </span>
               <strong>{{ selectedApp.name }}</strong>
               <small><code>{{ selectedApp.appId }} · {{ selectedApp.version }}</code></small>
@@ -555,7 +555,7 @@ function formatDate(value: string | null) {
               <div><span>访问策略</span><strong>Compose 端口</strong><small>{{ ((selectedApp.manifest.ports as string[]) || []).join(', ') || '无端口' }}</small></div>
             </div>
             <div class="app-control-panel__actions market-action-bar">
-              <el-button
+              <NativeButton
                 v-for="action in selectedAppActions.filter((item) => item !== 'install')"
                 :key="action"
                 :type="action === 'uninstall' || action === 'stop' ? 'danger' : 'default'"
@@ -564,7 +564,7 @@ function formatDate(value: string | null) {
                 @click="startAction(action)"
               >
                 {{ actionLabels[action] }}
-              </el-button>
+              </NativeButton>
             </div>
           </section>
 
@@ -574,9 +574,9 @@ function formatDate(value: string | null) {
               <strong>当前未安装</strong>
               <p>此应用会通过服务端生成的受控 Compose 计划安装，提交前会展示容器、镜像、端口和目录。</p>
             </div>
-            <el-button type="primary" :disabled="!canRunAction('install')" @click="startAction('install')">
+            <NativeButton type="primary" :disabled="!canRunAction('install')" @click="startAction('install')">
               <AppIcon name="download" :size="16" />开始安装
-            </el-button>
+            </NativeButton>
           </div>
 
           <section class="market-detail-section">
@@ -596,13 +596,13 @@ function formatDate(value: string | null) {
             <div v-if="configSchema.length" class="market-config-form">
               <label v-for="field in configSchema" :key="field.key">
                 <span>{{ field.label }}<small v-if="field.required">*</small></span>
-                <el-input-number v-if="field.type === 'number'" v-model="configDraft[field.key]" :min="field.min" :max="field.max" />
-                <el-input v-else-if="field.type === 'password'" v-model="configDraft[field.key]" type="password" autocomplete="new-password" show-password />
-                <el-checkbox v-else-if="field.type === 'boolean'" v-model="configDraft[field.key]" class="market-checkbox">启用</el-checkbox>
-                <el-select v-else-if="field.type === 'select'" v-model="configDraft[field.key]">
-                  <el-option v-for="option in fieldOptions(field)" :key="String(option.value)" :value="option.value" :label="option.label" />
-                </el-select>
-                <el-input v-else v-model="configDraft[field.key]" />
+                <NativeNumberInput v-if="field.type === 'number'" v-model="configDraft[field.key]" :min="field.min" :max="field.max" />
+                <NativeInput v-else-if="field.type === 'password'" v-model="configDraft[field.key]" type="password" autocomplete="new-password" show-password />
+                <NativeCheckbox v-else-if="field.type === 'boolean'" v-model="configDraft[field.key]" class="market-checkbox">启用</NativeCheckbox>
+                <NativeSelect v-else-if="field.type === 'select'" v-model="configDraft[field.key]">
+                  <NativeOption v-for="option in fieldOptions(field)" :key="String(option.value)" :value="option.value" :label="option.label" />
+                </NativeSelect>
+                <NativeInput v-else v-model="configDraft[field.key]" />
               </label>
             </div>
             <p v-else class="market-muted">该应用无需额外配置。</p>
@@ -617,26 +617,26 @@ function formatDate(value: string | null) {
           </section>
         </div>
       </template>
-    </el-drawer>
+    </NativeDrawer>
 
-    <el-drawer v-model="taskDetailsOpen" class="market-task-detail-modal" size="620px" title="应用任务进度">
+    <NativeDrawer v-model="taskDetailsOpen" class="market-task-detail-modal" size="620px" title="应用任务进度">
       <template #default>
         <p>运行中任务每 2 秒刷新一次，完成后自动更新应用状态。</p>
         <div class="market-task-list">
           <article v-for="task in tasks" :key="task.id" class="market-task-row" :class="task.status">
             <div><strong>{{ task.appName }}</strong><span>{{ actionLabels[task.action] }} · {{ task.targetKey }} · {{ formatDate(task.createdAt) }}</span></div>
             <div>
-              <el-tag effect="plain">{{ statusLabels[task.status] || task.status }}</el-tag>
-              <el-button v-if="['queued', 'running'].includes(task.status)" size="small" @click="cancelTask(task)">取消</el-button>
+              <NativeTag effect="plain">{{ statusLabels[task.status] || task.status }}</NativeTag>
+              <NativeButton v-if="['queued', 'running'].includes(task.status)" size="small" @click="cancelTask(task)">取消</NativeButton>
             </div>
             <pre v-if="task.logOutput || task.error">{{ task.logOutput || task.error }}</pre>
           </article>
-          <el-empty v-if="!tasks.length" class="market-empty" description="暂无任务记录" />
+          <NativeEmpty v-if="!tasks.length" class="market-empty" description="暂无任务记录" />
         </div>
       </template>
-    </el-drawer>
+    </NativeDrawer>
 
-    <el-dialog v-model="confirmInstallModal" class="market-preview-modal confirmInstallModal" title="确认执行预览" width="680px">
+    <NativeDialog v-model="confirmInstallModal" class="market-preview-modal confirmInstallModal" title="确认执行预览" width="680px">
       <template v-if="previewPlan" #default>
         <header>
           <div><h3>确认执行预览</h3><p>{{ previewPlan.appName }} · {{ actionLabels[previewPlan.action] }} · {{ targetSelector?.name }}</p></div>
@@ -650,9 +650,9 @@ function formatDate(value: string | null) {
         <section class="market-preview-warning"><strong>风险提示</strong><p v-for="warning in previewPlan.warnings" :key="warning">{{ warning }}</p></section>
       </template>
       <template #footer>
-        <el-button @click="confirmInstallModal = false">取消</el-button>
-        <el-button type="primary" :loading="isSubmitting" @click="confirmPreviewTask">确认执行</el-button>
+        <NativeButton @click="confirmInstallModal = false">取消</NativeButton>
+        <NativeButton type="primary" :loading="isSubmitting" @click="confirmPreviewTask">确认执行</NativeButton>
       </template>
-    </el-dialog>
+    </NativeDialog>
   </section>
 </template>

@@ -180,18 +180,18 @@ watch(
     </div>
 
     <nav class="login-toolbar" aria-label="登录页外观设置" @click.stop>
-      <el-button circle :class="{ active: activePanel === 'color' }" title="主题颜色" aria-label="主题颜色" @click="togglePanel('color')">
+      <NativeButton circle :class="{ active: activePanel === 'color' }" title="主题颜色" aria-label="主题颜色" @click="togglePanel('color')">
         <AppIcon name="brush" :size="18" />
-      </el-button>
-      <el-button circle :class="{ active: activePanel === 'layout' }" title="登录页风格" aria-label="登录页风格" @click="togglePanel('layout')">
+      </NativeButton>
+      <NativeButton circle :class="{ active: activePanel === 'layout' }" title="登录页风格" aria-label="登录页风格" @click="togglePanel('layout')">
         <AppIcon name="dashboard" :size="18" />
-      </el-button>
-      <el-button circle title="语言" aria-label="语言">
+      </NativeButton>
+      <NativeButton circle title="语言" aria-label="语言">
         <AppIcon name="globe" :size="18" />
-      </el-button>
-      <el-button circle :class="{ active: effectiveDark }" :title="modeButtonLabel" :aria-label="modeButtonLabel" @click="toggleMode">
+      </NativeButton>
+      <NativeButton circle :class="{ active: effectiveDark }" :title="modeButtonLabel" :aria-label="modeButtonLabel" @click="toggleMode">
         <AppIcon :name="modeButtonIcon" :size="18" />
-      </el-button>
+      </NativeButton>
     </nav>
 
     <section class="login-card-shell" @click.stop>
@@ -226,7 +226,7 @@ watch(
         <p>切换不同布局与视觉样式</p>
       </header>
       <div class="login-layout-grid">
-        <el-button
+        <NativeButton
           v-for="layout in layoutOptions"
           :key="layout.key"
           class="login-layout-choice"
@@ -240,7 +240,7 @@ watch(
           <strong>{{ layout.title }}</strong>
           <small>{{ layout.subtitle }}</small>
           <span v-if="appearance.layout === layout.key" class="layout-check"><AppIcon name="check" :size="14" /></span>
-        </el-button>
+        </NativeButton>
       </div>
     </aside>
 
@@ -250,7 +250,7 @@ watch(
         <p>与主题配置项同步</p>
       </header>
       <div class="login-color-grid">
-        <el-button
+        <NativeButton
           v-for="color in colorOptions"
           :key="color"
           circle
@@ -260,14 +260,14 @@ watch(
           @click="selectColor(color)"
         >
           <AppIcon v-if="appearance.color === color" name="check" :size="16" />
-        </el-button>
+        </NativeButton>
       </div>
       <div class="login-custom-color">
-        <el-color-picker v-model="appearance.customColor" aria-label="自定义颜色" @change="updateCustomColorValue" />
+        <NativeColorPicker v-model="appearance.customColor" aria-label="自定义颜色" @change="updateCustomColorValue" />
         <div>
           <strong>自定义颜色</strong>
           <span>色盘或输入 HEX</span>
-          <el-input :model-value="appearance.customColor" maxlength="7" spellcheck="false" @input="updateCustomHex" />
+          <NativeInput :model-value="appearance.customColor" maxlength="7" spellcheck="false" @input="updateCustomHex" />
         </div>
       </div>
     </aside>

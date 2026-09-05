@@ -257,38 +257,38 @@ onBeforeUnmount(() => {
 <template>
   <section class="host-session-audit-page">
     <article v-if="canUseSessionAudit" class="panel host-session-audit-list-panel">
-      <el-form class="host-session-audit-toolbar" inline label-position="left" @submit.prevent="applySessionAuditFilters">
-        <el-form-item label="审计搜索">
-          <el-input v-model="sessionAuditSearch" placeholder="输入用户/命令/节点/IP/会话检索" clearable />
-        </el-form-item>
-        <el-form-item label="风险等级">
-          <el-select v-model="sessionAuditRiskLevel" placeholder="全部风险" clearable>
-            <el-option value="accept" label="接受" />
-            <el-option value="medium" label="中风险" />
-            <el-option value="high" label="高风险" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="资产节点">
-          <el-select v-model="sessionAuditHostId" placeholder="全部资产" clearable filterable>
-            <el-option v-for="host in managedHosts" :key="host.id" :value="host.id" :label="`${host.name} / ${host.privateIp}`" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button @click="resetSessionAuditFilters">重置</el-button>
-          <el-button type="primary" :loading="isSessionAuditLoading" @click="applySessionAuditFilters">查询</el-button>
-          <el-tooltip content="刷新" placement="top">
-            <el-button circle :disabled="isSessionAuditLoading" @click="loadSessionAudits">
+      <NativeForm class="host-session-audit-toolbar" inline label-position="left" @submit.prevent="applySessionAuditFilters">
+        <NativeFormItem label="审计搜索">
+          <NativeInput v-model="sessionAuditSearch" placeholder="输入用户/命令/节点/IP/会话检索" clearable />
+        </NativeFormItem>
+        <NativeFormItem label="风险等级">
+          <NativeSelect v-model="sessionAuditRiskLevel" placeholder="全部风险" clearable>
+            <NativeOption value="accept" label="接受" />
+            <NativeOption value="medium" label="中风险" />
+            <NativeOption value="high" label="高风险" />
+          </NativeSelect>
+        </NativeFormItem>
+        <NativeFormItem label="资产节点">
+          <NativeSelect v-model="sessionAuditHostId" placeholder="全部资产" clearable filterable>
+            <NativeOption v-for="host in managedHosts" :key="host.id" :value="host.id" :label="`${host.name} / ${host.privateIp}`" />
+          </NativeSelect>
+        </NativeFormItem>
+        <NativeFormItem>
+          <NativeButton @click="resetSessionAuditFilters">重置</NativeButton>
+          <NativeButton type="primary" :loading="isSessionAuditLoading" @click="applySessionAuditFilters">查询</NativeButton>
+          <NativeTooltip content="刷新" placement="top">
+            <NativeButton circle :disabled="isSessionAuditLoading" @click="loadSessionAudits">
               <AppIcon name="refresh" :size="16" />
-            </el-button>
-          </el-tooltip>
-        </el-form-item>
-      </el-form>
+            </NativeButton>
+          </NativeTooltip>
+        </NativeFormItem>
+      </NativeForm>
 
       <p v-if="sessionAuditError" class="host-session-audit-message">{{ sessionAuditError }}</p>
 
       <div class="host-session-audit-table-wrap">
-        <el-table :data="sessionAuditRecords" row-key="id" class="host-session-audit-table" v-loading="isSessionAuditLoading" empty-text="暂无会话审计记录">
-          <el-table-column type="expand" width="48">
+        <NativeTable :data="sessionAuditRecords" row-key="id" class="host-session-audit-table" v-loading="isSessionAuditLoading" empty-text="暂无会话审计记录">
+          <NativeTableColumn type="expand" width="48">
             <template #default="{ row }">
               <div class="host-session-audit-detail">
                 <div>
@@ -305,35 +305,35 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </template>
-          </el-table-column>
-          <el-table-column prop="username" label="用户" min-width="110" show-overflow-tooltip />
-          <el-table-column prop="command" label="命令" min-width="220" show-overflow-tooltip />
-          <el-table-column label="风险等级" min-width="110">
+          </NativeTableColumn>
+          <NativeTableColumn prop="username" label="用户" min-width="110" show-overflow-tooltip />
+          <NativeTableColumn prop="command" label="命令" min-width="220" show-overflow-tooltip />
+          <NativeTableColumn label="风险等级" min-width="110">
             <template #default="{ row }">
-              <el-tag :type="sessionAuditRiskType(row.riskLevel)" size="small" effect="dark">{{ sessionAuditRiskText(row.riskLevel) }}</el-tag>
+              <NativeTag :type="sessionAuditRiskType(row.riskLevel)" size="small" effect="dark">{{ sessionAuditRiskText(row.riskLevel) }}</NativeTag>
             </template>
-          </el-table-column>
-          <el-table-column label="协议" min-width="80">
+          </NativeTableColumn>
+          <NativeTableColumn label="协议" min-width="80">
             <template #default="{ row }">{{ row.protocol === 'rdp' ? 'RDP' : 'SSH' }}</template>
-          </el-table-column>
-          <el-table-column label="录屏" min-width="110">
+          </NativeTableColumn>
+          <NativeTableColumn label="录屏" min-width="110">
             <template #default="{ row }">
               {{ row.protocol === 'rdp' ? (row.hasRdpRecording ? '已录制' : row.recordingEnabled ? '录制中' : '未开启') : '-' }}
             </template>
-          </el-table-column>
-          <el-table-column prop="assetName" label="资产节点" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="ipAddress" label="IP 地址" min-width="130" />
-          <el-table-column label="会话" min-width="120">
+          </NativeTableColumn>
+          <NativeTableColumn prop="assetName" label="资产节点" min-width="150" show-overflow-tooltip />
+          <NativeTableColumn prop="ipAddress" label="IP 地址" min-width="130" />
+          <NativeTableColumn label="会话" min-width="120">
             <template #default="{ row }">
-              <el-button text type="primary" :title="row.sessionId" @click="openSessionRecording(row)">
+              <NativeButton text type="primary" :title="row.sessionId" @click="openSessionRecording(row)">
                 {{ shortSessionId(row.sessionId) }}
-              </el-button>
+              </NativeButton>
             </template>
-          </el-table-column>
-          <el-table-column label="日期时间" min-width="170">
+          </NativeTableColumn>
+          <NativeTableColumn label="日期时间" min-width="170">
             <template #default="{ row }">{{ formatAuditDate(row.executedAt) }}</template>
-          </el-table-column>
-        </el-table>
+          </NativeTableColumn>
+        </NativeTable>
       </div>
 
       <div class="host-pagination host-session-audit-pagination" aria-label="会话审计分页">
@@ -341,7 +341,7 @@ onBeforeUnmount(() => {
           <span>共 {{ sessionAuditTotal }} 条</span>
           <span>{{ sessionAuditPageStart }}-{{ sessionAuditPageEnd }}</span>
         </div>
-        <el-pagination
+        <NativePagination
           background
           layout="prev, pager, next, sizes"
           :current-page="sessionAuditPage"
@@ -360,7 +360,7 @@ onBeforeUnmount(() => {
     </article>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <el-dialog
+    <NativeDialog
       :model-value="sessionRecordingDialog.visible"
       title="操作录像"
       width="920px"
@@ -374,6 +374,6 @@ onBeforeUnmount(() => {
       </p>
       <p v-if="sessionRecordingDialog.error" class="host-session-audit-message">{{ sessionRecordingDialog.error }}</p>
       <div ref="sessionRecordingContainer" class="host-session-recording-player"></div>
-    </el-dialog>
+    </NativeDialog>
   </section>
 </template>

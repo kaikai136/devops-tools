@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AppIcon from '@shared/components/AppIcon.vue';
 import type { ManagedHost } from '@features/hosts/types';
 import type { HostSortKey, SortDirection } from '@features/hosts/utils/groups';
@@ -75,7 +75,7 @@ function formatHostSystem(host: ManagedHost) {
     <div class="host-table" :style="props.tableStyle">
       <div class="host-table-row head">
         <label class="host-select-cell" aria-label="选择所有可见主机">
-          <el-checkbox
+          <NativeCheckbox
             :model-value="props.allVisibleSelected"
             :disabled="!props.visibleIds.length"
             :indeterminate="props.someVisibleSelected && !props.allVisibleSelected"
@@ -87,15 +87,15 @@ function formatHostSystem(host: ManagedHost) {
           <span class="host-column-resize-handle" role="separator" aria-label="调整主机分组列宽" @mousedown="emit('resize-column-start', 'group', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('name')" class="host-table-head-cell">
-          <el-button text class="host-sort-button" :class="{ active: props.sortKey === 'name', desc: props.sortKey === 'name' && props.sortDirection === 'desc' }" @click="emit('sort', 'name')">
+          <NativeButton text class="host-sort-button" :class="{ active: props.sortKey === 'name', desc: props.sortKey === 'name' && props.sortDirection === 'desc' }" @click="emit('sort', 'name')">
             节点 <em>{{ props.sortMark('name') }}</em>
-          </el-button>
+          </NativeButton>
           <span class="host-column-resize-handle" role="separator" aria-label="调整节点列宽" @mousedown="emit('resize-column-start', 'name', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('ip')" class="host-table-head-cell">
-          <el-button text class="host-sort-button" :class="{ active: props.sortKey === 'ip', desc: props.sortKey === 'ip' && props.sortDirection === 'desc' }" @click="emit('sort', 'ip')">
+          <NativeButton text class="host-sort-button" :class="{ active: props.sortKey === 'ip', desc: props.sortKey === 'ip' && props.sortDirection === 'desc' }" @click="emit('sort', 'ip')">
             IP地址 <em>{{ props.sortMark('ip') }}</em>
-          </el-button>
+          </NativeButton>
           <span class="host-column-resize-handle" role="separator" aria-label="调整IP地址列宽" @mousedown="emit('resize-column-start', 'ip', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('machine')" class="host-table-head-cell">
@@ -107,9 +107,9 @@ function formatHostSystem(host: ManagedHost) {
           <span class="host-column-resize-handle" role="separator" aria-label="调整主机规格列宽" @mousedown="emit('resize-column-start', 'spec', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('platformType')" class="host-table-head-cell">
-          <el-button text class="host-sort-button" :class="{ active: props.sortKey === 'platformType', desc: props.sortKey === 'platformType' && props.sortDirection === 'desc' }" @click="emit('sort', 'platformType')">
+          <NativeButton text class="host-sort-button" :class="{ active: props.sortKey === 'platformType', desc: props.sortKey === 'platformType' && props.sortDirection === 'desc' }" @click="emit('sort', 'platformType')">
             平台类型 <em>{{ props.sortMark('platformType') }}</em>
-          </el-button>
+          </NativeButton>
           <span class="host-column-resize-handle" role="separator" aria-label="调整平台类型列宽" @mousedown="emit('resize-column-start', 'platformType', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('user')" class="host-table-head-cell">
@@ -121,21 +121,21 @@ function formatHostSystem(host: ManagedHost) {
           <span class="host-column-resize-handle" role="separator" aria-label="调整端口列宽" @mousedown="emit('resize-column-start', 'port', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('createdAt')" class="host-table-head-cell">
-          <el-button text class="host-sort-button" :class="{ active: props.sortKey === 'createdAt', desc: props.sortKey === 'createdAt' && props.sortDirection === 'desc' }" @click="emit('sort', 'createdAt')">
+          <NativeButton text class="host-sort-button" :class="{ active: props.sortKey === 'createdAt', desc: props.sortKey === 'createdAt' && props.sortDirection === 'desc' }" @click="emit('sort', 'createdAt')">
             创建时间 <em>{{ props.sortMark('createdAt') }}</em>
-          </el-button>
+          </NativeButton>
           <span class="host-column-resize-handle" role="separator" aria-label="调整创建时间列宽" @mousedown="emit('resize-column-start', 'createdAt', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('updatedAt')" class="host-table-head-cell">
-          <el-button text class="host-sort-button" :class="{ active: props.sortKey === 'updatedAt', desc: props.sortKey === 'updatedAt' && props.sortDirection === 'desc' }" @click="emit('sort', 'updatedAt')">
+          <NativeButton text class="host-sort-button" :class="{ active: props.sortKey === 'updatedAt', desc: props.sortKey === 'updatedAt' && props.sortDirection === 'desc' }" @click="emit('sort', 'updatedAt')">
             更新时间 <em>{{ props.sortMark('updatedAt') }}</em>
-          </el-button>
+          </NativeButton>
           <span class="host-column-resize-handle" role="separator" aria-label="调整更新时间列宽" @mousedown="emit('resize-column-start', 'updatedAt', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('creator')" class="host-table-head-cell">
-          <el-button text class="host-sort-button" :class="{ active: props.sortKey === 'creator', desc: props.sortKey === 'creator' && props.sortDirection === 'desc' }" @click="emit('sort', 'creator')">
+          <NativeButton text class="host-sort-button" :class="{ active: props.sortKey === 'creator', desc: props.sortKey === 'creator' && props.sortDirection === 'desc' }" @click="emit('sort', 'creator')">
             创建者 <em>{{ props.sortMark('creator') }}</em>
-          </el-button>
+          </NativeButton>
           <span class="host-column-resize-handle" role="separator" aria-label="调整创建者列宽" @mousedown="emit('resize-column-start', 'creator', $event)"></span>
         </div>
         <div v-if="props.isColumnVisible('remark')" class="host-table-head-cell">
@@ -147,13 +147,13 @@ function formatHostSystem(host: ManagedHost) {
       </div>
       <div v-for="host in props.hosts" :key="host.id" class="host-table-row">
         <label class="host-select-cell" :aria-label="`选择主机 ${host.name}`">
-          <el-checkbox
+          <NativeCheckbox
             :model-value="props.selectedIds.has(host.id)"
             @change="emit('toggle-host', host.id, $event)"
           />
         </label>
         <span v-if="props.isColumnVisible('group')" class="host-group-cell">{{ props.groupName(host.group) }}</span>
-        <el-button v-if="props.isColumnVisible('name') && props.canOpenTerminal" text class="host-name-link" @click="emit('open-terminal', host)">{{ host.name }}</el-button>
+        <NativeButton v-if="props.isColumnVisible('name') && props.canOpenTerminal" text class="host-name-link" @click="emit('open-terminal', host)">{{ host.name }}</NativeButton>
         <span v-else-if="props.isColumnVisible('name')" class="host-name-text">{{ host.name }}</span>
         <div v-if="props.isColumnVisible('ip')" class="host-ip-stack">
           <span v-if="host.publicIp"><i class="ip-tag public">公</i>{{ host.publicIp }}</span>
@@ -185,10 +185,10 @@ function formatHostSystem(host: ManagedHost) {
           </span>
         </div>
         <div v-if="props.isColumnVisible('actions')" class="host-actions host-sticky-cell host-actions-cell">
-          <el-button v-if="props.canEdit" text class="host-action-icon" title="编辑" aria-label="编辑" @click="emit('edit', host)">
+          <NativeButton v-if="props.canEdit" text class="host-action-icon" title="编辑" aria-label="编辑" @click="emit('edit', host)">
             <AppIcon name="edit" :size="16" />
-          </el-button>
-          <el-button
+          </NativeButton>
+          <NativeButton
             v-if="props.canVerify"
             text
             class="host-action-icon"
@@ -199,17 +199,17 @@ function formatHostSystem(host: ManagedHost) {
             @click="emit('verify', host)"
           >
             <AppIcon name="rotate" :size="16" />
-          </el-button>
-          <el-button v-if="props.canOpenTerminal" text class="host-action-icon" title="终端" aria-label="终端" @click="emit('open-simple-terminal', host)">
+          </NativeButton>
+          <NativeButton v-if="props.canOpenTerminal" text class="host-action-icon" title="终端" aria-label="终端" @click="emit('open-simple-terminal', host)">
             <AppIcon name="terminal" :size="16" />
-          </el-button>
-          <el-button v-if="props.canDelete" text class="host-action-icon danger" title="删除" aria-label="删除" @click="emit('delete', host)">
+          </NativeButton>
+          <NativeButton v-if="props.canDelete" text class="host-action-icon danger" title="删除" aria-label="删除" @click="emit('delete', host)">
             <AppIcon name="trash" :size="16" />
-          </el-button>
+          </NativeButton>
           <span v-if="!props.canUseRowActions" class="host-action-placeholder">-</span>
         </div>
       </div>
-      <el-empty v-if="!props.visibleHostCount" class="host-empty" description="没有匹配的主机" />
+      <NativeEmpty v-if="!props.visibleHostCount" class="host-empty" description="没有匹配的主机" />
     </div>
   </div>
   <div class="host-pagination" aria-label="主机列表分页">
@@ -218,7 +218,7 @@ function formatHostSystem(host: ManagedHost) {
       <span>{{ props.pageStart }}-{{ props.pageEnd }}</span>
     </div>
     <div class="host-pagination-controls">
-      <el-pagination
+      <NativePagination
         background
         small
         :current-page="props.page"
@@ -247,25 +247,25 @@ function formatHostSystem(host: ManagedHost) {
       </div>
     </div>
     <div class="host-bulk-action-buttons">
-      <el-button class="host-bulk-button host-bulk-button-cancel" @click="emit('clear-selection')">取消选中</el-button>
-      <el-button
+      <NativeButton class="host-bulk-button host-bulk-button-cancel" @click="emit('clear-selection')">取消选中</NativeButton>
+      <NativeButton
         v-if="props.canVerify"
         class="host-bulk-button host-bulk-button-verify"
         :disabled="props.selectedVerifyingCount > 0"
         @click="emit('verify-selected')"
       >
         {{ props.selectedVerifyingCount > 0 ? '验证中' : '验证所选' }}
-      </el-button>
-      <el-button v-if="props.canBulkExecute" class="host-bulk-button host-bulk-button-execute" @click="emit('bulk-execute-selected')">
+      </NativeButton>
+      <NativeButton v-if="props.canBulkExecute" class="host-bulk-button host-bulk-button-execute" @click="emit('bulk-execute-selected')">
         <AppIcon name="terminal" :size="14" />
         批量执行
-      </el-button>
-      <el-button v-if="props.canBulkExecute" class="host-bulk-button host-bulk-button-upload" @click="emit('upload-file-selected')">
+      </NativeButton>
+      <NativeButton v-if="props.canBulkExecute" class="host-bulk-button host-bulk-button-upload" @click="emit('upload-file-selected')">
         <AppIcon name="upload" :size="14" />
         上传文件
-      </el-button>
-      <el-button v-if="props.canMove" class="host-bulk-button host-bulk-button-update" @click="emit('move-selected')">更新所选</el-button>
-      <el-button v-if="props.canDelete" class="host-bulk-button host-bulk-button-delete" @click="emit('delete-selected')">删除所选</el-button>
+      </NativeButton>
+      <NativeButton v-if="props.canMove" class="host-bulk-button host-bulk-button-update" @click="emit('move-selected')">更新所选</NativeButton>
+      <NativeButton v-if="props.canDelete" class="host-bulk-button host-bulk-button-delete" @click="emit('delete-selected')">删除所选</NativeButton>
     </div>
   </div>
 </template>

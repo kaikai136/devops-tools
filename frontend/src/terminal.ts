@@ -1,19 +1,17 @@
 import { createApp } from 'vue';
-import ElementPlus from 'element-plus';
-import 'element-plus/dist/index.css';
 
 import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
 import WebTerminalPage from './components/terminal/WebTerminalPage.vue';
+import { installNativeUi } from '@shared/ui/native';
 import { buildTemplateVariables, normalizeSiteIdentity, renderTemplate, SITE_IDENTITY_SETTING_KEY } from './composables/features/useSiteSettings';
 import { normalizeWatermarkConfig, watermarkAppliesToPage, WATERMARK_SETTING_KEY } from './composables/features/useWatermarkSettings';
 import { getCurrentUser } from './services/auth';
 import { getSystemSetting, getSystemSettingOrNull } from './services/system';
 import './styles/terminal.css';
-import './styles/base/element-plus-theme.css';
-import './styles/base/element-plus-overrides.css';
+import './styles.css';
 
 const app = createApp(WebTerminalPage);
-app.use(ElementPlus);
+installNativeUi(app);
 app.mount('#terminal-app');
 
 void mountTerminalWatermark();

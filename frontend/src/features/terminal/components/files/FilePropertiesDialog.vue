@@ -60,7 +60,7 @@ function updateOctalMode(value: Event | string) {
 </script>
 
 <template>
-  <el-dialog
+  <NativeDialog
     :model-value="dialog.visible"
     class="terminal-file-properties-backdrop"
     width="640px"
@@ -73,14 +73,14 @@ function updateOctalMode(value: Event | string) {
           <AppIcon :name="(dialog.properties?.type || dialog.entry?.type) === 'directory' ? 'folder' : 'file'" :size="18" />
         </span>
         <h2>{{ dialog.entry?.name || dialog.properties?.name || '文件' }} 的属性</h2>
-        <el-button class="terminal-file-properties-close" circle aria-label="关闭" :disabled="dialog.saving" @click="emit('close')">
+        <NativeButton class="terminal-file-properties-close" circle aria-label="关闭" :disabled="dialog.saving" @click="emit('close')">
           <AppIcon name="x" :size="16" />
-        </el-button>
+        </NativeButton>
       </header>
 
-      <el-empty v-if="dialog.loading" class="terminal-file-properties-empty" description="属性读取中..." />
+      <NativeEmpty v-if="dialog.loading" class="terminal-file-properties-empty" description="属性读取中..." />
       <div v-else-if="dialog.properties" class="terminal-file-properties-body">
-        <el-alert v-if="dialog.error" class="terminal-file-properties-error" type="error" :title="dialog.error" :closable="false" />
+        <NativeAlert v-if="dialog.error" class="terminal-file-properties-error" type="error" :title="dialog.error" :closable="false" />
 
         <section class="terminal-file-properties-section">
           <h3>常规</h3>
@@ -99,11 +99,11 @@ function updateOctalMode(value: Event | string) {
           <h3>所有权</h3>
           <label class="terminal-file-properties-field">
             <span>所有者</span>
-            <el-input :model-value="dialog.draft.owner" :disabled="dialog.saving" @input="onDraftInput('owner', $event)" />
+            <NativeInput :model-value="dialog.draft.owner" :disabled="dialog.saving" @input="onDraftInput('owner', $event)" />
           </label>
           <label class="terminal-file-properties-field">
             <span>组</span>
-            <el-input :model-value="dialog.draft.group" :disabled="dialog.saving" @input="onDraftInput('group', $event)" />
+            <NativeInput :model-value="dialog.draft.group" :disabled="dialog.saving" @input="onDraftInput('group', $event)" />
           </label>
         </section>
 
@@ -112,25 +112,25 @@ function updateOctalMode(value: Event | string) {
           <div class="terminal-file-permission-table" role="table" aria-label="权限">
             <span></span><strong>R</strong><strong>W</strong><strong>X</strong><strong>特殊</strong>
             <strong>用户</strong>
-            <el-checkbox :model-value="isPermissionChecked(0o400)" :disabled="dialog.saving" @change="setPermission(0o400, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o200)" :disabled="dialog.saving" @change="setPermission(0o200, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o100)" :disabled="dialog.saving" @change="setPermission(0o100, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o4000)" :disabled="dialog.saving" @change="setPermission(0o4000, $event)">UID</el-checkbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o400)" :disabled="dialog.saving" @change="setPermission(0o400, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o200)" :disabled="dialog.saving" @change="setPermission(0o200, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o100)" :disabled="dialog.saving" @change="setPermission(0o100, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o4000)" :disabled="dialog.saving" @change="setPermission(0o4000, $event)">UID</NativeCheckbox>
             <strong>组</strong>
-            <el-checkbox :model-value="isPermissionChecked(0o040)" :disabled="dialog.saving" @change="setPermission(0o040, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o020)" :disabled="dialog.saving" @change="setPermission(0o020, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o010)" :disabled="dialog.saving" @change="setPermission(0o010, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o2000)" :disabled="dialog.saving" @change="setPermission(0o2000, $event)">GID</el-checkbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o040)" :disabled="dialog.saving" @change="setPermission(0o040, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o020)" :disabled="dialog.saving" @change="setPermission(0o020, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o010)" :disabled="dialog.saving" @change="setPermission(0o010, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o2000)" :disabled="dialog.saving" @change="setPermission(0o2000, $event)">GID</NativeCheckbox>
             <strong>其他</strong>
-            <el-checkbox :model-value="isPermissionChecked(0o004)" :disabled="dialog.saving" @change="setPermission(0o004, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o002)" :disabled="dialog.saving" @change="setPermission(0o002, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o001)" :disabled="dialog.saving" @change="setPermission(0o001, $event)" />
-            <el-checkbox :model-value="isPermissionChecked(0o1000)" :disabled="dialog.saving" @change="setPermission(0o1000, $event)">粘性</el-checkbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o004)" :disabled="dialog.saving" @change="setPermission(0o004, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o002)" :disabled="dialog.saving" @change="setPermission(0o002, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o001)" :disabled="dialog.saving" @change="setPermission(0o001, $event)" />
+            <NativeCheckbox :model-value="isPermissionChecked(0o1000)" :disabled="dialog.saving" @change="setPermission(0o1000, $event)">粘性</NativeCheckbox>
           </div>
           <label class="terminal-file-octal-field">
             <span>八进制</span>
             <em>{{ specialOctalDigit() }}</em>
-            <el-input
+            <NativeInput
               :model-value="standardOctalMode()"
               inputmode="numeric"
               maxlength="3"
@@ -138,7 +138,7 @@ function updateOctalMode(value: Event | string) {
               @input="updateOctalMode"
             />
           </label>
-          <el-checkbox
+          <NativeCheckbox
             v-if="dialog.properties.type === 'directory'"
             class="terminal-file-recursive-field"
             :model-value="dialog.recursive"
@@ -146,17 +146,17 @@ function updateOctalMode(value: Event | string) {
             @change="onRecursiveChange"
           >
             应用到此目录及所有子目录/文件
-          </el-checkbox>
+          </NativeCheckbox>
         </section>
       </div>
-      <el-empty v-else class="terminal-file-properties-empty error" :description="dialog.error || '属性读取失败'" />
+      <NativeEmpty v-else class="terminal-file-properties-empty error" :description="dialog.error || '属性读取失败'" />
 
       <footer class="terminal-file-properties-actions">
-        <el-button :disabled="dialog.saving" @click="emit('close')">取消</el-button>
-        <el-button type="primary" :loading="dialog.saving" :disabled="dialog.loading || dialog.saving || !dialog.properties" @click="emit('save')">
+        <NativeButton :disabled="dialog.saving" @click="emit('close')">取消</NativeButton>
+        <NativeButton type="primary" :loading="dialog.saving" :disabled="dialog.loading || dialog.saving || !dialog.properties" @click="emit('save')">
           {{ dialog.saving ? '保存中...' : '保存' }}
-        </el-button>
+        </NativeButton>
       </footer>
     </section>
-  </el-dialog>
+  </NativeDialog>
 </template>

@@ -87,33 +87,33 @@ const {
   <section v-if="activeTool === 'users'" class="user-manager-page" :class="{ fullscreen }" @click="columnsOpen = false">
     <template v-if="canAccessPage('users')">
       <article class="user-filter-panel">
-        <el-form inline label-position="left">
-          <el-form-item label="账户名称">
-            <el-input v-model="search" placeholder="请输入" clearable />
-          </el-form-item>
-        </el-form>
+        <NativeForm inline label-position="left">
+          <NativeFormItem label="账户名称">
+            <NativeInput v-model="search" placeholder="请输入" clearable />
+          </NativeFormItem>
+        </NativeForm>
       </article>
 
       <article class="user-list-panel">
         <div class="user-list-toolbar">
           <h2>账户列表</h2>
           <div class="user-toolbar-actions">
-            <el-button v-if="canUsePageAction('users', 'create')" type="primary" @click="openCreateDialog">
+            <NativeButton v-if="canUsePageAction('users', 'create')" type="primary" @click="openCreateDialog">
               <AppIcon name="plus" :size="15" />
               <span>新建</span>
-            </el-button>
-            <el-radio-group v-model="statusFilter" class="user-status-tabs">
-              <el-radio-button label="all">全部</el-radio-button>
-              <el-radio-button label="active">正常</el-radio-button>
-              <el-radio-button label="disabled">禁用</el-radio-button>
-            </el-radio-group>
+            </NativeButton>
+            <NativeRadioGroup v-model="statusFilter" class="user-status-tabs">
+              <NativeRadioButton label="all">全部</NativeRadioButton>
+              <NativeRadioButton label="active">正常</NativeRadioButton>
+              <NativeRadioButton label="disabled">禁用</NativeRadioButton>
+            </NativeRadioGroup>
             <span class="user-toolbar-divider"></span>
-            <el-tooltip content="刷新" placement="top">
-              <el-button circle @click="refreshUsers">
+            <NativeTooltip content="刷新" placement="top">
+              <NativeButton circle @click="refreshUsers">
                 <AppIcon name="refresh" :size="18" />
-              </el-button>
-            </el-tooltip>
-            <el-popover
+              </NativeButton>
+            </NativeTooltip>
+            <NativePopover
               v-model:visible="columnsOpen"
               placement="bottom-end"
               trigger="click"
@@ -122,22 +122,22 @@ const {
               @click.stop
             >
               <template #reference>
-                <el-button circle @click.stop>
+                <NativeButton circle @click.stop>
                   <AppIcon name="settings" :size="18" />
-                </el-button>
+                </NativeButton>
               </template>
               <div class="user-column-menu-head">
-                <el-checkbox
+                <NativeCheckbox
                   :model-value="allColumnsVisible"
                   :indeterminate="someColumnsVisible && !allColumnsVisible"
                   @change="toggleAllColumns"
                 >
                   列显示
-                </el-checkbox>
-                <el-button size="small" text type="primary" @click="resetColumns">重置</el-button>
+                </NativeCheckbox>
+                <NativeButton size="small" text type="primary" @click="resetColumns">重置</NativeButton>
               </div>
               <div class="user-column-options">
-                <el-checkbox
+                <NativeCheckbox
                   v-for="column in userColumnOptions"
                   :key="column.key"
                   :model-value="isColumnVisible(column.key)"
@@ -145,14 +145,14 @@ const {
                   @change="updateColumnVisibility(column.key, $event)"
                 >
                   {{ column.label }}
-                </el-checkbox>
+                </NativeCheckbox>
               </div>
-            </el-popover>
-            <el-tooltip :content="fullscreen ? '退出全屏' : '全屏'" placement="top">
-              <el-button circle @click="fullscreen = !fullscreen">
+            </NativePopover>
+            <NativeTooltip :content="fullscreen ? '退出全屏' : '全屏'" placement="top">
+              <NativeButton circle @click="fullscreen = !fullscreen">
                 <AppIcon :name="fullscreen ? 'minimize' : 'maximize'" :size="18" />
-              </el-button>
-            </el-tooltip>
+              </NativeButton>
+            </NativeTooltip>
           </div>
         </div>
 

@@ -5,7 +5,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from '@xterm/xterm';
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { InputInstance } from 'element-plus';
+import type { NativeInputInstance } from '@shared/ui/native';
 
 import AppIcon from '@shared/components/AppIcon.vue';
 import type { IconName } from '@shared/components/AppIcon.vue';
@@ -107,8 +107,8 @@ const isSearchOpen = ref(false);
 const searchQuery = ref('');
 const searchResultIndex = ref(-1);
 const searchResultCount = ref(0);
-const searchInputRef = ref<InputInstance | null>(null);
-const pasteInputRef = ref<InputInstance | null>(null);
+const searchInputRef = ref<NativeInputInstance | null>(null);
+const pasteInputRef = ref<NativeInputInstance | null>(null);
 const terminalFontSize = ref(readTerminalFontSize());
 const terminalContextMenu = ref<SimpleTerminalContextMenuState>({
   visible: false,
@@ -1040,12 +1040,12 @@ function rdpErrorMessage(error?: unknown) {
           <AppIcon :name="status === 'connected' ? 'circleCheck' : status === 'connecting' || status === 'loading' ? 'rotate' : 'alert'" :size="15" />
           {{ statusText }}
         </span>
-        <el-button :disabled="!host || status === 'connecting' || status === 'loading' || status === 'denied'" @click="connect">
+        <NativeButton :disabled="!host || status === 'connecting' || status === 'loading' || status === 'denied'" @click="connect">
           <AppIcon name="rotate" :size="15" />
           重新连接
-        </el-button>
-        <el-button :disabled="status === 'denied' || protocol === 'rdp'" @click="clearScreen">清屏</el-button>
-        <el-button :disabled="status === 'denied' || status === 'closed'" @click="disconnect">断开</el-button>
+        </NativeButton>
+        <NativeButton :disabled="status === 'denied' || protocol === 'rdp'" @click="clearScreen">清屏</NativeButton>
+        <NativeButton :disabled="status === 'denied' || status === 'closed'" @click="disconnect">断开</NativeButton>
       </nav>
     </header>
 
@@ -1064,7 +1064,7 @@ function rdpErrorMessage(error?: unknown) {
         @contextmenu.stop
       >
         <AppIcon name="search" :size="14" />
-        <el-input
+        <NativeInput
           ref="searchInputRef"
           v-model="searchQuery"
           type="search"
@@ -1073,15 +1073,15 @@ function rdpErrorMessage(error?: unknown) {
           @keydown.esc.prevent.stop="closeSearch"
         />
         <span>{{ searchResultText }}</span>
-        <el-button circle title="上一个" aria-label="上一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('previous')">
+        <NativeButton circle title="上一个" aria-label="上一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('previous')">
           <AppIcon name="chevronDown" :size="14" />
-        </el-button>
-        <el-button circle title="下一个" aria-label="下一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('next')">
+        </NativeButton>
+        <NativeButton circle title="下一个" aria-label="下一个" :disabled="!searchQuery.trim()" @click="searchCurrentTerminal('next')">
           <AppIcon name="chevronDown" :size="14" />
-        </el-button>
-        <el-button circle title="关闭" aria-label="关闭" @click="closeSearch">
+        </NativeButton>
+        <NativeButton circle title="关闭" aria-label="关闭" @click="closeSearch">
           <AppIcon name="x" :size="14" />
-        </el-button>
+        </NativeButton>
       </div>
       <div v-show="protocol === 'rdp'" ref="rdpRef" class="simple-host-terminal-rdp"></div>
       <div v-if="errorMessage || status === 'denied'" class="simple-host-terminal-overlay">
@@ -1104,7 +1104,7 @@ function rdpErrorMessage(error?: unknown) {
           class="simple-host-terminal-context-row"
           :class="{ separator: item.separatorBefore }"
         >
-          <el-button
+          <NativeButton
             text
             class="simple-host-terminal-context-item"
             :class="{ danger: item.danger }"
@@ -1116,9 +1116,9 @@ function rdpErrorMessage(error?: unknown) {
             <span>{{ item.label }}</span>
             <kbd v-if="item.shortcut">{{ item.shortcut }}</kbd>
             <AppIcon v-else-if="item.children?.length" name="chevronRight" :size="13" />
-          </el-button>
+          </NativeButton>
           <div v-if="item.children?.length" class="simple-host-terminal-context-submenu">
-            <el-button
+            <NativeButton
               v-for="child in item.children"
               :key="child.id"
               text
@@ -1132,7 +1132,7 @@ function rdpErrorMessage(error?: unknown) {
               <span>{{ child.label }}</span>
               <kbd v-if="child.shortcut">{{ child.shortcut }}</kbd>
               <AppIcon v-else-if="child.children?.length" name="chevronRight" :size="13" />
-            </el-button>
+            </NativeButton>
           </div>
         </div>
       </div>
@@ -1144,7 +1144,7 @@ function rdpErrorMessage(error?: unknown) {
         @contextmenu.stop
       >
         <span>在此粘贴后自动发送到终端</span>
-        <el-input
+        <NativeInput
           ref="pasteInputRef"
           v-model="pastePrompt.value"
           type="textarea"
@@ -1154,8 +1154,8 @@ function rdpErrorMessage(error?: unknown) {
           @keydown.ctrl.enter.prevent="submitPastePrompt()"
         />
         <div>
-          <el-button type="primary" @click="submitPastePrompt()">发送</el-button>
-          <el-button @click="closePastePrompt">取消</el-button>
+          <NativeButton type="primary" @click="submitPastePrompt()">发送</NativeButton>
+          <NativeButton @click="closePastePrompt">取消</NativeButton>
         </div>
       </div>
     </section>

@@ -548,14 +548,14 @@ onBeforeUnmount(() => {
       <span class="terminal-file-protocol" :class="browser.status.value">{{ browser.statusText.value }}</span>
       <label class="terminal-file-download-protocol" :title="`下载方式：${browser.downloadProtocol.value === 'auto' ? '自动' : browser.downloadProtocol.value.toUpperCase()}`">
         <span>下载</span>
-        <el-select :model-value="browser.downloadProtocol.value" aria-label="下载方式" size="small" @change="changeDownloadProtocol">
-          <el-option value="auto" label="自动" />
-          <el-option value="sftp" label="SFTP" />
-          <el-option value="scp" label="SCP" />
-        </el-select>
+        <NativeSelect :model-value="browser.downloadProtocol.value" aria-label="下载方式" size="small" @change="changeDownloadProtocol">
+          <NativeOption value="auto" label="自动" />
+          <NativeOption value="sftp" label="SFTP" />
+          <NativeOption value="scp" label="SCP" />
+        </NativeSelect>
       </label>
       <div>
-        <el-button
+        <NativeButton
           circle
           :title="browser.followCwdLabel.value"
           :aria-label="browser.followCwdLabel.value"
@@ -564,7 +564,7 @@ onBeforeUnmount(() => {
           @click="browser.toggleFollowCwd"
         >
           <AppIcon name="refresh" :size="15" />
-        </el-button>
+        </NativeButton>
       </div>
     </footer>
     <FileDownloadDialog
@@ -590,15 +590,15 @@ onBeforeUnmount(() => {
       @contextmenu.prevent.stop
     >
       <div v-for="item in fileContextMenuItems" :key="item.id" class="terminal-file-context-menu-row" :class="{ separator: item.separatorBefore }">
-        <el-button text role="menuitem" class="terminal-file-context-menu-item" :class="{ danger: item.danger }" :disabled="!item.enabled" @click="runContextMenuItem(item)">
+        <NativeButton text role="menuitem" class="terminal-file-context-menu-item" :class="{ danger: item.danger }" :disabled="!item.enabled" @click="runContextMenuItem(item)">
           <AppIcon :name="item.icon" :size="15" />
           <span>{{ item.label }}</span>
           <AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
-        </el-button>
+        </NativeButton>
         <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
-          <el-button v-for="child in item.children" :key="child.id" text role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
+          <NativeButton v-for="child in item.children" :key="child.id" text role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
             <AppIcon :name="child.icon" :size="15" /><span>{{ child.label }}</span>
-          </el-button>
+          </NativeButton>
         </div>
       </div>
     </div>
@@ -612,18 +612,18 @@ onBeforeUnmount(() => {
       @contextmenu.prevent.stop
     >
       <div v-for="item in directoryContextMenuItems" :key="item.id" class="terminal-file-context-menu-row" :class="{ separator: item.separatorBefore }">
-        <el-button text role="menuitem" class="terminal-file-context-menu-item" :disabled="!item.enabled" @click="runContextMenuItem(item)">
+        <NativeButton text role="menuitem" class="terminal-file-context-menu-item" :disabled="!item.enabled" @click="runContextMenuItem(item)">
           <AppIcon :name="item.icon" :size="15" /><span>{{ item.label }}</span><AppIcon v-if="item.children?.length" name="chevronRight" :size="14" />
-        </el-button>
+        </NativeButton>
         <div v-if="item.children?.length" class="terminal-file-context-submenu" role="menu">
-          <el-button v-for="child in item.children" :key="child.id" text role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
+          <NativeButton v-for="child in item.children" :key="child.id" text role="menuitem" class="terminal-file-context-menu-item" :disabled="!child.enabled" @click="runContextMenuItem(child)">
             <AppIcon :name="child.icon" :size="15" /><span>{{ child.label }}</span>
-          </el-button>
+          </NativeButton>
         </div>
       </div>
     </div>
 
-    <el-dialog
+    <NativeDialog
       :model-value="browser.deleteDialog.value.visible"
       class="terminal-file-delete-backdrop"
       width="460px"
@@ -637,15 +637,15 @@ onBeforeUnmount(() => {
           </div>
           <h2>{{ deleteTitle }}</h2>
           <p>{{ deleteDescription }}</p>
-          <el-alert v-if="browser.deleteDialog.value.error" class="terminal-file-delete-error" type="error" :title="browser.deleteDialog.value.error" :closable="false" />
+          <NativeAlert v-if="browser.deleteDialog.value.error" class="terminal-file-delete-error" type="error" :title="browser.deleteDialog.value.error" :closable="false" />
           <div class="terminal-file-delete-actions">
-            <el-button :disabled="browser.deleteDialog.value.deleting" @click="browser.closeDeleteDialog">取消</el-button>
-            <el-button type="danger" :loading="browser.deleteDialog.value.deleting" :disabled="browser.deleteDialog.value.deleting" @click="browser.confirmDelete">
+            <NativeButton :disabled="browser.deleteDialog.value.deleting" @click="browser.closeDeleteDialog">取消</NativeButton>
+            <NativeButton type="danger" :loading="browser.deleteDialog.value.deleting" :disabled="browser.deleteDialog.value.deleting" @click="browser.confirmDelete">
               {{ browser.deleteDialog.value.deleting ? '删除中...' : '删除' }}
-            </el-button>
+            </NativeButton>
           </div>
         </section>
-    </el-dialog>
+    </NativeDialog>
     <FileCreateDialog
       :dialog="browser.createDialog.value"
       :title="browser.createTitle()"

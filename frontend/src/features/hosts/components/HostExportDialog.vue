@@ -37,50 +37,50 @@ const selectedFormat = computed({
 </script>
 
 <template>
-  <el-dialog class="host-transfer-modal host-export-modal" :model-value="true" title="导出实例数据" width="720px" @close="emit('close')">
+  <NativeDialog class="host-transfer-modal host-export-modal" :model-value="true" title="导出实例数据" width="720px" @close="emit('close')">
       <h2>导出实例数据</h2>
       <div class="host-export-body">
         <section class="export-section">
           <span class="export-section-title">需要导出的实例</span>
-          <el-radio-group v-model="selectedScope" class="export-scope-grid">
-            <el-radio-button value="all" class="export-scope-card" :class="{ active: selectedScope === 'all' }">
+          <NativeRadioGroup v-model="selectedScope" class="export-scope-grid">
+            <NativeRadioButton value="all" class="export-scope-card" :class="{ active: selectedScope === 'all' }">
               <span>
                 <strong>所有实例</strong>
                 <em>导出当前主机列表下的所有实例</em>
               </span>
-            </el-radio-button>
-            <el-radio-button value="selected" class="export-scope-card" :class="{ active: selectedScope === 'selected' }">
+            </NativeRadioButton>
+            <NativeRadioButton value="selected" class="export-scope-card" :class="{ active: selectedScope === 'selected' }">
               <span>
                 <strong>已选中的实例 {{ props.selectedCount }}</strong>
                 <em>导出当前列表中所选中的实例</em>
               </span>
-            </el-radio-button>
-          </el-radio-group>
+            </NativeRadioButton>
+          </NativeRadioGroup>
         </section>
 
         <section class="export-section">
           <span class="export-section-title">需要导出的数据列</span>
-          <el-checkbox class="export-check-all" :model-value="props.allColumnsSelected" @change="emit('toggle-all-columns', $event)">全选</el-checkbox>
+          <NativeCheckbox class="export-check-all" :model-value="props.allColumnsSelected" @change="emit('toggle-all-columns', $event)">全选</NativeCheckbox>
           <div class="export-column-grid">
-            <el-checkbox v-for="column in props.columns" :key="column.field" class="export-column-option" :model-value="props.selectedColumns.has(column.field)" @change="emit('toggle-column', column.field, $event)">
+            <NativeCheckbox v-for="column in props.columns" :key="column.field" class="export-column-option" :model-value="props.selectedColumns.has(column.field)" @change="emit('toggle-column', column.field, $event)">
               <span>{{ column.label }}</span>
-            </el-checkbox>
+            </NativeCheckbox>
           </div>
         </section>
 
         <section class="export-section">
           <span class="export-section-title">导出文件格式</span>
-          <el-radio-group v-model="selectedFormat" class="export-format-row">
-            <el-radio-button value="excel">Excel</el-radio-button>
-            <el-radio-button value="json">JSON</el-radio-button>
-          </el-radio-group>
+          <NativeRadioGroup v-model="selectedFormat" class="export-format-row">
+            <NativeRadioButton value="excel">Excel</NativeRadioButton>
+            <NativeRadioButton value="json">JSON</NativeRadioButton>
+          </NativeRadioGroup>
         </section>
       </div>
       <template #footer>
         <div class="modal-actions">
-          <el-button @click="emit('close')">取消</el-button>
-          <el-button class="primary" type="primary" @click="emit('confirm')">确定</el-button>
+          <NativeButton @click="emit('close')">取消</NativeButton>
+          <NativeButton class="primary" type="primary" @click="emit('confirm')">确定</NativeButton>
         </div>
       </template>
-  </el-dialog>
+  </NativeDialog>
 </template>

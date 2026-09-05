@@ -10,7 +10,7 @@ defineEmits<{
 </script>
 
 <template>
-  <el-dialog
+  <NativeDialog
     :model-value="true"
     title="删除用户"
     width="420px"
@@ -20,8 +20,8 @@ defineEmits<{
   >
     <p>确定删除账户“{{ user.username }}”吗？</p>
     <template #footer>
-      <el-button @click="$emit('close')">取消</el-button>
-      <el-button type="danger" @click="$emit('confirm')">删除</el-button>
+      <NativeButton @click="$emit('close')">取消</NativeButton>
+      <NativeButton type="danger" @click="$emit('confirm')">删除</NativeButton>
     </template>
-  </el-dialog>
+  </NativeDialog>
 </template>

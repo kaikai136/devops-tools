@@ -483,92 +483,92 @@ function emptyRoleForm(): RoleForm {
   <section v-if="activeTool === 'roles'" class="role-manager-page" @click="columnsOpen = false">
     <template v-if="canUseAnyPageAction('roles', ['create', 'edit', 'permissions', 'delete'])">
       <article class="role-filter-panel">
-        <el-form inline label-position="left" @submit.prevent="runSearch">
-          <el-form-item label="角色名称">
-            <el-input v-model="searchDraft" placeholder="请输入角色名称" clearable @keyup.enter="runSearch" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="runSearch">
+        <NativeForm inline label-position="left" @submit.prevent="runSearch">
+          <NativeFormItem label="角色名称">
+            <NativeInput v-model="searchDraft" placeholder="请输入角色名称" clearable @keyup.enter="runSearch" />
+          </NativeFormItem>
+          <NativeFormItem>
+            <NativeButton type="primary" @click="runSearch">
               <AppIcon name="search" :size="15" />
               <span>搜索</span>
-            </el-button>
-            <el-button @click="resetSearch">
+            </NativeButton>
+            <NativeButton @click="resetSearch">
               <AppIcon name="reset" :size="15" />
               <span>重置</span>
-            </el-button>
-          </el-form-item>
-        </el-form>
+            </NativeButton>
+          </NativeFormItem>
+        </NativeForm>
       </article>
 
       <article class="role-list-panel">
         <div class="role-list-toolbar">
-          <el-button v-if="canUsePageAction('roles', 'create')" type="primary" @click="openCreateDialog">
+          <NativeButton v-if="canUsePageAction('roles', 'create')" type="primary" @click="openCreateDialog">
             <AppIcon name="circlePlus" :size="15" />
             <span>新增</span>
-          </el-button>
+          </NativeButton>
           <div class="role-toolbar-actions">
-            <el-tooltip content="刷新" placement="top">
-              <el-button circle @click="loadRoles"><AppIcon name="refresh" :size="18" /></el-button>
-            </el-tooltip>
-            <el-popover v-model:visible="columnsOpen" placement="bottom-end" trigger="click" width="190" popper-class="role-column-menu">
+            <NativeTooltip content="刷新" placement="top">
+              <NativeButton circle @click="loadRoles"><AppIcon name="refresh" :size="18" /></NativeButton>
+            </NativeTooltip>
+            <NativePopover v-model:visible="columnsOpen" placement="bottom-end" trigger="click" width="190" popper-class="role-column-menu">
               <template #reference>
-                <el-button circle @click.stop><AppIcon name="settings" :size="18" /></el-button>
+                <NativeButton circle @click.stop><AppIcon name="settings" :size="18" /></NativeButton>
               </template>
               <span>当前表格列固定展示</span>
-            </el-popover>
+            </NativePopover>
           </div>
         </div>
 
         <p v-if="message" class="role-message" :class="messageTone">{{ message }}</p>
 
-        <el-table :data="pagedRoles" row-key="id" class="role-table" v-loading="isLoading" empty-text="暂无角色数据">
-          <el-table-column type="index" label="序号" width="76" :index="(index) => (page - 1) * pageSize + index + 1" />
-          <el-table-column prop="name" label="角色名称" min-width="150" />
-          <el-table-column label="角色标识" min-width="130">
+        <NativeTable :data="pagedRoles" row-key="id" class="role-table" v-loading="isLoading" empty-text="暂无角色数据">
+          <NativeTableColumn type="index" label="序号" width="76" :index="(index) => (page - 1) * pageSize + index + 1" />
+          <NativeTableColumn prop="name" label="角色名称" min-width="150" />
+          <NativeTableColumn label="角色标识" min-width="130">
             <template #default="{ row }">{{ roleCode(row) }}</template>
-          </el-table-column>
-          <el-table-column label="状态" min-width="100">
+          </NativeTableColumn>
+          <NativeTableColumn label="状态" min-width="100">
             <template #default>
-              <el-tag type="success" size="small" effect="dark">启用</el-tag>
+              <NativeTag type="success" size="small" effect="dark">启用</NativeTag>
             </template>
-          </el-table-column>
-          <el-table-column label="用户数据" min-width="150">
+          </NativeTableColumn>
+          <NativeTableColumn label="用户数据" min-width="150">
             <template #default="{ row }">
-              <el-button v-if="canUsePageAction('roles', 'edit')" text type="primary" @click.stop="openRoleUserDialog(row)">
+              <NativeButton v-if="canUsePageAction('roles', 'edit')" text type="primary" @click.stop="openRoleUserDialog(row)">
                 {{ row.userCount ?? 0 }} 个用户
-              </el-button>
+              </NativeButton>
               <span v-else>{{ row.userCount ?? 0 }} 个用户</span>
             </template>
-          </el-table-column>
-          <el-table-column label="权限管理" min-width="140">
+          </NativeTableColumn>
+          <NativeTableColumn label="权限管理" min-width="140">
             <template #default="{ row }">
-              <el-button v-if="canUsePageAction('roles', 'permissions')" text type="primary" :title="permissionText(row)" @click="openPermissionDialog(row)">
+              <NativeButton v-if="canUsePageAction('roles', 'permissions')" text type="primary" :title="permissionText(row)" @click="openPermissionDialog(row)">
                 管理
-              </el-button>
+              </NativeButton>
               <span v-else class="role-action-placeholder">-</span>
             </template>
-          </el-table-column>
-          <el-table-column label="操作" min-width="230" fixed="right">
+          </NativeTableColumn>
+          <NativeTableColumn label="操作" min-width="230" fixed="right">
             <template #default="{ row }">
               <div class="role-row-actions">
-                <el-button size="small" @click="openViewDialog(row)"><AppIcon name="eye" :size="13" />查看</el-button>
-                <el-button v-if="canUsePageAction('roles', 'edit')" size="small" type="primary" @click="openEditDialog(row)">
+                <NativeButton size="small" @click="openViewDialog(row)"><AppIcon name="eye" :size="13" />查看</NativeButton>
+                <NativeButton v-if="canUsePageAction('roles', 'edit')" size="small" type="primary" @click="openEditDialog(row)">
                   <AppIcon name="edit" :size="13" />编辑
-                </el-button>
-                <el-button v-if="canUsePageAction('roles', 'delete')" size="small" type="danger" @click="deleteTarget = row">
+                </NativeButton>
+                <NativeButton v-if="canUsePageAction('roles', 'delete')" size="small" type="danger" @click="deleteTarget = row">
                   <AppIcon name="trash" :size="13" />删除
-                </el-button>
+                </NativeButton>
               </div>
             </template>
-          </el-table-column>
-        </el-table>
+          </NativeTableColumn>
+        </NativeTable>
 
         <div class="host-pagination" aria-label="角色列表分页">
           <div class="host-pagination-summary">
             <span>共 {{ filteredRoles.length }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>
-          <el-pagination
+          <NativePagination
             background
             layout="prev, pager, next, sizes"
             :current-page="page"
@@ -583,7 +583,7 @@ function emptyRoleForm(): RoleForm {
     </template>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <el-dialog
+    <NativeDialog
       :model-value="dialog !== null"
       :title="dialogTitle()"
       :width="dialog?.mode === 'permissions' || dialog?.mode === 'view' ? '880px' : '520px'"
@@ -591,20 +591,20 @@ function emptyRoleForm(): RoleForm {
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) closeDialog(); }"
     >
-      <el-form :model="form" label-position="top" @submit.prevent="saveRole">
+      <NativeForm :model="form" label-position="top" @submit.prevent="saveRole">
         <template v-if="dialog">
-          <el-form-item v-if="dialog.mode !== 'permissions'" label="角色名称" required>
-            <el-input v-model="form.name" :readonly="dialog.mode === 'view'" placeholder="请输入角色名称" />
-          </el-form-item>
-          <el-form-item v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" label="角色标识">
-            <el-input :model-value="dialog.role ? roleCode(dialog.role) : ''" readonly />
-          </el-form-item>
-          <el-form-item v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" label="状态">
-            <el-input model-value="启用" readonly />
-          </el-form-item>
+          <NativeFormItem v-if="dialog.mode !== 'permissions'" label="角色名称" required>
+            <NativeInput v-model="form.name" :readonly="dialog.mode === 'view'" placeholder="请输入角色名称" />
+          </NativeFormItem>
+          <NativeFormItem v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" label="角色标识">
+            <NativeInput :model-value="dialog.role ? roleCode(dialog.role) : ''" readonly />
+          </NativeFormItem>
+          <NativeFormItem v-if="dialog.mode !== 'create' && dialog.mode !== 'permissions'" label="状态">
+            <NativeInput model-value="启用" readonly />
+          </NativeFormItem>
 
           <div v-if="dialog.mode === 'permissions' || dialog.mode === 'view'" class="role-feature-permissions">
-            <el-alert
+            <NativeAlert
               type="info"
               :closable="false"
               show-icon
@@ -626,27 +626,27 @@ function emptyRoleForm(): RoleForm {
                   :class="{ first: itemIndex === 0 }"
                 >
                   <label v-if="itemIndex === 0" class="role-tree-node module" :style="{ gridRow: `span ${group.items.length}` }">
-                    <el-checkbox
+                    <NativeCheckbox
                       :model-value="isGroupChecked(group.key)"
                       :indeterminate="isGroupPartial(group.key)"
                       :disabled="dialog.mode === 'view'"
                       @change="toggleGroup(group.key, $event)"
                     >
                       {{ group.label }}
-                    </el-checkbox>
+                    </NativeCheckbox>
                   </label>
                   <label class="role-tree-node page">
-                    <el-checkbox
+                    <NativeCheckbox
                       :model-value="isFeatureChecked(item.key)"
                       :indeterminate="isFeaturePartial(item.key)"
                       :disabled="dialog.mode === 'view'"
                       @change="toggleFeature(item.key, $event)"
                     >
                       {{ item.label }}
-                    </el-checkbox>
+                    </NativeCheckbox>
                   </label>
                   <div class="role-tree-node feature">
-                    <el-checkbox
+                    <NativeCheckbox
                       v-for="permission in pageActionPermissions(item.key)"
                       :key="permission.id"
                       :model-value="isActionChecked(permission.id)"
@@ -654,7 +654,7 @@ function emptyRoleForm(): RoleForm {
                       @change="toggleAction(item.key, permission.id, $event)"
                     >
                       {{ displayPermissionLabel(permission) }}
-                    </el-checkbox>
+                    </NativeCheckbox>
                     <span v-if="!pageActionPermissions(item.key).length" class="role-action-empty">暂无可配置功能</span>
                   </div>
                 </div>
@@ -662,14 +662,14 @@ function emptyRoleForm(): RoleForm {
             </div>
           </div>
         </template>
-      </el-form>
+      </NativeForm>
       <template #footer>
-        <el-button @click="closeDialog">取消</el-button>
-        <el-button v-if="dialog?.mode !== 'view'" type="primary" @click="saveRole">确定</el-button>
+        <NativeButton @click="closeDialog">取消</NativeButton>
+        <NativeButton v-if="dialog?.mode !== 'view'" type="primary" @click="saveRole">确定</NativeButton>
       </template>
-    </el-dialog>
+    </NativeDialog>
 
-    <el-dialog
+    <NativeDialog
       :model-value="roleUserDialog !== null"
       title="调整权限用户"
       width="640px"
@@ -679,7 +679,7 @@ function emptyRoleForm(): RoleForm {
     >
       <p v-if="roleUserDialog" class="role-user-dialog-subtitle">为角色“{{ roleUserDialog.name }}”选择绑定用户，保存后用户重新登录生效。</p>
       <div v-loading="isLoadingRoleUsers" class="role-user-picker">
-        <el-checkbox
+        <NativeCheckbox
           v-for="user in roleUsers"
           :key="user.id"
           class="role-user-option"
@@ -692,20 +692,20 @@ function emptyRoleForm(): RoleForm {
             <em>{{ user.username }}{{ user.email ? ` / ${user.email}` : '' }}</em>
             <small>当前角色：{{ userRoleText(user) }}</small>
           </span>
-          <el-tag :type="user.isActive ? 'success' : 'danger'" size="small" effect="dark">{{ user.isActive ? '启用' : '停用' }}</el-tag>
-        </el-checkbox>
-        <el-empty v-if="!isLoadingRoleUsers && !roleUsers.length" description="暂无用户数据" />
+          <NativeTag :type="user.isActive ? 'success' : 'danger'" size="small" effect="dark">{{ user.isActive ? '启用' : '停用' }}</NativeTag>
+        </NativeCheckbox>
+        <NativeEmpty v-if="!isLoadingRoleUsers && !roleUsers.length" description="暂无用户数据" />
       </div>
       <template #footer>
         <span class="role-user-selected">已选择 {{ roleUserIds.size }} 个用户</span>
-        <el-button @click="closeRoleUserDialog">取消</el-button>
-        <el-button type="primary" :disabled="isLoadingRoleUsers || isSavingRoleUsers" :loading="isSavingRoleUsers" @click="saveRoleUsers">
+        <NativeButton @click="closeRoleUserDialog">取消</NativeButton>
+        <NativeButton type="primary" :disabled="isLoadingRoleUsers || isSavingRoleUsers" :loading="isSavingRoleUsers" @click="saveRoleUsers">
           保存
-        </el-button>
+        </NativeButton>
       </template>
-    </el-dialog>
+    </NativeDialog>
 
-    <el-dialog
+    <NativeDialog
       :model-value="deleteTarget !== null"
       title="删除角色"
       width="420px"
@@ -715,9 +715,9 @@ function emptyRoleForm(): RoleForm {
     >
       <p>确定删除角色“{{ deleteTarget?.name }}”吗？</p>
       <template #footer>
-        <el-button @click="deleteTarget = null">取消</el-button>
-        <el-button type="danger" @click="deleteRole">删除</el-button>
+        <NativeButton @click="deleteTarget = null">取消</NativeButton>
+        <NativeButton type="danger" @click="deleteRole">删除</NativeButton>
       </template>
-    </el-dialog>
+    </NativeDialog>
   </section>
 </template>

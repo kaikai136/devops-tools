@@ -273,31 +273,95 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
       </div>
 
       <nav class="sidebar-nav">
-        <el-scrollbar class="sidebar-scroll">
-          <el-menu
-            class="workspace-nav-menu"
-            :collapse="sidebarCollapsed"
-            :default-active="activeTool"
-            :ellipsis="false"
-            :unique-opened="true"
-            @select="handleSidebarSelect"
-          >
-            <el-menu-item v-if="dashboardNavItem" index="dashboard">
-              <AppIcon name="dashboard" :size="18" />
+        <NativeScrollbar class="sidebar-scroll">
+          <template v-if="!sidebarCollapsed">
+            <NativeButton
+              v-if="dashboardNavItem"
+              class="nav-dashboard-button"
+              :class="{ active: activeTool === 'dashboard' }"
+              text
+              @click="handleSidebarSelect('dashboard')"
+            >
+              <AppIcon class="nav-icon" name="dashboard" :size="18" />
               <span>{{ dashboardNavItem.label }}</span>
-            </el-menu-item>
-            <el-sub-menu v-for="group in navGroups" :key="group.key" :index="group.key">
-              <template #title>
-                <AppIcon :name="navGroupIcon(group.key)" :size="18" />
+            </NativeButton>
+            <div v-for="group in navGroups" :key="group.key" class="nav-group">
+              <NativeButton
+                class="nav-group-button"
+                :class="{ active: activeNavGroup.key === group.key, expanded: groupsOpen[group.key] }"
+                text
+                :aria-expanded="groupsOpen[group.key]"
+                @click="groupsOpen[group.key] = !groupsOpen[group.key]"
+              >
+                <AppIcon class="nav-icon" :name="navGroupIcon(group.key)" :size="18" />
                 <span>{{ group.label }}</span>
-              </template>
-              <el-menu-item v-for="item in group.items" :key="item.key" :index="item.key">
-                <AppIcon :name="navItemIcon(item.key)" :size="18" />
-                <span>{{ item.label }}</span>
-              </el-menu-item>
-            </el-sub-menu>
-          </el-menu>
-        </el-scrollbar>
+                <span class="nav-caret" aria-hidden="true">⌄</span>
+              </NativeButton>
+              <Transition name="nav-collapse">
+                <div v-if="groupsOpen[group.key]" class="nav-items-shell">
+                  <div class="nav-items">
+                    <NativeButton
+                      v-for="item in group.items"
+                      :key="item.key"
+                      class="nav-item"
+                      :class="{ active: activeTool === item.key }"
+                      text
+                      @click="handleSidebarSelect(item.key)"
+                    >
+                      <AppIcon class="nav-dot" :name="navItemIcon(item.key)" :size="16" />
+                      <span>{{ item.label }}</span>
+                    </NativeButton>
+                  </div>
+                </div>
+              </Transition>
+            </div>
+          </template>
+          <template v-else>
+            <NativeButton
+              v-if="dashboardNavItem"
+              class="nav-dashboard-compact"
+              :class="{ active: activeTool === 'dashboard' }"
+              text
+              :title="dashboardNavItem.label"
+              :aria-label="dashboardNavItem.label"
+              @click="handleSidebarSelect('dashboard')"
+            >
+              <AppIcon name="dashboard" :size="18" />
+            </NativeButton>
+            <div
+              v-for="group in navGroups"
+              :key="group.key"
+              class="nav-flyout-wrap"
+              @mouseenter="openNavFlyout(group.key)"
+              @mouseleave="closeNavFlyout()"
+            >
+              <NativeButton
+                class="nav-group-compact"
+                :class="{ active: activeNavGroup.key === group.key }"
+                text
+                :title="group.label"
+                :aria-label="group.label"
+                @click="openNavFlyout(group.key)"
+              >
+                <AppIcon :name="navGroupIcon(group.key)" :size="18" />
+              </NativeButton>
+              <div v-if="hoveredNavGroup === group.key" class="nav-flyout">
+                <strong>{{ group.label }}</strong>
+                <NativeButton
+                  v-for="item in group.items"
+                  :key="item.key"
+                  class="nav-flyout-item"
+                  :class="{ active: activeTool === item.key }"
+                  text
+                  @click="handleSidebarSelect(item.key)"
+                >
+                  <AppIcon :name="navItemIcon(item.key)" :size="16" />
+                  <span>{{ item.label }}</span>
+                </NativeButton>
+              </div>
+            </div>
+          </template>
+        </NativeScrollbar>
       </nav>
 
       <div class="sidebar-clock" aria-label="当前日期和时间">
@@ -311,7 +375,7 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
     <section class="workspace" :class="{ 'has-workspace-footer': layoutFooter.enabled }">
       <header class="workspace-topbar">
         <div class="workspace-topbar-main">
-          <el-button
+          <NativeButton
             class="workspace-menu-button"
             circle
             :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
@@ -319,37 +383,38 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
             @click="toggleSidebar"
           >
             <AppIcon name="menu" :size="18" />
-          </el-button>
-          <el-breadcrumb class="page-breadcrumb" separator="/">
-            <el-breadcrumb-item v-for="(item, index) in breadcrumbItems" :key="item.key">
+          </NativeButton>
+          <nav class="page-breadcrumb" aria-label="页面路径">
+            <template v-for="(item, index) in breadcrumbItems" :key="item.key">
+              <em v-if="index > 0" aria-hidden="true">/</em>
               <strong v-if="index === breadcrumbItems.length - 1">{{ item.label }}</strong>
               <span v-else>{{ item.label }}</span>
-            </el-breadcrumb-item>
-          </el-breadcrumb>
+            </template>
+          </nav>
         </div>
         <div class="workspace-actions">
           <div class="header-stats">
             <template v-if="activeTool === 'auth'">
-              <el-button v-if="canUsePageAction('auth', 'export')" class="header-action" size="small" plain @click="saveAuthEntries">导出</el-button>
-              <el-button v-if="canUsePageAction('auth', 'import')" class="header-action" size="small" plain @click="triggerAuthImportFile">导入</el-button>
+              <NativeButton v-if="canUsePageAction('auth', 'export')" class="header-action" size="small" plain @click="saveAuthEntries">导出</NativeButton>
+              <NativeButton v-if="canUsePageAction('auth', 'import')" class="header-action" size="small" plain @click="triggerAuthImportFile">导入</NativeButton>
               <input ref="authImportFile" hidden type="file" accept="application/json,.json" @change="importAuthEntries" />
             </template>
             <template v-else-if="activeTool === 'password'">
-              <el-button v-if="canUsePageAction('password', 'export')" class="header-action" size="small" plain @click="exportPasswordRecords">导出</el-button>
-              <el-button v-if="canUsePageAction('password', 'import')" class="header-action" size="small" plain @click="triggerPasswordImportFile">导入</el-button>
+              <NativeButton v-if="canUsePageAction('password', 'export')" class="header-action" size="small" plain @click="exportPasswordRecords">导出</NativeButton>
+              <NativeButton v-if="canUsePageAction('password', 'import')" class="header-action" size="small" plain @click="triggerPasswordImportFile">导入</NativeButton>
               <input ref="passwordImportFile" hidden type="file" accept="text/plain,application/json,.txt,.json" @change="importPasswordRecords" />
             </template>
             <template v-else-if="activeTool === 'hosts'">
-              <el-button v-if="canUsePageAction('hosts', 'export')" class="header-action" size="small" plain @click="backupHostManagement">
+              <NativeButton v-if="canUsePageAction('hosts', 'export')" class="header-action" size="small" plain @click="backupHostManagement">
                 <AppIcon name="download" :size="16" />
                 <span>备份</span>
-              </el-button>
-              <el-button v-if="canUsePageAction('hosts', 'import')" class="header-action" size="small" plain @click="triggerHostRestoreFile">
+              </NativeButton>
+              <NativeButton v-if="canUsePageAction('hosts', 'import')" class="header-action" size="small" plain @click="triggerHostRestoreFile">
                 <AppIcon name="upload" :size="16" />
                 <span>恢复</span>
-              </el-button>
+              </NativeButton>
               <input ref="hostImportFile" hidden type="file" :accept="hostImportAccept" @change="importHostManagement" />
-              <el-button
+              <NativeButton
                 v-if="canUsePageAction('hosts', 'terminal')"
                 class="header-action terminal-action terminal-icon-action"
                 circle
@@ -358,7 +423,7 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
                 @click="openWebTerminal()"
               >
                 <AppIcon name="terminal" :size="20" />
-              </el-button>
+              </NativeButton>
             </template>
             <template v-else-if="activeTool === 'ip' && ipScanMessage">
               <span class="inline-status">{{ ipScanMessage }}</span>
@@ -372,7 +437,7 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
               </article>
             </template>
           </div>
-          <el-button
+          <NativeButton
             class="workspace-icon-button workspace-theme-toggle"
             circle
             :title="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'"
@@ -381,8 +446,8 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
             @click="toggleWorkspaceTheme"
           >
             <AppIcon :name="isWorkspaceDark ? 'sun' : 'moon'" :size="18" />
-          </el-button>
-          <el-button
+          </NativeButton>
+          <NativeButton
             v-if="activeTool === 'dashboard'"
             class="workspace-icon-button workspace-dashboard-refresh"
             circle
@@ -393,9 +458,9 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
             @click="refreshDashboard"
           >
             <AppIcon v-if="!isDashboardRefreshing" name="refresh" :size="18" />
-          </el-button>
-          <el-dropdown class="workspace-user-dropdown-shell" trigger="click" @command="handleUserCommand">
-            <el-button class="workspace-avatar-button" text aria-haspopup="menu" aria-label="账户菜单">
+          </NativeButton>
+          <NativeDropdown class="workspace-user-dropdown-shell" trigger="click" @command="handleUserCommand">
+            <NativeButton class="workspace-avatar-button" text aria-haspopup="menu" aria-label="账户菜单">
               <UserAvatar
                 class="workspace-avatar"
                 :src="currentUserAvatar"
@@ -404,7 +469,7 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
                 :first-name="currentUser?.first_name"
                 size="sm"
               />
-            </el-button>
+            </NativeButton>
             <template #dropdown>
               <div class="workspace-user-dropdown-panel">
                 <div class="workspace-user-card">
@@ -421,23 +486,23 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
                     <span>{{ currentUserAccount }}</span>
                   </div>
                 </div>
-                <el-dropdown-menu class="workspace-user-dropdown-menu">
-                  <el-dropdown-item command="profile" :disabled="!canAccessPage('profile')">
+                <NativeDropdownMenu class="workspace-user-dropdown-menu">
+                  <NativeDropdownItem command="profile" :disabled="!canAccessPage('profile')">
                     <AppIcon name="user" :size="16" />
                     <span>个人中心</span>
-                  </el-dropdown-item>
-                  <el-dropdown-item command="lock">
+                  </NativeDropdownItem>
+                  <NativeDropdownItem command="lock">
                     <AppIcon name="lock" :size="16" />
                     <span>锁定屏幕</span>
-                  </el-dropdown-item>
-                  <el-dropdown-item command="logout" divided class="workspace-menu-logout">
+                  </NativeDropdownItem>
+                  <NativeDropdownItem command="logout" divided class="workspace-menu-logout">
                     <AppIcon name="logout" :size="16" />
                     <span>退出登录</span>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
+                  </NativeDropdownItem>
+                </NativeDropdownMenu>
               </div>
             </template>
-          </el-dropdown>
+          </NativeDropdown>
         </div>
       </header>
 
@@ -478,21 +543,21 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
     </section>
 
     <div class="workspace-float-actions" role="group" aria-label="快捷操作">
-      <el-tooltip :content="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'" placement="left">
-        <el-button class="workspace-float-action" circle @click="handleFloatAction('theme')">
+      <NativeTooltip :content="isWorkspaceDark ? '切换明亮模式' : '切换暗黑模式'" placement="left">
+        <NativeButton class="workspace-float-action" circle @click="handleFloatAction('theme')">
           <AppIcon :name="isWorkspaceDark ? 'sun' : 'moon'" :size="18" />
-        </el-button>
-      </el-tooltip>
-      <el-tooltip v-if="activeTool === 'dashboard'" content="刷新仪表盘" placement="left">
-        <el-button class="workspace-float-action" circle :loading="isDashboardRefreshing" @click="handleFloatAction('refresh')">
+        </NativeButton>
+      </NativeTooltip>
+      <NativeTooltip v-if="activeTool === 'dashboard'" content="刷新仪表盘" placement="left">
+        <NativeButton class="workspace-float-action" circle :loading="isDashboardRefreshing" @click="handleFloatAction('refresh')">
           <AppIcon v-if="!isDashboardRefreshing" name="refresh" :size="18" />
-        </el-button>
-      </el-tooltip>
-      <el-tooltip content="回到顶部" placement="left">
-        <el-button class="workspace-float-action" circle @click="handleFloatAction('top')">
+        </NativeButton>
+      </NativeTooltip>
+      <NativeTooltip content="回到顶部" placement="left">
+        <NativeButton class="workspace-float-action" circle @click="handleFloatAction('top')">
           <AppIcon class="workspace-float-top-icon" name="chevronDown" :size="18" />
-        </el-button>
-      </el-tooltip>
+        </NativeButton>
+      </NativeTooltip>
     </div>
 
     <WatermarkOverlay v-if="shouldShowWatermark" :text="watermarkText" />
@@ -528,7 +593,7 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
       @download-template="downloadHostImportTemplate"
     />
 
-    <el-dialog :model-value="Boolean(qrPreview)" class="qr-modal share-modal" title="分享二维码" width="420px" @close="qrPreview = null">
+    <NativeDialog :model-value="Boolean(qrPreview)" class="qr-modal share-modal" title="分享二维码" width="420px" @close="qrPreview = null">
       <template v-if="qrPreview" #default>
         <h2>分享二维码</h2>
         <p>扫码后可直接导入 {{ qrPreview.issuer }} 的双因子配置。</p>
@@ -542,10 +607,10 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
       </template>
       <template #footer>
         <div class="qr-actions">
-          <el-button :disabled="!qrPreview" @click="qrPreview && copyText(qrPreview.uri, '已复制分享链接。')">复制分享链接</el-button>
-          <el-button type="primary" @click="qrPreview = null">完成</el-button>
+          <NativeButton :disabled="!qrPreview" @click="qrPreview && copyText(qrPreview.uri, '已复制分享链接。')">复制分享链接</NativeButton>
+          <NativeButton type="primary" @click="qrPreview = null">完成</NativeButton>
         </div>
       </template>
-    </el-dialog>
+    </NativeDialog>
   </main>
 </template>

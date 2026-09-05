@@ -181,30 +181,30 @@ function statusTagType(status: LoginLogStatus) {
   <section v-if="activeTool === 'loginLogs'" class="login-log-page" :class="{ fullscreen }" @click="columnsOpen = false">
     <template v-if="canUseAnyPageAction('loginLogs', ['refresh', 'filter', 'columns'])">
       <article v-if="canUsePageAction('loginLogs', 'filter')" class="login-log-filter-panel">
-        <el-form inline label-position="left">
-          <el-form-item label="账户名称">
-            <el-input v-model="username" placeholder="请输入" clearable />
-          </el-form-item>
-          <el-form-item label="登录 IP">
-            <el-input v-model="loginIp" placeholder="请输入" clearable />
-          </el-form-item>
-        </el-form>
+        <NativeForm inline label-position="left">
+          <NativeFormItem label="账户名称">
+            <NativeInput v-model="username" placeholder="请输入" clearable />
+          </NativeFormItem>
+          <NativeFormItem label="登录 IP">
+            <NativeInput v-model="loginIp" placeholder="请输入" clearable />
+          </NativeFormItem>
+        </NativeForm>
       </article>
 
       <article class="login-log-list-panel">
         <div class="login-log-toolbar">
           <h2>登录记录</h2>
           <div class="login-log-actions">
-            <el-radio-group v-if="canUsePageAction('loginLogs', 'filter')" v-model="statusFilter" class="login-log-tabs" @change="setStatusFilter">
-              <el-radio-button label="all">全部</el-radio-button>
-              <el-radio-button label="success">成功</el-radio-button>
-              <el-radio-button label="failed">失败</el-radio-button>
-            </el-radio-group>
+            <NativeRadioGroup v-if="canUsePageAction('loginLogs', 'filter')" v-model="statusFilter" class="login-log-tabs" @change="setStatusFilter">
+              <NativeRadioButton label="all">全部</NativeRadioButton>
+              <NativeRadioButton label="success">成功</NativeRadioButton>
+              <NativeRadioButton label="failed">失败</NativeRadioButton>
+            </NativeRadioGroup>
             <span v-if="canUseAnyPageAction('loginLogs', ['filter', 'refresh', 'columns'])" class="login-log-toolbar-divider"></span>
-            <el-tooltip v-if="canUsePageAction('loginLogs', 'refresh')" content="刷新" placement="top">
-              <el-button circle @click="loadLogs"><AppIcon name="refresh" :size="18" /></el-button>
-            </el-tooltip>
-            <el-popover
+            <NativeTooltip v-if="canUsePageAction('loginLogs', 'refresh')" content="刷新" placement="top">
+              <NativeButton circle @click="loadLogs"><AppIcon name="refresh" :size="18" /></NativeButton>
+            </NativeTooltip>
+            <NativePopover
               v-if="canUsePageAction('loginLogs', 'columns')"
               v-model:visible="columnsOpen"
               placement="bottom-end"
@@ -214,20 +214,20 @@ function statusTagType(status: LoginLogStatus) {
               @click.stop
             >
               <template #reference>
-                <el-button circle @click.stop><AppIcon name="settings" :size="18" /></el-button>
+                <NativeButton circle @click.stop><AppIcon name="settings" :size="18" /></NativeButton>
               </template>
               <div class="login-log-column-menu-head">
-                <el-checkbox
+                <NativeCheckbox
                   :model-value="allColumnsVisible"
                   :indeterminate="someColumnsVisible && !allColumnsVisible"
                   @change="toggleAllColumns"
                 >
                   列显示
-                </el-checkbox>
-                <el-button size="small" text type="primary" @click="resetColumns">重置</el-button>
+                </NativeCheckbox>
+                <NativeButton size="small" text type="primary" @click="resetColumns">重置</NativeButton>
               </div>
               <div class="login-log-column-options">
-                <el-checkbox
+                <NativeCheckbox
                   v-for="column in columnOptions"
                   :key="column.key"
                   :model-value="isColumnVisible(column.key)"
@@ -235,36 +235,36 @@ function statusTagType(status: LoginLogStatus) {
                   @change="toggleColumn(column.key, $event)"
                 >
                   {{ column.label }}
-                </el-checkbox>
+                </NativeCheckbox>
               </div>
-            </el-popover>
-            <el-tooltip :content="fullscreen ? '退出全屏' : '全屏'" placement="top">
-              <el-button circle @click="fullscreen = !fullscreen">
+            </NativePopover>
+            <NativeTooltip :content="fullscreen ? '退出全屏' : '全屏'" placement="top">
+              <NativeButton circle @click="fullscreen = !fullscreen">
                 <AppIcon :name="fullscreen ? 'minimize' : 'maximize'" :size="18" />
-              </el-button>
-            </el-tooltip>
+              </NativeButton>
+            </NativeTooltip>
           </div>
         </div>
 
         <p v-if="message" class="login-log-message">{{ message }}</p>
 
         <div class="login-log-table-wrap">
-          <el-table :data="logs" row-key="id" class="login-log-table" v-loading="isLoading" empty-text="暂无登录记录">
-            <el-table-column v-if="isColumnVisible('createdAt')" label="时间" min-width="170">
+          <NativeTable :data="logs" row-key="id" class="login-log-table" v-loading="isLoading" empty-text="暂无登录记录">
+            <NativeTableColumn v-if="isColumnVisible('createdAt')" label="时间" min-width="170">
               <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-            </el-table-column>
-            <el-table-column v-if="isColumnVisible('username')" prop="username" label="账户名" min-width="120" show-overflow-tooltip />
-            <el-table-column v-if="isColumnVisible('status')" label="状态" min-width="90">
+            </NativeTableColumn>
+            <NativeTableColumn v-if="isColumnVisible('username')" prop="username" label="账户名" min-width="120" show-overflow-tooltip />
+            <NativeTableColumn v-if="isColumnVisible('status')" label="状态" min-width="90">
               <template #default="{ row }">
-                <el-tag :type="statusTagType(row.status)" size="small" effect="dark">{{ statusText(row.status) }}</el-tag>
+                <NativeTag :type="statusTagType(row.status)" size="small" effect="dark">{{ statusText(row.status) }}</NativeTag>
               </template>
-            </el-table-column>
-            <el-table-column v-if="isColumnVisible('ipAddress')" label="登录 IP" min-width="150">
+            </NativeTableColumn>
+            <NativeTableColumn v-if="isColumnVisible('ipAddress')" label="登录 IP" min-width="150">
               <template #default="{ row }">{{ row.ipAddress || '-' }}</template>
-            </el-table-column>
-            <el-table-column v-if="isColumnVisible('userAgent')" prop="userAgent" label="User Agent" min-width="300" show-overflow-tooltip />
-            <el-table-column v-if="isColumnVisible('message')" prop="message" label="提示信息" min-width="240" show-overflow-tooltip />
-          </el-table>
+            </NativeTableColumn>
+            <NativeTableColumn v-if="isColumnVisible('userAgent')" prop="userAgent" label="User Agent" min-width="300" show-overflow-tooltip />
+            <NativeTableColumn v-if="isColumnVisible('message')" prop="message" label="提示信息" min-width="240" show-overflow-tooltip />
+          </NativeTable>
         </div>
 
         <div class="host-pagination" aria-label="登录记录分页">
@@ -272,7 +272,7 @@ function statusTagType(status: LoginLogStatus) {
             <span>共 {{ total }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>
-          <el-pagination
+          <NativePagination
             background
             layout="prev, pager, next, sizes"
             :current-page="page"

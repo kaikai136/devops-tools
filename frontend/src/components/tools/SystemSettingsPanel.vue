@@ -492,20 +492,20 @@ onMounted(() => {
             <p>{{ currentTab.subtitle }}</p>
           </div>
           <div class="system-settings-actions">
-            <el-button v-if="canUsePageAction('systemSettings', 'refresh')" :disabled="currentLoading" @click="refreshCurrentTab">
+            <NativeButton v-if="canUsePageAction('systemSettings', 'refresh')" :disabled="currentLoading" @click="refreshCurrentTab">
               <AppIcon name="refresh" :size="15" />刷新
-            </el-button>
-            <el-button v-if="canUsePageAction('systemSettings', 'reset')" :disabled="currentBusy" @click="resetCurrentTab">
+            </NativeButton>
+            <NativeButton v-if="canUsePageAction('systemSettings', 'reset')" :disabled="currentBusy" @click="resetCurrentTab">
               <AppIcon name="reset" :size="15" />还原
-            </el-button>
-            <el-button v-if="canSave" type="primary" :disabled="currentBusy" @click="saveCurrentTab">
+            </NativeButton>
+            <NativeButton v-if="canSave" type="primary" :disabled="currentBusy" @click="saveCurrentTab">
               {{ currentBusy ? '保存中...' : '保存当前' }}
-            </el-button>
+            </NativeButton>
           </div>
         </header>
 
         <nav class="system-settings-tabs" aria-label="系统设置分类">
-          <el-button
+          <NativeButton
             v-for="tab in settingsTabs"
             :key="tab.key"
             :class="{ active: activeTab === tab.key }"
@@ -513,7 +513,7 @@ onMounted(() => {
           >
             <AppIcon :name="tab.icon" :size="16" />
             <span>{{ tab.label }}</span>
-          </el-button>
+          </NativeButton>
         </nav>
 
         <p v-if="currentMessage" class="system-settings-message">{{ currentMessage }}</p>
@@ -527,35 +527,35 @@ onMounted(() => {
             <div class="settings-field-grid compact-settings-field-grid">
               <label>
                 <span>应用名称</span>
-                <el-input v-model="siteIdentityDraft.appName" :disabled="!canSave" maxlength="80" />
+                <NativeInput v-model="siteIdentityDraft.appName" :disabled="!canSave" maxlength="80" />
               </label>
               <label>
                 <span>短名称</span>
-                <el-input v-model="siteIdentityDraft.appShortName" :disabled="!canSave" maxlength="32" />
+                <NativeInput v-model="siteIdentityDraft.appShortName" :disabled="!canSave" maxlength="32" />
               </label>
               <label>
                 <span>副标题</span>
-                <el-input v-model="siteIdentityDraft.appSubtitle" :disabled="!canSave" maxlength="80" />
+                <NativeInput v-model="siteIdentityDraft.appSubtitle" :disabled="!canSave" maxlength="80" />
               </label>
               <label>
                 <span>浏览器标题</span>
-                <el-input v-model="siteIdentityDraft.browserTitle" :disabled="!canSave" maxlength="80" />
+                <NativeInput v-model="siteIdentityDraft.browserTitle" :disabled="!canSave" maxlength="80" />
               </label>
               <label>
                 <span>Logo 文本</span>
-                <el-input v-model="siteIdentityDraft.logoText" :disabled="!canSave" maxlength="32" />
+                <NativeInput v-model="siteIdentityDraft.logoText" :disabled="!canSave" maxlength="32" />
               </label>
               <label>
                 <span>2FA 发行方</span>
-                <el-input v-model="siteIdentityDraft.totpIssuer" :disabled="!canSave" maxlength="80" />
+                <NativeInput v-model="siteIdentityDraft.totpIssuer" :disabled="!canSave" maxlength="80" />
               </label>
               <label class="span-3">
                 <span>Logo 图片地址</span>
-                <el-input v-model="siteIdentityDraft.logoImageUrl" :disabled="!canSave" maxlength="500" />
+                <NativeInput v-model="siteIdentityDraft.logoImageUrl" :disabled="!canSave" maxlength="500" />
               </label>
               <label class="span-3">
                 <span>默认图标地址</span>
-                <el-input v-model="siteIdentityDraft.iconUrl" :disabled="!canSave" maxlength="500" />
+                <NativeInput v-model="siteIdentityDraft.iconUrl" :disabled="!canSave" maxlength="500" />
               </label>
             </div>
           </section>
@@ -568,19 +568,19 @@ onMounted(() => {
             <div class="settings-field-grid compact-settings-field-grid">
               <label>
                 <span>徽标模板</span>
-                <el-input v-model="loginContentDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
+                <NativeInput v-model="loginContentDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
               </label>
               <label>
                 <span>标题</span>
-                <el-input v-model="loginContentDraft.title" :disabled="!canSave" maxlength="80" />
+                <NativeInput v-model="loginContentDraft.title" :disabled="!canSave" maxlength="80" />
               </label>
               <label class="span-3">
                 <span>说明文案</span>
-                <el-input v-model="loginContentDraft.description" :disabled="!canSave" maxlength="260" type="textarea" :rows="4" />
+                <NativeInput v-model="loginContentDraft.description" :disabled="!canSave" maxlength="260" type="textarea" :rows="4" />
               </label>
               <label class="span-3">
                 <span>版权模板</span>
-                <el-input v-model="loginContentDraft.copyrightTemplate" :disabled="!canSave" maxlength="160" />
+                <NativeInput v-model="loginContentDraft.copyrightTemplate" :disabled="!canSave" maxlength="160" />
               </label>
             </div>
           </section>
@@ -591,26 +591,26 @@ onMounted(() => {
               <span>底部文案、链接与显示样式</span>
             </header>
             <div class="settings-field-grid compact-settings-field-grid">
-              <el-checkbox v-model="layoutFooterDraft.enabled" :disabled="!canSave" class="settings-check-row">显示页脚</el-checkbox>
+              <NativeCheckbox v-model="layoutFooterDraft.enabled" :disabled="!canSave" class="settings-check-row">显示页脚</NativeCheckbox>
               <label>
                 <span>字号</span>
-                <el-input-number v-model="layoutFooterDraft.fontSize" :disabled="!canSave" :min="10" :max="18" />
+                <NativeNumberInput v-model="layoutFooterDraft.fontSize" :disabled="!canSave" :min="10" :max="18" />
               </label>
               <label>
                 <span>颜色</span>
-                <el-color-picker v-model="layoutFooterDraft.color" :disabled="!canSave" />
+                <NativeColorPicker v-model="layoutFooterDraft.color" :disabled="!canSave" />
               </label>
               <label class="span-3">
                 <span>页脚模板</span>
-                <el-input v-model="layoutFooterDraft.textTemplate" :disabled="!canSave" maxlength="220" />
+                <NativeInput v-model="layoutFooterDraft.textTemplate" :disabled="!canSave" maxlength="220" />
               </label>
               <label>
                 <span>链接文字</span>
-                <el-input v-model="layoutFooterDraft.linkText" :disabled="!canSave" maxlength="80" />
+                <NativeInput v-model="layoutFooterDraft.linkText" :disabled="!canSave" maxlength="80" />
               </label>
               <label class="span-2">
                 <span>链接地址</span>
-                <el-input v-model="layoutFooterDraft.linkUrl" :disabled="!canSave" maxlength="500" />
+                <NativeInput v-model="layoutFooterDraft.linkUrl" :disabled="!canSave" maxlength="500" />
               </label>
             </div>
           </section>
@@ -624,12 +624,12 @@ onMounted(() => {
               <label class="expiry-duration-field">
                 <span>系统登录过期时间</span>
                 <div>
-                  <el-input-number v-model="loginExpiryValue" :disabled="!canSave" :min="1" :max="loginExpiryInputMax" />
-                  <el-select v-model="loginExpiryUnit" :disabled="!canSave">
-                    <el-option value="minutes" label="分钟" />
-                    <el-option value="hours" label="小时" />
-                    <el-option value="days" label="天" />
-                  </el-select>
+                  <NativeNumberInput v-model="loginExpiryValue" :disabled="!canSave" :min="1" :max="loginExpiryInputMax" />
+                  <NativeSelect v-model="loginExpiryUnit" :disabled="!canSave">
+                    <NativeOption value="minutes" label="分钟" />
+                    <NativeOption value="hours" label="小时" />
+                    <NativeOption value="days" label="天" />
+                  </NativeSelect>
                 </div>
               </label>
             </div>
@@ -644,75 +644,75 @@ onMounted(() => {
           <div class="settings-field-grid dashboard-hero-field-grid">
             <label>
               <span>徽标模板</span>
-              <el-input v-model="dashboardHeroDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
+              <NativeInput v-model="dashboardHeroDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
             </label>
             <label>
               <span>第一行动画</span>
-              <el-input v-model="dashboardHeroDraft.line1Template" :disabled="!canSave" maxlength="160" />
+              <NativeInput v-model="dashboardHeroDraft.line1Template" :disabled="!canSave" maxlength="160" />
             </label>
             <label>
               <span>第二行动画</span>
-              <el-input v-model="dashboardHeroDraft.line2Template" :disabled="!canSave" maxlength="160" />
+              <NativeInput v-model="dashboardHeroDraft.line2Template" :disabled="!canSave" maxlength="160" />
             </label>
             <label class="span-4">
               <span>说明文案</span>
-              <el-input v-model="dashboardHeroDraft.descriptionTemplate" :disabled="!canSave" maxlength="260" type="textarea" :rows="4" />
+              <NativeInput v-model="dashboardHeroDraft.descriptionTemplate" :disabled="!canSave" maxlength="260" type="textarea" :rows="4" />
             </label>
             <label>
               <span>字体</span>
-              <el-select v-model="dashboardHeroDraft.font" :disabled="!canSave">
-                <el-option v-for="font in dashboardHeroFontOptions" :key="font" :value="font" :label="font" />
-              </el-select>
+              <NativeSelect v-model="dashboardHeroDraft.font" :disabled="!canSave">
+                <NativeOption v-for="font in dashboardHeroFontOptions" :key="font" :value="font" :label="font" />
+              </NativeSelect>
             </label>
             <label>
               <span>字号</span>
-              <el-input-number v-model="dashboardHeroDraft.fontSize" :disabled="!canSave" :min="16" :max="36" />
+              <NativeNumberInput v-model="dashboardHeroDraft.fontSize" :disabled="!canSave" :min="16" :max="36" />
             </label>
             <label>
               <span>字体加粗</span>
-              <el-select v-model="dashboardHeroDraft.fontWeight" :disabled="!canSave">
-                <el-option :value="400" label="常规 400" />
-                <el-option :value="500" label="中等 500" />
-                <el-option :value="600" label="半粗 600" />
-                <el-option :value="700" label="加粗 700" />
-                <el-option :value="800" label="超粗 800" />
-                <el-option :value="900" label="最粗 900" />
-              </el-select>
+              <NativeSelect v-model="dashboardHeroDraft.fontWeight" :disabled="!canSave">
+                <NativeOption :value="400" label="常规 400" />
+                <NativeOption :value="500" label="中等 500" />
+                <NativeOption :value="600" label="半粗 600" />
+                <NativeOption :value="700" label="加粗 700" />
+                <NativeOption :value="800" label="超粗 800" />
+                <NativeOption :value="900" label="最粗 900" />
+              </NativeSelect>
             </label>
             <label>
               <span>字间距</span>
-              <el-select v-model="dashboardHeroDraft.letterSpacing" :disabled="!canSave">
-                <el-option v-for="spacing in dashboardHeroLetterSpacingOptions" :key="spacing.value" :value="spacing.value" :label="spacing.label" />
-              </el-select>
+              <NativeSelect v-model="dashboardHeroDraft.letterSpacing" :disabled="!canSave">
+                <NativeOption v-for="spacing in dashboardHeroLetterSpacingOptions" :key="spacing.value" :value="spacing.value" :label="spacing.label" />
+              </NativeSelect>
             </label>
             <label>
               <span>每行持续时间 ms</span>
-              <el-input-number v-model="dashboardHeroDraft.durationMs" :disabled="!canSave" :min="100" :max="30000" />
+              <NativeNumberInput v-model="dashboardHeroDraft.durationMs" :disabled="!canSave" :min="100" :max="30000" />
             </label>
             <label>
               <span>停顿时间 ms</span>
-              <el-input-number v-model="dashboardHeroDraft.pauseMs" :disabled="!canSave" :min="0" :max="10000" />
+              <NativeNumberInput v-model="dashboardHeroDraft.pauseMs" :disabled="!canSave" :min="0" :max="10000" />
             </label>
             <label>
               <span>文字颜色</span>
-              <el-color-picker v-model="dashboardHeroDraft.color" :disabled="!canSave" />
+              <NativeColorPicker v-model="dashboardHeroDraft.color" :disabled="!canSave" />
             </label>
             <label>
               <span>背景颜色</span>
-              <el-input v-model="dashboardHeroDraft.backgroundColor" :disabled="!canSave" maxlength="9" placeholder="#00000000" />
+              <NativeInput v-model="dashboardHeroDraft.backgroundColor" :disabled="!canSave" maxlength="9" placeholder="#00000000" />
             </label>
-            <el-checkbox v-model="dashboardHeroDraft.centered" :disabled="!canSave" class="settings-check-row">水平居中</el-checkbox>
-            <el-checkbox v-model="dashboardHeroDraft.verticalCentered" :disabled="!canSave" class="settings-check-row">垂直居中</el-checkbox>
-            <el-checkbox v-model="dashboardHeroDraft.multiline" :disabled="!canSave" class="settings-check-row">多行显示</el-checkbox>
-            <el-checkbox v-model="dashboardHeroDraft.repeat" :disabled="!canSave" class="settings-check-row">循环播放</el-checkbox>
-            <el-checkbox v-model="dashboardHeroDraft.random" :disabled="!canSave" class="settings-check-row">随机顺序</el-checkbox>
+            <NativeCheckbox v-model="dashboardHeroDraft.centered" :disabled="!canSave" class="settings-check-row">水平居中</NativeCheckbox>
+            <NativeCheckbox v-model="dashboardHeroDraft.verticalCentered" :disabled="!canSave" class="settings-check-row">垂直居中</NativeCheckbox>
+            <NativeCheckbox v-model="dashboardHeroDraft.multiline" :disabled="!canSave" class="settings-check-row">多行显示</NativeCheckbox>
+            <NativeCheckbox v-model="dashboardHeroDraft.repeat" :disabled="!canSave" class="settings-check-row">循环播放</NativeCheckbox>
+            <NativeCheckbox v-model="dashboardHeroDraft.random" :disabled="!canSave" class="settings-check-row">随机顺序</NativeCheckbox>
             <label>
               <span>宽度</span>
-              <el-input-number v-model="dashboardHeroDraft.width" :disabled="!canSave" :min="160" :max="1600" />
+              <NativeNumberInput v-model="dashboardHeroDraft.width" :disabled="!canSave" :min="160" :max="1600" />
             </label>
             <label>
               <span>高度</span>
-              <el-input-number v-model="dashboardHeroDraft.height" :disabled="!canSave" :min="30" :max="420" />
+              <NativeNumberInput v-model="dashboardHeroDraft.height" :disabled="!canSave" :min="30" :max="420" />
             </label>
           </div>
         </section>
@@ -723,30 +723,30 @@ onMounted(() => {
             <span>0 表示永久保留</span>
           </header>
           <div class="settings-field-grid log-retention-field-grid">
-            <el-checkbox v-model="logRetentionDraft.rdpRecordingEnabled" :disabled="!canSave" class="settings-check-row">开启 RDP 录像</el-checkbox>
+            <NativeCheckbox v-model="logRetentionDraft.rdpRecordingEnabled" :disabled="!canSave" class="settings-check-row">开启 RDP 录像</NativeCheckbox>
             <label>
               <span>登录日志保留天数</span>
-              <el-input-number v-model="logRetentionDraft.loginLogsDays" :disabled="!canSave" :min="0" :max="3650" />
+              <NativeNumberInput v-model="logRetentionDraft.loginLogsDays" :disabled="!canSave" :min="0" :max="3650" />
             </label>
             <label>
               <span>操作日志保留天数</span>
-              <el-input-number v-model="logRetentionDraft.operationLogsDays" :disabled="!canSave" :min="0" :max="3650" />
+              <NativeNumberInput v-model="logRetentionDraft.operationLogsDays" :disabled="!canSave" :min="0" :max="3650" />
             </label>
             <label>
               <span>终端命令审计保留天数</span>
-              <el-input-number v-model="logRetentionDraft.terminalCommandAuditDays" :disabled="!canSave" :min="0" :max="3650" />
+              <NativeNumberInput v-model="logRetentionDraft.terminalCommandAuditDays" :disabled="!canSave" :min="0" :max="3650" />
             </label>
             <label>
               <span>终端文件审计保留天数</span>
-              <el-input-number v-model="logRetentionDraft.terminalFileAuditDays" :disabled="!canSave" :min="0" :max="3650" />
+              <NativeNumberInput v-model="logRetentionDraft.terminalFileAuditDays" :disabled="!canSave" :min="0" :max="3650" />
             </label>
             <label>
               <span>终端会话元数据保留天数</span>
-              <el-input-number v-model="logRetentionDraft.terminalSessionDays" :disabled="!canSave" :min="0" :max="3650" />
+              <NativeNumberInput v-model="logRetentionDraft.terminalSessionDays" :disabled="!canSave" :min="0" :max="3650" />
             </label>
             <label>
               <span>RDP 录像文件保留天数</span>
-              <el-input-number v-model="logRetentionDraft.rdpRecordingDays" :disabled="!canSave" :min="0" :max="3650" />
+              <NativeNumberInput v-model="logRetentionDraft.rdpRecordingDays" :disabled="!canSave" :min="0" :max="3650" />
             </label>
           </div>
         </section>
@@ -757,7 +757,7 @@ onMounted(() => {
             <span>OSV/NVD 在线漏洞源访问</span>
           </header>
           <div class="settings-field-grid">
-            <el-checkbox v-model="securityScanDraft.onlineCveEnabled" :disabled="!canSave" class="settings-check-row span-2">开启在线 CVE 查询</el-checkbox>
+            <NativeCheckbox v-model="securityScanDraft.onlineCveEnabled" :disabled="!canSave" class="settings-check-row span-2">开启在线 CVE 查询</NativeCheckbox>
             <p class="span-2 settings-inline-help">
               关闭时安全扫描只执行基线和端口风险检查；开启后会访问 OSV 和 NVD 获取 CVE 详情，并缓存查询结果。
             </p>
@@ -771,10 +771,10 @@ onMounted(() => {
           </header>
           <div class="watermark-form-grid">
             <div class="settings-field-grid">
-              <el-checkbox v-model="watermarkDraft.enabled" :disabled="!canSave" class="settings-check-row">开启水印</el-checkbox>
+              <NativeCheckbox v-model="watermarkDraft.enabled" :disabled="!canSave" class="settings-check-row">开启水印</NativeCheckbox>
               <label>
                 <span>水印模板</span>
-                <el-input v-model="watermarkDraft.text" :disabled="!canSave" maxlength="160" />
+                <NativeInput v-model="watermarkDraft.text" :disabled="!canSave" maxlength="160" />
               </label>
             </div>
 
@@ -784,15 +784,15 @@ onMounted(() => {
                   <strong>应用页面</strong>
                   <span>已选择 {{ watermarkDraft.pages.length }} 个页面</span>
                 </div>
-                <el-button v-if="canSave" @click="toggleAllWatermarkPages">
+                <NativeButton v-if="canSave" @click="toggleAllWatermarkPages">
                   {{ watermarkDraft.pages.length === allPageKeys.length ? '清空选择' : '全选页面' }}
-                </el-button>
+                </NativeButton>
               </header>
               <div class="watermark-page-groups">
                 <article v-for="group in watermarkPageGroups" :key="group.key" class="watermark-page-group">
                   <h3>{{ group.label }}</h3>
                   <template v-if="canSave">
-                    <el-button
+                    <NativeButton
                       v-for="page in group.pages"
                       :key="page.key"
                       :class="{ active: selectedPages.has(page.key) }"
@@ -800,7 +800,7 @@ onMounted(() => {
                     >
                       <AppIcon :name="selectedPages.has(page.key) ? 'check' : 'circleHelp'" :size="15" />
                       {{ page.label }}
-                    </el-button>
+                    </NativeButton>
                   </template>
                   <template v-else>
                     <span
@@ -830,23 +830,23 @@ onMounted(() => {
               <div class="settings-field-grid terminal-settings-field-grid">
                 <label>
                   <span>SSH 连接超时秒数</span>
-                  <el-input-number v-model="terminalSettingsDraft.sshConnectTimeoutSeconds" :disabled="!canSave" :min="1" :max="300" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.sshConnectTimeoutSeconds" :disabled="!canSave" :min="1" :max="300" />
                 </label>
                 <label>
                   <span>SSH Banner 超时秒数</span>
-                  <el-input-number v-model="terminalSettingsDraft.sshBannerTimeoutSeconds" :disabled="!canSave" :min="1" :max="300" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.sshBannerTimeoutSeconds" :disabled="!canSave" :min="1" :max="300" />
                 </label>
                 <label>
                   <span>SSH 认证超时秒数</span>
-                  <el-input-number v-model="terminalSettingsDraft.sshAuthTimeoutSeconds" :disabled="!canSave" :min="1" :max="300" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.sshAuthTimeoutSeconds" :disabled="!canSave" :min="1" :max="300" />
                 </label>
                 <label>
                   <span>SSH 连接重试次数</span>
-                  <el-input-number v-model="terminalSettingsDraft.sshConnectAttempts" :disabled="!canSave" :min="1" :max="10" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.sshConnectAttempts" :disabled="!canSave" :min="1" :max="10" />
                 </label>
                 <label>
                   <span>SSH 重试基础间隔 ms</span>
-                  <el-input-number v-model="terminalSettingsDraft.sshRetryDelayMs" :disabled="!canSave" :min="0" :max="10000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.sshRetryDelayMs" :disabled="!canSave" :min="0" :max="10000" />
                 </label>
               </div>
             </section>
@@ -856,15 +856,15 @@ onMounted(() => {
               <div class="settings-field-grid terminal-settings-field-grid">
                 <label>
                   <span>SSH Keepalive 间隔秒数</span>
-                  <el-input-number v-model="terminalSettingsDraft.sshKeepaliveSeconds" :disabled="!canSave" :min="0" :max="3600" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.sshKeepaliveSeconds" :disabled="!canSave" :min="0" :max="3600" />
                 </label>
                 <label>
                   <span>WebSocket 心跳间隔秒数</span>
-                  <el-input-number v-model="terminalSettingsDraft.webSocketHeartbeatSeconds" :disabled="!canSave" :min="0" :max="3600" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.webSocketHeartbeatSeconds" :disabled="!canSave" :min="0" :max="3600" />
                 </label>
                 <label>
                   <span>闲置断开分钟数</span>
-                  <el-input-number v-model="terminalSettingsDraft.idleDisconnectMinutes" :disabled="!canSave" :min="0" :max="1440" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.idleDisconnectMinutes" :disabled="!canSave" :min="0" :max="1440" />
                 </label>
               </div>
             </section>
@@ -874,23 +874,23 @@ onMounted(() => {
               <div class="settings-field-grid terminal-settings-field-grid">
                 <label>
                   <span>初始读取超时秒数</span>
-                  <el-input-number v-model="terminalSettingsDraft.initialReadTimeoutSeconds" :disabled="!canSave" :min="1" :max="60" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.initialReadTimeoutSeconds" :disabled="!canSave" :min="1" :max="60" />
                 </label>
                 <label>
                   <span>初始读取空闲 ms</span>
-                  <el-input-number v-model="terminalSettingsDraft.initialReadIdleTimeoutMs" :disabled="!canSave" :min="50" :max="10000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.initialReadIdleTimeoutMs" :disabled="!canSave" :min="50" :max="10000" />
                 </label>
                 <label>
                   <span>命令读取超时秒数</span>
-                  <el-input-number v-model="terminalSettingsDraft.commandReadTimeoutSeconds" :disabled="!canSave" :min="1" :max="3600" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.commandReadTimeoutSeconds" :disabled="!canSave" :min="1" :max="3600" />
                 </label>
                 <label>
                   <span>命令读取空闲 ms</span>
-                  <el-input-number v-model="terminalSettingsDraft.commandReadIdleTimeoutMs" :disabled="!canSave" :min="50" :max="10000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.commandReadIdleTimeoutMs" :disabled="!canSave" :min="50" :max="10000" />
                 </label>
                 <label>
                   <span>输出轮询间隔 ms</span>
-                  <el-input-number v-model="terminalSettingsDraft.readerPollIntervalMs" :disabled="!canSave" :min="10" :max="1000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.readerPollIntervalMs" :disabled="!canSave" :min="10" :max="1000" />
                 </label>
               </div>
             </section>
@@ -900,15 +900,15 @@ onMounted(() => {
               <div class="settings-field-grid terminal-settings-field-grid">
                 <label>
                   <span>CWD Hook 回显抑制 ms</span>
-                  <el-input-number v-model="terminalSettingsDraft.cwdHookSuppressEchoMs" :disabled="!canSave" :min="0" :max="10000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.cwdHookSuppressEchoMs" :disabled="!canSave" :min="0" :max="10000" />
                 </label>
                 <label>
                   <span>CWD Hook 排空超时 ms</span>
-                  <el-input-number v-model="terminalSettingsDraft.cwdHookDrainTimeoutMs" :disabled="!canSave" :min="100" :max="10000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.cwdHookDrainTimeoutMs" :disabled="!canSave" :min="100" :max="10000" />
                 </label>
                 <label>
                   <span>CWD Hook 排空空闲 ms</span>
-                  <el-input-number v-model="terminalSettingsDraft.cwdHookDrainIdleTimeoutMs" :disabled="!canSave" :min="50" :max="10000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.cwdHookDrainIdleTimeoutMs" :disabled="!canSave" :min="50" :max="10000" />
                 </label>
               </div>
             </section>
@@ -918,19 +918,19 @@ onMounted(() => {
               <div class="settings-field-grid terminal-settings-field-grid">
                 <label>
                   <span>默认列数</span>
-                  <el-input-number v-model="terminalSettingsDraft.defaultCols" :disabled="!canSave" :min="40" :max="300" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.defaultCols" :disabled="!canSave" :min="40" :max="300" />
                 </label>
                 <label>
                   <span>默认行数</span>
-                  <el-input-number v-model="terminalSettingsDraft.defaultRows" :disabled="!canSave" :min="10" :max="120" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.defaultRows" :disabled="!canSave" :min="10" :max="120" />
                 </label>
                 <label>
                   <span>默认字号</span>
-                  <el-input-number v-model="terminalSettingsDraft.defaultFontSize" :disabled="!canSave" :min="10" :max="24" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.defaultFontSize" :disabled="!canSave" :min="10" :max="24" />
                 </label>
                 <label>
                   <span>滚屏行数</span>
-                  <el-input-number v-model="terminalSettingsDraft.scrollbackLines" :disabled="!canSave" :min="100" :max="50000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.scrollbackLines" :disabled="!canSave" :min="100" :max="50000" />
                 </label>
               </div>
             </section>
@@ -940,7 +940,7 @@ onMounted(() => {
               <div class="settings-field-grid terminal-settings-field-grid">
                 <label>
                   <span>最大主机数</span>
-                  <el-input-number v-model="terminalSettingsDraft.bulkExecutionMaxTargets" :disabled="!canSave" :min="1" :max="1000" />
+                  <NativeNumberInput v-model="terminalSettingsDraft.bulkExecutionMaxTargets" :disabled="!canSave" :min="1" :max="1000" />
                 </label>
               </div>
             </section>

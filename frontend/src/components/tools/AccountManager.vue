@@ -143,13 +143,13 @@ function emptyForm(): CredentialForm {
     <template v-if="canUseAnyPageAction('accounts', ['create', 'edit', 'delete'])">
     <article class="panel account-panel">
       <div class="account-toolbar">
-        <el-input v-model="search" placeholder="输入账号名称/用户/备注搜索" class="account-toolbar-search" clearable />
+        <NativeInput v-model="search" placeholder="输入账号名称/用户/备注搜索" class="account-toolbar-search" clearable />
         <div class="account-toolbar-actions">
-          <el-button v-if="canUsePageAction('accounts', 'create')" type="primary" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</el-button>
-          <el-button title="刷新" aria-label="刷新" @click="loadCredentials"><AppIcon name="refresh" :size="16" /></el-button>
-          <el-button :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click="fullscreen = !fullscreen">
+          <NativeButton v-if="canUsePageAction('accounts', 'create')" type="primary" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</NativeButton>
+          <NativeButton title="刷新" aria-label="刷新" @click="loadCredentials"><AppIcon name="refresh" :size="16" /></NativeButton>
+          <NativeButton :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click="fullscreen = !fullscreen">
             <AppIcon :name="fullscreen ? 'minimize' : 'maximize'" :size="18" />
-          </el-button>
+          </NativeButton>
         </div>
       </div>
 
@@ -162,81 +162,81 @@ function emptyForm(): CredentialForm {
       <p v-if="message" class="account-message">{{ message }}</p>
 
       <div class="account-table">
-        <el-table :data="filteredCredentials" row-key="id" class="account-table" empty-text="没有匹配的账号">
-          <el-table-column label="账号名称" min-width="150">
+        <NativeTable :data="filteredCredentials" row-key="id" class="account-table" empty-text="没有匹配的账号">
+          <NativeTableColumn label="账号名称" min-width="150">
             <template #default="{ row }">
               <div class="account-name">
                 <strong>{{ row.name }}</strong>
                 <span>ID {{ row.id }}</span>
               </div>
             </template>
-          </el-table-column>
-          <el-table-column prop="username" label="用户" min-width="120" />
-          <el-table-column label="密码" min-width="100">
+          </NativeTableColumn>
+          <NativeTableColumn prop="username" label="用户" min-width="120" />
+          <NativeTableColumn label="密码" min-width="100">
             <template #default="{ row }">
-              <el-tag :type="row.password ? 'success' : 'warning'" size="small" effect="dark">{{ row.password ? '已保存' : '未设置' }}</el-tag>
+              <NativeTag :type="row.password ? 'success' : 'warning'" size="small" effect="dark">{{ row.password ? '已保存' : '未设置' }}</NativeTag>
             </template>
-          </el-table-column>
-          <el-table-column label="独立密钥" min-width="150">
+          </NativeTableColumn>
+          <NativeTableColumn label="独立密钥" min-width="150">
             <template #default="{ row }">
-              <el-tag :type="row.privateKey ? 'primary' : 'info'" size="small" effect="dark">{{ row.privateKeyName || '未上传' }}</el-tag>
+              <NativeTag :type="row.privateKey ? 'primary' : 'info'" size="small" effect="dark">{{ row.privateKeyName || '未上传' }}</NativeTag>
             </template>
-          </el-table-column>
-          <el-table-column label="备注" min-width="170">
+          </NativeTableColumn>
+          <NativeTableColumn label="备注" min-width="170">
             <template #default="{ row }">{{ row.remark || '无备注' }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="140" fixed="right">
+          </NativeTableColumn>
+          <NativeTableColumn label="操作" width="140" fixed="right">
             <template #default="{ row }">
               <div class="account-actions">
-                <el-button v-if="canUsePageAction('accounts', 'edit')" type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
-                <el-button v-if="canUsePageAction('accounts', 'delete')" type="danger" size="small" @click="confirmDelete = row">删除</el-button>
+                <NativeButton v-if="canUsePageAction('accounts', 'edit')" type="primary" size="small" @click="openEditDialog(row)">编辑</NativeButton>
+                <NativeButton v-if="canUsePageAction('accounts', 'delete')" type="danger" size="small" @click="confirmDelete = row">删除</NativeButton>
                 <span v-if="!canUseAnyPageAction('accounts', ['edit', 'delete'])" class="permission-placeholder">-</span>
               </div>
             </template>
-          </el-table-column>
-        </el-table>
+          </NativeTableColumn>
+        </NativeTable>
       </div>
     </article>
     </template>
     <div v-else class="permission-empty">暂无可用功能</div>
 
-    <el-dialog
+    <NativeDialog
       :model-value="dialog !== null"
       :title="dialog?.mode === 'edit' ? '编辑账号' : '新增账号'"
       width="560px"
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) dialog = null; }"
     >
-      <el-form :model="form" label-position="left" label-width="92px">
-        <el-form-item label="账号名称" required>
-          <el-input v-model="form.name" autofocus />
-        </el-form-item>
-        <el-form-item label="用户" required>
-          <el-input v-model="form.username" />
-        </el-form-item>
-        <el-form-item label="密码">
-          <el-input v-model="form.password" type="password" autocomplete="new-password" />
-        </el-form-item>
-        <el-form-item label="独立密钥">
+      <NativeForm :model="form" label-position="left" label-width="92px">
+        <NativeFormItem label="账号名称" required>
+          <NativeInput v-model="form.name" autofocus />
+        </NativeFormItem>
+        <NativeFormItem label="用户" required>
+          <NativeInput v-model="form.username" />
+        </NativeFormItem>
+        <NativeFormItem label="密码">
+          <NativeInput v-model="form.password" type="password" autocomplete="new-password" />
+        </NativeFormItem>
+        <NativeFormItem label="独立密钥">
           <div class="account-key-upload">
-            <el-upload :auto-upload="false" :show-file-list="false" :on-change="uploadPrivateKey">
-              <el-button>点击上传</el-button>
-            </el-upload>
+            <NativeUpload :auto-upload="false" :show-file-list="false" :on-change="uploadPrivateKey">
+              <NativeButton>点击上传</NativeButton>
+            </NativeUpload>
             <em>{{ form.privateKeyName || '未上传独立密钥' }}</em>
           </div>
-        </el-form-item>
-        <el-form-item label="备注信息">
-          <el-input v-model="form.remark" type="textarea" :rows="3" />
-        </el-form-item>
+        </NativeFormItem>
+        <NativeFormItem label="备注信息">
+          <NativeInput v-model="form.remark" type="textarea" :rows="3" />
+        </NativeFormItem>
         <p v-if="message" class="account-message">{{ message }}</p>
-      </el-form>
+      </NativeForm>
       <template #footer>
-        <el-button @click="dialog = null">取消</el-button>
-        <el-button type="primary" @click="saveCredential">保存</el-button>
+        <NativeButton @click="dialog = null">取消</NativeButton>
+        <NativeButton type="primary" @click="saveCredential">保存</NativeButton>
       </template>
-    </el-dialog>
+    </NativeDialog>
 
-    <el-dialog
+    <NativeDialog
       :model-value="confirmDelete !== null"
       title="删除账号"
       width="420px"
@@ -245,9 +245,9 @@ function emptyForm(): CredentialForm {
     >
       <p>确定删除账号「{{ confirmDelete?.name }}」吗？</p>
       <template #footer>
-        <el-button @click="confirmDelete = null">取消</el-button>
-        <el-button type="danger" @click="deleteCredential">确定删除</el-button>
+        <NativeButton @click="confirmDelete = null">取消</NativeButton>
+        <NativeButton type="danger" @click="deleteCredential">确定删除</NativeButton>
       </template>
-    </el-dialog>
+    </NativeDialog>
   </section>
 </template>
