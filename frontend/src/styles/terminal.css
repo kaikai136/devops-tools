@@ -1297,6 +1297,14 @@ input {
   position: relative;
 }
 
+.terminal-file-context-menu-row:hover {
+  z-index: 2;
+}
+
+.terminal-file-context-menu-row:focus-within {
+  z-index: 2;
+}
+
 .terminal-file-context-menu-row.separator {
   margin-top: 4px;
   border-top: 1px solid #d8e0ea;
@@ -1312,7 +1320,7 @@ input {
   min-height: 31px;
   border: 0;
   background: transparent;
-  color: inherit;
+  color: #334155 !important;
   padding: 0 12px;
   font-size: 13px;
   font-weight: 700;
@@ -1320,7 +1328,55 @@ input {
   cursor: pointer;
 }
 
-.terminal-file-context-submenu .terminal-file-context-menu-item {
+.terminal-context-menu-item > span,
+.terminal-tab-context-menu-item > span {
+  display: contents;
+}
+
+.terminal-file-context-menu-item.is-text {
+  border: 0;
+  background-color: transparent;
+  padding: 0 12px;
+  color: #334155 !important;
+}
+
+.terminal-file-context-menu-item.is-text span {
+  color: inherit !important;
+}
+
+.terminal-file-context-menu-item.is-text:hover:not(:disabled) {
+  background: #eaf1ff !important;
+  color: #1f63f1 !important;
+}
+
+.terminal-file-context-menu-item.is-text.danger {
+  color: #dc2626 !important;
+}
+
+.terminal-file-context-menu-item.is-text:disabled {
+  color: #9aa8ba !important;
+}
+
+/* Element Plus 按钮内部元素样式覆盖 */
+.terminal-file-context-menu-item *,
+.terminal-context-menu-item *,
+.terminal-tab-context-menu-item * {
+  color: inherit !important;
+}
+
+.terminal-file-context-menu-item kbd {
+  color: #7b8796 !important;
+}
+
+.terminal-file-context-menu-item:hover:not(:disabled) kbd {
+  color: #1f63f1 !important;
+}
+
+.terminal-file-context-menu-item:disabled kbd {
+  color: #aeb8c5 !important;
+}
+
+.terminal-file-context-menu:not(.terminal-context-menu) .terminal-file-context-submenu .terminal-file-context-menu-item {
   grid-template-columns: 24px minmax(0, 1fr);
 }
 
@@ -1340,11 +1396,16 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: inherit;
 }
 
 .terminal-file-context-menu-item:hover:not(:disabled) {
-  background: #eaf1ff;
-  color: #1f63f1;
+  background: #eaf1ff !important;
+  color: #1f63f1 !important;
+}
+
+.terminal-file-context-menu-item:hover:not(:disabled) span {
+  color: inherit;
 }
 
 .terminal-file-context-menu-item:hover:not(:disabled) .app-icon {
@@ -1352,7 +1413,11 @@ input {
 }
 
 .terminal-file-context-menu-item.danger {
-  color: #dc2626;
+  color: #dc2626 !important;
+}
+
+.terminal-file-context-menu-item.danger span {
+  color: inherit;
 }
 
 .terminal-file-context-menu-item.danger .app-icon {
@@ -1360,8 +1425,12 @@ input {
 }
 
 .terminal-file-context-menu-item:disabled {
-  color: #9aa8ba;
+  color: #9aa8ba !important;
   cursor: not-allowed;
+}
+
+.terminal-file-context-menu-item:disabled span {
+  color: inherit;
 }
 
 .terminal-file-context-menu-item:disabled .app-icon {
@@ -1371,9 +1440,10 @@ input {
 .terminal-file-context-submenu {
   position: absolute;
   top: -4px;
-  left: calc(100% - 2px);
+  left: calc(100% + 1px);
   display: none;
   width: 190px;
+  z-index: 1;
   border: 1px solid #cbd5e1;
   border-radius: 5px;
   background: #f8fafc;
@@ -1382,7 +1452,7 @@ input {
 }
 
 .terminal-file-context-menu.submenu-left .terminal-file-context-submenu {
-  right: calc(100% - 2px);
+  right: calc(100% + 1px);
   left: auto;
 }
 
@@ -1403,6 +1473,35 @@ input {
 
 .terminal-context-menu-item {
   grid-template-columns: 24px minmax(0, 1fr) auto;
+}
+
+.terminal-context-submenu > .terminal-context-menu-item {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+}
+
+/* Keep every terminal menu icon in the same fixed left column, including submenu items. */
+.terminal-context-menu-item > :is(.app-icon, .terminal-tab-color-swatch):first-child,
+.terminal-tab-context-menu-item > :is(.app-icon, .terminal-tab-color-swatch):first-child {
+  grid-column: 1;
+  justify-self: center;
+  align-self: center;
+}
+
+.terminal-context-menu-item > span:not(.terminal-tab-color-swatch),
+.terminal-tab-context-menu-item > span:not(.terminal-tab-color-swatch) {
+  grid-column: 2;
+}
+
+.terminal-context-menu-item > kbd,
+.terminal-tab-context-menu-item > kbd {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.terminal-context-menu-item > .app-icon:last-child:not(:first-child),
+.terminal-tab-context-menu-item > .app-icon:last-child:not(:first-child) {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .terminal-context-menu-item kbd {
@@ -1484,8 +1583,12 @@ input {
 }
 
 .terminal-tab-context-menu-item.selected {
-  color: #1f63f1;
+  color: #1f63f1 !important;
   font-weight: 800;
+}
+
+.terminal-tab-context-menu-item.selected span {
+  color: inherit;
 }
 
 .terminal-tab-color-swatch {

@@ -60,16 +60,17 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
     class="terminal-file-create-backdrop"
     width="520px"
     :show-close="false"
+    :close-on-click-modal="false"
     @close="emit('close')"
   >
     <section class="terminal-file-create-modal">
-      <header>
+      <header class="popup-header">
         <h2>{{ title }}</h2>
         <el-button circle aria-label="关闭" :disabled="dialog.saving" @click="emit('close')">
           <AppIcon name="x" :size="16" />
         </el-button>
       </header>
-      <div class="terminal-file-create-body">
+      <div class="terminal-file-create-body popup-body">
         <label class="terminal-file-create-name-row">
           <span>{{ nameLabel }}</span>
           <el-input
@@ -123,7 +124,7 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
         </label>
         <el-alert v-if="dialog.error" class="terminal-file-create-error" type="error" :title="dialog.error" :closable="false" />
       </div>
-      <footer>
+      <footer class="popup-footer popup-actions">
         <el-checkbox
           v-if="dialog.mode !== 'symlink'"
           class="terminal-file-create-open-after"

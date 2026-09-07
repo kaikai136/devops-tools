@@ -797,10 +797,11 @@ function hostPlatformType(value: string | null | undefined) {
       class="host-quick-command-dialog"
       width="920px"
       :show-close="false"
+      :close-on-click-modal="false"
       @close="closeHostQuickCommandManager"
     >
-      <article class="host-quick-command-modal" @click.stop>
-        <header class="host-quick-command-head">
+      <article class="host-quick-command-modal">
+        <header class="host-quick-command-head popup-header">
           <div>
             <span class="host-quick-command-head-icon" aria-hidden="true">
               <AppIcon name="zap" :size="17" />
@@ -814,7 +815,7 @@ function hostPlatformType(value: string | null | undefined) {
             <AppIcon name="x" :size="16" />
           </el-button>
         </header>
-        <div class="host-quick-command-layout">
+        <div class="host-quick-command-layout popup-body">
           <aside class="host-quick-command-categories">
             <div class="host-quick-command-category-title">
               <span>分类</span>
@@ -935,11 +936,11 @@ function hostPlatformType(value: string | null | undefined) {
       class="host-quick-command-form-dialog"
       :title="hostQuickCommandDialog.mode === 'edit' ? '编辑快捷命令' : '新增快捷命令'"
       width="560px"
-      :close-on-click-modal="!hostQuickCommandDialog.saving"
+      :close-on-click-modal="false"
       :close-on-press-escape="!hostQuickCommandDialog.saving"
       @close="closeHostQuickCommandDialog"
     >
-      <form class="host-form-modal host-quick-command-form" @submit.prevent="saveHostQuickCommandDialog">
+      <form class="host-form-modal host-quick-command-form popup-body popup-form-grid" @submit.prevent="saveHostQuickCommandDialog">
         <h2>{{ hostQuickCommandDialog.mode === 'edit' ? '编辑快捷命令' : '新增快捷命令' }}</h2>
         <el-alert v-if="hostQuickCommandDialog.error" class="host-quick-command-error" type="error" :title="hostQuickCommandDialog.error" :closable="false" />
         <label>
@@ -967,7 +968,7 @@ function hostPlatformType(value: string | null | undefined) {
           <el-input v-model="hostQuickCommandDialog.draft.description" :disabled="hostQuickCommandDialog.saving" />
         </label>
         <el-checkbox v-model="hostQuickCommandDialog.draft.enabled" class="host-quick-command-enabled" :disabled="hostQuickCommandDialog.saving">启用</el-checkbox>
-        <div class="host-form-actions">
+        <div class="host-form-actions popup-footer popup-actions">
           <el-button :disabled="hostQuickCommandDialog.saving" @click="closeHostQuickCommandDialog">取消</el-button>
           <el-button type="primary" native-type="submit" :loading="hostQuickCommandDialog.saving" :disabled="hostQuickCommandDialog.saving">
             {{ hostQuickCommandDialog.saving ? '保存中...' : '保存' }}

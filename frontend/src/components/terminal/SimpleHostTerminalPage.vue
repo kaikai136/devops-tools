@@ -90,6 +90,8 @@ interface SimpleTerminalContextMenuItem {
 }
 
 const SIMPLE_TERMINAL_CONTEXT_MENU_WIDTH = 248;
+const SIMPLE_TERMINAL_CONTEXT_SUBMENU_WIDTH = 226;
+const SIMPLE_TERMINAL_CONTEXT_SUBMENU_OFFSET = 1;
 const SIMPLE_TERMINAL_CONTEXT_MENU_HEIGHT = 520;
 const TERMINAL_SETTINGS_SETTING_KEY = 'terminal_settings';
 
@@ -809,7 +811,16 @@ function getContextMenuPosition(event: MouseEvent) {
 }
 
 function isContextSubmenuLeft() {
-  return terminalContextMenu.value.x + SIMPLE_TERMINAL_CONTEXT_MENU_WIDTH + 226 > window.innerWidth;
+  const rightSpace = window.innerWidth - (terminalContextMenu.value.x + SIMPLE_TERMINAL_CONTEXT_MENU_WIDTH);
+  const leftSpace = terminalContextMenu.value.x;
+  const requiredSubmenuSpace = SIMPLE_TERMINAL_CONTEXT_SUBMENU_WIDTH + SIMPLE_TERMINAL_CONTEXT_SUBMENU_OFFSET;
+  if (rightSpace < requiredSubmenuSpace && leftSpace >= requiredSubmenuSpace) {
+    return true;
+  }
+  if (leftSpace < requiredSubmenuSpace && rightSpace >= requiredSubmenuSpace) {
+    return false;
+  }
+  return leftSpace > rightSpace;
 }
 
 function closeContextMenu() {

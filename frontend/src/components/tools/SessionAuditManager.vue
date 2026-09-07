@@ -368,12 +368,19 @@ onBeforeUnmount(() => {
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) closeSessionRecording(); }"
     >
-      <p class="host-session-recording-title">
-        <AppIcon name="terminal" :size="16" />
-        <span>{{ sessionRecordingDialog.sessionId }}</span>
-      </p>
-      <p v-if="sessionRecordingDialog.error" class="host-session-audit-message">{{ sessionRecordingDialog.error }}</p>
-      <div ref="sessionRecordingContainer" class="host-session-recording-player"></div>
+      <div class="popup-body host-session-recording-body">
+        <p class="host-session-recording-title">
+          <AppIcon name="terminal" :size="16" />
+          <span>{{ sessionRecordingDialog.sessionId }}</span>
+        </p>
+        <p v-if="sessionRecordingDialog.error" class="host-session-audit-message">{{ sessionRecordingDialog.error }}</p>
+        <div ref="sessionRecordingContainer" class="host-session-recording-player"></div>
+      </div>
+      <template #footer>
+        <div class="popup-actions">
+          <el-button type="primary" @click="closeSessionRecording">关闭</el-button>
+        </div>
+      </template>
     </el-dialog>
   </section>
 </template>

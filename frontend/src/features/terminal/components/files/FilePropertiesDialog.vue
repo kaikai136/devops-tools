@@ -65,10 +65,11 @@ function updateOctalMode(value: Event | string) {
     class="terminal-file-properties-backdrop"
     width="640px"
     :show-close="false"
+    :close-on-click-modal="false"
     @close="emit('close')"
   >
     <section class="terminal-file-properties-modal">
-      <header class="terminal-file-properties-head">
+      <header class="terminal-file-properties-head popup-header">
         <span class="terminal-file-properties-icon" :class="dialog.properties?.type || dialog.entry?.type">
           <AppIcon :name="(dialog.properties?.type || dialog.entry?.type) === 'directory' ? 'folder' : 'file'" :size="18" />
         </span>
@@ -79,7 +80,7 @@ function updateOctalMode(value: Event | string) {
       </header>
 
       <el-empty v-if="dialog.loading" class="terminal-file-properties-empty" description="属性读取中..." />
-      <div v-else-if="dialog.properties" class="terminal-file-properties-body">
+      <div v-else-if="dialog.properties" class="terminal-file-properties-body popup-body">
         <el-alert v-if="dialog.error" class="terminal-file-properties-error" type="error" :title="dialog.error" :closable="false" />
 
         <section class="terminal-file-properties-section">
@@ -151,7 +152,7 @@ function updateOctalMode(value: Event | string) {
       </div>
       <el-empty v-else class="terminal-file-properties-empty error" :description="dialog.error || '属性读取失败'" />
 
-      <footer class="terminal-file-properties-actions">
+      <footer class="terminal-file-properties-actions popup-footer popup-actions">
         <el-button :disabled="dialog.saving" @click="emit('close')">取消</el-button>
         <el-button type="primary" :loading="dialog.saving" :disabled="dialog.loading || dialog.saving || !dialog.properties" @click="emit('save')">
           {{ dialog.saving ? '保存中...' : '保存' }}

@@ -131,10 +131,10 @@ const searchModel = computed({
         </div>
       </div>
       <el-tooltip v-if="props.canImport" content="导入" placement="bottom">
-        <el-button class="icon-only" circle aria-label="导入" @click="emit('import')"><AppIcon name="upload" :size="16" /></el-button>
+        <el-button class="icon-only" circle aria-label="导入" @click="emit('import')"><AppIcon name="download" :size="16" /></el-button>
       </el-tooltip>
       <el-tooltip v-if="props.canExport" content="导出" placement="bottom">
-        <el-button class="icon-only" circle aria-label="导出" @click="emit('export')"><AppIcon name="download" :size="16" /></el-button>
+        <el-button class="icon-only" circle aria-label="导出" @click="emit('export')"><AppIcon name="upload" :size="16" /></el-button>
       </el-tooltip>
       <el-tooltip content="刷新" placement="bottom">
         <el-button class="icon-only" circle aria-label="刷新" @click="emit('refresh')"><AppIcon name="refresh" :size="16" /></el-button>

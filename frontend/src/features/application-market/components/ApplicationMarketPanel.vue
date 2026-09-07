@@ -529,6 +529,7 @@ function formatDate(value: string | null) {
       class="market-detail-modal"
       size="620px"
       title="应用详情"
+      :close-on-click-modal="false"
       @close="closeAppDetail"
     >
       <template v-if="selectedApp" #default>
@@ -547,7 +548,7 @@ function formatDate(value: string | null) {
           </div>
         </header>
 
-        <div class="market-detail-body">
+        <div class="market-detail-body popup-body">
           <section v-if="selectedApp.installed" class="app-control-panel">
             <div class="app-control-panel__status">
               <div><span>运行状态</span><strong>{{ statusLabels[selectedApp.status || 'unknown'] || selectedApp.status }}</strong><small>{{ selectedApp.version }}</small></div>
@@ -619,10 +620,10 @@ function formatDate(value: string | null) {
       </template>
     </el-drawer>
 
-    <el-drawer v-model="taskDetailsOpen" class="market-task-detail-modal" size="620px" title="应用任务进度">
+    <el-drawer v-model="taskDetailsOpen" class="market-task-detail-modal" size="620px" title="应用任务进度" :close-on-click-modal="false">
       <template #default>
         <p>运行中任务每 2 秒刷新一次，完成后自动更新应用状态。</p>
-        <div class="market-task-list">
+        <div class="market-task-list popup-body">
           <article v-for="task in tasks" :key="task.id" class="market-task-row" :class="task.status">
             <div><strong>{{ task.appName }}</strong><span>{{ actionLabels[task.action] }} · {{ task.targetKey }} · {{ formatDate(task.createdAt) }}</span></div>
             <div>
@@ -636,12 +637,12 @@ function formatDate(value: string | null) {
       </template>
     </el-drawer>
 
-    <el-dialog v-model="confirmInstallModal" class="market-preview-modal confirmInstallModal" title="确认执行预览" width="680px">
+    <el-dialog v-model="confirmInstallModal" class="market-preview-modal confirmInstallModal" title="确认执行预览" width="680px" :close-on-click-modal="false">
       <template v-if="previewPlan" #default>
         <header>
           <div><h3>确认执行预览</h3><p>{{ previewPlan.appName }} · {{ actionLabels[previewPlan.action] }} · {{ targetSelector?.name }}</p></div>
         </header>
-        <div class="market-preview-grid">
+        <div class="market-preview-grid popup-body">
           <article><span>容器</span><strong v-for="container in previewPlan.summary.containers" :key="container">{{ container }}</strong></article>
           <article><span>镜像</span><strong v-for="image in previewPlan.summary.images" :key="image">{{ image }}</strong></article>
           <article><span>端口</span><strong v-for="port in previewPlan.summary.ports" :key="port">{{ port }}</strong></article>
@@ -650,8 +651,10 @@ function formatDate(value: string | null) {
         <section class="market-preview-warning"><strong>风险提示</strong><p v-for="warning in previewPlan.warnings" :key="warning">{{ warning }}</p></section>
       </template>
       <template #footer>
-        <el-button @click="confirmInstallModal = false">取消</el-button>
-        <el-button type="primary" :loading="isSubmitting" @click="confirmPreviewTask">确认执行</el-button>
+        <div class="popup-footer popup-actions">
+          <el-button @click="confirmInstallModal = false">取消</el-button>
+          <el-button type="primary" :loading="isSubmitting" @click="confirmPreviewTask">确认执行</el-button>
+        </div>
       </template>
     </el-dialog>
   </section>

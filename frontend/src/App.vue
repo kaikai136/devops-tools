@@ -528,20 +528,22 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
       @download-template="downloadHostImportTemplate"
     />
 
-    <el-dialog :model-value="Boolean(qrPreview)" class="qr-modal share-modal" title="分享二维码" width="420px" @close="qrPreview = null">
+    <el-dialog :model-value="Boolean(qrPreview)" class="qr-modal share-modal" title="分享二维码" width="420px" :close-on-click-modal="false" @close="qrPreview = null">
       <template v-if="qrPreview" #default>
-        <h2>分享二维码</h2>
-        <p>扫码后可直接导入 {{ qrPreview.issuer }} 的双因子配置。</p>
-        <div class="qr-frame">
-          <img :src="qrPreview.dataUrl" alt="TOTP 二维码" />
-        </div>
-        <div class="qr-meta">
-          <strong>{{ qrPreview.issuer }}</strong>
-          <span>{{ qrPreview.account }}</span>
+        <div class="popup-body qr-modal-body">
+          <h2>分享二维码</h2>
+          <p>扫码后可直接导入 {{ qrPreview.issuer }} 的双因子配置。</p>
+          <div class="qr-frame">
+            <img :src="qrPreview.dataUrl" alt="TOTP 二维码" />
+          </div>
+          <div class="qr-meta">
+            <strong>{{ qrPreview.issuer }}</strong>
+            <span>{{ qrPreview.account }}</span>
+          </div>
         </div>
       </template>
       <template #footer>
-        <div class="qr-actions">
+        <div class="qr-actions popup-actions">
           <el-button :disabled="!qrPreview" @click="qrPreview && copyText(qrPreview.uri, '已复制分享链接。')">复制分享链接</el-button>
           <el-button type="primary" @click="qrPreview = null">完成</el-button>
         </div>

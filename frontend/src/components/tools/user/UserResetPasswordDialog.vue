@@ -23,11 +23,11 @@ defineEmits<{
     :model-value="true"
     title="重置密码"
     width="460px"
-    class="user-form-dialog"
+    class="user-form-dialog user-popup-dialog"
     :close-on-click-modal="false"
     @update:model-value="(visible) => { if (!visible) $emit('close'); }"
   >
-    <el-form label-position="top" class="user-form-modal compact" @submit.prevent="$emit('submit')">
+    <el-form label-position="top" class="user-form-modal compact popup-body popup-form-grid" @submit.prevent="$emit('submit')">
       <el-form-item label="新密码" required>
         <el-input v-model="password" autofocus type="password" autocomplete="new-password" placeholder="至少 8 位，含数字和大小写字母" show-password />
       </el-form-item>

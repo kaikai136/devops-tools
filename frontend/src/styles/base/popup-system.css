@@ -1,0 +1,320 @@
+:root {
+  --popup-width-form: 680px;
+  --popup-width-wide: min(920px, calc(100vw - 32px));
+  --popup-radius: 12px;
+  --popup-border: #cbd9ea;
+  --popup-text: #102a4d;
+  --popup-muted: #7185a0;
+  --popup-primary: #216dff;
+  --popup-primary-hover: #155de0;
+  --popup-surface: #ffffff;
+  --popup-subtle: #f6f9fd;
+  --popup-danger: #d94b5b;
+}
+
+.el-overlay {
+  background: rgba(15, 31, 52, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.el-dialog,
+.el-drawer {
+  border: 1px solid var(--popup-border);
+  border-radius: var(--popup-radius);
+  background: var(--popup-surface);
+  color: var(--popup-text);
+  box-shadow: 0 24px 70px rgba(22, 45, 80, 0.24);
+  overflow: hidden;
+}
+
+.el-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--popup-width-form), calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+}
+
+.el-dialog__header,
+.el-drawer__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  margin: 0;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--popup-border);
+  color: var(--popup-text);
+}
+
+.el-dialog__title,
+.el-drawer__title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--popup-text);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.el-dialog__headerbtn,
+.el-drawer__close-btn {
+  position: static;
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #6d7e94;
+  cursor: pointer;
+}
+
+.el-dialog__headerbtn:hover,
+.el-drawer__close-btn:hover {
+  border-color: #c7d8ef;
+  background: #eef5ff;
+  color: var(--popup-primary);
+}
+
+.el-dialog__headerbtn:focus-visible,
+.el-drawer__close-btn:focus-visible {
+  outline: 3px solid rgba(33, 109, 255, 0.18);
+  outline-offset: 1px;
+}
+
+.el-dialog__headerbtn .el-dialog__close,
+.el-drawer__close-btn .el-icon {
+  color: currentColor;
+  font-size: 17px;
+}
+
+.el-dialog__body,
+.el-drawer__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: auto;
+  padding: 24px;
+}
+
+.el-dialog__footer,
+.el-drawer__footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--popup-border);
+  background: var(--popup-surface);
+}
+
+.el-dialog__footer .el-button,
+.el-drawer__footer .el-button,
+.popup-actions button {
+  min-width: 88px;
+  min-height: 38px;
+  border-radius: 6px;
+  font-weight: 800;
+}
+
+.el-dialog__footer .el-button--primary,
+.el-drawer__footer .el-button--primary,
+.popup-actions .primary {
+  border-color: var(--popup-primary);
+  background: var(--popup-primary);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(33, 109, 255, 0.18);
+}
+
+.el-dialog__footer .el-button--primary:hover,
+.el-drawer__footer .el-button--primary:hover,
+.popup-actions .primary:hover {
+  border-color: var(--popup-primary-hover);
+  background: var(--popup-primary-hover);
+}
+
+.popup-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--popup-border);
+}
+
+.popup-title-group {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.popup-title-group > strong {
+  color: var(--popup-text);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.popup-title-group > small {
+  color: var(--popup-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.popup-close {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #6d7e94;
+  cursor: pointer;
+}
+
+.popup-close:hover {
+  border-color: #c7d8ef;
+  background: #eef5ff;
+  color: var(--popup-primary);
+}
+
+.popup-close:focus-visible {
+  outline: 3px solid rgba(33, 109, 255, 0.18);
+  outline-offset: 1px;
+}
+
+.popup-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+}
+
+.el-dialog__body > .popup-body,
+.el-drawer__body > .popup-body {
+  padding: 0;
+}
+
+.popup-footer,
+.popup-actions {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--popup-border);
+  background: var(--popup-surface);
+}
+
+.el-dialog__footer > .popup-footer,
+.el-dialog__footer > .popup-actions,
+.el-drawer__footer > .popup-footer,
+.el-drawer__footer > .popup-actions {
+  width: 100%;
+  padding: 0;
+  border-top: 0;
+  background: transparent;
+}
+
+.popup-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+  min-width: 0;
+}
+
+.popup-form-grid > label,
+.popup-form-grid > .field,
+.popup-form-grid > .host-horizontal-field {
+  min-width: 0;
+}
+
+.popup-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--popup-border);
+}
+
+.popup-section:first-child {
+  padding-top: 0;
+}
+
+.popup-section:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.popup-section > h3,
+.popup-section > h4 {
+  margin: 0;
+  color: var(--popup-text);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.popup-scroll-region {
+  min-height: 0;
+  overflow: auto;
+}
+
+.popup-danger {
+  color: var(--popup-danger);
+}
+
+@media (max-width: 720px) {
+  .el-dialog {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .el-dialog__header,
+  .el-drawer__header,
+  .el-dialog__body,
+  .el-drawer__body,
+  .popup-header,
+  .popup-body {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .popup-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .el-dialog__footer,
+  .el-drawer__footer,
+  .popup-footer,
+  .popup-actions {
+    flex-wrap: wrap;
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .el-dialog__footer .el-button,
+  .el-drawer__footer .el-button,
+  .popup-actions button {
+    flex: 1 1 140px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .el-dialog__headerbtn,
+  .el-drawer__close-btn,
+  .popup-close {
+    transition: none;
+  }
+}

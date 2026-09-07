@@ -249,8 +249,11 @@ const TERMINAL_SIDEBAR_DEFAULT_WIDTH = 284;
 const TERMINAL_SIDEBAR_MIN_WIDTH = 200;
 const TERMINAL_WORKSPACE_MIN_WIDTH = 360;
 const TERMINAL_CONTEXT_MENU_WIDTH = 248;
+const TERMINAL_CONTEXT_SUBMENU_WIDTH = 226;
+const TERMINAL_CONTEXT_SUBMENU_OFFSET = 1;
 const TERMINAL_CONTEXT_MENU_HEIGHT = 560;
 const TERMINAL_TAB_CONTEXT_MENU_WIDTH = 252;
+const TERMINAL_TAB_CONTEXT_SUBMENU_WIDTH = 232;
 const TERMINAL_TAB_CONTEXT_MENU_HEIGHT = 560;
 const TERMINAL_TAB_TITLE_MAX_LENGTH = 40;
 const TERMINAL_MONITOR_REFRESH_MS = 5000;
@@ -1062,8 +1065,17 @@ function cssEscape(value: string) {
   return escape ? escape(value) : value.replace(/["\\]/g, '\\$&');
 }
 
-function isTerminalContextSubmenuLeft(x: number, menuWidth = 220) {
-  return x + menuWidth * 2 + 16 > window.innerWidth;
+function isTerminalContextSubmenuLeft(x: number, menuWidth: number, submenuWidth: number) {
+  const rightSpace = window.innerWidth - (x + menuWidth);
+  const leftSpace = x;
+  const requiredSubmenuSpace = submenuWidth + TERMINAL_CONTEXT_SUBMENU_OFFSET;
+  if (rightSpace < requiredSubmenuSpace && leftSpace >= requiredSubmenuSpace) {
+    return true;
+  }
+  if (leftSpace < requiredSubmenuSpace && rightSpace >= requiredSubmenuSpace) {
+    return false;
+  }
+  return leftSpace > rightSpace;
 }
 
 function toggleTerminalTabMenu() {
@@ -3624,7 +3636,7 @@ function readTerminalQuickCommandPanelCollapsed() {
       <div
         v-if="terminalTabContextMenu.visible"
         class="terminal-file-context-menu terminal-context-menu terminal-tab-context-menu"
-        :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalTabContextMenu.x, TERMINAL_TAB_CONTEXT_MENU_WIDTH) }"
+        :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalTabContextMenu.x, TERMINAL_TAB_CONTEXT_MENU_WIDTH, TERMINAL_TAB_CONTEXT_SUBMENU_WIDTH) }"
         :style="{ left: `${terminalTabContextMenu.x}px`, top: `${terminalTabContextMenu.y}px` }"
         role="menu"
         aria-label="标签页操作"
@@ -3748,7 +3760,7 @@ function readTerminalQuickCommandPanelCollapsed() {
         <div
           v-if="terminalContextMenu.visible"
           class="terminal-file-context-menu terminal-context-menu"
-          :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalContextMenu.x) }"
+          :class="{ 'submenu-left': isTerminalContextSubmenuLeft(terminalContextMenu.x, TERMINAL_CONTEXT_MENU_WIDTH, TERMINAL_CONTEXT_SUBMENU_WIDTH) }"
           :style="{ left: `${terminalContextMenu.x}px`, top: `${terminalContextMenu.y}px` }"
           @click.stop
           @contextmenu.prevent.stop
@@ -4085,13 +4097,13 @@ function readTerminalQuickCommandPanelCollapsed() {
     <Teleport to="body">
       <div v-if="terminalQuickCommandDialog.visible" class="terminal-quick-dialog-backdrop">
         <article class="terminal-quick-dialog">
-          <header>
+          <header class="popup-header">
             <strong>{{ terminalQuickCommandDialog.mode === 'create' ? '新增快捷命令' : '编辑快捷命令' }}</strong>
             <el-button native-type="button" title="关闭" aria-label="关闭" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">
               <AppIcon name="x" :size="16" />
             </el-button>
           </header>
-          <div class="terminal-quick-dialog-body">
+          <div class="terminal-quick-dialog-body popup-body">
             <p v-if="terminalQuickCommandDialog.error" class="terminal-quick-error">{{ terminalQuickCommandDialog.error }}</p>
             <label>
               <span>名称</span>
@@ -4119,7 +4131,7 @@ function readTerminalQuickCommandPanelCollapsed() {
             </label>
             <el-checkbox v-model="terminalQuickCommandDialog.draft.enabled" class="terminal-quick-enabled-field" :disabled="terminalQuickCommandDialog.saving">启用</el-checkbox>
           </div>
-          <footer>
+          <footer class="popup-footer popup-actions">
             <el-button native-type="button" :disabled="terminalQuickCommandDialog.saving" @click="closeTerminalQuickCommandDialog">取消</el-button>
             <el-button class="primary" native-type="button" :disabled="terminalQuickCommandDialog.saving" @click="saveTerminalQuickCommandDialog">
               {{ terminalQuickCommandDialog.saving ? '保存中...' : '保存' }}

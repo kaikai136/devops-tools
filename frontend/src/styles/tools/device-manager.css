@@ -247,6 +247,10 @@
   width: 100%;
 }
 
+.device-form-modal.popup-body {
+  padding: 0;
+}
+
 .device-form-modal .el-input,
 .device-form-modal .el-select,
 .device-form-modal .el-date-editor,

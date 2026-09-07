@@ -587,11 +587,11 @@ function emptyRoleForm(): RoleForm {
       :model-value="dialog !== null"
       :title="dialogTitle()"
       :width="dialog?.mode === 'permissions' || dialog?.mode === 'view' ? '880px' : '520px'"
-      class="role-form-dialog"
+      class="role-form-dialog role-popup-dialog"
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) closeDialog(); }"
     >
-      <el-form :model="form" label-position="top" @submit.prevent="saveRole">
+      <el-form :model="form" label-position="top" class="popup-body popup-form-grid" @submit.prevent="saveRole">
         <template v-if="dialog">
           <el-form-item v-if="dialog.mode !== 'permissions'" label="角色名称" required>
             <el-input v-model="form.name" :readonly="dialog.mode === 'view'" placeholder="请输入角色名称" />
@@ -673,12 +673,12 @@ function emptyRoleForm(): RoleForm {
       :model-value="roleUserDialog !== null"
       title="调整权限用户"
       width="640px"
-      class="role-form-dialog"
+      class="role-form-dialog role-popup-dialog"
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) closeRoleUserDialog(); }"
     >
       <p v-if="roleUserDialog" class="role-user-dialog-subtitle">为角色“{{ roleUserDialog.name }}”选择绑定用户，保存后用户重新登录生效。</p>
-      <div v-loading="isLoadingRoleUsers" class="role-user-picker">
+      <div v-loading="isLoadingRoleUsers" class="role-user-picker popup-body">
         <el-checkbox
           v-for="user in roleUsers"
           :key="user.id"
@@ -697,11 +697,13 @@ function emptyRoleForm(): RoleForm {
         <el-empty v-if="!isLoadingRoleUsers && !roleUsers.length" description="暂无用户数据" />
       </div>
       <template #footer>
-        <span class="role-user-selected">已选择 {{ roleUserIds.size }} 个用户</span>
-        <el-button @click="closeRoleUserDialog">取消</el-button>
-        <el-button type="primary" :disabled="isLoadingRoleUsers || isSavingRoleUsers" :loading="isSavingRoleUsers" @click="saveRoleUsers">
-          保存
-        </el-button>
+        <div class="popup-actions">
+          <span class="role-user-selected">已选择 {{ roleUserIds.size }} 个用户</span>
+          <el-button @click="closeRoleUserDialog">取消</el-button>
+          <el-button type="primary" :disabled="isLoadingRoleUsers || isSavingRoleUsers" :loading="isSavingRoleUsers" @click="saveRoleUsers">
+            保存
+          </el-button>
+        </div>
       </template>
     </el-dialog>
 
@@ -709,14 +711,16 @@ function emptyRoleForm(): RoleForm {
       :model-value="deleteTarget !== null"
       title="删除角色"
       width="420px"
-      class="role-form-dialog"
+      class="role-form-dialog role-popup-dialog"
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) deleteTarget = null; }"
     >
-      <p>确定删除角色“{{ deleteTarget?.name }}”吗？</p>
+      <p class="popup-body popup-danger">确定删除角色“{{ deleteTarget?.name }}”吗？</p>
       <template #footer>
-        <el-button @click="deleteTarget = null">取消</el-button>
-        <el-button type="danger" @click="deleteRole">删除</el-button>
+        <div class="popup-actions">
+          <el-button @click="deleteTarget = null">取消</el-button>
+          <el-button type="danger" @click="deleteRole">删除</el-button>
+        </div>
       </template>
     </el-dialog>
   </section>

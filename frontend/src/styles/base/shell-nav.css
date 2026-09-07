@@ -121,8 +121,10 @@
   display: grid;
   flex-shrink: 0;
   gap: 4px;
-  margin-top: auto;
-  padding: 14px 12px 0;
+  width: calc(100% + 24px);
+  box-sizing: border-box;
+  margin: auto -12px 0;
+  padding: 14px 24px 0;
   border-top: 1px solid #d6e3f4;
   color: var(--workspace-text-soft);
   text-align: left;
@@ -139,7 +141,9 @@
 .sidebar-clock-time {
   color: #1e3a8a;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 24px;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
@@ -154,6 +158,8 @@
 
 .sidebar.collapsed .sidebar-clock {
   justify-items: center;
+  width: auto;
+  margin: auto 0 0;
   padding: 12px 0 0;
   text-align: center;
 }
@@ -165,6 +171,7 @@
 
 .sidebar.collapsed .sidebar-clock-time {
   font-size: 14px;
+  font-weight: 900;
   writing-mode: vertical-rl;
   text-orientation: mixed;
 }

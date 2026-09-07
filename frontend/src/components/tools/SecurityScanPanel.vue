@@ -706,51 +706,55 @@ function downloadBlob(blob: Blob, filename: string) {
       <el-empty v-else class="security-empty" description="暂无扫描任务，请新建巡检后查看报告" />
     </main>
 
-    <el-drawer v-model="isDrawerOpen" class="security-drawer" title="新建安全巡检" size="520px">
+    <el-drawer v-model="isDrawerOpen" class="security-drawer security-popup-drawer" title="新建安全巡检" size="520px" :close-on-click-modal="false">
       <template #default>
-        <p>扫描过程只执行只读命令，不会修改目标主机状态。</p>
-        <div class="scan-form-grid">
-          <label>
-            <span>任务名称</span>
-            <el-input v-model="taskName" maxlength="180" placeholder="留空自动生成" />
-          </label>
-          <label>
-            <span>端口范围</span>
-            <el-input v-model="portsInput" type="textarea" :rows="3" />
-          </label>
-        </div>
-        <div class="scan-module-options">
-          <el-checkbox v-model="scanBaseline">基线检查</el-checkbox>
-          <el-checkbox v-model="scanPorts">端口风险</el-checkbox>
-          <el-checkbox v-model="scanCve" :disabled="!summary.vulnerabilitySource.onlineCveEnabled">CVE 检查</el-checkbox>
-          <el-alert v-if="!summary.vulnerabilitySource.onlineCveEnabled" type="info" :closable="false" title="在线 CVE 默认关闭，可在系统设置中开启。" />
-        </div>
-        <div class="target-picker-head">
-          <el-checkbox
-            :model-value="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))"
-            @change="toggleAllVisibleTargets(Boolean($event))"
-          >
-            全选当前列表
-          </el-checkbox>
-          <el-input v-model="targetKeyword" clearable placeholder="搜索主机 / IP / 分组" />
-          <el-tag type="info" effect="plain">已选 {{ selectedTargets.length }} / {{ targets.length }}</el-tag>
-        </div>
-        <div class="target-picker-list">
-          <el-checkbox
-            v-for="target in filteredTargets"
-            :key="target.id"
-            :model-value="selectedTargetIds.has(target.id)"
-            @change="toggleTarget(target.id, Boolean($event))"
-          >
-            <strong>{{ target.name }}</strong>
-            <span>{{ target.privateIp }} · {{ target.os }} · {{ target.groupName }}</span>
-          </el-checkbox>
-          <el-empty v-if="!filteredTargets.length" class="security-empty" description="暂无可扫描 Linux SSH 主机" />
+        <div class="popup-body security-drawer-body">
+          <p>扫描过程只执行只读命令，不会修改目标主机状态。</p>
+          <div class="scan-form-grid popup-form-grid">
+            <label>
+              <span>任务名称</span>
+              <el-input v-model="taskName" maxlength="180" placeholder="留空自动生成" />
+            </label>
+            <label>
+              <span>端口范围</span>
+              <el-input v-model="portsInput" type="textarea" :rows="3" />
+            </label>
+          </div>
+          <div class="scan-module-options">
+            <el-checkbox v-model="scanBaseline">基线检查</el-checkbox>
+            <el-checkbox v-model="scanPorts">端口风险</el-checkbox>
+            <el-checkbox v-model="scanCve" :disabled="!summary.vulnerabilitySource.onlineCveEnabled">CVE 检查</el-checkbox>
+            <el-alert v-if="!summary.vulnerabilitySource.onlineCveEnabled" type="info" :closable="false" title="在线 CVE 默认关闭，可在系统设置中开启。" />
+          </div>
+          <div class="target-picker-head">
+            <el-checkbox
+              :model-value="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))"
+              @change="toggleAllVisibleTargets(Boolean($event))"
+            >
+              全选当前列表
+            </el-checkbox>
+            <el-input v-model="targetKeyword" clearable placeholder="搜索主机 / IP / 分组" />
+            <el-tag type="info" effect="plain">已选 {{ selectedTargets.length }} / {{ targets.length }}</el-tag>
+          </div>
+          <div class="target-picker-list">
+            <el-checkbox
+              v-for="target in filteredTargets"
+              :key="target.id"
+              :model-value="selectedTargetIds.has(target.id)"
+              @change="toggleTarget(target.id, Boolean($event))"
+            >
+              <strong>{{ target.name }}</strong>
+              <span>{{ target.privateIp }} · {{ target.os }} · {{ target.groupName }}</span>
+            </el-checkbox>
+            <el-empty v-if="!filteredTargets.length" class="security-empty" description="暂无可扫描 Linux SSH 主机" />
+          </div>
         </div>
       </template>
       <template #footer>
-        <el-button @click="isDrawerOpen = false">取消</el-button>
-        <el-button type="primary" :disabled="!canStartScan" :loading="isCreating" @click="startScan">{{ isCreating ? '创建中...' : '开始扫描' }}</el-button>
+        <div class="popup-actions">
+          <el-button @click="isDrawerOpen = false">取消</el-button>
+          <el-button type="primary" :disabled="!canStartScan" :loading="isCreating" @click="startScan">{{ isCreating ? '创建中...' : '开始扫描' }}</el-button>
+        </div>
       </template>
     </el-drawer>
   </section>

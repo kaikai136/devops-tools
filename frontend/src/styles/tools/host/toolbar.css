@@ -15,8 +15,9 @@
 
 .host-toolbar-actions {
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  white-space: nowrap;
 }
 
 .host-toolbar-actions button {

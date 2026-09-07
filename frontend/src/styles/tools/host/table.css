@@ -151,20 +151,23 @@
 
 .host-name-link {
   min-height: auto;
-  width: 100%;
+  width: auto;
   justify-self: start;
   justify-content: flex-start;
   border: 0;
-  background: transparent;
-  color: #0755d8;
+  background: transparent !important;
+  color: #0645b5 !important;
   padding: 0;
   text-align: left;
   font-size: 15px;
   font-weight: 800;
+  box-shadow: none !important;
+  outline: none;
+  cursor: pointer;
 }
 
 .host-name-text {
-  color: #173252;
+  color: #0645b5;
   font-weight: 800;
 }
 

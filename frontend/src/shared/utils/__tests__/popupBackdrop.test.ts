@@ -26,8 +26,27 @@ function findBackdropSelfClickHandlers() {
   });
 }
 
+function findElementPopupTagsWithoutBackdropProtection() {
+  const pattern = /<el-(?:dialog|drawer)\b[\s\S]*?>/g;
+
+  return vueFiles(sourceRoot).flatMap((file) => {
+    const source = readFileSync(file, 'utf8');
+    const matches = [...source.matchAll(pattern)];
+    return matches
+      .filter((match) => !match[0].includes(':close-on-click-modal="false"'))
+      .map((match) => ({
+        file: relative(process.cwd(), file).replace(/\\/g, '/'),
+        snippet: match[0].replace(/\s+/g, ' ').trim(),
+      }));
+  });
+}
+
 describe('popup backdrop behavior', () => {
   it('does not close modal, backdrop, or dialog overlays by clicking outside content', () => {
     expect(findBackdropSelfClickHandlers()).toEqual([]);
+  });
+
+  it('keeps every Element Plus dialog and drawer open when the backdrop is clicked', () => {
+    expect(findElementPopupTagsWithoutBackdropProtection()).toEqual([]);
   });
 });

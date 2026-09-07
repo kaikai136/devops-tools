@@ -628,8 +628,10 @@ onBeforeUnmount(() => {
       class="terminal-file-delete-backdrop"
       width="460px"
       :show-close="false"
+      :close-on-click-modal="false"
       @close="browser.closeDeleteDialog"
     >
+      <div class="popup-body terminal-file-delete-body">
         <section class="terminal-file-delete-modal">
           <div class="terminal-file-delete-visual" :class="deleteVisualType">
             <span class="terminal-file-delete-visual-card"><AppIcon :name="deleteVisualType === 'directory' ? 'folder' : 'file'" :size="34" /></span>
@@ -638,13 +640,14 @@ onBeforeUnmount(() => {
           <h2>{{ deleteTitle }}</h2>
           <p>{{ deleteDescription }}</p>
           <el-alert v-if="browser.deleteDialog.value.error" class="terminal-file-delete-error" type="error" :title="browser.deleteDialog.value.error" :closable="false" />
-          <div class="terminal-file-delete-actions">
+          <div class="terminal-file-delete-actions popup-actions">
             <el-button :disabled="browser.deleteDialog.value.deleting" @click="browser.closeDeleteDialog">取消</el-button>
             <el-button type="danger" :loading="browser.deleteDialog.value.deleting" :disabled="browser.deleteDialog.value.deleting" @click="browser.confirmDelete">
               {{ browser.deleteDialog.value.deleting ? '删除中...' : '删除' }}
             </el-button>
           </div>
         </section>
+      </div>
     </el-dialog>
     <FileCreateDialog
       :dialog="browser.createDialog.value"

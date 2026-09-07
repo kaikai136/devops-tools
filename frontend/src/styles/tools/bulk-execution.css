@@ -78,6 +78,12 @@
   flex-wrap: wrap;
 }
 
+.bulk-execution-actions,
+.bulk-mode-tabs {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .bulk-execution-actions button,
 .bulk-execution-filters button,
 .bulk-task-detail header button,
@@ -90,12 +96,39 @@
   justify-content: center;
   gap: 6px;
   border: 1px solid #9eb4d0;
-  border-radius: 4px;
+  border-radius: 8px;
   background: #fff;
   color: #1e4f8f;
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.bulk-target-summary header > button {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  min-width: 92px;
+  width: auto;
+  flex-shrink: 0;
+  white-space: nowrap !important;
+}
+
+.bulk-target-summary header > .ant-btn {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 92px;
+  white-space: nowrap !important;
+}
+
+.bulk-target-summary header > .ant-btn .app-icon {
+  flex: 0 0 auto;
 }
 
 .bulk-execution-actions button,
@@ -1095,10 +1128,12 @@
 }
 
 .bulk-mode-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex !important;
+  flex-direction: row;
   gap: 8px;
   min-height: 42px;
+  width: 100%;
+  flex-wrap: nowrap !important;
 }
 
 .bulk-mode-tabs button,
@@ -1117,6 +1152,11 @@
   cursor: pointer;
   font: inherit;
   font-weight: 800;
+}
+
+.bulk-mode-tabs button {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .bulk-mode-tabs button.active {

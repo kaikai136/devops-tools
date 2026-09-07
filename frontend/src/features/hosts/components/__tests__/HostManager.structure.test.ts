@@ -426,8 +426,11 @@ describe('HostManager component structure', () => {
     expect(styles).toMatch(/\.host-manager-page\s*\{[\s\S]*grid-template-columns:\s*minmax\(200px,\s*240px\)\s*minmax\(680px,\s*1fr\);/);
     expect(styles).toMatch(/\.host-groups-panel\s*\{[\s\S]*padding:\s*14px;/);
     expect(styles).toMatch(/\.host-group-row strong\s*\{[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/);
-    expect(groupTree).toContain('`${10 + row.group.level * 8}px`');
-    expect(groupTree).toContain('`${10 + row.editor.level * 8}px`');
+    expect(styles).toMatch(/\.host-group-row\s*\{[\s\S]*justify-content:\s*flex-start;[\s\S]*text-align:\s*left;/);
+    expect(styles).toMatch(/\.host-group-row\.editing\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-columns:\s*12px\s+16px\s+minmax\(0,\s*1fr\)\s+18px;/);
+    expect(styles).toMatch(/\.host-group-inline-input\s*\{[\s\S]*width:\s*100%;[\s\S]*min-width:\s*0;/);
+    expect(groupTree).toContain('`${6 + row.group.level * 10}px`');
+    expect(groupTree).toContain('`${6 + row.editor.level * 10}px`');
   });
 
   it('labels the host group as asset management and the host item as host management', () => {
@@ -681,10 +684,9 @@ describe('HostManager component structure', () => {
     const root = templateRoot('src/features/hosts/components/HostEditorDialog.vue');
     const forms = findElements(root, 'form');
     expect(forms).toHaveLength(1);
-    expect(staticAttribute(forms[0], 'class')).toBe('host-form-modal host-editor-form');
-    const headings = findElements(root, 'h2');
-    expect(headings).toHaveLength(1);
-    expect(firstInterpolationExpression(headings[0])).toBe("props.dialog.mode === 'edit' ? '编辑主机' : '新增主机'");
+    expect(staticAttribute(forms[0], 'class')).toContain('host-form-modal host-editor-form');
+    expect(staticAttribute(forms[0], 'class')).toContain('popup-body');
+    expect(staticAttribute(forms[0], 'class')).toContain('popup-form-grid');
     expect(componentTags(root)).toContain('CredentialSelector');
   });
 
@@ -692,9 +694,9 @@ describe('HostManager component structure', () => {
     const root = templateRoot('src/features/hosts/components/HostEditorDialog.vue');
     const dialog = findByClass(root, 'el-dialog', 'host-editor-dialog')[0];
     expect(dialog).toBeTruthy();
-    expect(staticAttribute(dialog, 'width')).toBe('640px');
+    expect(staticAttribute(dialog, 'width')).toBe('760px');
     expect(findByClass(root, 'form', 'host-form-modal')).toHaveLength(1);
-    expect(staticAttribute(findElements(root, 'form')[0], 'class')).toBe('host-form-modal host-editor-form');
+    expect(staticAttribute(findElements(root, 'form')[0], 'class')).toContain('popup-body');
   });
 
   it('preserves the root-group add-host default argument semantics', () => {

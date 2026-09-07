@@ -57,9 +57,10 @@ function triggerPrivateKeyUpload() {
     :model-value="Boolean(props.dialog)"
     :title="props.dialog.mode === 'edit' ? '编辑主机' : '新增主机'"
     width="760px"
+    :close-on-click-modal="false"
     @close="emit('close')"
   >
-    <form id="host-editor-form" class="host-form-modal host-editor-form" @submit.prevent="emit('submit')">
+    <form id="host-editor-form" class="host-form-modal host-editor-form popup-body popup-form-grid" @submit.prevent="emit('submit')">
       <label class="host-horizontal-field required host-editor-span-2">
         <span>主机分组：</span>
         <el-select v-model="group" :class="{ invalid: props.errors.group }">

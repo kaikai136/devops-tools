@@ -79,8 +79,12 @@
 }
 
 .share-modal {
-  width: min(360px, calc(100vw - 28px));
-  padding: 20px;
+  width: min(420px, calc(100vw - 28px));
+  padding: 0;
+}
+
+.qr-modal-body {
+  align-items: stretch;
 }
 
 .share-modal h2 {
@@ -123,12 +127,18 @@
   color: #6a7d96;
   font-size: 12px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .qr-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.qr-actions.popup-actions {
+  display: flex;
+  grid-template-columns: none;
 }
 
 .host-transfer-modal {
@@ -303,6 +313,80 @@
 
 .host-export-modal .modal-actions {
   padding: 12px 18px;
+}
+
+/* Export dialog layout */
+.host-export-modal .el-dialog__body {
+  padding: 0 24px 22px;
+}
+
+.host-export-modal .host-export-body {
+  gap: 22px;
+  max-height: none;
+  padding: 0;
+}
+
+.host-export-modal .export-section {
+  gap: 10px;
+}
+
+.host-export-modal .export-section-title {
+  color: #263b57;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.host-export-modal .export-scope-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.host-export-modal .export-scope-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 76px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #cbd8e8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.host-export-modal .export-scope-card.active {
+  border-color: #1677ff;
+  background: #edf5ff;
+}
+
+.host-export-modal .export-scope-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.host-export-modal .export-scope-copy strong {
+  color: #294566;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.host-export-modal .export-scope-copy em {
+  color: #8293a9;
+  font-size: 12px;
+}
+
+.host-export-modal .export-column-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 24px;
+  row-gap: 10px;
+}
+
+.host-export-modal .export-format-row {
+  gap: 20px;
+}
+
+.host-export-modal .el-dialog__footer {
+  padding: 14px 24px;
 }
 
 .host-import-modal {

@@ -85,7 +85,7 @@ const inlineName = computed({
           <div
             v-if="props.inlineEdit?.mode === 'rename' && props.inlineEdit.groupId === row.group.key"
             class="host-group-row editing"
-            :style="{ paddingLeft: `${10 + row.group.level * 8}px` }"
+            :style="{ paddingLeft: `${6 + row.group.level * 10}px` }"
             @click.stop
           >
             <span
@@ -115,7 +115,7 @@ const inlineName = computed({
               'drop-inside': props.dropTarget?.key === row.group.key && props.dropTarget.position === 'inside',
               'drop-after': props.dropTarget?.key === row.group.key && props.dropTarget.position === 'after',
             }"
-            :style="{ paddingLeft: `${10 + row.group.level * 8}px` }"
+            :style="{ paddingLeft: `${6 + row.group.level * 10}px` }"
             draggable="true"
             @click.stop="emit('select-group', row.group.key)"
             @dblclick.stop="emit('toggle-group', row.group)"
@@ -141,7 +141,7 @@ const inlineName = computed({
           v-else
           class="host-group-row editing"
           :class="{ draft: row.editor.mode !== 'rename-root' }"
-          :style="{ paddingLeft: `${10 + row.editor.level * 8}px` }"
+          :style="{ paddingLeft: `${6 + row.editor.level * 10}px` }"
           @click.stop
         >
           <span class="folder-caret"></span>

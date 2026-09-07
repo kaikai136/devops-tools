@@ -107,7 +107,7 @@
 
 .auth-card-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(300px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   max-height: calc(var(--workspace-body-height) - 172px);
   overflow: auto;
@@ -115,7 +115,7 @@
 }
 
 .auth-card {
-  min-height: 190px;
+  min-height: 180px;
   padding: 14px;
   border: 1px solid #cfe0f6;
   border-radius: 12px;
@@ -206,18 +206,19 @@
 }
 
 .tag-line {
+  display: flex;
   align-items: center;
+  gap: 8px;
   margin-top: 12px;
 }
 
-.tag-line span {
+.tag-line .el-tag {
   min-height: 24px;
-  display: inline-flex;
-  align-items: center;
   padding: 0 10px;
   border-radius: 999px;
-  background: #f0f5fc;
-  color: #496685;
+  border: 1px solid #dce8f7;
+  background: #f2f7ff;
+  color: #315b88;
   font-size: 12px;
   font-weight: 900;
 }
@@ -228,11 +229,19 @@
   margin-left: auto;
   width: 36px;
   min-height: 34px;
-  border-color: #c7dcf5;
+  border: 1px solid #c7dcf5;
   border-radius: 10px;
   background: #f8fbff;
   padding: 0;
   color: #476889;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.qr-button:hover,
+.qr-button:focus-visible {
+  border-color: #7daeff;
+  background: #edf5ff;
+  color: #125fe8;
 }
 
 .auth-empty {

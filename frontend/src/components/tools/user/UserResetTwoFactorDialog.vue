@@ -14,11 +14,11 @@ defineEmits<{
     :model-value="true"
     title="重置 2FA"
     width="460px"
-    class="user-form-dialog"
+    class="user-form-dialog user-popup-dialog"
     :close-on-click-modal="false"
     @update:model-value="(visible) => { if (!visible) $emit('close'); }"
   >
-    <p>确定重置账户“{{ user.username }}”的 2FA 吗？旧验证码会失效，用户下次登录需要重新扫码绑定。</p>
+    <p class="popup-body">确定重置账户“{{ user.username }}”的 2FA 吗？旧验证码会失效，用户下次登录需要重新扫码绑定。</p>
     <template #footer>
       <el-button @click="$emit('close')">取消</el-button>
       <el-button type="danger" @click="$emit('confirm')">重置</el-button>

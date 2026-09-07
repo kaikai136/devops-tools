@@ -422,7 +422,7 @@ function setPageSize(size: number) {
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible && !isSaving) finishDeviceDialog(); }"
     >
-      <el-form :model="deviceForm" label-position="top" class="device-form-modal">
+      <el-form :model="deviceForm" label-position="top" class="device-form-modal popup-body popup-form-grid">
         <p v-if="dialogError" class="device-form-error">{{ dialogError }}</p>
         <el-form-item label="资产名称" :error="formErrors.name">
           <el-input v-model="deviceForm.name" autofocus />
@@ -461,8 +461,10 @@ function setPageSize(size: number) {
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button :disabled="isSaving" @click="closeDeviceDialog">取消</el-button>
-        <el-button type="primary" :disabled="isSaving" @click="saveDeviceDialog">{{ isSaving ? '保存中...' : '保存' }}</el-button>
+        <div class="popup-actions">
+          <el-button :disabled="isSaving" @click="closeDeviceDialog">取消</el-button>
+          <el-button type="primary" :disabled="isSaving" @click="saveDeviceDialog">{{ isSaving ? '保存中...' : '保存' }}</el-button>
+        </div>
       </template>
     </el-dialog>
   </section>

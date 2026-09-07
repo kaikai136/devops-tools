@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { Button as AButton } from 'ant-design-vue';
 
 import { useAppContext } from '@app/context';
 import AppIcon from '@shared/components/AppIcon.vue';
@@ -1073,12 +1074,12 @@ function formatFileSize(value: number) {
           <h2>批量执行</h2>
           <p>面向已验证 Linux SSH 主机执行命令、Playbook 和文件分发任务。</p>
         </div>
-        <el-button-group class="bulk-execution-actions">
-          <el-button v-if="canRefresh || canExecute" :type="activeBulkView === 'history' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'history' }" @click="switchBulkView('history')"><AppIcon name="rows" :size="16" />执行记录</el-button>
-          <el-button v-if="canExecute" :type="activeBulkView === 'execute' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'execute' }" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建执行</el-button>
-          <el-button v-if="canExecute" :type="activeBulkView === 'upload' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'upload' }" @click="openUploadDialog"><AppIcon name="upload" :size="16" />批量上传</el-button>
-          <el-button v-if="canRefresh" :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</el-button>
-        </el-button-group>
+        <div class="bulk-execution-actions">
+          <AButton v-if="canRefresh || canExecute" :type="activeBulkView === 'history' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'history' }" @click="switchBulkView('history')"><AppIcon name="rows" :size="16" />执行记录</AButton>
+          <AButton v-if="canExecute" :type="activeBulkView === 'execute' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'execute' }" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建执行</AButton>
+          <AButton v-if="canExecute" :type="activeBulkView === 'upload' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'upload' }" @click="openUploadDialog"><AppIcon name="upload" :size="16" />批量上传</AButton>
+          <AButton v-if="canRefresh" :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</AButton>
+        </div>
       </header>
 
       <section v-show="activeBulkView === 'history'" class="bulk-history-view">

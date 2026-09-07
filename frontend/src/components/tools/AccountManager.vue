@@ -202,12 +202,13 @@ function emptyForm(): CredentialForm {
 
     <el-dialog
       :model-value="dialog !== null"
+      class="account-popup-dialog"
       :title="dialog?.mode === 'edit' ? '编辑账号' : '新增账号'"
       width="560px"
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) dialog = null; }"
     >
-      <el-form :model="form" label-position="left" label-width="92px">
+      <el-form :model="form" label-position="left" label-width="92px" class="popup-body popup-form-grid">
         <el-form-item label="账号名称" required>
           <el-input v-model="form.name" autofocus />
         </el-form-item>
@@ -231,22 +232,27 @@ function emptyForm(): CredentialForm {
         <p v-if="message" class="account-message">{{ message }}</p>
       </el-form>
       <template #footer>
-        <el-button @click="dialog = null">取消</el-button>
-        <el-button type="primary" @click="saveCredential">保存</el-button>
+        <div class="popup-actions">
+          <el-button @click="dialog = null">取消</el-button>
+          <el-button type="primary" @click="saveCredential">保存</el-button>
+        </div>
       </template>
     </el-dialog>
 
     <el-dialog
       :model-value="confirmDelete !== null"
+      class="account-popup-dialog account-confirm-popup"
       title="删除账号"
       width="420px"
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible) confirmDelete = null; }"
     >
-      <p>确定删除账号「{{ confirmDelete?.name }}」吗？</p>
+      <p class="popup-body">确定删除账号「{{ confirmDelete?.name }}」吗？</p>
       <template #footer>
-        <el-button @click="confirmDelete = null">取消</el-button>
-        <el-button type="danger" @click="deleteCredential">确定删除</el-button>
+        <div class="popup-actions">
+          <el-button @click="confirmDelete = null">取消</el-button>
+          <el-button type="danger" @click="deleteCredential">确定删除</el-button>
+        </div>
       </template>
     </el-dialog>
   </section>

@@ -35,11 +35,11 @@ defineEmits<{
     :model-value="true"
     :title="title"
     width="640px"
-    class="user-form-dialog"
+    class="user-form-dialog user-popup-dialog"
     :close-on-click-modal="false"
     @update:model-value="(visible) => { if (!visible) $emit('close'); }"
   >
-    <el-form :model="form" label-position="top" class="user-form-modal" @submit.prevent="$emit('submit')">
+    <el-form :model="form" label-position="top" class="user-form-modal popup-body popup-form-grid" @submit.prevent="$emit('submit')">
       <el-form-item label="登录名" :required="dialog.mode === 'create'" :error="formErrors.username">
         <el-input v-model.trim="form.username" autofocus autocomplete="username" />
       </el-form-item>
