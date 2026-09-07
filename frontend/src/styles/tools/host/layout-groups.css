@@ -304,6 +304,39 @@
   padding: 0 24px 18px;
 }
 
+.host-editor-dialog .el-input__wrapper,
+.host-editor-dialog .el-select__wrapper,
+.host-editor-dialog .el-input-number__wrapper,
+.host-editor-dialog .el-textarea__inner {
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: #fbfdff;
+  box-shadow: 0 0 0 1px #cbdcf1;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.host-editor-dialog .el-input__inner,
+.host-editor-dialog .el-textarea__inner {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.host-editor-dialog .el-input__wrapper:hover,
+.host-editor-dialog .el-select__wrapper:hover,
+.host-editor-dialog .el-input-number__wrapper:hover {
+  box-shadow: 0 0 0 1px #9bbce8;
+}
+
+.host-editor-dialog .el-input.is-focus .el-input__wrapper,
+.host-editor-dialog .el-select.is-focused .el-select__wrapper,
+.host-editor-dialog .el-input-number.is-focus .el-input-number__wrapper,
+.host-editor-dialog .el-textarea__inner:focus {
+  background: #fff;
+  box-shadow: 0 0 0 1px #2675ed, 0 0 0 4px rgba(38, 117, 237, 0.14);
+}
+
 .host-edit-modal {
   width: min(520px, calc(100vw - 28px));
 }
