@@ -177,10 +177,10 @@ function formatTime(value: string) {
 </script>
 
 <template>
-  <section v-if="activeTool === 'operationLogs'" class="login-log-page operation-log-page" :class="{ fullscreen }" @click="columnsOpen = false">
+  <section v-if="activeTool === 'operationLogs'" class="login-log-page operation-log-page tw:grid tw:min-h-0 tw:flex-1 tw:grid-rows-[auto_minmax(0,1fr)] tw:gap-[var(--app-page-gap)] tw:overflow-hidden tw:bg-app-page tw:p-[var(--app-page-gutter)]" :class="{ fullscreen }" @click="columnsOpen = false">
     <template v-if="canUseAnyPageAction('operationLogs', ['refresh', 'filter', 'columns'])">
-      <article v-if="canUsePageAction('operationLogs', 'filter')" class="login-log-filter-panel">
-        <el-form inline label-position="left">
+      <article v-if="canUsePageAction('operationLogs', 'filter')" class="login-log-filter-panel tw:grid tw:grid-cols-1 tw:gap-3 tw:bg-app-surface tw:p-4 tw:min-[901px]:grid-cols-5 tw:min-[901px]:gap-4">
+        <el-form inline label-position="left" class="tw:contents">
           <el-form-item label="操作人">
             <el-input v-model="username" placeholder="请输入" clearable />
           </el-form-item>
@@ -199,10 +199,10 @@ function formatTime(value: string) {
         </el-form>
       </article>
 
-      <article class="login-log-list-panel">
-        <div class="login-log-toolbar">
+      <article class="login-log-list-panel tw:grid tw:min-h-0 tw:grid-rows-[auto_auto_minmax(0,1fr)_minmax(52px,auto)] tw:overflow-hidden tw:bg-app-surface tw:p-[var(--app-panel-padding)]">
+        <div class="login-log-toolbar tw:mb-[var(--app-page-gap)] tw:flex tw:flex-col tw:items-start tw:gap-[var(--app-page-gap)] tw:min-[901px]:flex-row tw:min-[901px]:items-center tw:min-[901px]:justify-between">
           <h2>操作记录</h2>
-          <div class="login-log-actions">
+          <div class="login-log-actions tw:flex tw:w-full tw:flex-wrap tw:items-center tw:gap-2.5 tw:min-[901px]:w-auto">
             <span v-if="canUseAnyPageAction('operationLogs', ['filter', 'refresh', 'columns'])" class="login-log-toolbar-divider"></span>
             <el-tooltip v-if="canUsePageAction('operationLogs', 'refresh')" content="刷新" placement="top">
               <el-button circle @click="loadLogs"><AppIcon name="refresh" :size="18" /></el-button>
@@ -251,7 +251,7 @@ function formatTime(value: string) {
 
         <p v-if="message" class="login-log-message">{{ message }}</p>
 
-        <div class="login-log-table-wrap">
+        <div class="login-log-table-wrap tw:min-h-0 tw:overflow-auto tw:pb-0.5">
           <el-table :data="logs" row-key="id" class="login-log-table" v-loading="isLoading" empty-text="暂无操作记录">
             <el-table-column v-if="isColumnVisible('createdAt')" label="时间" min-width="170">
               <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
@@ -272,8 +272,8 @@ function formatTime(value: string) {
           </el-table>
         </div>
 
-        <div class="host-pagination" aria-label="操作记录分页">
-          <div class="host-pagination-summary">
+        <div class="host-pagination tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3.5 tw:border-t tw:border-app-border-soft tw:pt-3 tw:text-sm tw:font-bold tw:text-app-text-muted" aria-label="操作记录分页">
+          <div class="host-pagination-summary tw:flex tw:items-center tw:gap-2">
             <span>共 {{ total }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>

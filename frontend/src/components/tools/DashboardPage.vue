@@ -490,8 +490,8 @@ defineExpose({
 </script>
 
 <template>
-  <section class="dashboard-page">
-    <header class="dashboard-hero">
+  <section class="dashboard-page tw:min-h-0 tw:flex-1 tw:overflow-auto tw:p-[var(--app-page-gutter)] tw:text-app-text">
+    <header class="dashboard-hero tw:grid tw:min-h-0 tw:grid-cols-1 tw:items-center tw:gap-3 tw:p-4 tw:min-[761px]:min-h-[90px] tw:min-[761px]:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] tw:min-[761px]:gap-6 tw:min-[761px]:px-7 tw:min-[761px]:py-[18px]">
       <div class="dashboard-hero-copy">
         <span>{{ heroBadge }}</span>
         <h1 class="dashboard-typing-title">
@@ -499,7 +499,7 @@ defineExpose({
         </h1>
         <p>{{ heroDescription }}</p>
       </div>
-      <time class="dashboard-hero-clock" :datetime="now.toISOString()" :aria-label="heroClockLabel">
+      <time class="dashboard-hero-clock tw:grid tw:justify-items-start tw:gap-[5px] tw:text-left tw:min-[761px]:justify-items-end tw:min-[761px]:text-right" :datetime="now.toISOString()" :aria-label="heroClockLabel">
         <span>{{ heroClockDate }}</span>
         <strong>{{ heroClockTime }}</strong>
       </time>
@@ -508,8 +508,8 @@ defineExpose({
     <p v-if="message" class="dashboard-message">{{ message }}</p>
 
     <div v-if="summary" class="dashboard-content">
-      <div class="dashboard-card-grid">
-        <article class="dashboard-stat-card dashboard-egress-card" :class="{ error: summary.egressNetwork.status !== 'ok' }">
+      <div class="dashboard-card-grid tw:grid tw:grid-cols-1 tw:gap-[var(--app-page-gap)] tw:min-[761px]:grid-cols-2 tw:min-[1281px]:grid-cols-4 tw:min-[1461px]:grid-cols-[minmax(320px,1.35fr)_repeat(4,minmax(170px,1fr))]">
+        <article class="dashboard-stat-card dashboard-egress-card tw:col-span-full tw:min-[1461px]:col-auto" :class="{ error: summary.egressNetwork.status !== 'ok' }">
           <div class="dashboard-egress-info">
             <span>出口网络</span>
             <strong>{{ summary.egressNetwork.ip || '--' }}</strong>
@@ -530,7 +530,7 @@ defineExpose({
         </article>
       </div>
 
-      <div class="dashboard-main-grid">
+      <div class="dashboard-main-grid tw:grid tw:grid-cols-1 tw:gap-[var(--app-page-gap)] tw:min-[761px]:grid-cols-2 tw:min-[1281px]:grid-cols-[minmax(210px,0.86fr)_minmax(210px,0.86fr)_minmax(360px,1.34fr)]">
         <article class="dashboard-panel dashboard-user-panel">
           <header>
             <div>
@@ -567,7 +567,7 @@ defineExpose({
           </div>
         </article>
 
-        <article class="dashboard-panel dashboard-trend-panel">
+        <article class="dashboard-panel dashboard-trend-panel tw:col-span-full tw:min-[1281px]:col-auto">
           <header>
             <div>
               <h2>访问量</h2>
@@ -579,7 +579,7 @@ defineExpose({
         </article>
       </div>
 
-      <div class="dashboard-lower-grid">
+      <div class="dashboard-lower-grid tw:grid tw:grid-cols-1 tw:gap-[var(--app-page-gap)] tw:min-[761px]:grid-cols-2 tw:min-[1281px]:grid-cols-[minmax(360px,1.2fr)_minmax(280px,0.9fr)_minmax(280px,0.9fr)]">
         <article class="dashboard-panel dashboard-bars-panel">
           <header>
             <div>
@@ -636,7 +636,7 @@ defineExpose({
           </div>
         </article>
 
-        <article class="dashboard-panel dashboard-recent-panel">
+        <article class="dashboard-panel dashboard-recent-panel tw:col-span-full">
           <header>
             <div>
               <h2>最近登录</h2>

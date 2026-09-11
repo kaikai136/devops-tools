@@ -81,9 +81,9 @@ const searchModel = computed({
 </script>
 
 <template>
-  <div class="host-toolbar">
-    <el-input v-model="searchModel" class="host-search-input" placeholder="输入别名/IP检索" clearable />
-    <div class="host-toolbar-actions">
+  <div class="host-toolbar tw:mb-4 tw:flex tw:flex-col tw:items-stretch tw:justify-between tw:gap-4 tw:lg:flex-row tw:lg:items-center">
+    <el-input v-model="searchModel" class="host-search-input tw:w-full tw:lg:w-[min(320px,34vw)]" placeholder="输入别名/IP检索" clearable />
+    <div class="host-toolbar-actions tw:flex tw:flex-wrap tw:items-center tw:justify-start tw:gap-2.5 tw:lg:flex-nowrap tw:lg:justify-end">
       <el-button v-if="props.canCreate" type="primary" @click="emit('create')"><AppIcon name="plus" :size="16" />新建</el-button>
       <el-button v-if="props.canManageQuickCommands" class="host-quick-command-trigger" @click="emit('open-quick-commands')">
         <AppIcon name="zap" :size="16" />

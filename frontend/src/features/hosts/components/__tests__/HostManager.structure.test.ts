@@ -421,10 +421,13 @@ describe('HostManager component structure', () => {
 
   it('keeps the host group sidebar compact without letting long names distort the row', () => {
     const styles = readStyle('src/styles/tools/host/layout-groups.css');
+    const manager = readSfc('src/features/hosts/components/HostManager.vue').template?.content ?? '';
     const groupTree = readSfc('src/features/hosts/components/HostGroupTree.vue').template?.content ?? '';
 
-    expect(styles).toMatch(/\.host-manager-page\s*\{[\s\S]*grid-template-columns:\s*minmax\(200px,\s*240px\)\s*minmax\(680px,\s*1fr\);/);
-    expect(styles).toMatch(/\.host-groups-panel\s*\{[\s\S]*padding:\s*14px;/);
+    expect(manager).toContain('host-manager-page tw:grid');
+    expect(manager).toContain('tw:min-[1201px]:grid-cols-[minmax(200px,240px)_minmax(680px,1fr)]');
+    expect(groupTree).toContain('host-groups-panel tw:relative tw:min-h-0 tw:overflow-auto tw:bg-app-surface tw:p-3.5');
+    expect(styles).not.toMatch(/\.host-manager-page\s*\{[\s\S]*grid-template-columns:/);
     expect(styles).toMatch(/\.host-group-row strong\s*\{[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/);
     expect(styles).toMatch(/\.host-group-row\s*\{[\s\S]*justify-content:\s*flex-start;[\s\S]*text-align:\s*left;/);
     expect(styles).toMatch(/\.host-group-row\.editing\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-columns:\s*12px\s+16px\s+minmax\(0,\s*1fr\)\s+18px;/);

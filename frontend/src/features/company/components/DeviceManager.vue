@@ -268,26 +268,26 @@ function setPageSize(size: number) {
 </script>
 
 <template>
-  <section class="device-manager-page">
-    <article class="device-list-panel">
-      <div class="device-list-toolbar">
-        <div v-if="canUsePageAction('companyDevices', 'filter')" class="device-toolbar-filters">
-          <el-select v-model="statusFilter" class="device-toolbar-select" aria-label="资产状态" placeholder="资产状态" clearable>
+  <section class="device-manager-page tw:flex tw:min-h-0 tw:min-w-0 tw:flex-1 tw:overflow-auto tw:bg-app-page tw:p-[var(--app-page-gutter)] tw:text-app-text">
+    <article class="device-list-panel tw:flex tw:h-auto tw:min-h-[calc(100dvh-96px)] tw:w-full tw:min-w-0 tw:flex-col tw:overflow-hidden tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:shadow-[var(--app-shadow-md)] tw:max-[760px]:min-h-[calc(100dvh-76px)] tw:min-[1181px]:h-[calc(100dvh-104px)] tw:min-[1181px]:min-h-[560px]">
+      <div class="device-list-toolbar tw:grid tw:grid-cols-1 tw:items-stretch tw:gap-4 tw:border-b tw:border-app-border-soft tw:bg-app-surface tw:p-[var(--app-panel-padding)] tw:min-[1181px]:grid-cols-[minmax(0,1fr)_auto] tw:min-[1181px]:items-center">
+        <div v-if="canUsePageAction('companyDevices', 'filter')" class="device-toolbar-filters tw:flex tw:min-w-0 tw:flex-wrap tw:items-center tw:justify-start tw:gap-2.5">
+          <el-select v-model="statusFilter" class="device-toolbar-select tw:w-full tw:min-w-0 tw:flex-1 tw:md:w-[136px] tw:md:flex-[0_0_136px]" aria-label="资产状态" placeholder="资产状态" clearable>
             <el-option value="" label="资产状态" />
             <el-option value="using" label="使用中" />
             <el-option value="idle" label="闲置" />
             <el-option value="repair" label="维修" />
             <el-option value="scrapped" label="报废" />
           </el-select>
-          <el-select v-model="categoryFilter" class="device-toolbar-select" aria-label="资产类别" placeholder="资产类别" clearable>
+          <el-select v-model="categoryFilter" class="device-toolbar-select tw:w-full tw:min-w-0 tw:flex-1 tw:md:w-[136px] tw:md:flex-[0_0_136px]" aria-label="资产类别" placeholder="资产类别" clearable>
             <el-option value="" label="资产类别" />
             <el-option value="固定资产" label="固定资产" />
             <el-option value="耗材" label="耗材" />
           </el-select>
-          <el-input v-model="search" placeholder="输入名称等信息" class="device-toolbar-search" aria-label="输入名称等信息" clearable />
+          <el-input v-model="search" placeholder="输入名称等信息" class="device-toolbar-search tw:w-full tw:min-w-0 tw:flex-1 tw:md:w-[260px] tw:md:min-w-[220px] tw:md:flex-[0_1_260px]" aria-label="输入名称等信息" clearable />
           <el-button type="danger" @click="resetFilters">重置</el-button>
         </div>
-        <div class="device-toolbar-actions">
+        <div class="device-toolbar-actions tw:flex tw:flex-none tw:flex-wrap tw:items-center tw:justify-start tw:gap-2.5 tw:md:flex-nowrap tw:min-[1181px]:justify-end">
           <el-button
             v-if="canUsePageAction('companyDevices', 'delete')"
             type="danger"
@@ -313,14 +313,14 @@ function setPageSize(size: number) {
         </div>
       </div>
 
-      <div v-if="isLoading" class="device-loading">
+      <div v-if="isLoading" class="device-loading tw:flex tw:min-h-[220px] tw:flex-1 tw:items-center tw:justify-center tw:gap-2.5 tw:text-app-text-muted">
         <AppIcon name="refresh" :size="16" />加载中...
       </div>
-      <div v-else-if="loadError" class="device-load-error">
+      <div v-else-if="loadError" class="device-load-error tw:flex tw:min-h-[220px] tw:flex-1 tw:items-center tw:justify-center tw:gap-2.5 tw:text-app-danger">
         <span>{{ loadError }}</span>
         <el-button type="primary" @click="loadDevices">重试</el-button>
       </div>
-      <div v-else class="device-table-wrap">
+      <div v-else class="device-table-wrap tw:min-h-0 tw:flex-1 tw:overflow-hidden tw:bg-app-surface tw:px-2.5 tw:pt-2.5 tw:md:px-4 tw:md:pt-3.5">
         <el-table
           :data="pagedDevices"
           row-key="id"
@@ -365,7 +365,7 @@ function setPageSize(size: number) {
           </el-table-column>
           <el-table-column label="操作" width="140" fixed="right">
             <template #default="{ row }">
-              <div class="device-row-actions">
+              <div class="device-row-actions tw:inline-flex tw:items-center tw:gap-1.5">
                 <el-button
                   v-if="canUsePageAction('companyDevices', 'edit')"
                   type="primary"
@@ -390,9 +390,9 @@ function setPageSize(size: number) {
         </el-table>
       </div>
 
-      <div class="device-pagination">
-        <div class="device-pagination-left">
-          <div class="device-pagination-summary">
+      <div class="device-pagination tw:flex tw:flex-none tw:flex-wrap tw:items-center tw:justify-between tw:gap-4 tw:border-t tw:border-app-border-soft tw:bg-app-surface-muted tw:px-4 tw:py-2.5 tw:text-sm tw:font-bold tw:text-app-text-muted">
+        <div class="device-pagination-left tw:flex tw:min-w-0 tw:flex-1 tw:flex-wrap tw:items-center tw:gap-2.5">
+          <div class="device-pagination-summary tw:flex tw:flex-none tw:items-center tw:gap-2.5 tw:text-app-text-secondary">
             <span>共 {{ filteredDevices.length }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>
@@ -408,7 +408,7 @@ function setPageSize(size: number) {
             @size-change="setPageSize"
           />
         </div>
-        <div class="device-category-summary">
+        <div class="device-category-summary tw:ml-auto tw:flex tw:flex-none tw:flex-wrap tw:items-center tw:justify-end tw:gap-2.5 tw:max-[1180px]:ml-0 tw:max-[1180px]:justify-start">
           <span class="device-summary-pill">固定资产 {{ fixedAssetCount }}</span>
           <span class="device-summary-pill">耗材 {{ consumableCount }}</span>
         </div>
@@ -422,8 +422,8 @@ function setPageSize(size: number) {
       :close-on-click-modal="false"
       @update:model-value="(visible) => { if (!visible && !isSaving) finishDeviceDialog(); }"
     >
-      <el-form :model="deviceForm" label-position="top" class="device-form-modal popup-body popup-form-grid">
-        <p v-if="dialogError" class="device-form-error">{{ dialogError }}</p>
+      <el-form :model="deviceForm" label-position="top" class="device-form-modal popup-body popup-form-grid tw:grid tw:w-full tw:grid-cols-1 tw:gap-x-4 tw:gap-y-2 tw:md:grid-cols-2">
+        <p v-if="dialogError" class="device-form-error tw:col-span-full tw:m-0 tw:text-xs tw:font-medium tw:text-app-danger">{{ dialogError }}</p>
         <el-form-item label="资产名称" :error="formErrors.name">
           <el-input v-model="deviceForm.name" autofocus />
         </el-form-item>
@@ -456,7 +456,7 @@ function setPageSize(size: number) {
         <el-form-item label="采购时间">
           <el-date-picker v-model="deviceForm.purchaseTime" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
         </el-form-item>
-        <el-form-item label="备注" class="device-form-wide">
+        <el-form-item label="备注" class="device-form-wide tw:col-span-full">
           <el-input v-model="deviceForm.remark" type="textarea" :rows="3" />
         </el-form-item>
       </el-form>

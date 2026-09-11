@@ -139,12 +139,12 @@ function emptyForm(): CredentialForm {
 </script>
 
 <template>
-  <section v-if="activeTool === 'accounts'" class="account-page" :class="{ fullscreen }">
+  <section v-if="activeTool === 'accounts'" class="account-page tw:flex tw:min-h-0 tw:flex-1 tw:m-[var(--app-page-gutter)] tw:overflow-hidden" :class="{ fullscreen }">
     <template v-if="canUseAnyPageAction('accounts', ['create', 'edit', 'delete'])">
-    <article class="panel account-panel">
-      <div class="account-toolbar">
-        <el-input v-model="search" placeholder="输入账号名称/用户/备注搜索" class="account-toolbar-search" clearable />
-        <div class="account-toolbar-actions">
+    <article class="panel account-panel tw:h-full tw:min-h-0 tw:min-w-0 tw:flex-1 tw:overflow-auto tw:bg-app-surface tw:p-[var(--app-panel-padding)]">
+      <div class="account-toolbar tw:mb-4 tw:flex tw:flex-col tw:items-stretch tw:justify-between tw:gap-4 tw:lg:flex-row tw:lg:items-center">
+        <el-input v-model="search" placeholder="输入账号名称/用户/备注搜索" class="account-toolbar-search tw:w-full tw:lg:w-[min(360px,38vw)]" clearable />
+        <div class="account-toolbar-actions tw:flex tw:flex-wrap tw:items-center tw:justify-start tw:gap-2.5 tw:lg:justify-end">
           <el-button v-if="canUsePageAction('accounts', 'create')" type="primary" @click="openCreateDialog"><AppIcon name="plus" :size="16" />新增账号</el-button>
           <el-button title="刷新" aria-label="刷新" @click="loadCredentials"><AppIcon name="refresh" :size="16" /></el-button>
           <el-button :title="fullscreen ? '退出全屏' : '全屏'" :aria-label="fullscreen ? '退出全屏' : '全屏'" @click="fullscreen = !fullscreen">
@@ -153,7 +153,7 @@ function emptyForm(): CredentialForm {
         </div>
       </div>
 
-      <div class="account-stats-line">
+      <div class="account-stats-line tw:mb-3 tw:flex tw:flex-wrap tw:items-center tw:gap-2.5 tw:text-xs tw:font-bold tw:text-app-text-muted">
         <span>共 {{ stats.total }} 个账号</span>
         <span>密码 {{ stats.withPassword }}</span>
         <span>密钥 {{ stats.withKey }}</span>
@@ -161,7 +161,7 @@ function emptyForm(): CredentialForm {
       </div>
       <p v-if="message" class="account-message">{{ message }}</p>
 
-      <div class="account-table">
+      <div class="account-table tw:min-w-0 tw:overflow-x-auto">
         <el-table :data="filteredCredentials" row-key="id" class="account-table" empty-text="没有匹配的账号">
           <el-table-column label="账号名称" min-width="150">
             <template #default="{ row }">

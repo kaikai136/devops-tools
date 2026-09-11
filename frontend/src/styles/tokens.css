@@ -1,0 +1,110 @@
+:root {
+  color-scheme: light;
+
+  /* Brand and interaction */
+  --app-primary: #2563eb;
+  --app-primary-hover: #1d4ed8;
+  --app-primary-active: #1e40af;
+  --app-primary-soft: #eff6ff;
+  --app-primary-foreground: #ffffff;
+  --app-accent: #0f766e;
+  --app-accent-soft: #f0fdfa;
+
+  /* Semantic */
+  --app-success: #16a34a;
+  --app-warning: #d97706;
+  --app-danger: #dc2626;
+  --app-info: #475569;
+
+  /* Surfaces */
+  --app-page: #f4f7fb;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f8fafc;
+  --app-surface-elevated: #ffffff;
+  --app-code-surface: #101828;
+  --app-code-text: #e5e7eb;
+
+  /* Text */
+  --app-text: #0f172a;
+  --app-text-secondary: #334155;
+  --app-text-muted: #64748b;
+  --app-text-disabled: #94a3b8;
+
+  /* Borders and focus */
+  --app-border: #d8e1ec;
+  --app-border-soft: #e8eef5;
+  --app-border-strong: #b9c8da;
+  --app-focus: #2563eb;
+  --app-focus-ring: rgb(37 99 235 / 0.18);
+
+  /* Shape */
+  --app-radius-sm: 6px;
+  --app-radius-md: 8px;
+  --app-radius-lg: 12px;
+  --app-radius-xl: 14px;
+
+  /* Layout */
+  --app-topbar-height: 58px;
+  --app-page-gutter: 16px;
+  --app-page-gap: 16px;
+  --app-panel-padding: 16px;
+
+  /* Elevation */
+  --app-shadow-sm: 0 1px 3px rgb(15 23 42 / 0.06);
+  --app-shadow-md: 0 8px 24px rgb(15 23 42 / 0.08);
+  --app-shadow-popup: 0 24px 64px rgb(15 23 42 / 0.18);
+}
+
+html.dark {
+  color-scheme: dark;
+
+  --app-primary: #3b82f6;
+  --app-primary-hover: #60a5fa;
+  --app-primary-active: #2563eb;
+  --app-primary-soft: rgb(59 130 246 / 0.14);
+  --app-primary-foreground: #ffffff;
+  --app-accent: #2dd4bf;
+  --app-accent-soft: rgb(45 212 191 / 0.12);
+
+  --app-success: #4ade80;
+  --app-warning: #fbbf24;
+  --app-danger: #f87171;
+  --app-info: #94a3b8;
+
+  --app-page: #0b1220;
+  --app-surface: #111827;
+  --app-surface-muted: #172033;
+  --app-surface-elevated: #182235;
+  --app-code-surface: #020617;
+  --app-code-text: #e5e7eb;
+
+  --app-text: #e5edf8;
+  --app-text-secondary: #cbd5e1;
+  --app-text-muted: #94a3b8;
+  --app-text-disabled: #64748b;
+
+  --app-border: #2a3952;
+  --app-border-soft: #223049;
+  --app-border-strong: #475569;
+  --app-focus: #60a5fa;
+  --app-focus-ring: rgb(96 165 250 / 0.22);
+
+  --app-shadow-sm: 0 1px 3px rgb(0 0 0 / 0.22);
+  --app-shadow-md: 0 8px 24px rgb(0 0 0 / 0.3);
+  --app-shadow-popup: 0 24px 64px rgb(0 0 0 / 0.48);
+}
+
+@media (max-width: 899px) {
+  :root {
+    --app-page-gutter: 14px;
+    --app-page-gap: 14px;
+  }
+}
+
+@media (max-width: 639px) {
+  :root {
+    --app-page-gutter: 12px;
+    --app-page-gap: 12px;
+    --app-panel-padding: 12px;
+  }
+}

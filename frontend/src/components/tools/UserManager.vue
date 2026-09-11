@@ -84,20 +84,20 @@ const {
 </script>
 
 <template>
-  <section v-if="activeTool === 'users'" class="user-manager-page" :class="{ fullscreen }" @click="columnsOpen = false">
+  <section v-if="activeTool === 'users'" class="user-manager-page tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:overflow-auto tw:bg-app-page tw:p-[var(--app-page-gutter)] tw:text-app-text" :class="{ fullscreen }" @click="columnsOpen = false">
     <template v-if="canAccessPage('users')">
-      <article class="user-filter-panel">
+      <article class="user-filter-panel tw:mb-[var(--app-page-gap)] tw:flex tw:min-h-[78px] tw:flex-wrap tw:items-start tw:bg-app-surface tw:p-4 tw:min-[921px]:items-center">
         <el-form inline label-position="left">
           <el-form-item label="账户名称">
-            <el-input v-model="search" placeholder="请输入" clearable />
+            <el-input v-model="search" class="tw:w-full tw:min-[921px]:w-[428px]" placeholder="请输入" clearable />
           </el-form-item>
         </el-form>
       </article>
 
-      <article class="user-list-panel">
-        <div class="user-list-toolbar">
+      <article class="user-list-panel tw:mb-0 tw:min-h-[284px] tw:min-w-0 tw:bg-app-surface tw:p-[var(--app-panel-padding)] tw:min-[921px]:min-w-[900px]">
+        <div class="user-list-toolbar tw:mb-[var(--app-page-gap)] tw:flex tw:flex-col tw:items-start tw:gap-[var(--app-page-gap)] tw:min-[921px]:flex-row tw:min-[921px]:items-center tw:min-[921px]:justify-between">
           <h2>账户列表</h2>
-          <div class="user-toolbar-actions">
+          <div class="user-toolbar-actions tw:flex tw:w-full tw:flex-wrap tw:items-center tw:justify-start tw:gap-2.5 tw:min-[921px]:w-auto tw:min-[921px]:gap-4">
             <el-button v-if="canUsePageAction('users', 'create')" type="primary" @click="openCreateDialog">
               <AppIcon name="plus" :size="15" />
               <span>新建</span>

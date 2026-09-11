@@ -59,8 +59,8 @@ const inlineName = computed({
 </script>
 
 <template>
-  <article class="panel host-groups-panel">
-    <div class="host-group-head">
+  <article class="panel host-groups-panel tw:relative tw:min-h-0 tw:overflow-auto tw:bg-app-surface tw:p-3.5">
+    <div class="host-group-head tw:mb-[18px] tw:flex tw:items-center tw:justify-between tw:gap-3">
       <h2>分组列表</h2>
       <el-button v-if="props.canManageGroups" class="group-add-button" circle title="添加分组" aria-label="添加分组" @click.stop="emit('add-root')"><AppIcon name="plus" :size="16" /></el-button>
     </div>

@@ -483,15 +483,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="system-settings-page">
+  <section class="system-settings-page tw:grid tw:min-h-0 tw:flex-1 tw:grid-cols-1 tw:content-start tw:justify-center tw:gap-[var(--app-page-gap)] tw:overflow-auto tw:bg-app-page tw:p-[var(--app-page-gutter)] tw:text-app-text tw:min-[981px]:grid-cols-[minmax(0,1160px)]">
     <template v-if="canUseAnyPageAction('systemSettings', ['save', 'reset', 'refresh'])">
-      <article class="system-settings-main">
-        <header class="system-settings-title">
+      <article class="system-settings-main tw:grid tw:min-w-0 tw:content-start">
+        <header class="system-settings-title tw:flex tw:min-h-0 tw:flex-col tw:items-start tw:justify-between tw:gap-[var(--app-page-gap)] tw:px-4 tw:py-[18px] tw:min-[681px]:min-h-[84px] tw:min-[681px]:flex-row tw:min-[681px]:items-center tw:min-[681px]:p-[var(--app-panel-padding)]">
           <div>
             <h2>界面变量配置</h2>
             <p>{{ currentTab.subtitle }}</p>
           </div>
-          <div class="system-settings-actions">
+          <div class="system-settings-actions tw:flex tw:w-full tw:flex-wrap tw:justify-start tw:gap-2 tw:min-[681px]:w-auto tw:min-[681px]:justify-end">
             <el-button v-if="canUsePageAction('systemSettings', 'refresh')" :disabled="currentLoading" @click="refreshCurrentTab">
               <AppIcon name="refresh" :size="15" />刷新
             </el-button>
@@ -504,7 +504,7 @@ onMounted(() => {
           </div>
         </header>
 
-        <nav class="system-settings-tabs" aria-label="系统设置分类">
+        <nav class="system-settings-tabs tw:mx-auto tw:mb-[18px] tw:flex tw:max-w-full tw:justify-start tw:gap-[var(--app-page-gap)] tw:overflow-x-auto tw:min-[981px]:mb-[26px] tw:min-[981px]:justify-center" aria-label="系统设置分类">
           <el-button
             v-for="tab in settingsTabs"
             :key="tab.key"
@@ -524,7 +524,7 @@ onMounted(() => {
               <h3>品牌信息</h3>
               <span>全局品牌与 2FA 发行方</span>
             </header>
-            <div class="settings-field-grid compact-settings-field-grid">
+            <div class="settings-field-grid compact-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-x-[18px] tw:gap-y-4 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
               <label>
                 <span>应用名称</span>
                 <el-input v-model="siteIdentityDraft.appName" :disabled="!canSave" maxlength="80" />
@@ -565,7 +565,7 @@ onMounted(() => {
               <h3>登录页</h3>
               <span>未登录页面展示内容</span>
             </header>
-            <div class="settings-field-grid compact-settings-field-grid">
+            <div class="settings-field-grid compact-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-x-[18px] tw:gap-y-4 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
               <label>
                 <span>徽标模板</span>
                 <el-input v-model="loginContentDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
@@ -590,7 +590,7 @@ onMounted(() => {
               <h3>页脚</h3>
               <span>底部文案、链接与显示样式</span>
             </header>
-            <div class="settings-field-grid compact-settings-field-grid">
+            <div class="settings-field-grid compact-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-x-[18px] tw:gap-y-4 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
               <el-checkbox v-model="layoutFooterDraft.enabled" :disabled="!canSave" class="settings-check-row">显示页脚</el-checkbox>
               <label>
                 <span>字号</span>
@@ -620,7 +620,7 @@ onMounted(() => {
               <h3>登录会话</h3>
               <span>过期后刷新需重新登录，Web 终端同步断开</span>
             </header>
-            <div class="settings-field-grid compact-settings-field-grid">
+            <div class="settings-field-grid compact-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-x-[18px] tw:gap-y-4 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
               <label class="expiry-duration-field">
                 <span>系统登录过期时间</span>
                 <div>
@@ -641,7 +641,7 @@ onMounted(() => {
             <h3>仪表盘动态文字</h3>
             <span>动态 SVG 参数</span>
           </header>
-          <div class="settings-field-grid dashboard-hero-field-grid">
+          <div class="settings-field-grid dashboard-hero-field-grid tw:grid tw:grid-cols-1 tw:gap-x-6 tw:gap-y-[22px] tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-4">
             <label>
               <span>徽标模板</span>
               <el-input v-model="dashboardHeroDraft.badgeTemplate" :disabled="!canSave" maxlength="160" />
@@ -722,7 +722,7 @@ onMounted(() => {
             <h3>日志保留</h3>
             <span>0 表示永久保留</span>
           </header>
-          <div class="settings-field-grid log-retention-field-grid">
+          <div class="settings-field-grid log-retention-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
             <el-checkbox v-model="logRetentionDraft.rdpRecordingEnabled" :disabled="!canSave" class="settings-check-row">开启 RDP 录像</el-checkbox>
             <label>
               <span>登录日志保留天数</span>
@@ -756,7 +756,7 @@ onMounted(() => {
             <h3>安全扫描</h3>
             <span>OSV/NVD 在线漏洞源访问</span>
           </header>
-          <div class="settings-field-grid">
+          <div class="settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2">
             <el-checkbox v-model="securityScanDraft.onlineCveEnabled" :disabled="!canSave" class="settings-check-row span-2">开启在线 CVE 查询</el-checkbox>
             <p class="span-2 settings-inline-help">
               关闭时安全扫描只执行基线和端口风险检查；开启后会访问 OSV 和 NVD 获取 CVE 详情，并缓存查询结果。
@@ -770,7 +770,7 @@ onMounted(() => {
             <span>水印模板与应用范围</span>
           </header>
           <div class="watermark-form-grid">
-            <div class="settings-field-grid">
+            <div class="settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2">
               <el-checkbox v-model="watermarkDraft.enabled" :disabled="!canSave" class="settings-check-row">开启水印</el-checkbox>
               <label>
                 <span>水印模板</span>
@@ -827,7 +827,7 @@ onMounted(() => {
           <div class="terminal-settings-groups">
             <section>
               <h4>连接握手</h4>
-              <div class="settings-field-grid terminal-settings-field-grid">
+              <div class="settings-field-grid terminal-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
                 <label>
                   <span>SSH 连接超时秒数</span>
                   <el-input-number v-model="terminalSettingsDraft.sshConnectTimeoutSeconds" :disabled="!canSave" :min="1" :max="300" />
@@ -853,7 +853,7 @@ onMounted(() => {
 
             <section>
               <h4>会话保活</h4>
-              <div class="settings-field-grid terminal-settings-field-grid">
+              <div class="settings-field-grid terminal-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
                 <label>
                   <span>SSH Keepalive 间隔秒数</span>
                   <el-input-number v-model="terminalSettingsDraft.sshKeepaliveSeconds" :disabled="!canSave" :min="0" :max="3600" />
@@ -871,7 +871,7 @@ onMounted(() => {
 
             <section>
               <h4>读取与命令</h4>
-              <div class="settings-field-grid terminal-settings-field-grid">
+              <div class="settings-field-grid terminal-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
                 <label>
                   <span>初始读取超时秒数</span>
                   <el-input-number v-model="terminalSettingsDraft.initialReadTimeoutSeconds" :disabled="!canSave" :min="1" :max="60" />
@@ -897,7 +897,7 @@ onMounted(() => {
 
             <section>
               <h4>启动辅助</h4>
-              <div class="settings-field-grid terminal-settings-field-grid">
+              <div class="settings-field-grid terminal-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
                 <label>
                   <span>CWD Hook 回显抑制 ms</span>
                   <el-input-number v-model="terminalSettingsDraft.cwdHookSuppressEchoMs" :disabled="!canSave" :min="0" :max="10000" />
@@ -915,7 +915,7 @@ onMounted(() => {
 
             <section>
               <h4>显示默认</h4>
-              <div class="settings-field-grid terminal-settings-field-grid">
+              <div class="settings-field-grid terminal-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
                 <label>
                   <span>默认列数</span>
                   <el-input-number v-model="terminalSettingsDraft.defaultCols" :disabled="!canSave" :min="40" :max="300" />
@@ -937,7 +937,7 @@ onMounted(() => {
 
             <section>
               <h4>批量执行</h4>
-              <div class="settings-field-grid terminal-settings-field-grid">
+              <div class="settings-field-grid terminal-settings-field-grid tw:grid tw:grid-cols-1 tw:gap-6 tw:min-[681px]:grid-cols-2 tw:min-[981px]:grid-cols-3">
                 <label>
                   <span>最大主机数</span>
                   <el-input-number v-model="terminalSettingsDraft.bulkExecutionMaxTargets" :disabled="!canSave" :min="1" :max="1000" />

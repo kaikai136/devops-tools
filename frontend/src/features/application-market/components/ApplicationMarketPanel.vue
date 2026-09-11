@@ -383,8 +383,8 @@ function formatDate(value: string | null) {
 </script>
 
 <template>
-  <section class="application-market-page app-market">
-    <header class="market-page-title">
+  <section class="application-market-page app-market tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:gap-[var(--app-page-gap)] tw:overflow-auto tw:m-[var(--app-page-gutter)] tw:text-app-text">
+    <header class="market-page-title tw:flex tw:flex-col tw:items-stretch tw:gap-[var(--app-page-gap)] tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:p-[var(--app-panel-padding)] tw:shadow-[var(--app-shadow-md)] tw:lg:flex-row tw:lg:items-center tw:lg:justify-between">
       <div>
         <h2><AppIcon name="server" :size="20" />应用市场</h2>
         <p>发现、安装和管理服务器应用；所有安装与变更都先预览，再由管理员确认执行。</p>
@@ -397,14 +397,14 @@ function formatDate(value: string | null) {
       </label>
     </header>
 
-    <section class="market-hero" aria-label="应用概况与操作">
-      <div class="market-stats">
+    <section class="market-hero tw:relative tw:grid tw:grid-cols-1 tw:items-stretch tw:gap-[var(--app-page-gap)] tw:overflow-hidden tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:px-[var(--app-panel-padding)] tw:py-3 tw:shadow-[var(--app-shadow-md)] tw:xl:grid-cols-[max-content_minmax(0,1fr)] tw:xl:items-center" aria-label="应用概况与操作">
+      <div class="market-stats tw:grid tw:min-w-0 tw:grid-cols-2 tw:md:grid-cols-4">
         <div><strong>{{ totalApps }}</strong><span>全部应用</span></div>
         <div><strong>{{ installedApps }}</strong><span>已安装</span></div>
         <div><strong>{{ runningApps }}</strong><span>运行中</span></div>
         <div><strong>{{ adaptedApps }}</strong><span>可直接安装</span></div>
       </div>
-      <div class="market-hero__actions">
+      <div class="market-hero__actions tw:flex tw:flex-wrap tw:items-center tw:justify-start tw:gap-2 tw:xl:justify-self-end tw:xl:justify-end">
         <el-tag class="market-source-mode" type="info" effect="plain">{{ sourceSummary }}</el-tag>
         <el-button :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="15" />刷新状态</el-button>
         <el-button v-if="canManageSources" :loading="isSyncingSources" @click="syncSources">
@@ -413,7 +413,7 @@ function formatDate(value: string | null) {
       </div>
     </section>
 
-    <section class="capabilityStrip market-capability-strip">
+    <section class="capabilityStrip market-capability-strip tw:grid tw:grid-cols-1 tw:gap-2 tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:p-2.5 tw:shadow-[var(--app-shadow-md)] tw:sm:grid-cols-2 tw:xl:grid-cols-6">
       <article v-for="item in capabilityStrip" :key="item.key" :class="{ ok: item.ok, warn: !item.ok }">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
@@ -422,7 +422,7 @@ function formatDate(value: string | null) {
       <article><span>目录来源</span><strong>{{ sourceSummary }}</strong></article>
     </section>
 
-    <section v-if="activeTask" class="app-job-banner" :class="`is-${activeTask.status}`">
+    <section v-if="activeTask" class="app-job-banner tw:grid tw:grid-cols-1 tw:items-stretch tw:gap-3 tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:p-3 tw:shadow-[var(--app-shadow-md)] tw:lg:grid-cols-[auto_minmax(0,1fr)_auto_auto] tw:lg:items-center" :class="`is-${activeTask.status}`">
       <span class="app-job-banner__icon">
         <AppIcon :name="runningTasks.length ? 'refresh' : activeTask.status === 'success' ? 'circleCheck' : 'circleHelp'" :size="20" />
       </span>
@@ -438,7 +438,7 @@ function formatDate(value: string | null) {
       </div>
     </section>
 
-    <section class="market-toolbar">
+    <section class="market-toolbar tw:grid tw:grid-cols-1 tw:items-center tw:gap-3 tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:p-3 tw:shadow-[var(--app-shadow-md)] tw:xl:grid-cols-[minmax(240px,1fr)_auto_auto]">
       <label class="market-search">
         <AppIcon name="search" :size="18" />
         <el-input v-model="searchKeyword" clearable placeholder="搜索应用名称、功能或容器..." />
@@ -467,7 +467,7 @@ function formatDate(value: string | null) {
       </el-button-group>
     </section>
 
-    <nav class="market-categories" aria-label="应用分类">
+    <nav class="market-categories tw:flex tw:gap-2 tw:overflow-x-auto tw:pb-1" aria-label="应用分类">
       <el-button :type="!categoryFilter || categoryFilter === 'all' ? 'primary' : 'default'" :class="{ 'is-active': !categoryFilter || categoryFilter === 'all' }" @click="categoryFilter = 'all'">
         全部 <span>{{ categoryCounts.all }}</span>
       </el-button>
@@ -476,8 +476,8 @@ function formatDate(value: string | null) {
       </el-button>
     </nav>
 
-    <section v-if="filteredApps.length" class="app-grid market-app-grid" aria-live="polite">
-      <article v-for="app in filteredApps" :key="app.appId" class="app-card market-app-card" :class="{ 'is-installed': app.installed, active: selectedApp?.appId === app.appId }">
+    <section v-if="filteredApps.length" class="app-grid market-app-grid tw:grid tw:grid-cols-1 tw:gap-3.5 tw:md:grid-cols-2 tw:xl:grid-cols-3 tw:2xl:grid-cols-4" aria-live="polite">
+      <article v-for="app in filteredApps" :key="app.appId" class="app-card market-app-card tw:flex tw:min-w-0 tw:flex-col tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:shadow-[var(--app-shadow-sm)]" :class="{ 'is-installed': app.installed, active: selectedApp?.appId === app.appId }">
         <div class="app-card__main" role="button" tabindex="0" @click="openApp(app)" @keyup.enter="openApp(app)">
           <span class="app-card__icon market-app-icon">{{ appInitials(app) }}</span>
           <span class="app-card__body">
@@ -510,7 +510,7 @@ function formatDate(value: string | null) {
 
     <el-empty v-else class="market-empty" description="没有符合条件的应用。尝试清除搜索词或切换分类与状态筛选。" />
 
-    <section v-if="installStatusFilter === 'installed'" class="install-more-card">
+    <section v-if="installStatusFilter === 'installed'" class="install-more-card tw:grid tw:grid-cols-1 tw:items-stretch tw:gap-3 tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:p-3.5 tw:shadow-[var(--app-shadow-md)] tw:lg:grid-cols-[auto_minmax(0,1fr)_auto] tw:lg:items-center">
       <span><AppIcon name="globe" :size="22" /></span>
       <div>
         <strong>{{ installedApps ? '还想安装更多应用？' : '还没有安装应用' }}</strong>
@@ -519,7 +519,7 @@ function formatDate(value: string | null) {
       <el-button type="primary" @click="installStatusFilter = 'all'">浏览全部应用 <AppIcon name="chevronRight" :size="16" /></el-button>
     </section>
 
-    <footer class="market-result">
+    <footer class="market-result tw:flex tw:flex-col tw:gap-3 tw:text-app-text-muted tw:md:flex-row tw:md:justify-between">
       已显示 {{ filteredApps.length }} / {{ totalApps }} 个应用
       <span>目录来源 · {{ sourceSummary }} · 状态来源 · {{ targetSelector?.name || '目标主机' }}</span>
     </footer>
@@ -548,9 +548,9 @@ function formatDate(value: string | null) {
           </div>
         </header>
 
-        <div class="market-detail-body popup-body">
-          <section v-if="selectedApp.installed" class="app-control-panel">
-            <div class="app-control-panel__status">
+        <div class="market-detail-body popup-body tw:grid tw:gap-2.5">
+          <section v-if="selectedApp.installed" class="app-control-panel tw:grid tw:grid-cols-1 tw:overflow-hidden tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface-muted tw:lg:grid-cols-[minmax(0,1fr)_auto]">
+            <div class="app-control-panel__status tw:grid tw:grid-cols-1 tw:lg:grid-cols-3">
               <div><span>运行状态</span><strong>{{ statusLabels[selectedApp.status || 'unknown'] || selectedApp.status }}</strong><small>{{ selectedApp.version }}</small></div>
               <div><span>目标主机</span><strong>{{ targetSelector?.name }}</strong><small>{{ targetSelector?.ip }}</small></div>
               <div><span>访问策略</span><strong>Compose 端口</strong><small>{{ ((selectedApp.manifest.ports as string[]) || []).join(', ') || '无端口' }}</small></div>
@@ -569,7 +569,7 @@ function formatDate(value: string | null) {
             </div>
           </section>
 
-          <div v-else class="app-install-state">
+          <div v-else class="app-install-state tw:grid tw:grid-cols-1 tw:items-stretch tw:gap-3 tw:rounded-app-md tw:border tw:border-dashed tw:border-app-primary tw:bg-app-primary-soft tw:p-3 tw:text-app-primary tw:lg:grid-cols-[auto_minmax(0,1fr)_auto] tw:lg:items-center">
             <AppIcon name="circleCheck" :size="25" />
             <div>
               <strong>当前未安装</strong>
@@ -594,7 +594,7 @@ function formatDate(value: string | null) {
           </section>
           <section class="market-detail-section">
             <h4>配置表单</h4>
-            <div v-if="configSchema.length" class="market-config-form">
+            <div v-if="configSchema.length" class="market-config-form tw:grid tw:grid-cols-1 tw:gap-2.5 tw:md:grid-cols-2">
               <label v-for="field in configSchema" :key="field.key">
                 <span>{{ field.label }}<small v-if="field.required">*</small></span>
                 <el-input-number v-if="field.type === 'number'" v-model="configDraft[field.key]" :min="field.min" :max="field.max" />
@@ -642,7 +642,7 @@ function formatDate(value: string | null) {
         <header>
           <div><h3>确认执行预览</h3><p>{{ previewPlan.appName }} · {{ actionLabels[previewPlan.action] }} · {{ targetSelector?.name }}</p></div>
         </header>
-        <div class="market-preview-grid popup-body">
+        <div class="market-preview-grid popup-body tw:grid tw:grid-cols-1 tw:gap-2.5 tw:md:grid-cols-2">
           <article><span>容器</span><strong v-for="container in previewPlan.summary.containers" :key="container">{{ container }}</strong></article>
           <article><span>镜像</span><strong v-for="image in previewPlan.summary.images" :key="image">{{ image }}</strong></article>
           <article><span>端口</span><strong v-for="port in previewPlan.summary.ports" :key="port">{{ port }}</strong></article>

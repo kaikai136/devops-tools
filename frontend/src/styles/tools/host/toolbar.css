@@ -1,22 +1,13 @@
-.host-toolbar {
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
 .host-toolbar > input {
   width: min(320px, 34vw);
   min-height: 36px;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--app-border);
   border-radius: 0;
-  background: #fff;
+  background: var(--app-surface);
   padding: 0 14px;
 }
 
 .host-toolbar-actions {
-  gap: 10px;
-  flex-wrap: nowrap;
-  justify-content: flex-end;
   white-space: nowrap;
 }
 
@@ -33,9 +24,9 @@
 .more-action-trigger {
   gap: 6px;
   min-width: 104px;
-  border: 1px solid #d8e2ee;
-  background: #fff;
-  color: #173252;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-secondary);
 }
 
 .host-more-menu {
@@ -45,8 +36,8 @@
   left: 0;
   width: 156px;
   padding: 7px 0;
-  border: 1px solid #e2e7ef;
-  background: #fff;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
   box-shadow: 0 14px 32px rgba(31, 45, 71, 0.16);
 }
 
@@ -58,7 +49,7 @@
   min-height: 34px;
   border: 0;
   background: transparent;
-  color: #1d2f49;
+  color: var(--app-text-secondary);
   padding: 0 12px;
   text-align: left;
   font-size: 13px;
@@ -67,8 +58,8 @@
 
 .host-more-menu button:hover:not(:disabled),
 .host-more-menu button.active {
-  background: #f3f7ff;
-  color: #1359f2;
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
 }
 
 .host-more-menu button:disabled {
@@ -78,20 +69,20 @@
 
 .host-more-menu button.danger,
 .host-more-menu button.danger span {
-  color: #ff4058;
+  color: var(--app-danger);
 }
 
 .host-more-menu hr {
   height: 1px;
   margin: 7px 0;
   border: 0;
-  background: #eef2f7;
+  background: var(--app-border-soft);
 }
 
 .terminal-action {
   min-width: 112px;
-  background: #2364f5;
-  color: #fff;
+  background: var(--app-primary);
+  color: var(--app-primary-foreground);
 }
 
 .terminal-icon-action {
@@ -99,7 +90,7 @@
   min-width: 34px;
   border-color: transparent;
   background: transparent;
-  color: #2364f5;
+  color: var(--app-primary);
   padding: 0;
 }
 
@@ -109,24 +100,24 @@
 }
 
 .secondary-blue {
-  background: #2364f5;
+  background: var(--app-primary);
 }
 
 .status-tabs {
   display: inline-flex;
-  border: 1px solid #2c65ff;
+  border: 1px solid var(--app-primary);
 }
 
 .status-tabs button {
   min-width: 72px;
   border: 0;
-  color: #173252;
-  background: #fff;
+  color: var(--app-text-secondary);
+  background: var(--app-surface);
 }
 
 .status-tabs button.active {
-  color: #1359f2;
-  background: #eef5ff;
+  color: var(--app-primary);
+  background: var(--app-primary-soft);
 }
 
 .icon-only {
@@ -134,7 +125,7 @@
   min-width: 34px;
   border: 0;
   background: transparent;
-  color: #173252;
+  color: var(--app-text-secondary);
   padding: 0;
   font-size: 18px;
 }
@@ -150,8 +141,8 @@
   top: calc(100% + 9px);
   right: 0;
   width: 176px;
-  border: 1px solid #e2e7ef;
-  background: #fff;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
   box-shadow: 0 14px 32px rgba(31, 45, 71, 0.16);
 }
 
@@ -162,7 +153,7 @@
   gap: 10px;
   min-height: 48px;
   padding: 0 14px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--app-border-soft);
 }
 
 .host-column-all,
@@ -171,7 +162,7 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: #173252;
+  color: var(--app-text-secondary);
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -183,7 +174,7 @@
   width: 14px;
   height: 14px;
   margin: 0;
-  accent-color: #2364f5;
+  accent-color: var(--app-primary);
 }
 
 .host-column-option input:disabled {
@@ -201,7 +192,7 @@
   min-height: auto;
   border: 0;
   background: transparent;
-  color: #1359f2;
+  color: var(--app-primary);
   padding: 0;
   font-size: 13px;
 }

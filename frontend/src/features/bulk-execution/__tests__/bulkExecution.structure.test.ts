@@ -215,7 +215,7 @@ describe('bulk execution frontend contract', () => {
 
   it('keeps view navigation in the top actions with record before execute and upload', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
-    const actions = panel.match(/<el-button-group class="bulk-execution-actions">[\s\S]*?<\/el-button-group>/)?.[0] ?? '';
+    const actions = panel.match(/<el-button-group class="bulk-execution-actions[^"]*">[\s\S]*?<\/el-button-group>/)?.[0] ?? '';
 
     expect(actions).toContain("activeBulkView === 'history'");
     expect(actions).toContain("activeBulkView === 'execute'");
@@ -231,10 +231,8 @@ describe('bulk execution frontend contract', () => {
   it('keeps history filters aligned in the record toolbar before refresh without the duplicate execute action', () => {
     const panel = readSource('features/bulk-execution/components/BulkExecutionPanel.vue');
     const styles = readSource('styles/tools/bulk-execution.css');
-    const toolbar = panel.match(/<header class="bulk-record-toolbar">[\s\S]*?<\/header>/)?.[0] ?? '';
-    const actions = panel.match(/<div class="bulk-record-actions">[\s\S]*?<\/div>/)?.[0] ?? '';
-    const toolbarStyles = styles.match(/\.bulk-record-toolbar \{[\s\S]*?\}/)?.[0] ?? '';
-    const actionsStyles = styles.match(/\.bulk-record-actions \{[\s\S]*?\}/)?.[0] ?? '';
+    const toolbar = panel.match(/<header class="bulk-record-toolbar[^"]*">[\s\S]*?<\/header>/)?.[0] ?? '';
+    const actions = panel.match(/<div class="bulk-record-actions[^"]*">[\s\S]*?<\/div>/)?.[0] ?? '';
 
     expect(panel).not.toContain('<section class="bulk-execution-filters">');
     expect(actions).toContain('bulk-keyword-filter');
@@ -254,10 +252,12 @@ describe('bulk execution frontend contract', () => {
     expect(toolbar).not.toContain('bulk-status-tabs');
     expect(toolbar).not.toContain('openCreateDialog');
     expect(toolbar).not.toContain('>批量执行</button>');
-    expect(toolbarStyles).toContain('grid-template-columns: minmax(0, 1fr) auto');
-    expect(actionsStyles).toContain('display: flex');
-    expect(actionsStyles).toContain('align-items: center');
-    expect(actionsStyles).toContain('flex-wrap: nowrap');
+    expect(panel).toContain('bulk-record-toolbar tw:grid tw:grid-cols-1');
+    expect(panel).toContain('tw:min-[1121px]:grid-cols-[minmax(0,1fr)_auto]');
+    expect(panel).toContain('bulk-record-actions tw:flex tw:w-full tw:flex-col');
+    expect(styles).not.toContain('@media');
+    expect(styles).not.toContain('.workspace-dark');
+    expect(styles).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(styles).toContain('.bulk-keyword-filter,');
     expect(styles).toContain('--bulk-control-h: 36px');
     expect(styles).toContain('box-sizing: border-box');

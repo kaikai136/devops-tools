@@ -197,7 +197,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
 </script>
 
 <template>
-  <section v-if="activeTool === 'profile'" class="profile-center-page">
+  <section v-if="activeTool === 'profile'" class="profile-center-page tw:grid tw:min-h-0 tw:flex-1 tw:grid-cols-1 tw:content-start tw:justify-center tw:gap-[var(--app-page-gap)] tw:overflow-auto tw:bg-app-page tw:p-[var(--app-page-gutter)] tw:text-app-text tw:min-[981px]:grid-cols-[minmax(0,950px)]">
     <el-alert v-if="message" class="profile-message" type="error" :closable="false" :title="message" />
     <el-alert v-if="isLoading" class="profile-message info" type="info" :closable="false" title="正在加载个人资料..." />
 
@@ -251,7 +251,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
           </div>
           <AppIcon name="user" :size="20" />
         </header>
-        <div class="profile-basic-grid" :class="{ 'without-avatar': !canUploadAvatar }">
+        <div class="profile-basic-grid tw:grid tw:grid-cols-1 tw:items-stretch tw:gap-[var(--app-page-gap)] tw:min-[681px]:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]" :class="{ 'without-avatar': !canUploadAvatar }">
           <section v-if="canUploadAvatar" class="profile-avatar-editor">
             <UserAvatar
               class="profile-avatar"
@@ -272,7 +272,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
               <input ref="avatarInput" hidden type="file" accept="image/png,image/jpeg,image/webp" @change="uploadAvatar" />
             </div>
           </section>
-          <form v-if="canEditProfile" class="profile-form-grid" @submit.prevent="saveProfile">
+          <form v-if="canEditProfile" class="profile-form-grid tw:grid tw:grid-cols-1 tw:gap-x-3.5 tw:gap-y-[var(--app-page-gap)] tw:min-[681px]:grid-cols-2" @submit.prevent="saveProfile">
             <label>
               <span>用户名</span>
               <el-input v-model.trim="profileForm.username" autocomplete="username" />
@@ -302,7 +302,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
           </div>
           <AppIcon name="lock" :size="20" />
         </header>
-        <form class="profile-form-grid" @submit.prevent="changePassword">
+        <form class="profile-form-grid tw:grid tw:grid-cols-1 tw:gap-x-3.5 tw:gap-y-[var(--app-page-gap)] tw:min-[681px]:grid-cols-2" @submit.prevent="changePassword">
           <label>
             <span>当前密码</span>
             <el-input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" show-password />
@@ -356,7 +356,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
             </div>
           </div>
 
-          <form v-if="setupPayload" class="profile-2fa-form" @submit.prevent="confirmTwoFactor">
+          <form v-if="setupPayload" class="profile-2fa-form tw:grid tw:grid-cols-1 tw:items-center tw:justify-start tw:gap-2.5 tw:min-[681px]:grid-cols-[minmax(180px,240px)_auto]" @submit.prevent="confirmTwoFactor">
             <el-input v-model.trim="twoFactorCode" inputmode="numeric" maxlength="6" placeholder="输入 6 位验证码" />
             <el-button class="profile-primary-button" native-type="submit" type="primary" :disabled="twoFactorCode.length !== 6" :loading="isConfirmingTwoFactor">
               {{ isConfirmingTwoFactor ? '验证中...' : '启用 2FA' }}
@@ -364,7 +364,7 @@ async function readProfileResponse(response: Response): Promise<ProfilePayload> 
           </form>
         </div>
 
-        <form v-else class="profile-2fa-form danger-zone" @submit.prevent="disableTwoFactor">
+        <form v-else class="profile-2fa-form danger-zone tw:grid tw:grid-cols-1 tw:items-center tw:justify-start tw:gap-2.5 tw:min-[681px]:grid-cols-[minmax(180px,240px)_minmax(180px,240px)_auto]" @submit.prevent="disableTwoFactor">
           <el-input v-model="disablePassword" type="password" autocomplete="current-password" placeholder="当前密码" show-password />
           <el-input v-model.trim="disableCode" inputmode="numeric" maxlength="6" placeholder="6 位验证码" />
           <el-button class="profile-danger-button" native-type="submit" type="danger" :disabled="!disablePassword || disableCode.length !== 6" :loading="isDisablingTwoFactor">

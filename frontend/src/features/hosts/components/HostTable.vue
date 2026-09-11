@@ -71,7 +71,7 @@ function formatHostSystem(host: ManagedHost) {
 </script>
 
 <template>
-  <div class="host-table-scroll">
+  <div class="host-table-scroll tw:min-h-0 tw:min-w-0 tw:overflow-auto">
     <div class="host-table" :style="props.tableStyle">
       <div class="host-table-row head">
         <label class="host-select-cell" aria-label="选择所有可见主机">
@@ -212,12 +212,12 @@ function formatHostSystem(host: ManagedHost) {
       <el-empty v-if="!props.visibleHostCount" class="host-empty" description="没有匹配的主机" />
     </div>
   </div>
-  <div class="host-pagination" aria-label="主机列表分页">
-    <div class="host-pagination-summary">
+  <div class="host-pagination tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3.5 tw:border-t tw:border-app-border-soft tw:pt-3 tw:text-sm tw:font-bold tw:text-app-text-muted" aria-label="主机列表分页">
+    <div class="host-pagination-summary tw:flex tw:items-center tw:gap-2">
       <span>共 {{ props.visibleHostCount }} 条</span>
       <span>{{ props.pageStart }}-{{ props.pageEnd }}</span>
     </div>
-    <div class="host-pagination-controls">
+    <div class="host-pagination-controls tw:flex tw:items-center tw:gap-2">
       <el-pagination
         background
         small
@@ -230,7 +230,7 @@ function formatHostSystem(host: ManagedHost) {
         @size-change="emit('page-size-change', $event)"
       />
     </div>
-    <div class="host-stats-line">
+    <div class="host-stats-line tw:ml-auto tw:flex tw:flex-wrap tw:items-center tw:justify-end tw:gap-2 tw:text-xs tw:font-bold tw:text-app-text-muted">
       <span>共 {{ props.stats.total }} 台主机</span>
       <span>已验证 {{ props.stats.verified }}</span>
       <span>未验证 {{ props.stats.unverified }}</span>

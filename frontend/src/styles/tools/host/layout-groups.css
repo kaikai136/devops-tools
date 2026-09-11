@@ -1,57 +1,17 @@
-.host-manager-page {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(200px, 240px) minmax(680px, 1fr);
-  gap: var(--workspace-page-gap);
-  margin: var(--workspace-page-gutter);
-  overflow: hidden;
-}
-
 .host-manager-page.fullscreen {
   position: fixed;
   inset: 0;
   z-index: 60;
   margin: 0;
   padding: var(--workspace-page-gutter);
-  background: #eef1f5;
+  background: var(--app-page);
 }
 
-.host-groups-panel,
-.host-table-panel {
-  min-height: 0;
-  overflow: auto;
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.host-groups-panel {
-  position: relative;
-  padding: 14px;
-}
-
-.host-table-panel {
-  position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  padding: 24px;
-  overflow: hidden;
-}
-
-.host-group-head,
-.host-toolbar,
-.host-toolbar-actions,
 .host-group-row,
-.host-stats-line,
 .host-actions,
 .host-config {
   display: flex;
   align-items: center;
-}
-
-.host-group-head {
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
 }
 
 .host-group-head h2 {
@@ -65,10 +25,10 @@
   width: 36px;
   min-width: 36px;
   min-height: 36px;
-  border: 1px solid #2c65ff;
+  border: 1px solid var(--app-primary);
   border-radius: 0;
-  background: #2364f5;
-  color: #fff;
+  background: var(--app-primary);
+  color: var(--app-primary-foreground);
   padding: 0;
   font-size: 21px;
   font-weight: 900;
@@ -92,7 +52,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #173252;
+  color: var(--app-text-secondary);
   padding: 0 4px;
   text-align: left;
   cursor: pointer;
@@ -115,7 +75,7 @@
 }
 
 .host-group-row:hover {
-  background: #f2f7ff;
+  background: var(--app-primary-soft);
 }
 
 .host-group-row:active {
@@ -123,8 +83,8 @@
 }
 
 .host-group-row.active {
-  background: #2764f6;
-  color: #fff;
+  background: var(--app-primary);
+  color: var(--app-primary-foreground);
 }
 
 .host-group-row.host-group-root {
@@ -133,7 +93,7 @@
 }
 
 .host-group-row.host-group-root:not(.active) {
-  color: #0b2446;
+  color: var(--app-text);
 }
 
 .host-group-row.dragging {
@@ -141,17 +101,17 @@
 }
 
 .host-group-row.drop-before {
-  box-shadow: inset 0 3px 0 #16b8d6;
+  box-shadow: inset 0 3px 0 var(--app-accent);
 }
 
 .host-group-row.drop-inside {
-  outline: 1px dashed #16b8d6;
+  outline: 1px dashed var(--app-accent);
   outline-offset: -3px;
-  background: #eaf8ff;
+  background: var(--app-accent-soft);
 }
 
 .host-group-row.drop-after {
-  box-shadow: inset 0 -3px 0 #16b8d6;
+  box-shadow: inset 0 -3px 0 var(--app-accent);
 }
 
 .host-group-row.editing {
@@ -161,14 +121,14 @@
   column-gap: 7px;
   box-sizing: border-box;
   min-width: 0;
-  background: #2764f6;
-  color: #fff;
+  background: var(--app-primary);
+  color: var(--app-primary-foreground);
   cursor: default;
 }
 
 .host-group-row.draft {
-  background: #f2f7ff;
-  color: #173252;
+  background: var(--app-primary-soft);
+  color: var(--app-text-secondary);
 }
 
 .host-group-inline-input {
@@ -177,10 +137,10 @@
   min-width: 0;
   box-sizing: border-box;
   height: 26px;
-  border: 1px solid #2c65ff;
+  border: 1px solid var(--app-primary);
   border-radius: 0;
-  background: #fff;
-  color: #173252;
+  background: var(--app-surface);
+  color: var(--app-text-secondary);
   padding: 0 8px;
   font: inherit;
   font-weight: 800;
@@ -231,8 +191,8 @@
   z-index: 80;
   width: 148px;
   padding: 8px 0;
-  border: 1px solid #e2e7ef;
-  background: #fff;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
   box-shadow: 0 14px 32px rgba(31, 45, 71, 0.18);
 }
 
@@ -245,7 +205,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #1d2f49;
+  color: var(--app-text-secondary);
   padding: 0 12px;
   text-align: left;
   font-size: 13px;
@@ -253,24 +213,24 @@
 }
 
 .host-group-menu button:hover {
-  background: #f3f7ff;
+  background: var(--app-primary-soft);
 }
 
 .host-group-menu button span {
-  color: #465a75;
+  color: var(--app-text-muted);
   font-size: 14px;
 }
 
 .host-group-menu button.danger,
 .host-group-menu button.danger span {
-  color: #ff4058;
+  color: var(--app-danger);
 }
 
 .host-group-menu hr {
   height: 1px;
   margin: 7px 0;
   border: 0;
-  background: #eef2f7;
+  background: var(--app-border-soft);
 }
 
 .host-form-modal {
@@ -279,9 +239,9 @@
   gap: 14px;
   width: min(420px, calc(100vw - 28px));
   padding: 22px;
-  border: 1px solid #d8e5f4;
+  border: 1px solid var(--app-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--app-surface);
   box-shadow: 0 24px 60px rgba(36, 55, 84, 0.26);
 }
 
@@ -295,7 +255,7 @@
 }
 
 .host-editor-dialog .el-dialog__title {
-  color: #0b2446;
+  color: var(--app-text);
   font-size: 18px;
   font-weight: 900;
 }
@@ -311,8 +271,8 @@
   min-height: 40px;
   border: 0;
   border-radius: 8px;
-  background: #fbfdff;
-  box-shadow: 0 0 0 1px #cbdcf1;
+  background: var(--app-surface-muted);
+  box-shadow: 0 0 0 1px var(--app-border);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
@@ -326,15 +286,15 @@
 .host-editor-dialog .el-input__wrapper:hover,
 .host-editor-dialog .el-select__wrapper:hover,
 .host-editor-dialog .el-input-number__wrapper:hover {
-  box-shadow: 0 0 0 1px #9bbce8;
+  box-shadow: 0 0 0 1px var(--app-border-strong);
 }
 
 .host-editor-dialog .el-input.is-focus .el-input__wrapper,
 .host-editor-dialog .el-select.is-focused .el-select__wrapper,
 .host-editor-dialog .el-input-number.is-focus .el-input-number__wrapper,
 .host-editor-dialog .el-textarea__inner:focus {
-  background: #fff;
-  box-shadow: 0 0 0 1px #2675ed, 0 0 0 4px rgba(38, 117, 237, 0.14);
+  background: var(--app-surface);
+  box-shadow: 0 0 0 1px var(--app-focus), 0 0 0 4px var(--app-focus-ring);
 }
 
 .host-edit-modal {
@@ -368,13 +328,13 @@
 
 .host-form-modal h2 {
   margin: 0;
-  color: #0b2446;
+  color: var(--app-text);
   font-size: 18px;
 }
 
 .host-move-hint {
   margin: -4px 0 0;
-  color: #526b8a;
+  color: var(--app-text-muted);
   font-size: 13px;
   font-weight: 800;
 }
@@ -382,7 +342,7 @@
 .host-form-modal label {
   display: grid;
   gap: 7px;
-  color: #526b8a;
+  color: var(--app-text-muted);
   font-size: 12px;
   font-weight: 900;
 }
@@ -391,19 +351,19 @@
 .host-form-modal select,
 .host-form-modal textarea {
   min-height: 38px;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--app-border);
   border-radius: 0;
-  background: #fff;
+  background: var(--app-surface);
   padding: 0 12px;
-  color: #173252;
+  color: var(--app-text-secondary);
   font: inherit;
 }
 
 .host-form-modal input.invalid,
 .host-form-modal select.invalid,
 .host-form-modal textarea.invalid {
-  border-color: #ff4058;
-  background: #fff6f7;
+  border-color: var(--app-danger);
+  background: color-mix(in srgb, var(--app-danger) 7%, var(--app-surface));
   box-shadow: 0 0 0 2px rgb(255 64 88 / 12%);
 }
 
@@ -418,27 +378,27 @@
   grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  color: #173252;
+  color: var(--app-text-secondary);
   font-size: 14px;
   font-weight: 800;
 }
 
 .host-horizontal-field > span {
   justify-self: end;
-  color: #173252;
+  color: var(--app-text-secondary);
   white-space: nowrap;
 }
 
 .host-horizontal-field.required > span::before {
   content: "*";
-  color: #ff4058;
+  color: var(--app-danger);
   margin-right: 2px;
 }
 
 .host-field-error {
   grid-column: 2;
   margin-top: -4px;
-  color: #ff4058;
+  color: var(--app-danger);
   font-size: 12px;
   font-weight: 800;
 }
@@ -456,9 +416,9 @@
   place-items: center;
   min-width: 96px;
   min-height: 36px;
-  border: 1px solid #d8e2ee;
-  background: #fff;
-  color: #173252;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-secondary);
   cursor: pointer;
   font-weight: 800;
 }
@@ -470,7 +430,7 @@
 .host-key-upload em {
   min-width: 0;
   overflow: hidden;
-  color: #8a9ab0;
+  color: var(--app-text-disabled);
   font-style: normal;
   font-size: 12px;
   font-weight: 800;

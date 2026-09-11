@@ -32,41 +32,29 @@
 }
 
 .app-shell {
-  --workspace-topbar-height: 58px;
-  --workspace-page-gutter: 14px;
-  --workspace-page-gap: 14px;
-  --workspace-panel-padding: 16px;
-  --workspace-bg: #edf3fb;
-  --workspace-surface: #fff;
-  --workspace-surface-muted: #f8fbff;
-  --workspace-panel: rgba(255, 255, 255, 0.76);
-  --workspace-panel-solid: #fff;
-  --workspace-border: #d6e3f4;
-  --workspace-border-soft: #ebeef5;
-  --workspace-text: #111827;
-  --workspace-text-soft: #303133;
-  --workspace-muted: #606266;
-  --workspace-subtle: #4d6588;
-  --workspace-hover: #f5f7fa;
-  --workspace-icon: #303133;
-  --workspace-shadow: rgba(46, 80, 128, 0.08);
-  --workspace-popup-shadow: rgba(40, 77, 124, 0.16);
+  /* Compatibility aliases while feature CSS migrates to --app-* tokens. */
+  --workspace-topbar-height: var(--app-topbar-height);
+  --workspace-page-gutter: var(--app-page-gutter);
+  --workspace-page-gap: var(--app-page-gap);
+  --workspace-panel-padding: var(--app-panel-padding);
+  --workspace-bg: var(--app-page);
+  --workspace-surface: var(--app-surface);
+  --workspace-surface-muted: var(--app-surface-muted);
+  --workspace-panel: color-mix(in srgb, var(--app-surface) 82%, transparent);
+  --workspace-panel-solid: var(--app-surface);
+  --workspace-border: var(--app-border);
+  --workspace-border-soft: var(--app-border-soft);
+  --workspace-text: var(--app-text);
+  --workspace-text-soft: var(--app-text-secondary);
+  --workspace-muted: var(--app-text-muted);
+  --workspace-subtle: var(--app-text-muted);
+  --workspace-hover: var(--app-surface-muted);
+  --workspace-icon: var(--app-text-secondary);
+  --workspace-shadow: rgb(15 23 42 / 0.08);
+  --workspace-popup-shadow: rgb(15 23 42 / 0.18);
 }
 
 .app-shell.workspace-dark {
-  --workspace-bg: #0b1220;
-  --workspace-surface: #111a2c;
-  --workspace-surface-muted: #162239;
-  --workspace-panel: rgba(17, 26, 44, 0.9);
-  --workspace-panel-solid: #111a2c;
-  --workspace-border: #263653;
-  --workspace-border-soft: #22314c;
-  --workspace-text: #e5edf8;
-  --workspace-text-soft: #d8e4f4;
-  --workspace-muted: #9aaac0;
-  --workspace-subtle: #b9c8dc;
-  --workspace-hover: #1b2a44;
-  --workspace-icon: #d7e1ef;
   --workspace-shadow: rgba(2, 8, 23, 0.28);
   --workspace-popup-shadow: rgba(2, 8, 23, 0.44);
   color: var(--workspace-text);

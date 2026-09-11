@@ -255,9 +255,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="host-session-audit-page">
+  <section class="host-session-audit-page tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:gap-4 tw:p-4">
     <article v-if="canUseSessionAudit" class="panel host-session-audit-list-panel">
-      <el-form class="host-session-audit-toolbar" inline label-position="left" @submit.prevent="applySessionAuditFilters">
+      <el-form class="host-session-audit-toolbar tw:flex tw:flex-wrap tw:items-center tw:gap-3" inline label-position="left" @submit.prevent="applySessionAuditFilters">
         <el-form-item label="审计搜索">
           <el-input v-model="sessionAuditSearch" placeholder="输入用户/命令/节点/IP/会话检索" clearable />
         </el-form-item>
@@ -286,7 +286,7 @@ onBeforeUnmount(() => {
 
       <p v-if="sessionAuditError" class="host-session-audit-message">{{ sessionAuditError }}</p>
 
-      <div class="host-session-audit-table-wrap">
+      <div class="host-session-audit-table-wrap tw:min-h-0 tw:flex-1 tw:overflow-auto">
         <el-table :data="sessionAuditRecords" row-key="id" class="host-session-audit-table" v-loading="isSessionAuditLoading" empty-text="暂无会话审计记录">
           <el-table-column type="expand" width="48">
             <template #default="{ row }">

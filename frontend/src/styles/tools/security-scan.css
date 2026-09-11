@@ -616,14 +616,6 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 980px) {
-  .security-workbench-header,
-  .security-report-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-}
-
 @media (max-width: 720px) {
   .security-scan-filters.finding-toolbar {
     display: flex;

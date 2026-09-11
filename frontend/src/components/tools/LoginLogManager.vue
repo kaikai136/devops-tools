@@ -178,10 +178,10 @@ function statusTagType(status: LoginLogStatus) {
 </script>
 
 <template>
-  <section v-if="activeTool === 'loginLogs'" class="login-log-page" :class="{ fullscreen }" @click="columnsOpen = false">
+  <section v-if="activeTool === 'loginLogs'" class="login-log-page tw:grid tw:min-h-0 tw:flex-1 tw:grid-rows-[auto_minmax(0,1fr)] tw:gap-[var(--app-page-gap)] tw:overflow-hidden tw:bg-app-page tw:p-[var(--app-page-gutter)]" :class="{ fullscreen }" @click="columnsOpen = false">
     <template v-if="canUseAnyPageAction('loginLogs', ['refresh', 'filter', 'columns'])">
-      <article v-if="canUsePageAction('loginLogs', 'filter')" class="login-log-filter-panel">
-        <el-form inline label-position="left">
+      <article v-if="canUsePageAction('loginLogs', 'filter')" class="login-log-filter-panel tw:flex tw:min-h-[80px] tw:items-center tw:bg-app-surface tw:p-4 tw:min-[901px]:px-4 tw:min-[901px]:py-0">
+        <el-form inline label-position="left" class="tw:w-full">
           <el-form-item label="账户名称">
             <el-input v-model="username" placeholder="请输入" clearable />
           </el-form-item>
@@ -191,10 +191,10 @@ function statusTagType(status: LoginLogStatus) {
         </el-form>
       </article>
 
-      <article class="login-log-list-panel">
-        <div class="login-log-toolbar">
+      <article class="login-log-list-panel tw:grid tw:min-h-0 tw:grid-rows-[auto_auto_minmax(0,1fr)_minmax(52px,auto)] tw:overflow-hidden tw:bg-app-surface tw:p-[var(--app-panel-padding)]">
+        <div class="login-log-toolbar tw:mb-[var(--app-page-gap)] tw:flex tw:min-h-9 tw:flex-col tw:items-start tw:gap-[var(--app-page-gap)] tw:min-[901px]:flex-row tw:min-[901px]:items-center tw:min-[901px]:justify-between">
           <h2>登录记录</h2>
-          <div class="login-log-actions">
+          <div class="login-log-actions tw:flex tw:w-full tw:flex-wrap tw:items-center tw:gap-2.5 tw:min-[901px]:w-auto">
             <el-radio-group v-if="canUsePageAction('loginLogs', 'filter')" v-model="statusFilter" class="login-log-tabs" @change="setStatusFilter">
               <el-radio-button label="all">全部</el-radio-button>
               <el-radio-button label="success">成功</el-radio-button>
@@ -248,7 +248,7 @@ function statusTagType(status: LoginLogStatus) {
 
         <p v-if="message" class="login-log-message">{{ message }}</p>
 
-        <div class="login-log-table-wrap">
+        <div class="login-log-table-wrap tw:min-h-0 tw:overflow-auto tw:pb-0.5">
           <el-table :data="logs" row-key="id" class="login-log-table" v-loading="isLoading" empty-text="暂无登录记录">
             <el-table-column v-if="isColumnVisible('createdAt')" label="时间" min-width="170">
               <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
@@ -267,8 +267,8 @@ function statusTagType(status: LoginLogStatus) {
           </el-table>
         </div>
 
-        <div class="host-pagination" aria-label="登录记录分页">
-          <div class="host-pagination-summary">
+        <div class="host-pagination tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3.5 tw:border-t tw:border-app-border-soft tw:pt-3 tw:text-sm tw:font-bold tw:text-app-text-muted" aria-label="登录记录分页">
+          <div class="host-pagination-summary tw:flex tw:items-center tw:gap-2">
             <span>共 {{ total }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>

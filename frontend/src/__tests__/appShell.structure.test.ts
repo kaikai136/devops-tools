@@ -25,18 +25,35 @@ describe('app shell upgrade contract', () => {
 
   it('renders the logged-in shell with Element Plus navigation and quick actions', () => {
     const app = readSource('App.vue');
+    const navigation = readSource('shared/components/WorkspaceNavigation.vue');
     const styles = readSource('styles/base/workspace-header.css');
     const navStyles = readSource('styles/base/shell-nav.css');
 
-    expect(app).toContain('<el-menu');
-    expect(app).toContain('<el-sub-menu');
+    expect(app).toContain('<WorkspaceNavigation');
+    expect(navigation).toContain('<el-menu');
+    expect(navigation).toContain('<el-sub-menu');
     expect(app).toContain('<el-breadcrumb');
     expect(app).toContain('<el-dropdown');
     expect(app).toContain('<el-tooltip');
     expect(app).toContain('<el-button');
     expect(app).not.toContain('<a-float-button');
+    expect(styles).toContain('.workspace-topbar');
     expect(navStyles).toContain('.el-menu');
     expect(navStyles).toContain('.workspace-float-actions');
+  });
+
+  it('uses a drawer navigation below the shell mobile breakpoint', () => {
+    const app = readSource('App.vue');
+    const responsive = readSource('styles/responsive.css');
+
+    expect(app).toContain('mobileNavigationOpen');
+    expect(app).toContain('<el-drawer');
+    expect(app).toContain(':close-on-click-modal="false"');
+    expect(app).toContain("window.matchMedia('(max-width: 899px)')");
+    expect(app).toContain('@click="handleNavigationToggle"');
+    expect(responsive).toContain('@media (max-width: 899px)');
+    expect(responsive).toContain('.desktop-sidebar');
+    expect(responsive).toContain('display: none');
   });
 
   it('includes a live date and time display at the bottom of the sidebar', () => {

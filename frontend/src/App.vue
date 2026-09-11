@@ -8,6 +8,7 @@ import HostImportDialog from '@features/hosts/components/HostImportDialog.vue';
 import WatermarkOverlay from '@shared/components/WatermarkOverlay.vue';
 import LockScreenOverlay from '@shared/components/LockScreenOverlay.vue';
 import UserAvatar from '@shared/components/UserAvatar.vue';
+import WorkspaceNavigation from '@shared/components/WorkspaceNavigation.vue';
 import { hostExportColumnOptions, type HostExportColumnKey, type HostExportScope } from './composables/features/useHostManager';
 import { useAppState } from './composables/useAppState';
 import { errorMessage } from '@shared/utils/errors';
@@ -47,6 +48,8 @@ const selectedHostExportColumnList = computed(() => [...selectedHostExportColumn
 const allHostExportColumnsSelected = computed(() => selectedHostExportColumns.value.size === hostExportColumnOptions.length);
 const dashboardPageRef = ref<DashboardPageExpose | null>(null);
 const isDashboardRefreshing = ref(false);
+const mobileNavigationOpen = ref(false);
+const isMobileViewport = ref(false);
 
 const {
   activeTool,
@@ -156,18 +159,28 @@ const breadcrumbItems = computed(() =>
 );
 
 let sidebarClockTimer: number | undefined;
+let mobileNavigationMedia: MediaQueryList | undefined;
 
 function updateSidebarClock() {
   sidebarNow.value = new Date();
 }
 
+function handleViewportChange(event: MediaQueryListEvent) {
+  isMobileViewport.value = event.matches;
+  if (!event.matches) mobileNavigationOpen.value = false;
+}
+
 onMounted(() => {
   updateSidebarClock();
   sidebarClockTimer = window.setInterval(updateSidebarClock, 1000);
+  mobileNavigationMedia = window.matchMedia('(max-width: 899px)');
+  isMobileViewport.value = mobileNavigationMedia.matches;
+  mobileNavigationMedia.addEventListener('change', handleViewportChange);
 });
 
 onUnmounted(() => {
   if (sidebarClockTimer !== undefined) window.clearInterval(sidebarClockTimer);
+  mobileNavigationMedia?.removeEventListener('change', handleViewportChange);
 });
 
 watch(hostTransferDialog, (mode) => {
@@ -221,7 +234,16 @@ async function lockCurrentSession() {
   }
 }
 
+function handleNavigationToggle() {
+  if (isMobileViewport.value) {
+    mobileNavigationOpen.value = true;
+    return;
+  }
+  toggleSidebar();
+}
+
 function handleSidebarSelect(index: string) {
+  mobileNavigationOpen.value = false;
   if (index === 'dashboard') {
     setActiveTool('dashboard');
     return;
@@ -267,38 +289,20 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
     :verify-two-factor-setup-login="verifyTwoFactorSetupLogin"
   />
   <main v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed, 'workspace-dark': isWorkspaceDark }">
-    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+    <aside class="sidebar desktop-sidebar" :class="{ collapsed: sidebarCollapsed }">
       <div class="sidebar-brand">
         <img :src="sidebarLogoUrl" :alt="siteIdentity.appName" />
       </div>
 
-      <nav class="sidebar-nav">
-        <el-scrollbar class="sidebar-scroll">
-          <el-menu
-            class="workspace-nav-menu"
-            :collapse="sidebarCollapsed"
-            :default-active="activeTool"
-            :ellipsis="false"
-            :unique-opened="true"
-            @select="handleSidebarSelect"
-          >
-            <el-menu-item v-if="dashboardNavItem" index="dashboard">
-              <AppIcon name="dashboard" :size="18" />
-              <span>{{ dashboardNavItem.label }}</span>
-            </el-menu-item>
-            <el-sub-menu v-for="group in navGroups" :key="group.key" :index="group.key">
-              <template #title>
-                <AppIcon :name="navGroupIcon(group.key)" :size="18" />
-                <span>{{ group.label }}</span>
-              </template>
-              <el-menu-item v-for="item in group.items" :key="item.key" :index="item.key">
-                <AppIcon :name="navItemIcon(item.key)" :size="18" />
-                <span>{{ item.label }}</span>
-              </el-menu-item>
-            </el-sub-menu>
-          </el-menu>
-        </el-scrollbar>
-      </nav>
+      <WorkspaceNavigation
+        :active-tool="activeTool"
+        :dashboard-item="dashboardNavItem"
+        :groups="navGroups"
+        :collapsed="sidebarCollapsed"
+        :nav-group-icon="navGroupIcon"
+        :nav-item-icon="navItemIcon"
+        @select="handleSidebarSelect"
+      />
 
       <div class="sidebar-clock" aria-label="当前日期和时间">
         <span class="sidebar-clock-label">当前时间</span>
@@ -308,15 +312,46 @@ function handleFloatAction(command: 'theme' | 'refresh' | 'top') {
 
     </aside>
 
+    <el-drawer
+      v-model="mobileNavigationOpen"
+      class="workspace-mobile-nav-drawer"
+      direction="ltr"
+      size="min(320px, 88vw)"
+      :with-header="false"
+      :close-on-click-modal="false"
+    >
+      <div class="workspace-mobile-nav">
+        <header class="workspace-mobile-nav-header">
+          <img :src="sidebarLogoUrl" :alt="siteIdentity.appName" />
+          <el-button circle aria-label="关闭导航" @click="mobileNavigationOpen = false">
+            <AppIcon name="x" :size="18" />
+          </el-button>
+        </header>
+        <WorkspaceNavigation
+          :active-tool="activeTool"
+          :dashboard-item="dashboardNavItem"
+          :groups="navGroups"
+          :collapsed="false"
+          :nav-group-icon="navGroupIcon"
+          :nav-item-icon="navItemIcon"
+          @select="handleSidebarSelect"
+        />
+        <div class="workspace-mobile-nav-clock">
+          <strong>{{ sidebarClockTime }}</strong>
+          <span>{{ sidebarClockDate }}</span>
+        </div>
+      </div>
+    </el-drawer>
+
     <section class="workspace" :class="{ 'has-workspace-footer': layoutFooter.enabled }">
       <header class="workspace-topbar">
         <div class="workspace-topbar-main">
           <el-button
             class="workspace-menu-button"
             circle
-            :title="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
-            :aria-label="sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
-            @click="toggleSidebar"
+            :title="isMobileViewport ? '打开导航' : sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+            :aria-label="isMobileViewport ? '打开导航' : sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
+            @click="handleNavigationToggle"
           >
             <AppIcon name="menu" :size="18" />
           </el-button>

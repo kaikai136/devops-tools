@@ -25,15 +25,8 @@
   .tool-grid,
   .auth-layout,
   .machine-probe-grid,
-  .account-page,
   .host-manager-page,
-  .host-session-audit-page,
-  .user-manager-page,
-  .login-log-page,
-  .role-manager-page,
-  .profile-center-page,
   .password-page,
-  .system-settings-page,
   .ip-page,
   .ping-page,
   .subnet-workbench
@@ -42,34 +35,25 @@
   color: var(--workspace-text);
 }
 
-.workspace-dark :where(.account-page.fullscreen, .host-manager-page.fullscreen, .user-manager-page.fullscreen, .login-log-page.fullscreen) {
+.workspace-dark .host-manager-page.fullscreen {
   background: var(--dark-page-bg);
 }
 
 .workspace-dark :where(
   .panel,
-  .account-panel,
   .auth-form-panel,
   .auth-card,
   .scan-card,
   .host-groups-panel,
   .host-table-panel,
-  .host-session-audit-list-panel,
-  .login-log-filter-panel,
-  .login-log-list-panel,
   .password-generator-panel,
   .password-record-panel,
   .password-record-card,
-  .role-filter-panel,
-  .role-list-panel,
   .subnet-config-panel,
   .subnet-result-panel,
   .subnet-list-panel,
   .subnet-binary-panel,
-  .system-settings-main,
   .table-panel,
-  .user-filter-panel,
-  .user-list-panel,
   .watermark-preview-panel
 ) {
   border-color: var(--workspace-border);
@@ -89,10 +73,8 @@
   .host-form-modal h2,
   .login-log-toolbar h2,
   .password-panel-head h2,
-  .profile-panel h2,
   .role-list-toolbar h2,
   .role-modal h2,
-  .system-settings-title h2,
   .user-list-toolbar h2,
   .watermark-page-group h3,
   .watermark-preview-panel h2
@@ -108,10 +90,8 @@
   .account-stats-line,
   .auth-card p,
   .password-panel-head p,
-  .profile-panel p,
   .role-confirm-modal p,
   .scan-card p,
-  .system-settings-title p,
   .watermark-page-picker span,
   .watermark-preview-content p,
   .watermark-preview-content span,
@@ -131,8 +111,9 @@
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
 }
 
-.workspace-dark :where(input::placeholder, textarea::placeholder) {
-  color: #64748b;
+.workspace-dark input::placeholder,
+.workspace-dark textarea::placeholder {
+  color: var(--app-text-disabled);
 }
 
 .workspace-dark :where(button:not(.primary):not(.danger):not(.workspace-menu-button):not(.workspace-icon-button):not(.workspace-avatar-button):not(.workspace-menu-action):not(.nav-dashboard-button):not(.nav-dashboard-compact):not(.nav-group-button):not(.nav-item):not(.nav-group-compact):not(.nav-flyout-item):not(.host-name-link):not(.terminal-tree-row):not(.terminal-tab)) {
@@ -147,7 +128,7 @@
   color: #dbeafe;
 }
 
-.workspace-dark :where(.primary, .role-primary-button, .user-primary-button, .profile-primary-button) {
+.workspace-dark :where(.primary, .role-primary-button, .user-primary-button) {
   border-color: transparent;
   background: linear-gradient(135deg, #2563eb, #14b8a6);
   color: #fff;
@@ -157,7 +138,6 @@
 .workspace-dark :where(
   .account-table,
   .host-table,
-  .host-session-audit-table,
   .login-log-table,
   .role-permission-tree,
   .role-table,
@@ -170,7 +150,6 @@
 .workspace-dark :where(
   .account-table-row,
   .host-table-row,
-  .host-session-audit-row,
   .host-session-audit-detail,
   .login-log-table-row,
   .role-permission-row,

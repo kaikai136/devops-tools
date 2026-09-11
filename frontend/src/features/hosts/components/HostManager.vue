@@ -654,7 +654,7 @@ function hostPlatformType(value: string | null | undefined) {
 </script>
 
 <template>
-  <section v-if="activeTool === 'hosts'" class="host-manager-page" :class="{ fullscreen }" @click="closeHostMenus">
+  <section v-if="activeTool === 'hosts'" class="host-manager-page tw:grid tw:min-h-0 tw:flex-1 tw:grid-cols-1 tw:gap-[var(--app-page-gap)] tw:overflow-hidden tw:m-[var(--app-page-gutter)] tw:min-[1201px]:grid-cols-[minmax(200px,240px)_minmax(680px,1fr)]" :class="{ fullscreen }" @click="closeHostMenus">
     <template v-if="canUseHostAnyAction">
     <HostGroupTree
       v-if="canUseHostList"
@@ -694,7 +694,7 @@ function hostPlatformType(value: string | null | undefined) {
       @delete-group="deleteHostGroup"
     />
 
-    <article v-if="canUseHostList" class="panel host-table-panel">
+    <article v-if="canUseHostList" class="panel host-table-panel tw:relative tw:grid tw:min-h-0 tw:grid-rows-[auto_minmax(0,1fr)_auto] tw:overflow-hidden tw:bg-app-surface tw:p-[var(--app-panel-padding)]">
       <HostToolbar
         v-model:search="hostSearch"
         :status-filter="hostStatusFilter"

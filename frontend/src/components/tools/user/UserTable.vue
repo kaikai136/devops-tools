@@ -67,7 +67,7 @@ function hasRowActions() {
 </script>
 
 <template>
-  <div class="user-table" :style="tableStyle">
+  <div class="user-table tw:min-w-0 tw:overflow-x-auto" :style="tableStyle">
     <el-table :data="users" row-key="id" :empty-text="isLoading ? '加载中...' : '暂无匹配账户'">
       <el-table-column v-if="isColumnVisible('username')" label="登录名" min-width="150">
         <template #default="{ row }">
@@ -155,8 +155,8 @@ function hasRowActions() {
       </el-table-column>
     </el-table>
 
-    <div class="host-pagination" aria-label="用户列表分页">
-      <div class="host-pagination-summary">
+    <div class="host-pagination tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3.5 tw:border-t tw:border-app-border-soft tw:pt-3 tw:text-sm tw:font-bold tw:text-app-text-muted" aria-label="用户列表分页">
+      <div class="host-pagination-summary tw:flex tw:items-center tw:gap-2">
         <span>共 {{ filteredCount }} 条</span>
         <span>{{ filteredCount ? (page - 1) * pageSize + 1 : 0 }}-{{ Math.min(page * pageSize, filteredCount) }}</span>
       </div>

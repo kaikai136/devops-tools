@@ -1,34 +1,13 @@
 .role-manager-page {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  background: #eef1fb;
-  color: #303133;
-  padding: var(--workspace-page-gutter);
   font-size: 15px;
   font-weight: 600;
-}
-
-.role-filter-panel,
-.role-list-panel {
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  background: #fff;
-}
-
-.role-filter-panel {
-  display: flex;
-  align-items: center;
-  gap: var(--workspace-page-gap);
-  min-height: 70px;
-  padding: 16px 30px;
 }
 
 .role-filter-panel label {
   display: flex;
   align-items: center;
   gap: 14px;
-  color: #303133;
+  color: var(--app-text-secondary);
   font-size: 15px;
   font-weight: 700;
 }
@@ -40,10 +19,10 @@
 .role-filter-panel input,
 .role-form-row input {
   height: 32px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--app-border);
   border-radius: 4px;
-  background: #fff;
-  color: #303133;
+  background: var(--app-surface);
+  color: var(--app-text-secondary);
   padding: 0 12px;
   font: inherit;
   font-weight: 600;
@@ -56,8 +35,8 @@
 
 .role-filter-panel input:focus,
 .role-form-row input:focus {
-  border-color: #15b99a;
-  box-shadow: 0 0 0 2px rgba(21, 185, 154, 0.12);
+  border-color: var(--app-focus);
+  box-shadow: 0 0 0 2px var(--app-focus-ring);
 }
 
 .role-search-button,
@@ -78,27 +57,17 @@
 }
 
 .role-search-button {
-  border: 1px solid #12b99f;
-  background: #12b99f;
-  color: #fff;
+  border: 1px solid var(--app-primary);
+  background: var(--app-primary);
+  color: var(--app-primary-foreground);
 }
 
 .role-reset-button {
-  border: 1px solid #dcdfe6;
-  background: #fff;
-  color: #606266;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-muted);
 }
 
-.role-list-panel {
-  position: relative;
-  min-width: 980px;
-  min-height: 278px;
-  margin-top: var(--workspace-page-gap);
-  padding: 30px;
-}
-
-.role-list-toolbar,
-.role-toolbar-actions,
 .role-row-actions,
 .role-pagination,
 .role-form-actions {
@@ -106,16 +75,10 @@
   align-items: center;
 }
 
-.role-list-toolbar {
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 10px;
-}
-
 .role-add-button {
-  border: 1px solid #f39b25;
-  background: #f39b25;
-  color: #fff;
+  border: 1px solid var(--app-warning);
+  background: var(--app-warning);
+  color: var(--app-primary-foreground);
 }
 
 .role-toolbar-actions {
@@ -130,7 +93,7 @@
   place-items: center;
   border: 0;
   background: transparent;
-  color: #606266;
+  color: var(--app-text-muted);
   cursor: pointer;
   padding: 0;
 }
@@ -145,19 +108,19 @@
   right: 0;
   z-index: 4;
   min-width: 144px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--app-border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--app-surface);
   padding: 10px 12px;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
-  color: #606266;
+  color: var(--app-text-muted);
   font-size: 14px;
   font-weight: 700;
 }
 
 .role-message {
   margin: 0 0 10px;
-  color: #f56c6c;
+  color: var(--app-danger);
   font-size: 14px;
   font-weight: 700;
 }
@@ -177,7 +140,7 @@
   align-items: center;
   min-height: 42px;
   border-bottom: 1px solid #e4e7ed;
-  color: #303133;
+  color: var(--app-text-secondary);
   font-size: 15px;
   font-weight: 600;
   text-align: center;
@@ -243,7 +206,7 @@ button.role-user-count {
 }
 
 button.role-user-count:hover {
-  border-color: #12b99f;
+  border-color: var(--app-primary);
   background: #e6fffb;
 }
 
@@ -284,7 +247,7 @@ button.role-user-count:hover {
   height: 25px;
   border: 0;
   border-radius: 3px;
-  color: #fff;
+  color: var(--app-primary-foreground);
   cursor: pointer;
   padding: 0 8px;
   font-size: 13px;
@@ -296,11 +259,11 @@ button.role-user-count:hover {
 }
 
 .role-row-actions .edit {
-  background: #12b99f;
+  background: var(--app-primary);
 }
 
 .role-row-actions .delete {
-  background: #f56c6c;
+  background: var(--app-danger);
 }
 
 .role-empty {
@@ -309,7 +272,7 @@ button.role-user-count:hover {
   place-items: center;
   border-right: 1px solid #e4e7ed;
   border-bottom: 1px solid #e4e7ed;
-  color: #909399;
+  color: var(--app-text-muted);
   font-size: 15px;
   font-weight: 700;
 }
@@ -318,7 +281,7 @@ button.role-user-count:hover {
   justify-content: flex-start;
   gap: 8px;
   margin-top: 18px;
-  color: #303133;
+  color: var(--app-text-secondary);
   font-size: 15px;
   font-weight: 700;
 }
@@ -330,8 +293,8 @@ button.role-user-count:hover {
   place-items: center;
   border: 1px solid #e4e7ed;
   border-radius: 0;
-  background: #fff;
-  color: #c0c4cc;
+  background: var(--app-surface);
+  color: var(--app-text-disabled);
   cursor: pointer;
   padding: 0;
 }
@@ -351,8 +314,8 @@ button.role-user-count:hover {
   height: 32px;
   place-items: center;
   border-radius: 2px;
-  background: #12b99f;
-  color: #fff;
+  background: var(--app-primary);
+  color: var(--app-primary-foreground);
   font-weight: 700;
 }
 
@@ -368,16 +331,16 @@ button.role-user-count:hover {
   width: min(560px, calc(100vw - 28px));
   max-height: calc(100vh - 120px);
   overflow: auto;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--app-border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--app-surface);
   padding: 22px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
 }
 
 .role-modal h2 {
   margin: 0;
-  color: #303133;
+  color: var(--app-text-secondary);
   font-size: 18px;
   font-weight: 800;
 }
@@ -387,7 +350,7 @@ button.role-user-count:hover {
   grid-template-columns: 92px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  color: #303133;
+  color: var(--app-text-secondary);
   font-size: 15px;
   font-weight: 700;
 }
@@ -397,14 +360,14 @@ button.role-user-count:hover {
 }
 
 .role-form-row.required > span::before {
-  color: #f56c6c;
+  color: var(--app-danger);
   content: "*";
   margin-right: 3px;
 }
 
 .role-form-row input[readonly] {
   background: #f5f7fa;
-  color: #606266;
+  color: var(--app-text-muted);
 }
 
 .role-wide-modal {
@@ -419,7 +382,7 @@ button.role-user-count:hover {
 
 .role-user-dialog-subtitle {
   margin: -4px 0 0;
-  color: #606266;
+  color: var(--app-text-muted);
   font-size: 14px;
   font-weight: 700;
 }
@@ -430,7 +393,7 @@ button.role-user-count:hover {
   place-items: center;
   border: 1px solid #e4e7ed;
   background: #f8fafc;
-  color: #606266;
+  color: var(--app-text-muted);
   font-size: 14px;
   font-weight: 800;
 }
@@ -450,7 +413,7 @@ button.role-user-count:hover {
   min-height: 70px;
   border-right: 1px solid #e4e7ed;
   border-bottom: 1px solid #e4e7ed;
-  color: #303133;
+  color: var(--app-text-secondary);
   cursor: pointer;
   padding: 0 14px;
 }
@@ -543,7 +506,7 @@ button.role-user-count:hover {
   grid-template-columns: 170px 230px minmax(580px, 1fr);
   min-height: 52px;
   border-bottom: 1px solid #dcdfe6;
-  color: #303133;
+  color: var(--app-text-secondary);
   font-size: 15px;
   font-weight: 800;
 }
@@ -576,7 +539,7 @@ button.role-user-count:hover {
 .role-tree-node.module {
   grid-column: 1;
   grid-row: 1;
-  background: #fff;
+  background: var(--app-surface);
   font-weight: 800;
 }
 
@@ -636,7 +599,7 @@ button.role-user-count:hover {
 }
 
 .role-action-empty {
-  color: #909399;
+  color: var(--app-text-muted);
   font-size: 14px;
   font-weight: 700;
 }
@@ -651,7 +614,7 @@ button.role-user-count:hover {
 
 .role-user-selected {
   margin-right: auto;
-  color: #606266;
+  color: var(--app-text-muted);
   font-size: 13px;
   font-weight: 800;
 }
@@ -659,10 +622,10 @@ button.role-user-count:hover {
 .role-form-actions button {
   min-width: 70px;
   height: 32px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--app-border);
   border-radius: 4px;
-  background: #fff;
-  color: #303133;
+  background: var(--app-surface);
+  color: var(--app-text-secondary);
   cursor: pointer;
   padding: 0 14px;
   font-size: 15px;
@@ -670,15 +633,15 @@ button.role-user-count:hover {
 }
 
 .role-form-actions .role-primary-button {
-  border-color: #12b99f;
-  background: #12b99f;
-  color: #fff;
+  border-color: var(--app-primary);
+  background: var(--app-primary);
+  color: var(--app-primary-foreground);
 }
 
 .role-form-actions .role-danger-button {
-  border-color: #f56c6c;
-  background: #f56c6c;
-  color: #fff;
+  border-color: var(--app-danger);
+  background: var(--app-danger);
+  color: var(--app-primary-foreground);
 }
 
 .role-form-actions button:disabled {
@@ -688,33 +651,7 @@ button.role-user-count:hover {
 
 .role-confirm-modal p {
   margin: 0;
-  color: #606266;
+  color: var(--app-text-muted);
   font-size: 15px;
   font-weight: 700;
-}
-
-@media (max-width: 900px) {
-  .role-manager-page {
-    padding: var(--workspace-page-gutter);
-  }
-
-  .role-filter-panel {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 16px;
-  }
-
-  .role-list-panel {
-    min-width: 0;
-    padding: 16px;
-  }
-
-  .role-table {
-    overflow-x: auto;
-  }
-
-  .role-table-row {
-    min-width: 980px;
-  }
 }

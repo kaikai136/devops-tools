@@ -31,6 +31,17 @@ export function useShellState() {
     }
   });
 
+  watch(
+    workspaceTheme,
+    (theme) => {
+      if (typeof document !== 'undefined' && document.documentElement?.classList) {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+      }
+      if (typeof window !== 'undefined') window.localStorage.setItem(WORKSPACE_THEME_STORAGE_KEY, theme);
+    },
+    { immediate: true },
+  );
+
   function selectNavItem(key: ToolKey) {
     setActiveTool(key);
     closeNavFlyout(80);
@@ -42,9 +53,6 @@ export function useShellState() {
 
   function toggleWorkspaceTheme() {
     workspaceTheme.value = isWorkspaceDark.value ? 'light' : 'dark';
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(WORKSPACE_THEME_STORAGE_KEY, workspaceTheme.value);
-    }
   }
 
   function openNavFlyout(key: string) {

@@ -2,7 +2,6 @@
   .auth-card-grid,
   .tool-grid,
   .auth-layout,
-  .host-manager-page,
   .password-page {
     grid-template-columns: 1fr;
   }
@@ -55,8 +54,7 @@
 
 }
 
-@media (max-width: 900px) {
-  .account-page.fullscreen,
+@media (max-width: 899px) {
   .host-manager-page.fullscreen {
     padding: 14px;
   }
@@ -69,13 +67,8 @@
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
-    position: static;
-    height: auto;
-    max-height: none;
-    padding: 0 10px 14px;
-    border-right: 0;
-    border-bottom: 1px solid #d6e3f4;
+  .desktop-sidebar {
+    display: none;
   }
 
   .workspace-topbar {
@@ -105,25 +98,6 @@
   .workspace-user-dropdown {
     right: 0;
     width: min(236px, calc(100vw - 24px));
-  }
-
-  .sidebar-brand {
-    max-width: 240px;
-    margin: 0 -10px 12px;
-  }
-
-  .sidebar-nav,
-  .nav-items {
-    gap: 8px;
-  }
-
-  .nav-items {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-    padding-left: 0;
-  }
-
-  .nav-items::before {
-    display: none;
   }
 
   .header-stats {
@@ -192,12 +166,5 @@
     grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
     grid-auto-rows: minmax(0, 1fr);
     min-height: 0;
-  }
-}
-
-@media (max-width: 680px) {
-  .app-shell {
-    --workspace-page-gutter: 12px;
-    --workspace-page-gap: 12px;
   }
 }

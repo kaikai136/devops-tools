@@ -1,0 +1,42 @@
+@layer theme, utilities;
+
+@import "tailwindcss/theme.css" layer(theme) prefix(tw);
+@import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
+
+/* The application owns its reset/base layer. Keep Tailwind Preflight disabled. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-app-primary: var(--app-primary);
+  --color-app-primary-hover: var(--app-primary-hover);
+  --color-app-primary-active: var(--app-primary-active);
+  --color-app-primary-soft: var(--app-primary-soft);
+  --color-app-primary-foreground: var(--app-primary-foreground);
+  --color-app-accent: var(--app-accent);
+  --color-app-accent-soft: var(--app-accent-soft);
+
+  --color-app-success: var(--app-success);
+  --color-app-warning: var(--app-warning);
+  --color-app-danger: var(--app-danger);
+  --color-app-info: var(--app-info);
+
+  --color-app-page: var(--app-page);
+  --color-app-surface: var(--app-surface);
+  --color-app-surface-muted: var(--app-surface-muted);
+  --color-app-surface-elevated: var(--app-surface-elevated);
+
+  --color-app-text: var(--app-text);
+  --color-app-text-secondary: var(--app-text-secondary);
+  --color-app-text-muted: var(--app-text-muted);
+  --color-app-text-disabled: var(--app-text-disabled);
+
+  --color-app-border: var(--app-border);
+  --color-app-border-soft: var(--app-border-soft);
+  --color-app-border-strong: var(--app-border-strong);
+  --color-app-focus: var(--app-focus);
+
+  --radius-app-sm: var(--app-radius-sm);
+  --radius-app-md: var(--app-radius-md);
+  --radius-app-lg: var(--app-radius-lg);
+  --radius-app-xl: var(--app-radius-xl);
+}

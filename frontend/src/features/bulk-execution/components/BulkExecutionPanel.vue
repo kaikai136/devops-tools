@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Button as AButton } from 'ant-design-vue';
 
 import { useAppContext } from '@app/context';
 import AppIcon from '@shared/components/AppIcon.vue';
@@ -1067,38 +1066,38 @@ function formatFileSize(value: number) {
 </script>
 
 <template>
-  <section class="bulk-execution-page">
-    <article v-if="canRefresh || canExecute" class="bulk-execution-shell">
-      <header class="bulk-execution-head">
+  <section class="bulk-execution-page tw:flex tw:min-h-0 tw:flex-1 tw:m-[var(--app-page-gutter)] tw:text-app-text">
+    <article v-if="canRefresh || canExecute" class="bulk-execution-shell tw:flex tw:min-h-0 tw:min-w-0 tw:flex-1 tw:flex-col tw:gap-2.5">
+      <header class="bulk-execution-head tw:flex tw:flex-col tw:items-stretch tw:gap-3 tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:px-[var(--app-panel-padding)] tw:py-3 tw:md:flex-row tw:md:items-center tw:md:justify-between">
         <div>
           <h2>批量执行</h2>
           <p>面向已验证 Linux SSH 主机执行命令、Playbook 和文件分发任务。</p>
         </div>
-        <div class="bulk-execution-actions">
-          <AButton v-if="canRefresh || canExecute" :type="activeBulkView === 'history' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'history' }" @click="switchBulkView('history')"><AppIcon name="rows" :size="16" />执行记录</AButton>
-          <AButton v-if="canExecute" :type="activeBulkView === 'execute' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'execute' }" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建执行</AButton>
-          <AButton v-if="canExecute" :type="activeBulkView === 'upload' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'upload' }" @click="openUploadDialog"><AppIcon name="upload" :size="16" />批量上传</AButton>
-          <AButton v-if="canRefresh" :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</AButton>
-        </div>
+        <el-button-group class="bulk-execution-actions tw:flex tw:flex-col tw:items-stretch tw:gap-2 tw:sm:flex-row tw:sm:flex-wrap">
+          <el-button v-if="canRefresh || canExecute" :type="activeBulkView === 'history' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'history' }" @click="switchBulkView('history')"><AppIcon name="rows" :size="16" />执行记录</el-button>
+          <el-button v-if="canExecute" :type="activeBulkView === 'execute' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'execute' }" @click="openCreateDialog"><AppIcon name="terminal" :size="16" />新建执行</el-button>
+          <el-button v-if="canExecute" :type="activeBulkView === 'upload' ? 'primary' : 'default'" :class="{ active: activeBulkView === 'upload' }" @click="openUploadDialog"><AppIcon name="upload" :size="16" />批量上传</el-button>
+          <el-button v-if="canRefresh" :loading="isLoading" @click="refreshAll"><AppIcon name="refresh" :size="16" />刷新</el-button>
+        </el-button-group>
       </header>
 
       <section v-show="activeBulkView === 'history'" class="bulk-history-view">
-        <section class="bulk-record-panel">
-          <header class="bulk-record-toolbar">
+        <section class="bulk-record-panel tw:relative tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:overflow-hidden tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface">
+          <header class="bulk-record-toolbar tw:grid tw:grid-cols-1 tw:items-start tw:gap-3 tw:border-b tw:border-app-border-soft tw:px-[var(--app-panel-padding)] tw:py-3 tw:min-[1121px]:grid-cols-[minmax(0,1fr)_auto] tw:min-[1121px]:items-center">
             <div class="bulk-record-heading">
               <h3>执行列表</h3>
             </div>
-            <div class="bulk-record-actions">
-              <label class="bulk-keyword-filter">
+            <div class="bulk-record-actions tw:flex tw:w-full tw:flex-col tw:items-stretch tw:justify-start tw:gap-2 tw:min-[761px]:flex-row tw:min-[761px]:flex-wrap tw:min-[1121px]:w-auto tw:min-[1121px]:flex-nowrap tw:min-[1121px]:justify-end">
+              <label class="bulk-keyword-filter tw:w-full tw:max-w-none tw:flex-auto tw:min-[761px]:min-w-[160px] tw:min-[761px]:max-w-[264px] tw:min-[761px]:flex-[1_1_264px]">
                 <el-input v-model="keyword" clearable placeholder="搜索任务或命令" @keyup.enter="applyHistoryFilters" />
               </label>
-              <label class="bulk-host-filter">
+              <label class="bulk-host-filter tw:w-full tw:max-w-none tw:flex-auto tw:min-[761px]:min-w-[140px] tw:min-[761px]:flex-[0_1_220px]">
                 <el-select v-model="hostFilter" aria-label="目标主机" @change="applyHistoryFilters">
                   <el-option value="" label="全部主机" />
                   <el-option v-for="target in targets" :key="target.id" :value="target.id" :label="`${target.name} / ${target.privateIp}`" />
                 </el-select>
               </label>
-              <label class="bulk-status-filter">
+              <label class="bulk-status-filter tw:w-full tw:max-w-none tw:flex-auto tw:min-[761px]:min-w-[112px] tw:min-[761px]:flex-[0_1_132px]">
                 <el-select v-model="statusFilter" aria-label="执行状态" @change="setHistoryStatus(statusFilter)">
                   <el-option v-for="option in historyStatusOptions" :key="option.value || 'all'" :value="option.value" :label="option.label" />
                 </el-select>
@@ -1155,8 +1154,8 @@ function formatFileSize(value: number) {
             </el-table>
           </div>
           <footer class="bulk-record-footer">
-            <div class="host-pagination bulk-record-pagination" aria-label="执行列表分页">
-              <div class="bulk-record-pagination-left">
+            <div class="host-pagination bulk-record-pagination tw:flex tw:flex-col tw:items-start tw:gap-3.5 tw:border-t tw:border-app-border-soft tw:pt-3 tw:min-[1121px]:flex-row tw:min-[1121px]:items-center tw:min-[1121px]:justify-between" aria-label="执行列表分页">
+              <div class="bulk-record-pagination-left tw:flex tw:flex-col tw:items-start tw:gap-2 tw:min-[1121px]:flex-row tw:min-[1121px]:items-center">
                 <div class="host-pagination-summary">
                   <span>共 {{ taskTotal }} 条</span>
                   <span>{{ taskPageStart }}-{{ taskPageEnd }}</span>
@@ -1172,7 +1171,7 @@ function formatFileSize(value: number) {
                   @size-change="setTaskPageSize"
                 />
               </div>
-              <div class="bulk-record-stats">{{ taskTotal }} 个任务 · {{ targets.length }} 台可执行主机</div>
+              <div class="bulk-record-stats tw:ml-0 tw:min-[1121px]:ml-auto">{{ taskTotal }} 个任务 · {{ targets.length }} 台可执行主机</div>
             </div>
           </footer>
           <div v-if="selectedRecordTaskIds.size" class="host-bulk-action-bar bulk-record-bulk-action-bar" @click.stop>
@@ -1196,7 +1195,7 @@ function formatFileSize(value: number) {
       </section>
 
       <section v-show="activeBulkView === 'execute'" class="bulk-execute-view">
-        <div class="bulk-create-workbench">
+        <div class="bulk-create-workbench tw:grid tw:min-h-0 tw:grid-cols-1 tw:gap-3 tw:min-[1121px]:grid-cols-[minmax(420px,1.15fr)_minmax(300px,0.85fr)]">
           <section class="bulk-script-composer">
             <el-button-group class="bulk-mode-tabs" role="tablist" aria-label="执行类型">
               <el-button :type="executionType === 'shell' ? 'primary' : 'default'" :class="{ active: executionType === 'shell' }" @click="setExecutionType('shell')">
@@ -1283,7 +1282,7 @@ function formatFileSize(value: number) {
       </section>
 
       <section v-show="activeBulkView === 'upload'" class="bulk-upload-view">
-        <div class="bulk-create-workbench">
+        <div class="bulk-create-workbench tw:grid tw:min-h-0 tw:grid-cols-1 tw:gap-3 tw:min-[1121px]:grid-cols-[minmax(420px,1.15fr)_minmax(300px,0.85fr)]">
           <section class="bulk-script-composer bulk-upload-composer">
             <label class="bulk-task-name-field">
               <span>任务名称<em class="required-marker">*</em></span>
@@ -1389,14 +1388,14 @@ function formatFileSize(value: number) {
         </footer>
       </section>
 
-      <el-dialog v-model="isTargetPickerOpen" class="bulk-target-picker-modal" title="选择机器" width="920px" @close="closeTargetPicker">
+      <el-dialog v-model="isTargetPickerOpen" class="bulk-target-picker-modal" title="选择机器" width="920px" :close-on-click-modal="false" @close="closeTargetPicker">
           <header class="bulk-target-picker-title">
             <div>
               <h3>选择机器</h3>
               <p>已选 {{ draftTargetIds.size }} / {{ targets.length }}</p>
             </div>
           </header>
-          <div class="bulk-target-picker-body">
+          <div class="bulk-target-picker-body popup-body">
             <aside class="bulk-target-group-tree" aria-label="目标分组树">
               <el-button class="bulk-target-group-row bulk-target-group-root" :class="{ active: targetGroupFilter === null }" text @click="selectTargetGroup(null)">
                 <span class="folder-caret"><AppIcon name="chevronDown" :size="15" /></span>
@@ -1447,12 +1446,15 @@ function formatFileSize(value: number) {
             </section>
           </div>
           <template #footer>
-            <el-button @click="closeTargetPicker">取消</el-button>
-            <el-button type="primary" @click="confirmTargetSelection">确定选择</el-button>
+            <div class="popup-footer popup-actions">
+              <el-button @click="closeTargetPicker">取消</el-button>
+              <el-button type="primary" @click="confirmTargetSelection">确定选择</el-button>
+            </div>
           </template>
       </el-dialog>
 
-      <el-drawer v-model="isTaskDetailOpen" class="bulk-task-detail bulk-task-detail-modal" title="执行详情" size="760px" @close="closeTaskDetail">
+      <el-drawer v-model="isTaskDetailOpen" class="bulk-task-detail bulk-task-detail-modal" title="执行详情" size="760px" :close-on-click-modal="false" @close="closeTaskDetail">
+          <div class="popup-body">
           <template v-if="selectedTask">
             <header>
               <div>
@@ -1551,7 +1553,7 @@ function formatFileSize(value: number) {
                     <AppIcon :name="isResultExpanded(result.id) ? 'chevronDown' : 'chevronRight'" :size="15" />
                   </el-button>
                 </div>
-                <div v-if="isResultExpanded(result.id)" class="bulk-result-output">
+                <div v-if="isResultExpanded(result.id)" class="bulk-result-output tw:grid tw:grid-cols-1 tw:min-[1121px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <div v-if="result.transfers?.length" class="bulk-transfer-matrix">
                     <div v-for="transfer in result.transfers" :key="transfer.id" class="bulk-transfer-row">
                       <strong>{{ transfer.remotePath }}</strong>
@@ -1574,6 +1576,7 @@ function formatFileSize(value: number) {
             </div>
           </template>
           <el-empty v-else class="bulk-empty" description="请选择一个任务查看结果" />
+          </div>
       </el-drawer>
     </article>
     <div v-else class="permission-empty">暂无可用功能</div>

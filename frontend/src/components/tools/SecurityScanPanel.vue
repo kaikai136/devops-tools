@@ -531,7 +531,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 <template>
   <section class="security-scan-page">
-    <header class="security-workbench-header">
+    <header class="security-workbench-header flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
       <div>
         <h2>安全扫描</h2>
         <p>面向已验证 Linux SSH 主机的只读风险巡检报告。</p>
@@ -542,7 +542,7 @@ function downloadBlob(blob: Blob, filename: string) {
       </div>
     </header>
 
-    <section class="security-scan-filters finding-toolbar">
+    <section class="security-scan-filters finding-toolbar grid grid-cols-1 gap-2 xl:grid-cols-[repeat(9,minmax(0,1fr))]">
       <label>
         <span>报告任务</span>
         <el-select :model-value="selectedTaskId ?? ''" :disabled="!tasks.length" @change="selectTask(Number($event))">
@@ -726,7 +726,7 @@ function downloadBlob(blob: Blob, filename: string) {
             <el-checkbox v-model="scanCve" :disabled="!summary.vulnerabilitySource.onlineCveEnabled">CVE 检查</el-checkbox>
             <el-alert v-if="!summary.vulnerabilitySource.onlineCveEnabled" type="info" :closable="false" title="在线 CVE 默认关闭，可在系统设置中开启。" />
           </div>
-          <div class="target-picker-head">
+          <div class="target-picker-head flex flex-col gap-2 md:flex-row md:items-center">
             <el-checkbox
               :model-value="filteredTargets.length > 0 && filteredTargets.every((target) => selectedTargetIds.has(target.id))"
               @change="toggleAllVisibleTargets(Boolean($event))"

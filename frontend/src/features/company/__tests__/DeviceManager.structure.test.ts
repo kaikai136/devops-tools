@@ -108,7 +108,7 @@ describe('DeviceManager page structure', () => {
   it('renders closed category and status option sets for filters and form', () => {
     const source = readSource('features/company/components/DeviceManager.vue');
 
-    expect(source).toContain('<el-select v-model="categoryFilter" class="device-toolbar-select"');
+    expect(source).toContain('<el-select v-model="categoryFilter" class="device-toolbar-select tw:');
     expect(source).toContain('placeholder="资产状态" clearable');
     expect(source).toContain('placeholder="资产类别" clearable');
     expect(source).toContain('<el-select v-model="deviceForm.category">');
@@ -137,13 +137,15 @@ describe('DeviceManager page structure', () => {
 
     expect(source).not.toContain('<h2><AppIcon name="hardDrive" :size="18" />资产列表</h2>');
     expect(source).not.toContain('<h2><AppIcon name="hardDrive" :size="18" />璧勪骇鍒楄〃</h2>');
-    expect(source).toContain('class="device-toolbar-filters"');
-    expect(source).toContain('class="device-toolbar-actions"');
-    expect(styles).toMatch(/\.device-list-toolbar\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto;/s);
-    expect(styles).toMatch(/\.device-toolbar-filters\s*\{[^}]*justify-content:\s*flex-start;/s);
-    expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*justify-content:\s*flex-end;/s);
-    expect(styles).toMatch(/\.device-list-panel\s*\{[^}]*height:\s*calc\(100dvh - 104px\);/s);
-    expect(styles).toMatch(/\.device-table-wrap\s*\{[^}]*flex:\s*1 1 auto;/s);
+    expect(source).toContain('class="device-list-toolbar tw:grid');
+    expect(source).toContain('tw:min-[1181px]:grid-cols-[minmax(0,1fr)_auto]');
+    expect(source).toContain('class="device-toolbar-filters tw:flex');
+    expect(source).toContain('tw:flex-wrap tw:items-center tw:justify-start');
+    expect(source).toContain('class="device-toolbar-actions tw:flex');
+    expect(source).toContain('tw:min-[1181px]:justify-end');
+    expect(source).toContain('tw:min-[1181px]:h-[calc(100dvh-104px)]');
+    expect(source).toContain('class="device-table-wrap tw:min-h-0 tw:flex-1');
+    expect(styles).not.toContain('@media');
   });
 
   it('keeps device toolbar controls responsive with Element Plus control sizing', () => {
@@ -155,12 +157,12 @@ describe('DeviceManager page structure', () => {
     expect(source).toContain('border');
     expect(source).toContain('stripe');
     expect(source).toContain('highlight-current-row');
-    expect(styles).toMatch(/\.device-toolbar-actions\s*\{[^}]*flex-wrap:\s*nowrap;/s);
-    expect(styles).toMatch(/\.device-toolbar-filters\s*\{[^}]*flex-wrap:\s*wrap;/s);
-    expect(styles).toMatch(/\.device-toolbar-select\s*\{[^}]*width:\s*136px;/s);
-    expect(styles).toMatch(/\.device-toolbar-select\s*\{[^}]*flex:\s*0 0 136px;/s);
-    expect(styles).toMatch(/\.device-toolbar-search\s*\{[^}]*width:\s*260px;/s);
-    expect(styles).toMatch(/\.device-toolbar-search\s*\{[^}]*min-width:\s*220px;/s);
+    expect(source).toContain('tw:md:flex-nowrap');
+    expect(source).toContain('tw:md:w-[136px]');
+    expect(source).toContain('tw:md:flex-[0_0_136px]');
+    expect(source).toContain('tw:md:w-[260px]');
+    expect(source).toContain('tw:md:min-w-[220px]');
+    expect(source).toContain('tw:md:flex-[0_1_260px]');
     expect(styles).toMatch(/\.device-toolbar-filters \.el-select__wrapper,[\s\S]*\.device-toolbar-actions \.el-button\s*\{[^}]*min-height:\s*36px;/s);
     expect(styles).toMatch(/\.device-toolbar-actions \.el-button\s*\{[^}]*min-width:\s*82px;/s);
     expect(styles).toMatch(/\.device-row-actions \.el-button \+ \.el-button\s*\{[^}]*margin-left:\s*0;/s);
@@ -175,21 +177,21 @@ describe('DeviceManager page structure', () => {
     expect(source).toContain('const pageEnd = computed(() => Math.min(page.value * pageSize.value, filteredDevices.value.length));');
     expect(source).toContain("const fixedAssetCount = computed(() => filteredDevices.value.filter((device) => device.category === '固定资产').length);");
     expect(source).toContain("const consumableCount = computed(() => filteredDevices.value.filter((device) => device.category === '耗材').length);");
-    expect(source).toContain('class="device-pagination-left"');
+    expect(source).toContain('class="device-pagination-left tw:flex');
     expect(source).toContain('共 {{ filteredDevices.length }} 条');
     expect(source).toContain('{{ pageStart }}-{{ pageEnd }}');
     expect(source).toContain('<el-pagination');
     expect(source).toContain(':page-sizes="[10, 20, 50]"');
     expect(source).toContain('@current-change="setPage"');
     expect(source).toContain('@size-change="setPageSize"');
-    expect(source).toContain('class="device-category-summary"');
+    expect(source).toContain('class="device-category-summary tw:ml-auto');
     expect(source).toContain('固定资产 {{ fixedAssetCount }}');
     expect(source).toContain('耗材 {{ consumableCount }}');
     expect(source).not.toContain('共{{ totalPages }}页 {{ filteredDevices.length }}条，已选 {{ selectedDeviceCount }} 条');
-    expect(styles).toMatch(/\.device-pagination-left,\s*\.device-pagination-summary,\s*\.device-category-summary\s*\{[^}]*display:\s*flex;/s);
-    expect(styles).toMatch(/\.device-pagination\s*\{[^}]*background:\s*#fbfdff;/s);
+    expect(source).toContain('class="device-pagination tw:flex');
+    expect(source).toContain('tw:bg-app-surface-muted');
+    expect(source).toContain('tw:max-[1180px]:justify-start');
     expect(styles).toMatch(/\.device-pagination \.el-pagination\s*\{[^}]*min-width:\s*0;/s);
-    expect(styles).toMatch(/\.device-category-summary\s*\{[^}]*justify-content:\s*flex-end;/s);
     expect(styles).toMatch(/\.device-summary-pill\s*\{[^}]*white-space:\s*nowrap;/s);
   });
 
@@ -200,7 +202,7 @@ describe('DeviceManager page structure', () => {
     expect(source).toContain("categoryClass(row.category)");
     expect(source).toContain("function categoryClass(category: string)");
     expect(source).toContain("category === '耗材' ? 'consumable' : 'fixed'");
-    expect(styles).toMatch(/\.device-category-badge\.fixed\s*\{[^}]*background:\s*#4f46e5;/s);
-    expect(styles).toMatch(/\.device-category-badge\.consumable\s*\{[^}]*background:\s*#0f766e;/s);
+    expect(styles).toMatch(/\.device-category-badge\.fixed\s*\{[^}]*background:\s*var\(--app-primary\);/s);
+    expect(styles).toMatch(/\.device-category-badge\.consumable\s*\{[^}]*background:\s*var\(--app-accent\);/s);
   });
 });

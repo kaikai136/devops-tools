@@ -8,9 +8,11 @@ import { buildTemplateVariables, normalizeSiteIdentity, renderTemplate, SITE_IDE
 import { normalizeWatermarkConfig, watermarkAppliesToPage, WATERMARK_SETTING_KEY } from './composables/features/useWatermarkSettings';
 import { getCurrentUser } from './services/auth';
 import { getSystemSetting, getSystemSettingOrNull } from './services/system';
-import './styles/terminal.css';
+import './styles/tokens.css';
+import './styles/tailwind.css';
 import './styles/base/element-plus-theme.css';
 import './styles/base/element-plus-overrides.css';
+import './styles/terminal.css';
 
 const app = createApp(WebTerminalPage);
 app.use(ElementPlus);

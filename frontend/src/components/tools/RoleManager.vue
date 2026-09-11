@@ -480,9 +480,9 @@ function emptyRoleForm(): RoleForm {
 </script>
 
 <template>
-  <section v-if="activeTool === 'roles'" class="role-manager-page" @click="columnsOpen = false">
+  <section v-if="activeTool === 'roles'" class="role-manager-page tw:flex tw:min-h-0 tw:flex-1 tw:flex-col tw:overflow-auto tw:bg-app-page tw:p-[var(--app-page-gutter)] tw:text-app-text" @click="columnsOpen = false">
     <template v-if="canUseAnyPageAction('roles', ['create', 'edit', 'permissions', 'delete'])">
-      <article class="role-filter-panel">
+      <article class="role-filter-panel tw:flex tw:min-h-[70px] tw:flex-wrap tw:items-start tw:gap-3 tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:p-4 tw:min-[901px]:items-center tw:min-[901px]:gap-[var(--app-page-gap)] tw:min-[901px]:px-[30px]">
         <el-form inline label-position="left" @submit.prevent="runSearch">
           <el-form-item label="角色名称">
             <el-input v-model="searchDraft" placeholder="请输入角色名称" clearable @keyup.enter="runSearch" />
@@ -500,13 +500,13 @@ function emptyRoleForm(): RoleForm {
         </el-form>
       </article>
 
-      <article class="role-list-panel">
-        <div class="role-list-toolbar">
+      <article class="role-list-panel tw:relative tw:mt-[var(--app-page-gap)] tw:min-h-[278px] tw:min-w-0 tw:rounded-app-md tw:border tw:border-app-border tw:bg-app-surface tw:p-4 tw:min-[901px]:min-w-[980px] tw:min-[901px]:p-[30px]">
+        <div class="role-list-toolbar tw:mb-2.5 tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-[18px]">
           <el-button v-if="canUsePageAction('roles', 'create')" type="primary" @click="openCreateDialog">
             <AppIcon name="circlePlus" :size="15" />
             <span>新增</span>
           </el-button>
-          <div class="role-toolbar-actions">
+          <div class="role-toolbar-actions tw:flex tw:items-center tw:gap-2">
             <el-tooltip content="刷新" placement="top">
               <el-button circle @click="loadRoles"><AppIcon name="refresh" :size="18" /></el-button>
             </el-tooltip>
@@ -521,7 +521,7 @@ function emptyRoleForm(): RoleForm {
 
         <p v-if="message" class="role-message" :class="messageTone">{{ message }}</p>
 
-        <el-table :data="pagedRoles" row-key="id" class="role-table" v-loading="isLoading" empty-text="暂无角色数据">
+        <el-table :data="pagedRoles" row-key="id" class="role-table tw:overflow-x-auto" v-loading="isLoading" empty-text="暂无角色数据">
           <el-table-column type="index" label="序号" width="76" :index="(index) => (page - 1) * pageSize + index + 1" />
           <el-table-column prop="name" label="角色名称" min-width="150" />
           <el-table-column label="角色标识" min-width="130">
@@ -563,8 +563,8 @@ function emptyRoleForm(): RoleForm {
           </el-table-column>
         </el-table>
 
-        <div class="host-pagination" aria-label="角色列表分页">
-          <div class="host-pagination-summary">
+        <div class="host-pagination tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3.5 tw:border-t tw:border-app-border-soft tw:pt-3 tw:text-sm tw:font-bold tw:text-app-text-muted" aria-label="角色列表分页">
+          <div class="host-pagination-summary tw:flex tw:items-center tw:gap-2">
             <span>共 {{ filteredRoles.length }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>
