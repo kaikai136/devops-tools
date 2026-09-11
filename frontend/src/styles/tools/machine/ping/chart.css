@@ -40,7 +40,7 @@
   min-height: 220px;
   border: 1px solid #d9e6f5;
   border-radius: 10px;
-  background: #fff;
+  background: var(--app-surface);
   overflow: hidden;
 }
 

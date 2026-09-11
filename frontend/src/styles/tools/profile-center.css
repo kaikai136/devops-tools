@@ -451,7 +451,7 @@
   width: 148px;
   height: 148px;
   border-radius: 8px;
-  background: #fff;
+  background: var(--app-surface);
 }
 
 .profile-qr-setup strong {

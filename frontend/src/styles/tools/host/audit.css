@@ -36,11 +36,11 @@
 .host-session-audit-toolbar > input {
   width: min(360px, 34vw);
   min-height: 36px;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--app-border);
   border-radius: 0;
-  background: #fff;
+  background: var(--app-surface);
   padding: 0 14px;
-  color: #173252;
+  color: var(--app-text);
   font-size: 14px;
   font-weight: 800;
 }
@@ -55,10 +55,10 @@
   width: auto;
   min-width: 132px;
   min-height: 36px;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--app-border);
   border-radius: 0;
-  background: #fff;
-  color: #173252;
+  background: var(--app-surface);
+  color: var(--app-text);
   padding: 0 10px;
   font-size: 13px;
   font-weight: 800;
@@ -74,14 +74,14 @@
 }
 
 .host-session-audit-toolbar-actions button:not(.primary):not(.icon-only) {
-  border: 1px solid #d8e2ee;
-  background: #fff;
-  color: #173252;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
 }
 
 .host-session-recording-modal header span {
   display: block;
-  color: #8b95a1;
+  color: var(--app-text-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -89,7 +89,7 @@
 .host-session-audit-message {
   margin: 0 0 12px;
   border: 1px solid #ffd4d4;
-  background: #fff5f5;
+  background: var(--app-surface)5f5;
   color: #d92d20;
   padding: 10px 12px;
   font-size: 13px;
@@ -109,7 +109,7 @@
 
 .host-session-audit-table {
   min-width: 1420px;
-  border-top: 1px solid #edf1f6;
+  border-top: 1px solid var(--app-border-soft);
 }
 
 .host-session-audit-row {
@@ -118,7 +118,7 @@
   align-items: center;
   gap: 12px;
   min-height: 72px;
-  border-bottom: 1px solid #edf1f6;
+  border-bottom: 1px solid var(--app-border-soft);
   padding: 0 16px;
 }
 
@@ -127,8 +127,8 @@
   z-index: 5;
   top: 0;
   min-height: 56px;
-  background: #f8fafc;
-  color: #173252;
+  background: var(--app-surface-muted);
+  color: var(--app-text);
   font-weight: 900;
 }
 
@@ -141,7 +141,7 @@
 .host-session-audit-row > span,
 .host-session-audit-row code {
   overflow: hidden;
-  color: #173252;
+  color: var(--app-text);
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 15px;
@@ -158,7 +158,7 @@
   align-items: center;
   gap: 8px;
   justify-self: start;
-  color: #173252;
+  color: var(--app-text);
   font-size: 15px;
   font-weight: 800;
 }
@@ -172,7 +172,7 @@
 }
 
 .host-session-risk.medium {
-  color: #173252;
+  color: var(--app-text);
 }
 
 .host-session-risk.medium::before {
@@ -180,7 +180,7 @@
 }
 
 .host-session-risk.high {
-  color: #173252;
+  color: var(--app-text);
 }
 
 .host-session-risk.high::before {
@@ -216,7 +216,7 @@
   display: grid;
   grid-template-columns: minmax(260px, 0.8fr) minmax(420px, 1.2fr);
   gap: var(--workspace-page-gap);
-  border-bottom: 1px solid #edf1f6;
+  border-bottom: 1px solid var(--app-border-soft);
   background: #fbfdff;
   padding: var(--workspace-panel-padding);
 }
@@ -224,7 +224,7 @@
 .host-session-audit-detail strong {
   display: block;
   margin-bottom: 8px;
-  color: #303133;
+  color: var(--app-text);
   font-size: 13px;
 }
 
@@ -232,10 +232,10 @@
   max-height: 220px;
   margin: 0;
   overflow: auto;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--app-border);
   border-radius: 0;
-  background: #ffffff;
-  color: #303133;
+  background: var(--app-surface);
+  color: var(--app-text);
   padding: 12px;
   font-size: 12px;
   line-height: 1.55;
@@ -247,7 +247,7 @@
   display: grid;
   min-height: 120px;
   place-items: center;
-  color: #8b95a1;
+  color: var(--app-text-muted);
   font-size: 13px;
   font-weight: 900;
 }
@@ -272,7 +272,7 @@
   gap: 14px;
   border: 1px solid #d8e5f4;
   border-radius: 8px;
-  background: #fff;
+  background: var(--app-surface);
   padding: var(--workspace-panel-padding);
   box-shadow: 0 24px 60px rgba(36, 55, 84, 0.26);
 }
@@ -298,7 +298,7 @@
   place-items: center;
   border: 0;
   background: transparent;
-  color: #173252;
+  color: var(--app-text);
   padding: 0;
 }
 
@@ -306,7 +306,7 @@
   height: clamp(360px, 62vh, 560px);
   min-height: 0;
   overflow: hidden;
-  border: 1px solid #d8e2ee;
+  border: 1px solid var(--app-border);
   background: #121314;
 }
 

@@ -36,7 +36,7 @@ button {
   min-width: 0;
   padding: 0 18px;
   border-bottom: 1px solid #d9e2ef;
-  background: #ffffff;
+  background: var(--app-surface);
   box-shadow: 0 8px 20px rgba(15, 35, 70, 0.08);
 }
 
@@ -82,7 +82,7 @@ button {
   padding: 0 12px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--app-surface);
   color: #0f2744;
   font-size: 13px;
   font-weight: 700;
@@ -100,7 +100,7 @@ button {
 .simple-host-terminal-header button:disabled {
   cursor: not-allowed;
   color: #94a3b8;
-  background: #f8fafc;
+  background: var(--app-surface-muted);
 }
 
 .simple-host-terminal-status.connected {
@@ -182,7 +182,7 @@ button {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #f8fafc;
+  color: var(--app-surface-muted);
   font: 12px/1.2 Consolas, "Courier New", monospace;
 }
 
@@ -235,10 +235,10 @@ button {
   overflow: visible;
   border: 1px solid #cbd5e1;
   border-radius: 5px;
-  background: #f8fafc;
+  background: var(--app-surface-muted);
   box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
   padding: 4px 0;
-  color: #334155;
+  color: var(--app-text-secondary);
 }
 
 .simple-host-terminal-paste-prompt {
@@ -249,10 +249,10 @@ button {
   width: 320px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--app-surface-muted);
   box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
   padding: 10px;
-  color: #334155;
+  color: var(--app-text-secondary);
 }
 
 .simple-host-terminal-paste-prompt span {
@@ -279,7 +279,7 @@ button {
 .simple-host-terminal-paste-prompt button {
   border: 1px solid #cbd5e1;
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--app-surface);
   color: #1f2a44;
   padding: 5px 10px;
   font-weight: 800;
@@ -411,7 +411,7 @@ button {
   z-index: 1;
   border: 1px solid #cbd5e1;
   border-radius: 5px;
-  background: #f8fafc;
+  background: var(--app-surface-muted);
   box-shadow: 0 16px 36px rgb(15 23 42 / 22%), 0 2px 8px rgb(15 23 42 / 12%);
   padding: 4px 0;
 }
@@ -433,7 +433,7 @@ button {
   gap: 8px;
   padding: 24px;
   text-align: center;
-  color: #f8fafc;
+  color: var(--app-surface-muted);
   background: rgba(15, 23, 42, 0.82);
 }
 

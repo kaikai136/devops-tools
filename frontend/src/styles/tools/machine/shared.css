@@ -10,7 +10,7 @@
 .subnet-presets button {
   min-height: 32px;
   border-color: #ffb7b7;
-  background: #fff6f6;
+  background: var(--app-surface)6f6;
   color: #ff4141;
   border-radius: 9px;
   padding: 0 12px;
@@ -65,7 +65,7 @@
   padding: 10px 12px;
   border: 1px solid #ffd7a8;
   border-radius: 8px;
-  background: #fff8ee;
+  background: var(--app-surface)8ee;
   color: #9a5400;
   font-size: 13px;
   font-weight: 800;

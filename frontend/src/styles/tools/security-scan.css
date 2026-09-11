@@ -81,7 +81,7 @@
   padding: 0 10px;
   border: 1px solid #9cb6d4;
   border-radius: 4px;
-  background: #fff;
+  background: var(--app-surface);
   color: var(--report-blue);
   cursor: pointer;
   font: inherit;
@@ -91,7 +91,7 @@
 .security-drawer footer .primary {
   border-color: var(--report-blue);
   background: var(--report-blue);
-  color: #fff;
+  color: var(--app-surface);
 }
 
 .security-report-actions .danger {
@@ -152,7 +152,7 @@
 .target-picker-head input {
   border: 1px solid #9fb7d2;
   border-radius: 3px;
-  background: #fff;
+  background: var(--app-surface);
   color: var(--report-ink);
   font: inherit;
 }
@@ -216,7 +216,7 @@
   padding: 10px var(--workspace-panel-padding);
   border: 1px solid var(--report-line);
   border-radius: 4px;
-  background: #fff;
+  background: var(--app-surface);
 }
 
 .security-report-head h3 {
@@ -234,7 +234,7 @@
   border-radius: 4px;
   overflow-x: auto;
   overflow-y: hidden;
-  background: #fff;
+  background: var(--app-surface);
   scrollbar-width: thin;
 }
 
@@ -261,7 +261,7 @@
 .report-tabs button.active {
   border-color: var(--report-blue);
   background: var(--report-blue);
-  color: #fff;
+  color: var(--app-surface);
 }
 
 .report-tabs button:focus-visible {
@@ -284,7 +284,7 @@
 }
 
 .report-tabs button.active em {
-  background: #fff;
+  background: var(--app-surface);
   color: var(--report-blue);
 }
 
@@ -293,7 +293,7 @@
   border: 1px solid var(--report-line);
   border-radius: 4px;
   overflow: hidden;
-  background: #fff;
+  background: var(--app-surface);
 }
 
 .security-report-section > h3 {
@@ -302,7 +302,7 @@
   min-height: 38px;
   padding: 7px 10px;
   background: var(--report-blue);
-  color: #fff;
+  color: var(--app-surface);
 }
 
 .security-report-section > h3 {
@@ -345,7 +345,7 @@
   min-width: 760px;
   border-collapse: collapse;
   table-layout: fixed;
-  background: #fff;
+  background: var(--app-surface);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -383,7 +383,7 @@
 }
 
 .overview-table td {
-  background: #fff;
+  background: var(--app-surface);
 }
 
 .asset-report-table {
@@ -419,7 +419,7 @@
 .status-queued,
 .status-pending {
   color: #7a5300;
-  background: #fff4cf;
+  background: var(--app-surface)4cf;
 }
 
 .status-running {
@@ -461,12 +461,12 @@
 }
 
 .severity-critical {
-  color: #fff;
+  color: var(--app-surface);
   background: #991b1b;
 }
 
 .severity-high {
-  color: #fff;
+  color: var(--app-surface);
   background: #dc2626;
 }
 
@@ -503,7 +503,7 @@
   padding: 28px;
   color: #718198;
   text-align: center;
-  background: #fff;
+  background: var(--app-surface);
 }
 
 .security-drawer-backdrop {
@@ -603,7 +603,7 @@
   padding: 10px;
   border: 1px solid #d8e3f1;
   border-radius: 4px;
-  background: #fff;
+  background: var(--app-surface);
 }
 
 .target-picker-list strong {

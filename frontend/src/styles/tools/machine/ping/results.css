@@ -51,7 +51,7 @@
   min-height: 36px;
   padding: 0 10px;
   border-radius: 8px;
-  background: #fff;
+  background: var(--app-surface);
   color: #2a4566;
   font-size: 13px;
   font-weight: 800;
@@ -62,7 +62,7 @@
 }
 
 .ping-row.timeout {
-  background: #fff7f7;
+  background: var(--app-surface)7f7;
 }
 
 .ping-metrics {
@@ -79,7 +79,7 @@
   gap: 4px;
   border: 1px solid #d8e5f4;
   border-radius: 10px;
-  background: #fff;
+  background: var(--app-surface);
 }
 
 .ping-metrics strong {

@@ -20,23 +20,9 @@
   background: var(--dark-page-bg);
 }
 
-.workspace-dark :where(
-  .tool-stack,
-  .tool-grid,
-  .auth-layout,
-  .machine-probe-grid,
-  .host-manager-page,
-  .password-page,
-  .ip-page,
-  .ping-page,
-  .subnet-workbench
-) {
+.workspace-dark :where(.tool-stack, .tool-grid, .auth-layout, .machine-probe-grid) {
   background: transparent;
   color: var(--workspace-text);
-}
-
-.workspace-dark .host-manager-page.fullscreen {
-  background: var(--dark-page-bg);
 }
 
 .workspace-dark :where(

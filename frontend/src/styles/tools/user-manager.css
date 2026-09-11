@@ -189,7 +189,7 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: #173252;
+  color: var(--app-text);
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -787,7 +787,7 @@
   height: 16px;
   place-items: center;
   border-radius: 999px;
-  background: #e5e7eb;
+  background: var(--app-border);
   color: var(--app-primary-foreground);
   font-size: 12px;
   font-weight: 700;
@@ -801,7 +801,7 @@
 
 .user-password-meter-track i {
   height: 3px;
-  background: #e5e7eb;
+  background: var(--app-border);
 }
 
 .user-password-meter.compact-meter {
@@ -883,13 +883,13 @@
 
 .user-password-rules span.failed {
   border-color: #ffcaca;
-  background: #fff5f5;
+  background: var(--app-surface)5f5;
   color: #d93025;
 }
 
 .user-inline-warning {
   border-left: 3px solid #f59e0b;
-  background: #fff8eb;
+  background: var(--app-surface)8eb;
   padding: 8px 10px;
   color: #8a5200 !important;
   font-size: 13px;
@@ -931,6 +931,6 @@
 
 .user-form-actions .danger {
   border-color: #ffccc7;
-  background: #fff2f0;
+  background: var(--app-surface)2f0;
   color: #d9363e;
 }

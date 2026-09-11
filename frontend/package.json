@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "style:audit": "node scripts/style-audit.mjs"
   },
   "dependencies": {
     "@lucide/vue": "^1.21.0",
