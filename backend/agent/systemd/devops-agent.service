@@ -1,0 +1,21 @@
+[Unit]
+Description=DevOps Host Agent
+Documentation=https://hub.docker.com/r/kjlion/devops-agent
+After=local-fs.target
+
+[Service]
+Type=simple
+User=root
+Group=devops-agent
+EnvironmentFile=-/etc/devops-agent/agent.env
+ExecStart=/usr/local/libexec/devops-agent
+Restart=on-failure
+RestartSec=3s
+RuntimeDirectory=devops-agent
+RuntimeDirectoryMode=0750
+UMask=0077
+
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
