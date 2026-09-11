@@ -1,0 +1,21 @@
+[Unit]
+Description=DevOps Agent HTTP Gateway
+Documentation=https://hub.docker.com/r/kjlion/devops-agent
+After=network-online.target devops-agent.service
+Wants=network-online.target
+Requires=devops-agent.service
+
+[Service]
+Type=simple
+User=nobody
+Group=devops-agent
+EnvironmentFile=-/etc/devops-agent/agent-gateway.env
+ExecStart=/usr/local/libexec/devops-agent-gateway
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,7 @@ export type HostColumnKey =
   | 'updatedAt'
   | 'creator'
   | 'remark'
+  | 'collect'
   | 'status'
   | 'actions';
 
