@@ -61,9 +61,9 @@ const selectedFormat = computed({
           <span class="export-section-title">需要导出的数据列</span>
           <el-checkbox class="export-check-all" :model-value="props.allColumnsSelected" :indeterminate="props.selectedColumns.size > 0 && !props.allColumnsSelected" @change="emit('toggle-all-columns', $event)">全选</el-checkbox>
           <div class="export-column-grid">
-            <el-checkbox v-for="column in props.columns" :key="column.field" class="export-column-option" :model-value="props.selectedColumns.has(column.field)" @change="emit('toggle-column', column.field, $event)">
+            <NativeCheckbox v-for="column in props.columns" :key="column.field" class="export-column-option" :model-value="props.selectedColumns.has(column.field)" @change="emit('toggle-column', column.field, $event)">
               <span>{{ column.label }}</span>
-            </el-checkbox>
+            </NativeCheckbox>
           </div>
           </section>
 
@@ -79,5 +79,5 @@ const selectedFormat = computed({
           <el-button @click="emit('close')">取消</el-button>
           <el-button type="primary" @click="emit('confirm')">确定</el-button>
       </template>
-  </el-dialog>
+  </NativeDialog>
 </template>

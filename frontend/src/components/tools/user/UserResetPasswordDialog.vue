@@ -19,7 +19,7 @@ defineEmits<{
 </script>
 
 <template>
-  <el-dialog
+  <NativeDialog
     :model-value="true"
     title="重置密码"
     width="460px"
@@ -46,10 +46,10 @@ defineEmits<{
           {{ rule.label }}
         </span>
       </div>
-    </el-form>
+    </NativeForm>
     <template #footer>
-      <el-button @click="$emit('close')">取消</el-button>
-      <el-button type="primary" @click="$emit('submit')">保存</el-button>
+      <NativeButton @click="$emit('close')">取消</NativeButton>
+      <NativeButton type="primary" @click="$emit('submit')">保存</NativeButton>
     </template>
-  </el-dialog>
+  </NativeDialog>
 </template>

@@ -55,7 +55,7 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
 </script>
 
 <template>
-  <el-dialog
+  <NativeDialog
     :model-value="dialog.visible"
     class="terminal-file-create-backdrop"
     width="520px"
@@ -66,14 +66,14 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
     <section class="terminal-file-create-modal">
       <header class="popup-header">
         <h2>{{ title }}</h2>
-        <el-button circle aria-label="关闭" :disabled="dialog.saving" @click="emit('close')">
+        <NativeButton circle aria-label="关闭" :disabled="dialog.saving" @click="emit('close')">
           <AppIcon name="x" :size="16" />
-        </el-button>
+        </NativeButton>
       </header>
       <div class="terminal-file-create-body popup-body">
         <label class="terminal-file-create-name-row">
           <span>{{ nameLabel }}</span>
-          <el-input
+          <NativeInput
             :model-value="dialog.name"
             :disabled="dialog.saving"
             autofocus
@@ -83,7 +83,7 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
         </label>
         <label v-if="dialog.mode === 'symlink'" class="terminal-file-create-name-row">
           <span>目标路径</span>
-          <el-input
+          <NativeInput
             :model-value="dialog.targetPath"
             :disabled="dialog.saving"
             @input="onTextInput('targetPath', $event)"
@@ -94,26 +94,26 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
           <span class="terminal-file-create-label">权限</span>
           <div class="terminal-file-create-permission-grid" role="group" aria-label="权限">
             <span></span><span>用户</span>
-            <el-checkbox :model-value="isPermissionChecked(0o400)" :disabled="dialog.saving" @change="setPermission(0o400, $event)">R</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o200)" :disabled="dialog.saving" @change="setPermission(0o200, $event)">W</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o100)" :disabled="dialog.saving" @change="setPermission(0o100, $event)">X</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o4000)" :disabled="dialog.saving" @change="setPermission(0o4000, $event)">UID</el-checkbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o400)" :disabled="dialog.saving" @change="setPermission(0o400, $event)">R</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o200)" :disabled="dialog.saving" @change="setPermission(0o200, $event)">W</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o100)" :disabled="dialog.saving" @change="setPermission(0o100, $event)">X</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o4000)" :disabled="dialog.saving" @change="setPermission(0o4000, $event)">UID</NativeCheckbox>
             <span></span><span>组</span>
-            <el-checkbox :model-value="isPermissionChecked(0o040)" :disabled="dialog.saving" @change="setPermission(0o040, $event)">R</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o020)" :disabled="dialog.saving" @change="setPermission(0o020, $event)">W</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o010)" :disabled="dialog.saving" @change="setPermission(0o010, $event)">X</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o2000)" :disabled="dialog.saving" @change="setPermission(0o2000, $event)">GID</el-checkbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o040)" :disabled="dialog.saving" @change="setPermission(0o040, $event)">R</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o020)" :disabled="dialog.saving" @change="setPermission(0o020, $event)">W</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o010)" :disabled="dialog.saving" @change="setPermission(0o010, $event)">X</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o2000)" :disabled="dialog.saving" @change="setPermission(0o2000, $event)">GID</NativeCheckbox>
             <span></span><span>其他</span>
-            <el-checkbox :model-value="isPermissionChecked(0o004)" :disabled="dialog.saving" @change="setPermission(0o004, $event)">R</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o002)" :disabled="dialog.saving" @change="setPermission(0o002, $event)">W</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o001)" :disabled="dialog.saving" @change="setPermission(0o001, $event)">X</el-checkbox>
-            <el-checkbox :model-value="isPermissionChecked(0o1000)" :disabled="dialog.saving" @change="setPermission(0o1000, $event)">粘性</el-checkbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o004)" :disabled="dialog.saving" @change="setPermission(0o004, $event)">R</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o002)" :disabled="dialog.saving" @change="setPermission(0o002, $event)">W</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o001)" :disabled="dialog.saving" @change="setPermission(0o001, $event)">X</NativeCheckbox>
+            <NativeCheckbox :model-value="isPermissionChecked(0o1000)" :disabled="dialog.saving" @change="setPermission(0o1000, $event)">粘性</NativeCheckbox>
           </div>
         </div>
         <label v-if="dialog.mode !== 'symlink'" class="terminal-file-create-octal-row">
           <span>八进制</span>
           <em>{{ specialOctalDigit() }}</em>
-          <el-input
+          <NativeInput
             :model-value="standardOctalMode()"
             inputmode="numeric"
             maxlength="3"
@@ -122,7 +122,7 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
             @keydown.enter.prevent="emit('save')"
           />
         </label>
-        <el-alert v-if="dialog.error" class="terminal-file-create-error" type="error" :title="dialog.error" :closable="false" />
+        <NativeAlert v-if="dialog.error" class="terminal-file-create-error" type="error" :title="dialog.error" :closable="false" />
       </div>
       <footer class="popup-footer popup-actions">
         <el-checkbox
@@ -133,14 +133,14 @@ function onOpenAfterCreateChange(value: Event | boolean | string | number) {
           @change="onOpenAfterCreateChange"
         >
           {{ openLabel }}
-        </el-checkbox>
+        </NativeCheckbox>
         <div>
-          <el-button :disabled="dialog.saving" @click="emit('close')">取消</el-button>
-          <el-button type="primary" :loading="dialog.saving" :disabled="dialog.saving" @click="emit('save')">
+          <NativeButton :disabled="dialog.saving" @click="emit('close')">取消</NativeButton>
+          <NativeButton type="primary" :loading="dialog.saving" :disabled="dialog.saving" @click="emit('save')">
             {{ dialog.saving ? '创建中...' : '确定' }}
-          </el-button>
+          </NativeButton>
         </div>
       </footer>
     </section>
-  </el-dialog>
+  </NativeDialog>
 </template>

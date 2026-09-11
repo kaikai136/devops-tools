@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from 'vue';
 
 import type { HostCredential } from '@features/hosts/types';
@@ -20,8 +20,8 @@ const selectedCredential = computed({
 </script>
 
 <template>
-  <el-select v-model="selectedCredential" @change="emit('change', selectedCredential)">
-    <el-option :value="null" label="手动输入" />
-    <el-option v-for="credential in props.credentials" :key="credential.id" :value="credential.id" :label="`${credential.name}（${credential.username}）`" />
-  </el-select>
+  <NativeSelect v-model="selectedCredential" @change="emit('change', selectedCredential)">
+    <NativeOption :value="null" label="手动输入" />
+    <NativeOption v-for="credential in props.credentials" :key="credential.id" :value="credential.id" :label="`${credential.name}（${credential.username}）`" />
+  </NativeSelect>
 </template>

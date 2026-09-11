@@ -146,7 +146,7 @@ onUnmounted(() => {
       <span v-if="challenge && !isVerified" class="login-slider-target" :style="targetStyle"></span>
       <span class="login-slider-fill" :style="{ width: fillWidth }"></span>
       <span class="login-slider-text">{{ statusText }}</span>
-      <el-button
+      <NativeButton
         class="login-slider-handle"
         circle
         :style="knobStyle"
@@ -158,7 +158,7 @@ onUnmounted(() => {
         @pointercancel="endDrag"
       >
         <AppIcon :name="isVerified ? 'check' : 'chevronRight'" :size="18" />
-      </el-button>
+      </NativeButton>
     </div>
   </div>
 </template>

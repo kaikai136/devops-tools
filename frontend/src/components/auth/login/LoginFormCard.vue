@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { InputInstance } from 'element-plus';
+import type { NativeInputInstance } from '@shared/ui/native';
 
 import { useAppContext } from '@app/context';
 import type { LoginTwoFactorChallenge, LoginTwoFactorSetupChallenge } from '../../../types';
@@ -35,8 +35,8 @@ const emit = defineEmits<{
   cancelTwoFactor: [];
 }>();
 
-const usernameInput = ref<InputInstance | null>(null);
-const passwordInput = ref<InputInstance | null>(null);
+const usernameInput = ref<NativeInputInstance | null>(null);
+const passwordInput = ref<NativeInputInstance | null>(null);
 const { siteIdentity, loginContent, renderSystemTemplate } = useAppContext();
 
 const accountModel = computed({
@@ -92,15 +92,15 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
       <p class="login-subtitle">{{ formDescription }}</p>
 
       <label class="login-form-group" for="login-account">
-        <el-input id="login-account" ref="usernameInput" v-model="accountModel" class="login-field" autocomplete="username" placeholder="请输入用户名">
+        <NativeInput id="login-account" ref="usernameInput" v-model="accountModel" class="login-field" autocomplete="username" placeholder="请输入用户名">
           <template #prefix>
             <AppIcon name="user" :size="18" />
           </template>
-        </el-input>
+        </NativeInput>
       </label>
 
       <label class="login-form-group" for="login-password">
-        <el-input
+        <NativeInput
           id="login-password"
           ref="passwordInput"
           v-model="passwordModel"
@@ -113,21 +113,21 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
           <template #prefix>
             <AppIcon name="lock" :size="18" />
           </template>
-        </el-input>
+        </NativeInput>
       </label>
 
       <div class="login-options">
-        <el-checkbox v-model="rememberModel" class="login-remember">
+        <NativeCheckbox v-model="rememberModel" class="login-remember">
           记住我
-        </el-checkbox>
+        </NativeCheckbox>
       </div>
 
       <LoginSliderVerify v-model="sliderTokenModel" :reset-key="sliderResetKey" />
 
-      <el-alert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
-      <el-button class="login-btn" native-type="submit" type="primary" :disabled="!canSubmit" :loading="isSubmitting">
+      <NativeAlert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
+      <NativeButton class="login-btn" native-type="submit" type="primary" :disabled="!canSubmit" :loading="isSubmitting">
         <span>{{ isSubmitting ? '登录中...' : '登 录' }}</span>
-      </el-button>
+      </NativeButton>
     </form>
     <form v-else-if="twoFactorSetupChallenge" class="login-form login-2fa-form login-2fa-setup-form" @submit.prevent="emit('submitTwoFactorSetup')">
       <div class="login-form-brand">
@@ -152,7 +152,7 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
       </div>
 
       <label class="login-form-group" for="login-2fa-setup-code">
-        <el-input
+        <NativeInput
           id="login-2fa-setup-code"
           v-model="twoFactorCodeModel"
           class="login-field login-2fa-field"
@@ -164,15 +164,15 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
           <template #prefix>
             <AppIcon name="shield" :size="18" />
           </template>
-        </el-input>
+        </NativeInput>
       </label>
 
       <p class="login-2fa-note">绑定成功后会自动进入系统，旧验证码会立即失效。</p>
-      <el-alert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
-      <el-button class="login-btn" native-type="submit" type="primary" :disabled="!canSubmitTwoFactor" :loading="isVerifyingTwoFactor">
+      <NativeAlert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
+      <NativeButton class="login-btn" native-type="submit" type="primary" :disabled="!canSubmitTwoFactor" :loading="isVerifyingTwoFactor">
         <span>{{ isVerifyingTwoFactor ? '绑定中...' : '绑定并登录' }}</span>
-      </el-button>
-      <el-button class="login-secondary-btn" @click="emit('cancelTwoFactor')">返回账号登录</el-button>
+      </NativeButton>
+      <NativeButton class="login-secondary-btn" @click="emit('cancelTwoFactor')">返回账号登录</NativeButton>
     </form>
     <form v-else-if="twoFactorChallenge" class="login-form login-2fa-form" @submit.prevent="emit('submitTwoFactor')">
       <div class="login-form-brand">
@@ -189,7 +189,7 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
       <p class="login-subtitle">{{ twoFactorChallenge.displayName || twoFactorChallenge.account }}，请输入认证器中的 6 位动态验证码</p>
 
       <label class="login-form-group" for="login-2fa-code">
-        <el-input
+        <NativeInput
           id="login-2fa-code"
           v-model="twoFactorCodeModel"
           class="login-field login-2fa-field"
@@ -201,15 +201,15 @@ defineExpose({ getUsernameInputElement, getPasswordInputElement });
           <template #prefix>
             <AppIcon name="shield" :size="18" />
           </template>
-        </el-input>
+        </NativeInput>
       </label>
 
       <p class="login-2fa-note">验证码会随时间刷新，如验证失败需要重新完成账号密码登录。</p>
-      <el-alert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
-      <el-button class="login-btn" native-type="submit" type="primary" :disabled="!canSubmitTwoFactor" :loading="isVerifyingTwoFactor">
+      <NativeAlert v-if="errorMessage" class="login-error" type="error" :closable="false" :title="errorMessage" />
+      <NativeButton class="login-btn" native-type="submit" type="primary" :disabled="!canSubmitTwoFactor" :loading="isVerifyingTwoFactor">
         <span>{{ isVerifyingTwoFactor ? '验证中...' : '验 证' }}</span>
-      </el-button>
-      <el-button class="login-secondary-btn" @click="emit('cancelTwoFactor')">返回账号登录</el-button>
+      </NativeButton>
+      <NativeButton class="login-secondary-btn" @click="emit('cancelTwoFactor')">返回账号登录</NativeButton>
     </form>
   </section>
 </template>

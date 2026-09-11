@@ -114,68 +114,68 @@ const {
             <p>支持屏幕框选识别，也可以直接导入二维码截图或图片文件。</p>
           </div>
           <div v-if="canUsePageAction('auth', 'scan')" class="scan-actions">
-            <el-tooltip content="识别屏幕二维码" placement="top">
-              <el-button circle aria-label="识别屏幕二维码" @click="scanScreenQr">
+            <NativeTooltip content="识别屏幕二维码" placement="top">
+              <NativeButton circle aria-label="识别屏幕二维码" @click="scanScreenQr">
                 <AppIcon name="scan" :size="18" />
-              </el-button>
-            </el-tooltip>
-            <el-tooltip content="导入二维码图片" placement="top">
-              <el-button circle aria-label="导入二维码图片" @click="triggerImageImport">
+              </NativeButton>
+            </NativeTooltip>
+            <NativeTooltip content="导入二维码图片" placement="top">
+              <NativeButton circle aria-label="导入二维码图片" @click="triggerImageImport">
                 <AppIcon name="image" :size="18" />
-              </el-button>
-            </el-tooltip>
+              </NativeButton>
+            </NativeTooltip>
             <input ref="imageInput" hidden type="file" accept="image/*" @change="handleImageImport" />
           </div>
         </div>
         <label>
           <span>快速导入</span>
-          <el-input v-model="authImport" type="textarea" :rows="4" placeholder="粘贴 otpauth://totp/... 链接后，点击下方“解析导入”" />
+          <NativeInput v-model="authImport" type="textarea" :rows="4" placeholder="粘贴 otpauth://totp/... 链接后，点击下方“解析导入”" />
         </label>
         <div class="split-actions">
-          <el-button @click="parseAuthImport">解析导入</el-button>
-          <el-button @click="resetAuthForm">重置表单</el-button>
+          <NativeButton @click="parseAuthImport">解析导入</NativeButton>
+          <NativeButton @click="resetAuthForm">重置表单</NativeButton>
         </div>
         <div class="form-grid two">
           <label>
             <span>服务名称</span>
-            <el-input v-model="authForm.issuer" placeholder="例如 GitHub / 阿里云" />
+            <NativeInput v-model="authForm.issuer" placeholder="例如 GitHub / 阿里云" />
           </label>
           <label>
             <span>账号备注</span>
-            <el-input v-model="authForm.account_name" placeholder="例如 admin@example.com" />
+            <NativeInput v-model="authForm.account_name" placeholder="例如 admin@example.com" />
           </label>
         </div>
         <label>
           <span>Base32 密钥</span>
-          <el-input v-model="authForm.secret" placeholder="输入或粘贴 Base32 Secret，支持空格和短杠" />
+          <NativeInput v-model="authForm.secret" placeholder="输入或粘贴 Base32 Secret，支持空格和短杠" />
         </label>
         <div class="form-grid three">
           <label>
             <span>位数</span>
-            <el-select v-model="authForm.digits">
-              <el-option :value="6" label="6 位" />
-              <el-option :value="8" label="8 位" />
-            </el-select>
+            <NativeSelect v-model="authForm.digits">
+              <NativeOption :value="6" label="6 位" />
+              <NativeOption :value="8" label="8 位" />
+            </NativeSelect>
           </label>
           <label>
             <span>刷新周期</span>
-            <el-select v-model="authForm.period">
-              <el-option :value="30" label="30 秒" />
-              <el-option :value="60" label="60 秒" />
-            </el-select>
+            <NativeSelect v-model="authForm.period">
+              <NativeOption :value="30" label="30 秒" />
+              <NativeOption :value="60" label="60 秒" />
+            </NativeSelect>
           </label>
           <label>
             <span>算法</span>
-            <el-select v-model="authForm.algorithm">
-              <el-option value="SHA1" label="SHA-1" />
-              <el-option value="SHA256" label="SHA-256" />
-              <el-option value="SHA512" label="SHA-512" />
-            </el-select>
+            <NativeSelect v-model="authForm.algorithm">
+              <NativeOption value="SHA1" label="SHA-1" />
+              <NativeOption value="SHA256" label="SHA-256" />
+              <NativeOption value="SHA512" label="SHA-512" />
+            </NativeSelect>
           </label>
         </div>
-        <el-button v-if="canUsePageAction('auth', editingAuthId ? 'edit' : 'create')" class="full" type="primary" @click="saveAuthEntry">
+        <NativeButton v-if="canUsePageAction('auth', editingAuthId ? 'edit' : 'create')" class="full" type="primary" @click="saveAuthEntry">
           {{ editingAuthId ? '保存修改' : '添加条目' }}
-        </el-button>
+        </NativeButton>
       </article>
 
       <article class="panel auth-list-panel">
@@ -185,9 +185,9 @@ const {
             <p>点击卡片中的数字即可复制当前验证码。</p>
           </div>
           <div class="title-actions">
-            <el-tag type="info" effect="plain">{{ authEntries.length }} 条</el-tag>
-            <el-button v-if="canUsePageAction('auth', 'export')" @click="saveAuthEntries">保存</el-button>
-            <el-button v-if="canUsePageAction('auth', 'clear')" type="danger" plain @click="clearAuthEntries">清空</el-button>
+            <NativeTag type="info" effect="plain">{{ authEntries.length }} 条</NativeTag>
+            <NativeButton v-if="canUsePageAction('auth', 'export')" @click="saveAuthEntries">保存</NativeButton>
+            <NativeButton v-if="canUsePageAction('auth', 'clear')" type="danger" plain @click="clearAuthEntries">清空</NativeButton>
           </div>
         </div>
         <div class="auth-card-grid">
@@ -198,18 +198,18 @@ const {
                 <p>{{ entry.account_name || '未填写账号' }}</p>
               </div>
               <div class="card-actions">
-                <el-button v-if="canUsePageAction('auth', 'edit')" size="small" @click="editAuth(entry)">编辑</el-button>
-                <el-button v-if="canUsePageAction('auth', 'delete')" size="small" type="danger" plain @click="deleteAuth(entry)">删除</el-button>
+                <NativeButton v-if="canUsePageAction('auth', 'edit')" size="small" @click="editAuth(entry)">编辑</NativeButton>
+                <NativeButton v-if="canUsePageAction('auth', 'delete')" size="small" type="danger" plain @click="deleteAuth(entry)">删除</NativeButton>
               </div>
             </div>
             <div class="code-row">
-              <el-button
+              <NativeButton
                 class="auth-code"
                 :class="{ expiring: (entry.totp?.remaining_seconds ?? entry.period) <= 5 }"
                 @click="copyAuthCode(entry)"
               >
                 {{ entry.totp?.code ?? '------' }}
-              </el-button>
+              </NativeButton>
               <div
                 class="countdown"
                 :class="{ expiring: (entry.totp?.remaining_seconds ?? entry.period) <= 5 }"
@@ -220,17 +220,17 @@ const {
             </div>
             <p class="copy-hint">点击复制当前验证码</p>
             <div class="tag-line">
-              <el-tag size="small" effect="plain">{{ entry.digits }} 位验证码</el-tag>
-              <el-tag size="small" effect="plain">{{ entry.period }} 秒刷新</el-tag>
-              <el-tag size="small" effect="plain">{{ entry.algorithm.replace('SHA', 'SHA-') }}</el-tag>
-              <el-tooltip content="查看二维码" placement="top">
-                <el-button class="qr-button" circle aria-label="查看二维码" @click="showQr(entry)">
+              <NativeTag size="small" effect="plain">{{ entry.digits }} 位验证码</NativeTag>
+              <NativeTag size="small" effect="plain">{{ entry.period }} 秒刷新</NativeTag>
+              <NativeTag size="small" effect="plain">{{ entry.algorithm.replace('SHA', 'SHA-') }}</NativeTag>
+              <NativeTooltip content="查看二维码" placement="top">
+                <NativeButton class="qr-button" circle aria-label="查看二维码" @click="showQr(entry)">
                   <AppIcon name="qr" :size="17" />
-                </el-button>
-              </el-tooltip>
+                </NativeButton>
+              </NativeTooltip>
             </div>
           </article>
-          <el-empty v-if="!authEntries.length" class="auth-empty" description="还没有验证码条目" />
+          <NativeEmpty v-if="!authEntries.length" class="auth-empty" description="还没有验证码条目" />
         </div>
       </article>
     </template>

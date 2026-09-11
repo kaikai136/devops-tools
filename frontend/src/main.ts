@@ -1,10 +1,9 @@
 import { createApp } from 'vue';
-import ElementPlus from 'element-plus';
 
 import App from './App.vue';
-import 'element-plus/dist/index.css';
+import { installNativeUi } from '@shared/ui/native';
 import './styles.css';
 
 const app = createApp(App);
-app.use(ElementPlus);
+installNativeUi(app);
 app.mount('#app');

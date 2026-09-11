@@ -25,27 +25,27 @@ const {
     <article class="panel ping-config">
       <div class="panel-title compact">
         <h2>Ping 测试</h2>
-        <el-checkbox v-model="pingContinuous" class="check-line ping-check top-check">连续 Ping（直到手动停止）</el-checkbox>
+        <NativeCheckbox v-model="pingContinuous" class="check-line ping-check top-check">连续 Ping（直到手动停止）</NativeCheckbox>
       </div>
       <div class="ping-presets">
-        <el-button @click="setPingPreset('223.5.5.5')">阿里 DNS</el-button>
-        <el-button @click="setPingPreset('119.29.29.29')">腾讯 DNS</el-button>
-        <el-button @click="setPingPreset('114.114.114.114')">114 DNS</el-button>
-        <el-button @click="setPingPreset('8.8.8.8')">Google DNS</el-button>
-        <el-button @click="setPingPreset('baidu.com')">百度</el-button>
+        <NativeButton @click="setPingPreset('223.5.5.5')">阿里 DNS</NativeButton>
+        <NativeButton @click="setPingPreset('119.29.29.29')">腾讯 DNS</NativeButton>
+        <NativeButton @click="setPingPreset('114.114.114.114')">114 DNS</NativeButton>
+        <NativeButton @click="setPingPreset('8.8.8.8')">Google DNS</NativeButton>
+        <NativeButton @click="setPingPreset('baidu.com')">百度</NativeButton>
       </div>
       <div class="ping-target-block">
-        <label><span>目标主机</span><el-input v-model="pingHost" @keyup.enter="runPing" /></label>
-        <label><span>次数</span><el-input-number v-model="pingCount" :min="1" :max="200" @keyup.enter="runPing" /></label>
-        <label><span>超时 (ms)</span><el-input-number v-model="pingTimeout" :min="300" :max="30000" :step="100" @keyup.enter="runPing" /></label>
-        <label><span>间隔 (ms)</span><el-input-number v-model="pingInterval" :min="100" :max="10000" :step="100" @keyup.enter="runPing" /></label>
+        <label><span>目标主机</span><NativeInput v-model="pingHost" @keyup.enter="runPing" /></label>
+        <label><span>次数</span><NativeNumberInput v-model="pingCount" :min="1" :max="200" @keyup.enter="runPing" /></label>
+        <label><span>超时 (ms)</span><NativeNumberInput v-model="pingTimeout" :min="300" :max="30000" :step="100" @keyup.enter="runPing" /></label>
+        <label><span>间隔 (ms)</span><NativeNumberInput v-model="pingInterval" :min="100" :max="10000" :step="100" @keyup.enter="runPing" /></label>
       </div>
       <div class="ping-actions">
-        <el-button v-if="canUsePageAction('ports', 'ping')" type="primary" :loading="isPinging" @click="runPing">
+        <NativeButton v-if="canUsePageAction('ports', 'ping')" type="primary" :loading="isPinging" @click="runPing">
           {{ isPinging ? 'Ping 中' : '开始 Ping' }}
-        </el-button>
-        <el-button :disabled="!isPinging" @click="stopPing">停止</el-button>
-        <el-button v-if="canUsePageAction('ports', 'export_ping')" :disabled="!pingDetails.length" @click="exportPingResults">导出</el-button>
+        </NativeButton>
+        <NativeButton :disabled="!isPinging" @click="stopPing">停止</NativeButton>
+        <NativeButton v-if="canUsePageAction('ports', 'export_ping')" :disabled="!pingDetails.length" @click="exportPingResults">导出</NativeButton>
       </div>
     </article>
 
@@ -109,30 +109,30 @@ const {
               </text>
             </g>
           </svg>
-          <el-empty v-else class="ping-empty chart-empty" description="开始测试后，这里会展示延迟波形。" />
+          <NativeEmpty v-else class="ping-empty chart-empty" description="开始测试后，这里会展示延迟波形。" />
         </div>
       </section>
       <section class="ping-detail-box">
         <div class="ping-section-title">
           <h3>详细结果</h3>
-          <el-button :disabled="!pingDetails.length || isPinging" @click="clearPingResults">清空</el-button>
+          <NativeButton :disabled="!pingDetails.length || isPinging" @click="clearPingResults">清空</NativeButton>
         </div>
-        <el-table :data="pingDetails" row-key="sequence" class="ping-detail-list" empty-text="还没有测试结果。">
-          <el-table-column label="#" width="80">
+        <NativeTable :data="pingDetails" row-key="sequence" class="ping-detail-list" empty-text="还没有测试结果。">
+          <NativeTableColumn label="#" width="80">
             <template #default="{ row }">#{{ row.sequence }}</template>
-          </el-table-column>
-          <el-table-column prop="ip" label="IP" min-width="150" />
-          <el-table-column label="状态" min-width="100">
+          </NativeTableColumn>
+          <NativeTableColumn prop="ip" label="IP" min-width="150" />
+          <NativeTableColumn label="状态" min-width="100">
             <template #default="{ row }">
-              <el-tag :type="row.status === 'online' ? 'success' : 'danger'" size="small" effect="dark">
+              <NativeTag :type="row.status === 'online' ? 'success' : 'danger'" size="small" effect="dark">
                 {{ row.status === 'online' ? '成功' : '超时' }}
-              </el-tag>
+              </NativeTag>
             </template>
-          </el-table-column>
-          <el-table-column label="响应时间" min-width="120">
+          </NativeTableColumn>
+          <NativeTableColumn label="响应时间" min-width="120">
             <template #default="{ row }">{{ row.response_time ?? '--' }} ms</template>
-          </el-table-column>
-        </el-table>
+          </NativeTableColumn>
+        </NativeTable>
       </section>
     </article>
   </div>

@@ -31,5 +31,5 @@ const emit = defineEmits<{
           <el-button class="primary" type="primary" @click="emit('confirm')">直接导入</el-button>
         </div>
       </template>
-  </el-dialog>
+  </NativeDialog>
 </template>

@@ -180,23 +180,23 @@ function formatTime(value: string) {
   <section v-if="activeTool === 'operationLogs'" class="login-log-page operation-log-page" :class="{ fullscreen }" @click="columnsOpen = false">
     <template v-if="canUseAnyPageAction('operationLogs', ['refresh', 'filter', 'columns'])">
       <article v-if="canUsePageAction('operationLogs', 'filter')" class="login-log-filter-panel">
-        <el-form inline label-position="left">
-          <el-form-item label="操作人">
-            <el-input v-model="username" placeholder="请输入" clearable />
-          </el-form-item>
-          <el-form-item label="模块">
-            <el-input v-model="moduleName" placeholder="请输入" clearable />
-          </el-form-item>
-          <el-form-item label="操作">
-            <el-input v-model="actionName" placeholder="请输入" clearable />
-          </el-form-item>
-          <el-form-item label="关键字">
-            <el-input v-model="keyword" placeholder="请输入" clearable />
-          </el-form-item>
-          <el-form-item label="IP">
-            <el-input v-model="operationIp" placeholder="请输入" clearable />
-          </el-form-item>
-        </el-form>
+        <NativeForm inline label-position="left">
+          <NativeFormItem label="操作人">
+            <NativeInput v-model="username" placeholder="请输入" clearable />
+          </NativeFormItem>
+          <NativeFormItem label="模块">
+            <NativeInput v-model="moduleName" placeholder="请输入" clearable />
+          </NativeFormItem>
+          <NativeFormItem label="操作">
+            <NativeInput v-model="actionName" placeholder="请输入" clearable />
+          </NativeFormItem>
+          <NativeFormItem label="关键字">
+            <NativeInput v-model="keyword" placeholder="请输入" clearable />
+          </NativeFormItem>
+          <NativeFormItem label="IP">
+            <NativeInput v-model="operationIp" placeholder="请输入" clearable />
+          </NativeFormItem>
+        </NativeForm>
       </article>
 
       <article class="login-log-list-panel">
@@ -204,10 +204,10 @@ function formatTime(value: string) {
           <h2>操作记录</h2>
           <div class="login-log-actions">
             <span v-if="canUseAnyPageAction('operationLogs', ['filter', 'refresh', 'columns'])" class="login-log-toolbar-divider"></span>
-            <el-tooltip v-if="canUsePageAction('operationLogs', 'refresh')" content="刷新" placement="top">
-              <el-button circle @click="loadLogs"><AppIcon name="refresh" :size="18" /></el-button>
-            </el-tooltip>
-            <el-popover
+            <NativeTooltip v-if="canUsePageAction('operationLogs', 'refresh')" content="刷新" placement="top">
+              <NativeButton circle @click="loadLogs"><AppIcon name="refresh" :size="18" /></NativeButton>
+            </NativeTooltip>
+            <NativePopover
               v-if="canUsePageAction('operationLogs', 'columns')"
               v-model:visible="columnsOpen"
               placement="bottom-end"
@@ -217,20 +217,20 @@ function formatTime(value: string) {
               @click.stop
             >
               <template #reference>
-                <el-button circle @click.stop><AppIcon name="settings" :size="18" /></el-button>
+                <NativeButton circle @click.stop><AppIcon name="settings" :size="18" /></NativeButton>
               </template>
               <div class="login-log-column-menu-head">
-                <el-checkbox
+                <NativeCheckbox
                   :model-value="allColumnsVisible"
                   :indeterminate="someColumnsVisible && !allColumnsVisible"
                   @change="toggleAllColumns"
                 >
                   列显示
-                </el-checkbox>
-                <el-button size="small" text type="primary" @click="resetColumns">重置</el-button>
+                </NativeCheckbox>
+                <NativeButton size="small" text type="primary" @click="resetColumns">重置</NativeButton>
               </div>
               <div class="login-log-column-options">
-                <el-checkbox
+                <NativeCheckbox
                   v-for="column in columnOptions"
                   :key="column.key"
                   :model-value="isColumnVisible(column.key)"
@@ -238,38 +238,38 @@ function formatTime(value: string) {
                   @change="toggleColumn(column.key, $event)"
                 >
                   {{ column.label }}
-                </el-checkbox>
+                </NativeCheckbox>
               </div>
-            </el-popover>
-            <el-tooltip :content="fullscreen ? '退出全屏' : '全屏'" placement="top">
-              <el-button circle @click="fullscreen = !fullscreen">
+            </NativePopover>
+            <NativeTooltip :content="fullscreen ? '退出全屏' : '全屏'" placement="top">
+              <NativeButton circle @click="fullscreen = !fullscreen">
                 <AppIcon :name="fullscreen ? 'minimize' : 'maximize'" :size="18" />
-              </el-button>
-            </el-tooltip>
+              </NativeButton>
+            </NativeTooltip>
           </div>
         </div>
 
         <p v-if="message" class="login-log-message">{{ message }}</p>
 
         <div class="login-log-table-wrap">
-          <el-table :data="logs" row-key="id" class="login-log-table" v-loading="isLoading" empty-text="暂无操作记录">
-            <el-table-column v-if="isColumnVisible('createdAt')" label="时间" min-width="170">
+          <NativeTable :data="logs" row-key="id" class="login-log-table" v-loading="isLoading" empty-text="暂无操作记录">
+            <NativeTableColumn v-if="isColumnVisible('createdAt')" label="时间" min-width="170">
               <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
-            </el-table-column>
-            <el-table-column v-if="isColumnVisible('username')" prop="username" label="操作人" min-width="120" show-overflow-tooltip />
-            <el-table-column v-if="isColumnVisible('module')" prop="module" label="模块" min-width="120" show-overflow-tooltip />
-            <el-table-column v-if="isColumnVisible('action')" label="操作" min-width="120">
+            </NativeTableColumn>
+            <NativeTableColumn v-if="isColumnVisible('username')" prop="username" label="操作人" min-width="120" show-overflow-tooltip />
+            <NativeTableColumn v-if="isColumnVisible('module')" prop="module" label="模块" min-width="120" show-overflow-tooltip />
+            <NativeTableColumn v-if="isColumnVisible('action')" label="操作" min-width="120">
               <template #default="{ row }">
-                <el-tag type="success" size="small" effect="dark">{{ row.action || '-' }}</el-tag>
+                <NativeTag type="success" size="small" effect="dark">{{ row.action || '-' }}</NativeTag>
               </template>
-            </el-table-column>
-            <el-table-column v-if="isColumnVisible('target')" prop="target" label="对象" min-width="180" show-overflow-tooltip />
-            <el-table-column v-if="isColumnVisible('ipAddress')" label="IP" min-width="140">
+            </NativeTableColumn>
+            <NativeTableColumn v-if="isColumnVisible('target')" prop="target" label="对象" min-width="180" show-overflow-tooltip />
+            <NativeTableColumn v-if="isColumnVisible('ipAddress')" label="IP" min-width="140">
               <template #default="{ row }">{{ row.ipAddress || '-' }}</template>
-            </el-table-column>
-            <el-table-column v-if="isColumnVisible('detail')" prop="detail" label="详情" min-width="260" show-overflow-tooltip />
-            <el-table-column v-if="isColumnVisible('userAgent')" prop="userAgent" label="User Agent" min-width="300" show-overflow-tooltip />
-          </el-table>
+            </NativeTableColumn>
+            <NativeTableColumn v-if="isColumnVisible('detail')" prop="detail" label="详情" min-width="260" show-overflow-tooltip />
+            <NativeTableColumn v-if="isColumnVisible('userAgent')" prop="userAgent" label="User Agent" min-width="300" show-overflow-tooltip />
+          </NativeTable>
         </div>
 
         <div class="host-pagination" aria-label="操作记录分页">
@@ -277,7 +277,7 @@ function formatTime(value: string) {
             <span>共 {{ total }} 条</span>
             <span>{{ pageStart }}-{{ pageEnd }}</span>
           </div>
-          <el-pagination
+          <NativePagination
             background
             layout="prev, pager, next, sizes"
             :current-page="page"

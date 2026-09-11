@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from 'vue';
 
 import type { ManagedHost } from '@features/hosts/types';
@@ -39,21 +39,21 @@ const targetGroup = computed({
       <p v-if="props.mode === 'selected'" class="host-move-hint">仅支持更换主机分组，已选择 {{ props.selectedCount }} 台主机。</p>
       <label v-if="props.mode === 'single'">
         <span>选择主机</span>
-        <el-select v-model="hostId">
-          <el-option v-for="host in props.hosts" :key="host.id" :value="host.id" :label="`${host.name} · ${host.privateIp}`" />
-        </el-select>
+        <NativeSelect v-model="hostId">
+          <NativeOption v-for="host in props.hosts" :key="host.id" :value="host.id" :label="`${host.name} · ${host.privateIp}`" />
+        </NativeSelect>
       </label>
       <label>
         <span>目标分组</span>
-        <el-select v-model="targetGroup">
-          <el-option disabled :value="null" :label="props.root.label" />
-          <el-option v-for="group in props.groups" :key="group.key" :value="group.key" :label="`${'　'.repeat(group.level)}${group.label}`" />
-        </el-select>
+        <NativeSelect v-model="targetGroup">
+          <NativeOption disabled :value="null" :label="props.root.label" />
+          <NativeOption v-for="group in props.groups" :key="group.key" :value="group.key" :label="`${'　'.repeat(group.level)}${group.label}`" />
+        </NativeSelect>
       </label>
       <div class="host-form-actions popup-footer popup-actions">
         <el-button @click="emit('close')">取消</el-button>
         <el-button class="primary" native-type="submit" type="primary">{{ props.mode === 'selected' ? '更新' : '移动' }}</el-button>
       </div>
     </form>
-  </el-dialog>
+  </NativeDialog>
 </template>

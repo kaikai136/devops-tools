@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue';
 import AppIcon from '@shared/components/AppIcon.vue';
 import { formatTerminalFileSizeValue } from '../../utils/protocol';
@@ -61,12 +61,12 @@ onBeforeUnmount(stopResize);
 
 <template>
   <section class="terminal-transfer-panel" :class="{ resizing }">
-    <el-button class="terminal-transfer-resizer" title="调整文件传输栏高度" aria-label="调整文件传输栏高度" @mousedown="startResize" />
+    <NativeButton class="terminal-transfer-resizer" title="调整文件传输栏高度" aria-label="调整文件传输栏高度" @mousedown="startResize" />
     <header class="terminal-transfer-header">
       <strong>文件传输</strong>
       <div>
-        <el-button circle title="取消全部" aria-label="取消全部" :disabled="!hasRunning" @click="emit('cancelAll')"><AppIcon name="x" :size="14" /></el-button>
-        <el-button circle title="清空记录" aria-label="清空记录" :disabled="!hasClearable" @click="emit('clear')"><AppIcon name="trash" :size="14" /></el-button>
+        <NativeButton circle title="取消全部" aria-label="取消全部" :disabled="!hasRunning" @click="emit('cancelAll')"><AppIcon name="x" :size="14" /></NativeButton>
+        <NativeButton circle title="清空记录" aria-label="清空记录" :disabled="!hasClearable" @click="emit('clear')"><AppIcon name="trash" :size="14" /></NativeButton>
       </div>
     </header>
     <div class="terminal-transfer-list">
@@ -78,7 +78,7 @@ onBeforeUnmount(stopResize);
           <div class="terminal-transfer-progress" aria-hidden="true"><i :style="{ width: `${Math.max(0, Math.min(100, record.progress))}%` }"></i></div>
           <p>{{ statusText(record) }}</p>
         </div>
-        <el-button circle title="取消" aria-label="取消" :disabled="!isTransferActive(record)" @click="emit('cancel', record)"><AppIcon name="x" :size="13" /></el-button>
+        <NativeButton circle title="取消" aria-label="取消" :disabled="!isTransferActive(record)" @click="emit('cancel', record)"><AppIcon name="x" :size="13" /></NativeButton>
       </article>
     </div>
   </section>

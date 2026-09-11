@@ -68,34 +68,34 @@ function hasRowActions() {
 
 <template>
   <div class="user-table" :style="tableStyle">
-    <el-table :data="users" row-key="id" :empty-text="isLoading ? '加载中...' : '暂无匹配账户'">
-      <el-table-column v-if="isColumnVisible('username')" label="登录名" min-width="150">
+    <NativeTable :data="users" row-key="id" :empty-text="isLoading ? '加载中...' : '暂无匹配账户'">
+      <NativeTableColumn v-if="isColumnVisible('username')" label="登录名" min-width="150">
         <template #default="{ row }">
           <div class="user-login-name">
             <strong>{{ row.username }}</strong>
-            <el-tag v-if="row.isBuiltinAdmin" type="info" size="small" effect="dark">内置</el-tag>
+            <NativeTag v-if="row.isBuiltinAdmin" type="info" size="small" effect="dark">内置</NativeTag>
           </div>
         </template>
-      </el-table-column>
-      <el-table-column v-if="isColumnVisible('name')" label="姓名" min-width="120">
+      </NativeTableColumn>
+      <NativeTableColumn v-if="isColumnVisible('name')" label="姓名" min-width="120">
         <template #default="{ row }">{{ row.firstName || '-' }}</template>
-      </el-table-column>
-      <el-table-column v-if="isColumnVisible('roles')" label="角色" min-width="140">
+      </NativeTableColumn>
+      <NativeTableColumn v-if="isColumnVisible('roles')" label="角色" min-width="140">
         <template #default="{ row }">{{ roleNames(row) || '-' }}</template>
-      </el-table-column>
-      <el-table-column v-if="isColumnVisible('status')" label="状态" min-width="120">
+      </NativeTableColumn>
+      <NativeTableColumn v-if="isColumnVisible('status')" label="状态" min-width="120">
         <template #default="{ row }">
-          <el-tag :type="row.isActive ? 'success' : 'danger'" size="small" effect="dark">
+          <NativeTag :type="row.isActive ? 'success' : 'danger'" size="small" effect="dark">
             {{ loginStateText(row) === '可登录' ? '正常' : loginStateText(row) }}
-          </el-tag>
+          </NativeTag>
         </template>
-      </el-table-column>
-      <el-table-column v-if="isColumnVisible('lastLogin')" label="最近登录" min-width="180">
+      </NativeTableColumn>
+      <NativeTableColumn v-if="isColumnVisible('lastLogin')" label="最近登录" min-width="180">
         <template #default="{ row }">{{ formatDateTime(row.lastLogin) }}</template>
-      </el-table-column>
-      <el-table-column v-if="isColumnVisible('sessionAudit')" label="会话审计" min-width="140">
+      </NativeTableColumn>
+      <NativeTableColumn v-if="isColumnVisible('sessionAudit')" label="会话审计" min-width="140">
         <template #default="{ row }">
-          <el-switch
+          <NativeSwitch
             v-if="canUsePageAction('users', 'session_audit')"
             :model-value="sessionAuditEnabled(row)"
             inline-prompt
@@ -106,12 +106,12 @@ function hasRowActions() {
           />
           <span v-else class="permission-placeholder">-</span>
         </template>
-      </el-table-column>
-      <el-table-column v-if="isColumnVisible('twoFactor')" label="2FA" min-width="180">
+      </NativeTableColumn>
+      <NativeTableColumn v-if="isColumnVisible('twoFactor')" label="2FA" min-width="180">
         <template #default="{ row }">
           <span v-if="row.twoFactorStatus === 'required'" class="user-2fa-pending">待验证</span>
           <template v-else-if="hasTwoFactorActions(row)">
-            <el-switch
+            <NativeSwitch
               v-if="canToggleTwoFactor(row)"
               :model-value="row.twoFactorStatus === 'enabled'"
               inline-prompt
@@ -120,7 +120,7 @@ function hasRowActions() {
               :disabled="row.isBuiltinAdmin"
               @change="toggleTwoFactor(row)"
             />
-            <el-button
+            <NativeButton
               v-if="canUsePageAction('users', '2fa_reset')"
               size="small"
               text
@@ -129,38 +129,38 @@ function hasRowActions() {
               @click="$emit('resetTwoFactor', row)"
             >
               重置
-            </el-button>
+            </NativeButton>
           </template>
           <span v-else class="permission-placeholder">-</span>
         </template>
-      </el-table-column>
-      <el-table-column v-if="isColumnVisible('actions')" label="操作" min-width="240" fixed="right">
+      </NativeTableColumn>
+      <NativeTableColumn v-if="isColumnVisible('actions')" label="操作" min-width="240" fixed="right">
         <template #default="{ row }">
           <div class="user-row-actions">
-            <el-button v-if="canUsePageAction('users', 'toggle_status')" size="small" :disabled="row.isBuiltinAdmin" @click="$emit('toggleStatus', row)">
+            <NativeButton v-if="canUsePageAction('users', 'toggle_status')" size="small" :disabled="row.isBuiltinAdmin" @click="$emit('toggleStatus', row)">
               {{ row.isActive ? '禁用' : '启用' }}
-            </el-button>
-            <el-button v-if="canUsePageAction('users', 'edit')" size="small" type="primary" :disabled="row.isBuiltinAdmin" @click="$emit('edit', row)">
+            </NativeButton>
+            <NativeButton v-if="canUsePageAction('users', 'edit')" size="small" type="primary" :disabled="row.isBuiltinAdmin" @click="$emit('edit', row)">
               编辑
-            </el-button>
-            <el-button v-if="canUsePageAction('users', 'reset_password')" size="small" @click="$emit('resetPassword', row)">
+            </NativeButton>
+            <NativeButton v-if="canUsePageAction('users', 'reset_password')" size="small" @click="$emit('resetPassword', row)">
               重置密码
-            </el-button>
-            <el-button v-if="canUsePageAction('users', 'delete')" size="small" type="danger" :disabled="row.isBuiltinAdmin" @click="$emit('delete', row)">
+            </NativeButton>
+            <NativeButton v-if="canUsePageAction('users', 'delete')" size="small" type="danger" :disabled="row.isBuiltinAdmin" @click="$emit('delete', row)">
               删除
-            </el-button>
+            </NativeButton>
             <span v-if="!hasRowActions()" class="permission-placeholder">-</span>
           </div>
         </template>
-      </el-table-column>
-    </el-table>
+      </NativeTableColumn>
+    </NativeTable>
 
     <div class="host-pagination" aria-label="用户列表分页">
       <div class="host-pagination-summary">
         <span>共 {{ filteredCount }} 条</span>
         <span>{{ filteredCount ? (page - 1) * pageSize + 1 : 0 }}-{{ Math.min(page * pageSize, filteredCount) }}</span>
       </div>
-      <el-pagination
+      <NativePagination
         background
         layout="prev, pager, next, sizes"
         :current-page="page"
